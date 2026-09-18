@@ -735,6 +735,19 @@
       "title": "PiD: VAE Decode 4K"
     }
   },
+  "213": {
+    "inputs": {
+      "filename_prefix": "klein_base_prehires",
+      "images": [
+        "8:19",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Base (pre-PiD, tint verification)"
+    }
+  },
   "214": {
     "inputs": {
       "vae_name": "ae.safetensors"

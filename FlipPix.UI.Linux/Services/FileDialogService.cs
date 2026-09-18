@@ -11,26 +11,38 @@ namespace FlipPix.UI.Linux.Services;
 
 public class FileDialogService : IFileDialogService
 {
-    private static string? _lastUsedDirectory;
     private static TopLevel? _topLevel;
+
+    private readonly FlipPix.Core.Services.SettingsService _settingsService;
+
+    public FileDialogService(FlipPix.Core.Services.SettingsService settingsService)
+    {
+        _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+    }
 
     public static void SetTopLevel(TopLevel topLevel) => _topLevel = topLevel;
 
-    private static string? EffectiveDirectory(string? hint)
-        => _lastUsedDirectory ?? (string.IsNullOrEmpty(hint) ? null : hint);
+    /// <summary>
+    /// Where a browse button should open. The folder last used for this <paramref name="persistKey"/>
+    /// wins, so each button reopens where it was, and the choice survives a restart because
+    /// SettingsService writes it to settings.json.
+    /// </summary>
+    private string? EffectiveDirectory(string? hint, string? persistKey)
+        => _settingsService.GetLastBrowseFolder(persistKey)
+           ?? (string.IsNullOrEmpty(hint) ? null : hint);
 
-    private static void RememberDirectory(string? path)
+    private void RememberDirectory(string? path, string? persistKey)
     {
         if (string.IsNullOrEmpty(path)) return;
         var dir = Directory.Exists(path) ? path : Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
-            _lastUsedDirectory = dir;
+            _settingsService.SetLastBrowseFolder(persistKey, dir);
     }
 
-    private static async Task<IStorageFolder?> GetStartFolderAsync(string? hint)
+    private async Task<IStorageFolder?> GetStartFolderAsync(string? hint, string? persistKey)
     {
         if (_topLevel == null) return null;
-        var dir = EffectiveDirectory(hint);
+        var dir = EffectiveDirectory(hint, persistKey);
         if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return null;
         return await _topLevel.StorageProvider.TryGetFolderFromPathAsync(dir);
     }
@@ -55,15 +67,15 @@ public class FileDialogService : IFileDialogService
             || lower.Contains(".webp") || lower.Contains(".bmp");
     }
 
-    public async Task<string?> OpenFileDialogAsync(string title, string filter, string? initialDirectory = null)
+    public async Task<string?> OpenFileDialogAsync(string title, string filter, string? initialDirectory = null, string? persistKey = null)
     {
         if (_topLevel == null) return null;
 
         if (IsImageFilter(filter) && _topLevel is Window ownerWindow)
         {
-            var picker = new ImagePickerWindow(EffectiveDirectory(initialDirectory));
+            var picker = new ImagePickerWindow(EffectiveDirectory(initialDirectory, persistKey));
             var result = await picker.ShowDialog<string?>(ownerWindow);
-            if (!string.IsNullOrEmpty(result)) RememberDirectory(result);
+            if (!string.IsNullOrEmpty(result)) RememberDirectory(result, persistKey);
             return result;
         }
 
@@ -72,14 +84,14 @@ public class FileDialogService : IFileDialogService
             Title = title,
             AllowMultiple = false,
             FileTypeFilter = ParseFilter(filter),
-            SuggestedStartLocation = await GetStartFolderAsync(initialDirectory)
+            SuggestedStartLocation = await GetStartFolderAsync(initialDirectory, persistKey)
         });
         var path = files.FirstOrDefault()?.Path.LocalPath;
-        RememberDirectory(path);
+        RememberDirectory(path, persistKey);
         return path;
     }
 
-    public async Task<string[]> OpenFilesDialogAsync(string title, string filter, string? initialDirectory = null)
+    public async Task<string[]> OpenFilesDialogAsync(string title, string filter, string? initialDirectory = null, string? persistKey = null)
     {
         if (_topLevel == null) return Array.Empty<string>();
         var files = await _topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
@@ -87,14 +99,14 @@ public class FileDialogService : IFileDialogService
             Title = title,
             AllowMultiple = true,
             FileTypeFilter = ParseFilter(filter),
-            SuggestedStartLocation = await GetStartFolderAsync(initialDirectory)
+            SuggestedStartLocation = await GetStartFolderAsync(initialDirectory, persistKey)
         });
         var paths = files.Select(f => f.Path.LocalPath).ToArray();
-        if (paths.Length > 0) RememberDirectory(paths[0]);
+        if (paths.Length > 0) RememberDirectory(paths[0], persistKey);
         return paths;
     }
 
-    public async Task<string?> SaveFileDialogAsync(string title, string filter, string defaultFileName, string? initialDirectory = null)
+    public async Task<string?> SaveFileDialogAsync(string title, string filter, string defaultFileName, string? initialDirectory = null, string? persistKey = null)
     {
         if (_topLevel == null) return null;
         var file = await _topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
@@ -102,24 +114,24 @@ public class FileDialogService : IFileDialogService
             Title = title,
             FileTypeChoices = ParseFilter(filter),
             SuggestedFileName = defaultFileName,
-            SuggestedStartLocation = await GetStartFolderAsync(initialDirectory)
+            SuggestedStartLocation = await GetStartFolderAsync(initialDirectory, persistKey)
         });
         var path = file?.Path.LocalPath;
-        RememberDirectory(path);
+        RememberDirectory(path, persistKey);
         return path;
     }
 
-    public async Task<string?> OpenFolderDialogAsync(string title, string? initialDirectory = null, bool showNewFolderButton = false)
+    public async Task<string?> OpenFolderDialogAsync(string title, string? initialDirectory = null, bool showNewFolderButton = false, string? persistKey = null)
     {
         if (_topLevel == null) return null;
         var folders = await _topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
             Title = title,
             AllowMultiple = false,
-            SuggestedStartLocation = await GetStartFolderAsync(initialDirectory)
+            SuggestedStartLocation = await GetStartFolderAsync(initialDirectory, persistKey)
         });
         var path = folders.FirstOrDefault()?.Path.LocalPath;
-        RememberDirectory(path);
+        RememberDirectory(path, persistKey);
         return path;
     }
 }

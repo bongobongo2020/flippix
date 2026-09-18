@@ -1,0 +1,71 @@
+name: linux-build
+
+# The Avalonia port once rotted silently for weeks because nothing ever compiled
+# it on Linux. This keeps that from happening again: every change that can affect
+# the Linux app builds and publishes it on ubuntu runners, and every workflow
+# JSON must still parse (the graphs are hand-patched from time to time).
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'FlipPix.UI.Linux/**'
+      - 'FlipPix.Core/**'
+      - 'FlipPix.ComfyUI/**'
+      - 'workflow/**'
+      - 'prompts/**'
+      - '.github/workflows/linux-build.yml'
+  pull_request:
+    paths:
+      - 'FlipPix.UI.Linux/**'
+      - 'FlipPix.Core/**'
+      - 'FlipPix.ComfyUI/**'
+      - 'workflow/**'
+      - 'prompts/**'
+      - '.github/workflows/linux-build.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build (Release)
+        run: dotnet build FlipPix.UI.Linux/FlipPix.UI.Linux.csproj -c Release
+
+      - name: Publish (framework-dependent, linux-x64)
+        run: >
+          dotnet publish FlipPix.UI.Linux/FlipPix.UI.Linux.csproj
+          -c Release --runtime linux-x64 --self-contained false
+          -p:PublishReadyToRun=true -p:DebugType=none -p:DebugSymbols=false
+          -o publish-ci
+
+      - name: Validate workflow JSON
+        run: |
+          python3 - <<'EOF'
+          import glob, json, sys
+          bad = []
+          files = sorted(glob.glob("workflow/**/*.json", recursive=True))
+          for f in files:
+              try:
+                  json.load(open(f, encoding="utf-8"))
+              except Exception as ex:
+                  bad.append(f"{f}: {ex}")
+          print(f"parsed {len(files)} workflow JSON files")
+          if bad:
+              print("\n".join(bad))
+              sys.exit(1)
+          EOF
+
+      - name: Upload publish output
+        uses: actions/upload-artifact@v4
+        with:
+          name: flippix-linux-x64
+          path: publish-ci/
+          retention-days: 7

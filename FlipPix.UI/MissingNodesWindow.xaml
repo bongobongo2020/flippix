@@ -12,7 +12,7 @@
         ResizeMode="CanResize"
         MinHeight="440"
         MinWidth="600"
-        Background="#1E1E1E">
+        Background="{StaticResource AppBackgroundBrush}">
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -27,26 +27,26 @@
                    Text="Some custom nodes aren't installed"
                    FontSize="20"
                    FontWeight="Bold"
-                   Foreground="White"
+                   Foreground="{StaticResource TextPrimaryBrush}"
                    Margin="0,0,0,8"/>
 
         <TextBlock Grid.Row="1"
                    Name="IntroText"
                    TextWrapping="Wrap"
                    FontSize="13"
-                   Foreground="#CCCCCC"
+                   Foreground="{StaticResource TextSecondaryBrush}"
                    Margin="0,0,0,12"
                    Text="This workflow uses the custom node(s) below, which the connected ComfyUI doesn't have. Install the providing pack(s) automatically, then ComfyUI is restarted so they load."/>
 
         <Border Grid.Row="2"
-                Background="#252526"
-                BorderBrush="#3F3F46"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="1"
                 Padding="2">
             <ListView Name="NodesList"
                       Background="Transparent"
                       BorderThickness="0"
-                      Foreground="White"
+                      Foreground="{StaticResource TextPrimaryBrush}"
                       ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                 <ListView.View>
                     <GridView>
@@ -66,15 +66,15 @@
                      Height="6"
                      Margin="0,12,0,6"
                      IsIndeterminate="True"
-                     Foreground="#0E639C"
-                     Background="#2D2D30"
+                     Foreground="{StaticResource AccentIndigoBrush}"
+                     Background="{StaticResource SurfaceAltBrush}"
                      BorderThickness="0"
                      Visibility="Collapsed"/>
 
         <TextBlock Grid.Row="4"
                    Name="StatusText"
                    FontSize="12"
-                   Foreground="#AAAAAA"
+                   Foreground="{StaticResource TextMutedBrush}"
                    TextWrapping="Wrap"
                    Margin="0,0,0,12"/>
 
@@ -86,27 +86,21 @@
                     Click="InstallButton_Click"
                     Padding="20,10"
                     Margin="0,0,10,0"
-                    Background="#0E639C"
-                    Foreground="White"
-                    BorderThickness="0"
+                    Style="{StaticResource PrimaryButtonStyle}"
                     Cursor="Hand"/>
             <Button Name="RetryButton"
                     Content="Retry"
                     Click="RetryButton_Click"
                     Padding="20,10"
                     Margin="0,0,10,0"
-                    Background="#3F8E3F"
-                    Foreground="White"
-                    BorderThickness="0"
+                    Style="{StaticResource SuccessButtonStyle}"
                     Cursor="Hand"
                     IsEnabled="False"/>
             <Button Name="CancelButton"
                     Content="Cancel"
                     Click="CancelButton_Click"
                     Padding="20,10"
-                    Background="#3F3F46"
-                    Foreground="White"
-                    BorderThickness="0"
+                    Style="{StaticResource SecondaryButtonStyle}"
                     Cursor="Hand"/>
         </StackPanel>
     </Grid>

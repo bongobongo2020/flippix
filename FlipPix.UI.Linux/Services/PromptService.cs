@@ -176,12 +176,8 @@ namespace FlipPix.UI.Linux.Services
 
         private string GetPromptHistoryPath(string promptType)
         {
-            // Store prompts in %APPDATA%/FlipPix/prompts for persistence
-            var promptsFolder = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "FlipPix",
-                "prompts"
-            );
+            // Prompt history lives beside the rest of the user config.
+            var promptsFolder = Path.Combine(UserPaths.ConfigDir, "prompts");
             Directory.CreateDirectory(promptsFolder);
             return Path.Combine(promptsFolder, $"prompt_history_{promptType}.json");
         }

@@ -611,8 +611,8 @@ namespace FlipPix.UI.ViewModels
                 var systemPrompt = await File.ReadAllTextAsync(promptPath, _analyzeCts.Token);
 
                 SetAnalyzeProgress(10);
-                StatusMessage = "Sending images to LLM...";
-                AddLog($"Using model: {SelectedLlmModel}");
+                StatusMessage = $"Sending images to {_lmStudioService.DescribeTarget(SelectedLlmModel)}...";
+                AddLog(StatusMessage);
 
                 // Order matters and is documented in the system prompt:
                 // image 1 = Character 1 (man), image 2 = Character 2 (woman), image 3 = base scene.

@@ -248,7 +248,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             var baseUrl = GetComfyUIBaseUrl();
             bool isRemote = IsComfyUIRemote(new Uri(baseUrl).Host);
 
-            string outputFolder = isRemote ? settings.RemoteOutputFolderPath : settings.OutputFolderPath;
+            string outputFolder = settings.ResolveOutputFolder(isRemote);
             if (string.IsNullOrEmpty(outputFolder) || !Directory.Exists(outputFolder))
                 return existingFiles;
 
@@ -294,7 +294,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             var baseUrl = GetComfyUIBaseUrl();
             bool isRemote = IsComfyUIRemote(new Uri(baseUrl).Host);
 
-            string outputFolder = isRemote ? settings.RemoteOutputFolderPath : settings.OutputFolderPath;
+            string outputFolder = settings.ResolveOutputFolder(isRemote);
             if (string.IsNullOrEmpty(outputFolder))
             {
                 AddLog("ERROR: Output folder not configured");
@@ -389,7 +389,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 {
                     var baseUrl = GetComfyUIBaseUrl();
                     bool isRemote = IsComfyUIRemote(new Uri(baseUrl).Host);
-                    string outputFolder = isRemote ? settings.RemoteOutputFolderPath : settings.OutputFolderPath;
+                    string outputFolder = settings.ResolveOutputFolder(isRemote);
 
                     if (!string.IsNullOrEmpty(outputFolder))
                     {
@@ -622,47 +622,23 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         #region FFmpeg Helpers
 
         /// <summary>
-        /// Finds FFmpeg executable on the system.
+        /// Finds the FFmpeg executable on the system (PATH first, then well-known locations).
         /// </summary>
         protected string? FindFFmpeg()
         {
-            // Check common locations
-            var possiblePaths = new[]
-            {
-                @"C:\ffmpeg\bin\ffmpeg.exe",
-                @"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
-                @"C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe",
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe"),
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg", "ffmpeg.exe"),
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg", "bin", "ffmpeg.exe"),
-            };
+            var path = MediaTools.FFmpegPath;
+            AddLog(path is null ? "FFmpeg not found" : $"Found FFmpeg at: {path}");
+            return path;
+        }
 
-            foreach (var path in possiblePaths)
-            {
-                if (File.Exists(path))
-                {
-                    AddLog($"Found FFmpeg at: {path}");
-                    return path;
-                }
-            }
-
-            // Try PATH environment variable
-            var pathEnv = Environment.GetEnvironmentVariable("PATH");
-            if (!string.IsNullOrEmpty(pathEnv))
-            {
-                foreach (var dir in pathEnv.Split(';'))
-                {
-                    var ffmpegPath = Path.Combine(dir, "ffmpeg.exe");
-                    if (File.Exists(ffmpegPath))
-                    {
-                        AddLog($"Found FFmpeg in PATH: {ffmpegPath}");
-                        return ffmpegPath;
-                    }
-                }
-            }
-
-            AddLog("FFmpeg not found");
-            return null;
+        /// <summary>
+        /// Finds the FFprobe executable, normally the sibling of the resolved FFmpeg.
+        /// </summary>
+        protected string? FindFFprobe()
+        {
+            var path = MediaTools.FFprobePath;
+            if (path is null) AddLog("FFprobe not found");
+            return path;
         }
 
         /// <summary>
@@ -722,8 +698,8 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 var ffmpegPath = FindFFmpeg();
                 if (ffmpegPath == null) return (0, 0);
 
-                var ffprobePath = ffmpegPath.Replace("ffmpeg.exe", "ffprobe.exe");
-                if (File.Exists(ffprobePath))
+                var ffprobePath = FindFFprobe();
+                if (!string.IsNullOrEmpty(ffprobePath))
                 {
                     var startInfo = new ProcessStartInfo
                     {
@@ -789,9 +765,9 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 if (ffmpegPath == null) return null;
 
                 // Get source dimensions via ffprobe
-                var ffprobePath = ffmpegPath.Replace("ffmpeg.exe", "ffprobe.exe");
+                var ffprobePath = FindFFprobe();
                 int imgW = 0, imgH = 0;
-                if (File.Exists(ffprobePath))
+                if (!string.IsNullOrEmpty(ffprobePath))
                 {
                     var pi = new ProcessStartInfo
                     {
@@ -876,8 +852,8 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 if (ffmpegPath == null) return 0;
 
                 // Use ffprobe if available
-                var ffprobePath = ffmpegPath.Replace("ffmpeg.exe", "ffprobe.exe");
-                if (File.Exists(ffprobePath))
+                var ffprobePath = FindFFprobe();
+                if (!string.IsNullOrEmpty(ffprobePath))
                 {
                     var startInfo = new ProcessStartInfo
                     {
@@ -911,6 +887,135 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             }
 
             return 0;
+        }
+
+        #endregion
+
+        #region FFmpeg
+
+        /// <summary>
+        /// Stream-copy concatenates rendered chunks into one mp4 via FFmpeg's concat demuxer.
+        /// Shared by every chunked workflow so they all get the same correct process handling.
+        /// </summary>
+        /// <param name="tempPrefix">
+        /// Short tag for the temp list file, so a stray file is traceable to the feature that made it.
+        /// </param>
+        protected void MergeVideoChunks(IReadOnlyList<string> chunkFiles, string outputPath, string tempPrefix)
+        {
+            var ffmpegPath = FindFFmpeg();
+            if (string.IsNullOrEmpty(ffmpegPath))
+            {
+                AddLog("ERROR: ffmpeg not found. Cannot merge video chunks.");
+                throw new InvalidOperationException("ffmpeg is required to merge video chunks but was not found.");
+            }
+
+            if (chunkFiles == null || chunkFiles.Count == 0)
+                throw new InvalidOperationException("No video chunks to merge.");
+
+            var listFile = Path.Combine(Path.GetTempPath(), $"ffmpeg_{tempPrefix}_{Guid.NewGuid()}.txt");
+            try
+            {
+                using (var writer = new StreamWriter(listFile))
+                {
+                    foreach (var f in chunkFiles)
+                    {
+                        // The concat demuxer treats a backslash as an escape and a single quote as
+                        // the path delimiter, so normalise separators and escape any quote.
+                        var escaped = f.Replace("\\", "/").Replace("'", @"'\''");
+                        writer.WriteLine($"file '{escaped}'");
+                    }
+                }
+
+                AddLog($"Merging {chunkFiles.Count} chunks with ffmpeg...");
+                RunFFmpeg(ffmpegPath, $"-y -f concat -safe 0 -i \"{listFile}\" -c copy \"{outputPath}\"");
+            }
+            finally
+            {
+                try { File.Delete(listFile); } catch { /* temp file: best effort */ }
+            }
+
+            if (!File.Exists(outputPath))
+                throw new InvalidOperationException($"ffmpeg merge failed. Output not found: {outputPath}");
+
+            AddLog($"Merge complete: {Path.GetFileName(outputPath)}");
+        }
+
+        /// <summary>
+        /// Runs FFmpeg to completion and throws with FFmpeg's own error text when it fails.
+        /// </summary>
+        /// <remarks>
+        /// Both pipes are drained concurrently and the process is killed if it overruns. Leaving the
+        /// redirected pipes unread deadlocks: FFmpeg writes its entire log to stderr, so once that
+        /// pipe's ~4 KB buffer fills it blocks forever, the wait expires, and an orphaned process is
+        /// left holding the half-written output file.
+        /// </remarks>
+        protected void RunFFmpeg(string ffmpegPath, string arguments, int timeoutMs = 600000)
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                Arguments = arguments,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException($"Failed to start ffmpeg: {ffmpegPath}");
+
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            var stderrTask = process.StandardError.ReadToEndAsync();
+
+            if (!process.WaitForExit(timeoutMs))
+            {
+                try { process.Kill(entireProcessTree: true); } catch { /* already gone */ }
+                throw new TimeoutException($"ffmpeg did not finish within {timeoutMs / 1000}s and was stopped.");
+            }
+
+            // Only safe once the process has exited: unlike the timeout overload above, the
+            // parameterless one also waits for the redirected streams to flush and close.
+            process.WaitForExit();
+
+            // Observe both reads before inspecting the result so neither is left dangling.
+            var stderr = ReadPipe(stderrTask);
+            _ = ReadPipe(stdoutTask);
+
+            if (process.ExitCode != 0)
+            {
+                // FFmpeg puts the actual reason on the last non-empty line; everything above it is
+                // banner and per-stream info that would bury the message in the UI log.
+                var reason = stderr
+                    .Split('\n')
+                    .Select(l => l.Trim())
+                    .LastOrDefault(l => !string.IsNullOrWhiteSpace(l)) ?? "no error output";
+
+                AddLog($"ERROR: ffmpeg exited with code {process.ExitCode}: {reason}");
+                throw new InvalidOperationException($"ffmpeg failed (exit code {process.ExitCode}): {reason}");
+            }
+        }
+
+        /// <summary>
+        /// Completes a redirected-stream read, yielding empty text if the pipe was torn down.
+        /// </summary>
+        private static string ReadPipe(Task<string> readTask)
+        {
+            try { return readTask.GetAwaiter().GetResult(); }
+            catch { return string.Empty; }
+        }
+
+        /// <summary>
+        /// Strips the markdown bold and "Prompt:" preamble local LLMs habitually add around a caption.
+        /// </summary>
+        protected static string CleanLLMOutput(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return text;
+            text = text.Replace("**", "");
+            var trimmed = text.TrimStart();
+            var lower = trimmed.ToLowerInvariant();
+            if (lower.StartsWith("prompt:") || lower.StartsWith("prompt :"))
+                trimmed = trimmed[(trimmed.IndexOf(':') + 1)..];
+            return trimmed.Trim();
         }
 
         #endregion

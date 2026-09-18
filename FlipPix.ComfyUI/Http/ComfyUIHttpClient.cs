@@ -1,4 +1,4 @@
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Linq;
@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using FlipPix.Core.Interfaces;
 using FlipPix.Core.Models;
 using FlipPix.ComfyUI.Models;
+using FlipPix.ComfyUI.Services;
 
 namespace FlipPix.ComfyUI.Http;
 
@@ -362,6 +363,19 @@ public class ComfyUIHttpClient : IDisposable
             var hostSep = await GetHostPathSeparatorAsync(cancellationToken);
             workflow = NormalizeModelPathSeparators(workflow, hostSep);
 
+            // The Nvidia RTX pack renamed this node's widgets (scale/deblur -> resize_type). Write both
+            // sets so a workflow exported against either version runs here; a re-export from an older
+            // ComfyUI can otherwise silently break a tab. See RtxSuperResolutionCompat.
+            workflow = RtxSuperResolutionCompat.Normalize(workflow, m => _logger.LogInfo(m));
+
+            // Workflows exported from a newer ComfyUI can carry model-patch nodes this server doesn't
+            // have (ModelAttentionBackend). They pass their model straight through, so unwire them
+            // rather than blocking the submission on a node there is nothing to install for — this has
+            // to run before the missing-node check, which is what would otherwise reject the graph.
+            var loadedClassTypes = await GetLoadedClassTypesAsync(cancellationToken);
+            if (loadedClassTypes != null)
+                workflow = OptionalModelPatchCompat.Bypass(workflow, loadedClassTypes, m => _logger.LogInfo(m));
+
             // Pre-submit validation (nodes first): catch custom-node types the workflow references
             // but ComfyUI doesn't have loaded, and offer to install them instead of failing with
             // ComfyUI's raw "missing_node_type" dump. Done before the model check because a missing
@@ -452,6 +466,11 @@ public class ComfyUIHttpClient : IDisposable
                 }
             }
 
+            // Self-healing pass: pull any numeric widget back inside the limits this ComfyUI
+            // declares, so a node pack tightening its max (seeds, batch sizes, steps) doesn't
+            // fail the run and force a manual edit.
+            workflow = await ClampOutOfRangeInputsAsync(workflow, cancellationToken);
+
             var request = new PromptRequest
             {
                 Prompt = workflow,
@@ -477,9 +496,27 @@ public class ComfyUIHttpClient : IDisposable
             {
                 var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
                 var result = JsonSerializer.Deserialize<PromptResponse>(responseContent);
-                
+
+                // ComfyUI returns HTTP 200 with a prompt_id even when SOME output nodes
+                // failed validation: those nodes (and their whole upstream chain) are
+                // silently pruned from execution and reported in `node_errors`, while any
+                // still-valid output runs. That means the prompt can "succeed" yet never
+                // produce the image the user asked for (e.g. a required node input the
+                // exported API JSON omits). Treat a populated node_errors as a hard failure
+                // so the caller sees a clear message instead of a phantom "done" with no output.
+                if (result != null && result.NodeErrors.Count > 0)
+                {
+                    var detail = FormatNodeErrors(responseContent);
+                    _logger.LogError($"Prompt accepted but {result.NodeErrors.Count} node(s) failed validation and were dropped: {detail}");
+                    throw new FlipPix.ComfyUI.Exceptions.ComfyUIExecutionException(
+                        "ComfyUI rejected part of the workflow during validation, so it would not have produced an output:\n\n"
+                        + detail
+                        + "\n\nThis usually means a node input is missing or invalid (e.g. a custom node gained a required input the saved workflow doesn't set).",
+                        result.PromptId);
+                }
+
                 _logger.LogInfo("Workflow submitted successfully: {PromptId}", result?.PromptId ?? "unknown");
-                
+
                 return result?.PromptId ?? throw new InvalidOperationException("Prompt response missing ID");
             }
             else
@@ -492,6 +529,47 @@ public class ComfyUIHttpClient : IDisposable
         {
             _logger.LogError(ex, "Failed to submit workflow");
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Turns ComfyUI's /prompt `node_errors` map into a readable, per-node bullet list.
+    /// Shape: { "&lt;nodeId&gt;": { "class_type": ..., "errors": [ { "message", "details" }, ... ] } }.
+    /// </summary>
+    private static string FormatNodeErrors(string responseContent)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(responseContent);
+            if (!doc.RootElement.TryGetProperty("node_errors", out var nodeErrors) ||
+                nodeErrors.ValueKind != JsonValueKind.Object)
+                return "(no error detail)";
+
+            var lines = new List<string>();
+            foreach (var node in nodeErrors.EnumerateObject())
+            {
+                var classType = node.Value.TryGetProperty("class_type", out var ct) ? ct.GetString() : null;
+                var header = string.IsNullOrEmpty(classType)
+                    ? $"  • node {node.Name}:"
+                    : $"  • node {node.Name} ({classType}):";
+                lines.Add(header);
+
+                if (node.Value.TryGetProperty("errors", out var errs) && errs.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var e in errs.EnumerateArray())
+                    {
+                        var msg = e.TryGetProperty("message", out var m) ? m.GetString() : null;
+                        var details = e.TryGetProperty("details", out var d) ? d.GetString() : null;
+                        var text = string.IsNullOrEmpty(details) ? msg : $"{msg}: {details}";
+                        if (!string.IsNullOrEmpty(text)) lines.Add($"      - {text}");
+                    }
+                }
+            }
+            return lines.Count > 0 ? string.Join("\n", lines) : "(no error detail)";
+        }
+        catch
+        {
+            return "(could not parse node_errors)";
         }
     }
 
@@ -1162,6 +1240,79 @@ public class ComfyUIHttpClient : IDisposable
     }
 
     /// <summary>
+    /// True once ComfyUI has recorded this prompt in /history — which it only does after the prompt has
+    /// fully finished, successfully or not.
+    /// <para>This is the honest completion test. <see cref="GetOutputFilesForPromptAsync"/> is not: it
+    /// returns the prompt's <i>media</i> outputs, and a workflow whose output nodes report only text
+    /// (the MiniMaxH3Chain* nodes report their file paths as <c>text</c>) finishes with zero files. Using
+    /// the file count as the completion signal makes such a run look like it never landed, and then like
+    /// it vanished once it also left /queue.</para>
+    /// </summary>
+    public async Task<bool> HasHistoryEntryAsync(string promptId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // The per-prompt route avoids pulling (and parsing) the entire run history every 5 seconds.
+            var response = await _httpClient.GetAsync($"/history/{Uri.EscapeDataString(promptId)}", cancellationToken);
+            if (!response.IsSuccessStatusCode) return false;
+
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            using var doc = JsonDocument.Parse(content);
+            return doc.RootElement.ValueKind == JsonValueKind.Object &&
+                   doc.RootElement.TryGetProperty(promptId, out _);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug($"HasHistoryEntryAsync failed for {promptId}: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Returns this prompt's <c>text</c> outputs grouped by the node that produced them.
+    /// <para>Nodes that report a result rather than a file — ShowText, and the MiniMaxH3Chain* nodes,
+    /// which report the absolute paths of the segments and the assembled video — put it under the
+    /// <c>text</c> key, which none of the media readers above look at.</para>
+    /// </summary>
+    public async Task<Dictionary<string, List<string>>> GetTextOutputsByNodeAsync(string promptId, CancellationToken cancellationToken = default)
+    {
+        var result = new Dictionary<string, List<string>>();
+        try
+        {
+            var response = await _httpClient.GetAsync($"/history/{Uri.EscapeDataString(promptId)}", cancellationToken);
+            if (!response.IsSuccessStatusCode) return result;
+
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            var history = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(content);
+            if (history == null || !history.TryGetValue(promptId, out var entry)) return result;
+
+            JsonElement outputs;
+            if (!entry.TryGetProperty("outputs", out outputs) &&
+                !(entry.TryGetProperty("result", out var r) && r.TryGetProperty("outputs", out outputs)))
+                return result;
+
+            foreach (var node in outputs.EnumerateObject())
+            {
+                if (!node.Value.TryGetProperty("text", out var arr) || arr.ValueKind != JsonValueKind.Array)
+                    continue;
+
+                var lines = new List<string>();
+                foreach (var item in arr.EnumerateArray())
+                {
+                    var s = item.ValueKind == JsonValueKind.String ? item.GetString() : item.ToString();
+                    if (!string.IsNullOrEmpty(s)) lines.Add(s);
+                }
+                if (lines.Count > 0) result[node.Name] = lines;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get text outputs for prompt: {PromptId}", promptId);
+        }
+        return result;
+    }
+
+    /// <summary>
     /// Downloads a file from ComfyUI's /view endpoint using an explicit type ("output"/"temp"/"input").
     /// Falls back to the multi-pattern <see cref="DownloadOutputVideoAsync"/> if the direct request fails.
     /// </summary>
@@ -1404,6 +1555,283 @@ public class ComfyUIHttpClient : IDisposable
         _objectInfoCacheJson = json;
         _objectInfoCacheUtc = DateTime.UtcNow;
         return json;
+    }
+
+    /// <summary>
+    /// True when the prompt is still running or waiting in ComfyUI's queue. Read from the raw
+    /// /queue JSON rather than the typed model because ComfyUI serialises queue entries as
+    /// heterogeneous arrays ([number, prompt_id, prompt, extra_data, outputs]), which the typed
+    /// QueueItem cannot bind. Returns true on any error so a transient network blip is never
+    /// mistaken for a lost prompt.
+    /// </summary>
+    public Task<bool> IsPromptQueuedAsync(string promptId, CancellationToken cancellationToken = default) =>
+        IsQueueEntryContainingAsync(promptId, cancellationToken);
+
+    /// <summary>
+    /// True when any queued or running entry's JSON contains <paramref name="needle"/>.
+    ///
+    /// <para>A prompt id is the usual needle (see <see cref="IsPromptQueuedAsync"/>), but a VHS meta batch
+    /// re-queues the same graph under <i>new</i> prompt ids until the input runs out, so a chain can only be
+    /// followed by something that survives the requeue — a unique <c>filename_prefix</c>, say. Returns true
+    /// on any error so a transient network blip never reads as "finished".</para>
+    /// </summary>
+    public async Task<bool> IsQueueEntryContainingAsync(string needle, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(15));
+            var response = await _httpClient.GetAsync("/queue", cts.Token);
+            if (!response.IsSuccessStatusCode) return true;
+
+            var json = await response.Content.ReadAsStringAsync(cts.Token);
+            using var doc = JsonDocument.Parse(json);
+            foreach (var section in new[] { "queue_running", "queue_pending" })
+            {
+                if (!doc.RootElement.TryGetProperty(section, out var arr) || arr.ValueKind != JsonValueKind.Array)
+                    continue;
+                foreach (var entry in arr.EnumerateArray())
+                    if (entry.GetRawText().Contains(needle, StringComparison.Ordinal))
+                        return true;
+            }
+            return false;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogDebug($"IsQueueEntryContainingAsync failed (assuming still queued): {ex.Message}");
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Newest output file in /history whose filename starts with <paramref name="filenamePrefix"/>, as
+    /// "subfolder/filename" (or just "filename"), or null when the history holds none yet.
+    ///
+    /// <para>Written for the meta-batch case, where the file cannot be found by prompt id: every sub
+    /// execution but the last reports <c>unfinished_batch</c> instead of a file, and the last one lands
+    /// under a prompt id the app never submitted. A unique filename prefix is the only thread that runs
+    /// through the whole chain — and a match here means the file is <i>finished</i>, since VHS only writes
+    /// the history entry once the final batch has been muxed.</para>
+    /// </summary>
+    public async Task<string?> FindOutputFileFromHistoryAsync(
+        string filenamePrefix, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(30));
+            var response = await _httpClient.GetAsync("/history?max_items=64", cts.Token);
+            if (!response.IsSuccessStatusCode) return null;
+
+            var json = await response.Content.ReadAsStringAsync(cts.Token);
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) return null;
+
+            string? match = null;   // history is oldest-first, so the last hit is the newest
+            foreach (var entry in doc.RootElement.EnumerateObject())
+            {
+                if (!entry.Value.TryGetProperty("outputs", out var outputs) ||
+                    outputs.ValueKind != JsonValueKind.Object) continue;
+
+                foreach (var node in outputs.EnumerateObject())
+                {
+                    if (node.Value.ValueKind != JsonValueKind.Object) continue;
+
+                    // VHS reports videos under "gifs"; other nodes use images/videos/files.
+                    foreach (var key in new[] { "gifs", "videos", "images", "files" })
+                    {
+                        if (!node.Value.TryGetProperty(key, out var list) ||
+                            list.ValueKind != JsonValueKind.Array) continue;
+
+                        foreach (var file in list.EnumerateArray())
+                        {
+                            if (file.ValueKind != JsonValueKind.Object) continue;
+                            var filename = file.TryGetProperty("filename", out var f) ? f.GetString() : null;
+                            if (string.IsNullOrEmpty(filename) ||
+                                !filename.StartsWith(filenamePrefix, StringComparison.OrdinalIgnoreCase)) continue;
+
+                            var subfolder = file.TryGetProperty("subfolder", out var sf) ? sf.GetString() : null;
+                            match = string.IsNullOrEmpty(subfolder) ? filename : $"{subfolder}/{filename}";
+                        }
+                    }
+                }
+            }
+
+            return match;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogDebug($"FindOutputFileFromHistoryAsync failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Self-healing pre-submit pass: brings every numeric widget value inside the min/max the
+    /// connected ComfyUI declares for it in /object_info. Node packs change their limits between
+    /// versions (e.g. "easy globalSeed" caps seeds at 2^50 while other seed widgets accept 2^63),
+    /// which otherwise drops the node during validation and fails the whole run with
+    /// "Value bigger than max". Out-of-range seeds are wrapped (modulo) so they stay random;
+    /// everything else is clamped to the nearest bound. Best-effort — on any error the workflow is
+    /// returned untouched and the server decides.
+    /// </summary>
+    public async Task<object> ClampOutOfRangeInputsAsync(object workflow, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var oiJson = await GetObjectInfoJsonAsync(cancellationToken);
+            if (oiJson == null) return workflow;
+
+            var json = workflow is JsonElement je ? je.GetRawText() : JsonSerializer.Serialize(workflow);
+            if (JsonNode.Parse(json) is not JsonObject nodes) return workflow;
+
+            using var oiDoc = JsonDocument.Parse(oiJson);
+            var oiRoot = oiDoc.RootElement;
+
+            var fixes = new List<string>();
+            foreach (var node in nodes)
+            {
+                if (node.Value is not JsonObject obj) continue;
+                var classType = (obj["class_type"] as JsonValue)?.GetValue<string>();
+                if (string.IsNullOrEmpty(classType)) continue;
+                if (obj["inputs"] is not JsonObject inputs) continue;
+                if (!oiRoot.TryGetProperty(classType!, out var oiNode)) continue;
+                if (!oiNode.TryGetProperty("input", out var oiInput)) continue;
+
+                // Collect first, then assign — mutating a JsonObject mid-enumeration throws.
+                var changes = new List<KeyValuePair<string, double>>();
+                foreach (var input in inputs)
+                {
+                    if (input.Value is not JsonValue v || !v.TryGetValue<double>(out var current)) continue;
+                    if (!TryGetNumericRange(oiInput, input.Key, out var min, out var max)) continue;
+                    if (current >= min && current <= max) continue;
+
+                    // Seed widgets are often named just "value" on dedicated seed nodes
+                    // (e.g. "easy globalSeed"), so check the class type too — wrapping keeps
+                    // the run random where clamping would pin every run to the same seed.
+                    bool isSeed = input.Key.IndexOf("seed", StringComparison.OrdinalIgnoreCase) >= 0
+                                  || classType!.IndexOf("seed", StringComparison.OrdinalIgnoreCase) >= 0;
+                    double repaired = current > max
+                        ? (isSeed && max > 0 ? Math.Floor(current % max) : max)
+                        : min;
+
+                    changes.Add(new(input.Key, repaired));
+                    fixes.Add($"node {node.Key} ({classType}).{input.Key}: {current:F0} → {repaired:F0}");
+                }
+
+                foreach (var c in changes)
+                    inputs[c.Key] = c.Value == Math.Floor(c.Value) && Math.Abs(c.Value) < long.MaxValue
+                        ? JsonValue.Create((long)c.Value)
+                        : JsonValue.Create(c.Value);
+            }
+
+            if (fixes.Count == 0) return workflow;
+
+            _logger.LogWarning($"Auto-repaired {fixes.Count} out-of-range input(s) before submit: {string.Join("; ", fixes)}");
+            return nodes;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning($"ClampOutOfRangeInputsAsync failed (skipping): {ex.Message}");
+            return workflow;
+        }
+    }
+
+    /// <summary>
+    /// Reads an INT/FLOAT input's declared min/max from an /object_info node "input" block.
+    /// False for combo/string/link inputs or when no bounds are declared.
+    /// </summary>
+    private static bool TryGetNumericRange(JsonElement oiInput, string inputKey, out double min, out double max)
+    {
+        min = double.MinValue;
+        max = double.MaxValue;
+        foreach (var section in new[] { "required", "optional" })
+        {
+            if (!oiInput.TryGetProperty(section, out var sec) || sec.ValueKind != JsonValueKind.Object) continue;
+            if (!sec.TryGetProperty(inputKey, out var spec)) continue;
+            if (spec.ValueKind != JsonValueKind.Array || spec.GetArrayLength() < 2) return false;
+
+            var type = spec[0].ValueKind == JsonValueKind.String ? spec[0].GetString() : null;
+            if (type is not ("INT" or "FLOAT")) return false;
+            if (spec[1].ValueKind != JsonValueKind.Object) return false;
+
+            bool hasBound = false;
+            if (spec[1].TryGetProperty("min", out var minEl) && minEl.ValueKind == JsonValueKind.Number)
+            {
+                min = minEl.GetDouble();
+                hasBound = true;
+            }
+            if (spec[1].TryGetProperty("max", out var maxEl) && maxEl.ValueKind == JsonValueKind.Number)
+            {
+                max = maxEl.GetDouble();
+                hasBound = true;
+            }
+            return hasBound;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// True when the connected ComfyUI exposes every one of <paramref name="classTypes"/>.
+    ///
+    /// <para>For workflows that have an optional better path on a newer custom-node pack: ask first,
+    /// then emit the graph the server can actually run. This is deliberately <i>not</i> the missing-node
+    /// resolver's job — that one fires after a submission has already been built around nodes the server
+    /// does not have, and offers to install a whole pack. Here the pack is present and merely old, which
+    /// the resolver cannot detect and an install would not fix.</para>
+    ///
+    /// <para>Returns false when /object_info cannot be read, so an unreachable or slow server degrades to
+    /// the conservative branch rather than failing the submission.</para>
+    /// </summary>
+    public async Task<bool> HasNodeClassesAsync(
+        IReadOnlyCollection<string> classTypes, CancellationToken cancellationToken = default)
+    {
+        if (classTypes.Count == 0) return true;
+        try
+        {
+            var oiJson = await GetObjectInfoJsonAsync(cancellationToken);
+            if (oiJson == null) return false;
+
+            using var doc = JsonDocument.Parse(oiJson);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) return false;
+
+            foreach (var classType in classTypes)
+                if (!doc.RootElement.TryGetProperty(classType, out _)) return false;
+            return true;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning($"HasNodeClassesAsync: could not read /object_info ({ex.Message})");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// The class types the connected ComfyUI has loaded (the keys of /object_info). Null when
+    /// /object_info can't be read, so callers can leave the graph alone rather than guess.
+    /// </summary>
+    private async Task<HashSet<string>?> GetLoadedClassTypesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var oiJson = await GetObjectInfoJsonAsync(cancellationToken);
+            if (oiJson == null) return null;
+
+            using var oiDoc = JsonDocument.Parse(oiJson);
+            if (oiDoc.RootElement.ValueKind != JsonValueKind.Object) return null;
+
+            var loaded = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var prop in oiDoc.RootElement.EnumerateObject()) loaded.Add(prop.Name);
+            return loaded;
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogWarning($"GetLoadedClassTypesAsync failed (skipping node bypass): {ex.Message}");
+            return null;
+        }
     }
 
     /// <summary>

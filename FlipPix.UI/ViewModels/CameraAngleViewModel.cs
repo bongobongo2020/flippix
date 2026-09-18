@@ -72,11 +72,17 @@ namespace FlipPix.UI.ViewModels
                 Prompts.Add(new CameraPromptItem { Number = i + 1, Text = DefaultPrompts[i] });
             }
 
+            RefreshTrainingSets();
+
             AddLog("Camera Angle Generator initialized");
         }
 
         /// <summary>The list of camera-angle prompts that will be generated (one image each).</summary>
         public ObservableCollection<CameraPromptItem> Prompts { get; } = new();
+
+        /// <summary>Directory that holds the training-prompt set files (one prompt per line each).</summary>
+        private static string TrainingPromptsDir =>
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "training-prompts");
 
         /// <summary>Optional extra prompt; when set, an additional image is generated for it.</summary>
         public string ExtraPrompt
@@ -85,64 +91,97 @@ namespace FlipPix.UI.ViewModels
             set => SetProperty(ref _extraPrompt, value);
         }
 
-        // Training-prompt set selection (any combination of 1.txt / 2.txt / 3.txt under
-        // prompts/training-prompts). Loading replaces every entry in the prompt batcher.
-        [ObservableProperty]
-        private bool _trainingSet1Selected;
+        /// <summary>
+        /// The available training-prompt sets (each backed by a .txt file under
+        /// prompts/training-prompts, one prompt per line). Any combination can be selected
+        /// and loaded into the prompt batcher.
+        /// </summary>
+        public ObservableCollection<TrainingSetItem> TrainingSets { get; } = new();
 
+        /// <summary>Name for a new training set being saved from pasted prompts.</summary>
         [ObservableProperty]
-        private bool _trainingSet2Selected;
+        private string _newSetName = string.Empty;
 
+        /// <summary>Pasted prompts (one per line) that will be saved as a new training set.</summary>
         [ObservableProperty]
-        private bool _trainingSet3Selected;
+        private string _newSetPrompts = string.Empty;
+
+        /// <summary>Rescans the training-prompts folder and rebuilds <see cref="TrainingSets"/>.</summary>
+        private void RefreshTrainingSets()
+        {
+            // Preserve which sets were selected across a refresh.
+            var previouslySelected = new HashSet<string>(
+                TrainingSets.Where(s => s.IsSelected).Select(s => s.Name),
+                StringComparer.OrdinalIgnoreCase);
+
+            TrainingSets.Clear();
+
+            try
+            {
+                if (!Directory.Exists(TrainingPromptsDir))
+                {
+                    Directory.CreateDirectory(TrainingPromptsDir);
+                    return;
+                }
+
+                var files = Directory.GetFiles(TrainingPromptsDir, "*.txt")
+                    .OrderBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase);
+
+                foreach (var path in files)
+                {
+                    var name = Path.GetFileNameWithoutExtension(path);
+                    TrainingSets.Add(new TrainingSetItem
+                    {
+                        Name = name,
+                        FilePath = path,
+                        IsSelected = previouslySelected.Contains(name)
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error loading training sets: {ex.Message}");
+            }
+        }
 
         /// <summary>
         /// Replaces all prompts in the batcher with the lines from the selected training-prompt
-        /// files (1.txt, 2.txt, 3.txt). Any combination of the three sets can be selected.
+        /// sets. Any combination of sets can be selected.
         /// </summary>
         [RelayCommand]
         private void LoadTrainingPrompts()
         {
-            var sets = new (bool Selected, string File)[]
-            {
-                (TrainingSet1Selected, "1.txt"),
-                (TrainingSet2Selected, "2.txt"),
-                (TrainingSet3Selected, "3.txt"),
-            };
+            var selected = TrainingSets.Where(s => s.IsSelected).ToList();
 
-            if (!sets.Any(s => s.Selected))
+            if (selected.Count == 0)
             {
                 System.Windows.MessageBox.Show(
-                    "Select at least one training set (1, 2, or 3) first.",
+                    "Select at least one training set first.",
                     "Training Prompts", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
-            var promptsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "training-prompts");
             var lines = new List<string>();
 
-            foreach (var (selected, file) in sets)
+            foreach (var set in selected)
             {
-                if (!selected) continue;
-
-                var path = Path.Combine(promptsDir, file);
-                if (!File.Exists(path))
+                if (!File.Exists(set.FilePath))
                 {
-                    AddLog($"Training prompt file not found: {path}");
+                    AddLog($"Training prompt file not found: {set.FilePath}");
                     continue;
                 }
 
-                var fileLines = File.ReadAllLines(path)
+                var fileLines = File.ReadAllLines(set.FilePath)
                     .Select(l => l.Trim())
                     .Where(l => !string.IsNullOrEmpty(l));
                 lines.AddRange(fileLines);
-                AddLog($"Loaded training set {file}");
+                AddLog($"Loaded training set '{set.Name}'");
             }
 
             if (lines.Count == 0)
             {
                 System.Windows.MessageBox.Show(
-                    "No prompts found in the selected training files.",
+                    "No prompts found in the selected training sets.",
                     "Training Prompts", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -156,6 +195,111 @@ namespace FlipPix.UI.ViewModels
             AddLog($"Replaced prompt batcher with {lines.Count} training prompt(s)");
         }
 
+        /// <summary>
+        /// Saves the pasted prompts as a new training-prompt set (one prompt per line), then
+        /// refreshes the set list so it can be selected and loaded.
+        /// </summary>
+        [RelayCommand]
+        private void SaveTrainingSet()
+        {
+            var name = NewSetName?.Trim() ?? string.Empty;
+            if (string.IsNullOrEmpty(name))
+            {
+                System.Windows.MessageBox.Show(
+                    "Enter a name for the training set first.",
+                    "Save Training Set", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            // Sanitize the name into a safe file name.
+            var safeName = string.Join("_", name.Split(Path.GetInvalidFileNameChars())).Trim();
+            if (string.IsNullOrEmpty(safeName))
+            {
+                System.Windows.MessageBox.Show(
+                    "That name contains only invalid characters. Choose another name.",
+                    "Save Training Set", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var lines = (NewSetPrompts ?? string.Empty)
+                .Replace("\r\n", "\n")
+                .Split('\n')
+                .Select(l => l.Trim())
+                .Where(l => !string.IsNullOrEmpty(l))
+                .ToList();
+
+            if (lines.Count == 0)
+            {
+                System.Windows.MessageBox.Show(
+                    "Paste one or more prompts (one per line) before saving.",
+                    "Save Training Set", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            try
+            {
+                Directory.CreateDirectory(TrainingPromptsDir);
+                var path = Path.Combine(TrainingPromptsDir, safeName + ".txt");
+
+                if (File.Exists(path))
+                {
+                    var overwrite = System.Windows.MessageBox.Show(
+                        $"A training set named '{safeName}' already exists. Overwrite it?",
+                        "Save Training Set", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                    if (overwrite != MessageBoxResult.Yes)
+                        return;
+                }
+
+                File.WriteAllLines(path, lines);
+                AddLog($"Saved training set '{safeName}' with {lines.Count} prompt(s)");
+
+                NewSetName = string.Empty;
+                NewSetPrompts = string.Empty;
+                RefreshTrainingSets();
+
+                // Auto-select the set that was just saved.
+                var saved = TrainingSets.FirstOrDefault(
+                    s => string.Equals(s.Name, safeName, StringComparison.OrdinalIgnoreCase));
+                if (saved != null) saved.IsSelected = true;
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error saving training set: {ex.Message}");
+                System.Windows.MessageBox.Show(
+                    $"Could not save the training set:\n\n{ex.Message}",
+                    "Save Training Set", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>Deletes the given training-prompt set file after confirmation.</summary>
+        [RelayCommand]
+        private void DeleteTrainingSet(TrainingSetItem? set)
+        {
+            if (set == null) return;
+
+            var confirm = System.Windows.MessageBox.Show(
+                $"Delete the training set '{set.Name}'? This cannot be undone.",
+                "Delete Training Set", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes)
+                return;
+
+            try
+            {
+                if (File.Exists(set.FilePath))
+                    File.Delete(set.FilePath);
+
+                AddLog($"Deleted training set '{set.Name}'");
+                RefreshTrainingSets();
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error deleting training set: {ex.Message}");
+                System.Windows.MessageBox.Show(
+                    $"Could not delete the training set:\n\n{ex.Message}",
+                    "Delete Training Set", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         /// <summary>Restores the prompt batcher to the default camera-angle prompts.</summary>
         [RelayCommand]
         private void ResetToCameraAngles()
@@ -166,9 +310,9 @@ namespace FlipPix.UI.ViewModels
                 Prompts.Add(new CameraPromptItem { Number = i + 1, Text = DefaultPrompts[i] });
             }
 
-            TrainingSet1Selected = false;
-            TrainingSet2Selected = false;
-            TrainingSet3Selected = false;
+            foreach (var set in TrainingSets)
+                set.IsSelected = false;
+
             AddLog("Reset prompt batcher to default camera angles");
         }
 
@@ -845,6 +989,16 @@ namespace FlipPix.UI.ViewModels
         {
             public int Number { get; set; }
             public string Text { get; set; } = string.Empty;
+        }
+
+        /// <summary>A selectable training-prompt set backed by a .txt file on disk.</summary>
+        public partial class TrainingSetItem : ObservableObject
+        {
+            public string Name { get; set; } = string.Empty;
+            public string FilePath { get; set; } = string.Empty;
+
+            [ObservableProperty]
+            private bool _isSelected;
         }
 
         public void Dispose()

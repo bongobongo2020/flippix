@@ -32,6 +32,21 @@ namespace FlipPix.UI.Models
         private string _description = string.Empty;
 
         /// <summary>
+        /// Element kind understood by Ideogram4PromptBuilderKJ: "obj" for a subject,
+        /// "text" for rendered typography (which also carries <see cref="Text"/>).
+        /// </summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(IsTextElement))]
+        private string _type = "obj";
+
+        /// <summary>Literal string to render when <see cref="Type"/> is "text".</summary>
+        [ObservableProperty]
+        private string _text = string.Empty;
+
+        [JsonIgnore]
+        public bool IsTextElement => Type == "text";
+
+        /// <summary>
         /// Dominant hex colors for this region (becomes the region's "palette" in
         /// elements_data). Populated by the LLM analysis; empty when drawn by hand.
         /// </summary>

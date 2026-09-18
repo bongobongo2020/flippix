@@ -1,3 +1,8 @@
 # Shell scripts must use LF endings or they break under bash (Linux/WSL),
 # e.g. scripts/restore-comfyui.sh which is fetched and piped straight into bash.
 *.sh text eol=lf
+
+# Files consumed by Linux tooling that have no .sh extension. PKGBUILD is a bash
+# script run by makepkg, and CRLF would break its shebang-less sourcing.
+PKGBUILD text eol=lf
+*.desktop text eol=lf

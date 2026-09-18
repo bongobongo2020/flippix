@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="889" viewBox="0 0 1280 889" role="img" aria-label="FlipPix feature map">
+<rect width="1280" height="889" fill="#0d1220"/>
+<text x="34" y="52" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="27" font-weight="700">FlipPix &#183; what the app does</text>
+<text x="34" y="78" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="13">A Windows desktop front-end that turns ~30 hand-tuned ComfyUI graphs into single-purpose tabs, each with its own LLM prompt writer and job queue.</text>
+<rect x="34" y="96" width="1212" height="1" fill="#26324a"/>
+<rect x="34" y="128" width="389" height="603" rx="14" fill="#151d2e" stroke="#26324a"/>
+<rect x="34" y="128" width="389" height="4" rx="2" fill="#8b7bff"/>
+<text x="52" y="155" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="14" font-weight="700">Image Generator  ·  main window</text>
+<text x="52" y="171" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Create / Edit / Advanced tab groups</text>
+<text x="52" y="202" fill="#8b7bff" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5" font-weight="700" letter-spacing="1.4">CREATE</text>
+<rect x="48" y="218" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="48" y="225" width="3" height="30" rx="1.5" fill="#8b7bff"/>
+<text x="62" y="237" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">Image Generator</text>
+<text x="62" y="252" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Z-Image · Qwen 2512 · Klein Flux.2 · Anima · Krea2 turbo + LoRA stacks</text>
+<rect x="48" y="269" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="48" y="276" width="3" height="30" rx="1.5" fill="#8b7bff"/>
+<text x="62" y="288" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">Story Image Q</text>
+<text x="62" y="303" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Batch a whole story into keyframes, hand off to video</text>
+<rect x="48" y="320" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="48" y="327" width="3" height="30" rx="1.5" fill="#8b7bff"/>
+<text x="62" y="339" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">Amateur</text>
+<text x="62" y="354" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Amateur/phone-camera realism pass with LoRA support</text>
+<rect x="48" y="371" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="48" y="378" width="3" height="30" rx="1.5" fill="#8b7bff"/>
+<text x="62" y="390" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">Ideogram</text>
+<text x="62" y="405" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Prompt + draggable bounding-box composition, 2x refine pass</text>
+<text x="52" y="430" fill="#8b7bff" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5" font-weight="700" letter-spacing="1.4">EDIT</text>
+<rect x="48" y="446" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="48" y="453" width="3" height="30" rx="1.5" fill="#8b7bff"/>
+<text x="62" y="465" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">Editor</text>
+<text x="62" y="480" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Paint an inpaint mask over any image and re-render the region</text>
+<rect x="48" y="497" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="48" y="504" width="3" height="30" rx="1.5" fill="#8b7bff"/>
+<text x="62" y="516" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">Qwen Edit</text>
+<text x="62" y="531" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Swap one or two characters into a base scene (Qwen-Image-Edit 2511)</text>
+<rect x="48" y="548" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="48" y="555" width="3" height="30" rx="1.5" fill="#8b7bff"/>
+<text x="62" y="567" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">Restore</text>
+<text x="62" y="582" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Flux.2 Klein restoration + pixel-drift realign and blend-back</text>
+<text x="52" y="607" fill="#8b7bff" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5" font-weight="700" letter-spacing="1.4">ADVANCED</text>
+<rect x="48" y="623" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="48" y="630" width="3" height="30" rx="1.5" fill="#8b7bff"/>
+<text x="62" y="642" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">Camera Angle</text>
+<text x="62" y="657" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Low / high / bird&#x27;s-eye / rotation re-shoots that keep identity</text>
+<rect x="48" y="674" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="48" y="681" width="3" height="30" rx="1.5" fill="#8b7bff"/>
+<text x="62" y="693" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">Control</text>
+<text x="62" y="708" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Klein ControlNet from a pose image or video · Krea2 two-reference edit</text>
+<rect x="445" y="128" width="389" height="705" rx="14" fill="#151d2e" stroke="#26324a"/>
+<rect x="445" y="128" width="389" height="4" rx="2" fill="#34d3bd"/>
+<text x="463" y="155" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="14" font-weight="700">Video Generator  ·  11 pipelines</text>
+<text x="463" y="171" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Every tab: analyze → prompt → queue → ComfyUI</text>
+<text x="463" y="202" fill="#34d3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5" font-weight="700" letter-spacing="1.4">STORY &amp; MOTION</text>
+<rect x="459" y="218" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="459" y="225" width="3" height="30" rx="1.5" fill="#34d3bd"/>
+<text x="473" y="237" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">Story Video Generator</text>
+<text x="473" y="252" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Folder of stills → clips · 5 stacks: Sulphur 2, 10Eros, LTX-22-B, Dasiwa, Wan 2.2</text>
+<rect x="459" y="269" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="459" y="276" width="3" height="30" rx="1.5" fill="#34d3bd"/>
+<text x="473" y="288" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">Infinite Talk</text>
+<text x="473" y="303" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Audio-driven talking video, 81-frame chunked Wan 2.1</text>
+<rect x="459" y="320" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="459" y="327" width="3" height="30" rx="1.5" fill="#34d3bd"/>
+<text x="473" y="339" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">Scail 2</text>
+<text x="473" y="354" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Klein character swap → SCAIL II motion transfer on one tab</text>
+<rect x="459" y="371" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="459" y="378" width="3" height="30" rx="1.5" fill="#34d3bd"/>
+<text x="473" y="390" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">VR 180</text>
+<text x="473" y="405" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Flat clip → equirectangular SBS 3D via LTX IC-LoRA + depth</text>
+<rect x="459" y="422" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="459" y="429" width="3" height="30" rx="1.5" fill="#34d3bd"/>
+<text x="473" y="441" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">Video Sound</text>
+<text x="473" y="456" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Re-generate a clip with synced speech and sound effects</text>
+<text x="463" y="481" fill="#34d3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5" font-weight="700" letter-spacing="1.4">CHARACTER &amp; FACE</text>
+<rect x="459" y="497" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="459" y="504" width="3" height="30" rx="1.5" fill="#34d3bd"/>
+<text x="473" y="516" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">10Eros ConvRot</text>
+<text x="473" y="531" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Face ref → 4 LTX FaceID seed previews → full-res finish</text>
+<rect x="459" y="548" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="459" y="555" width="3" height="30" rx="1.5" fill="#34d3bd"/>
+<text x="473" y="567" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">FaceID Char Sheet</text>
+<text x="473" y="582" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Character image + audio + control video in one shot</text>
+<text x="463" y="607" fill="#34d3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5" font-weight="700" letter-spacing="1.4">MINIMAX H3 FAMILY</text>
+<rect x="459" y="623" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="459" y="630" width="3" height="30" rx="1.5" fill="#34d3bd"/>
+<text x="473" y="642" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">MiniMax H3</text>
+<text x="473" y="657" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Image as first frame → H3 prompt → video with synced audio</text>
+<rect x="459" y="674" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="459" y="681" width="3" height="30" rx="1.5" fill="#34d3bd"/>
+<text x="473" y="693" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">MiniMax FFLF</text>
+<text x="473" y="708" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">First+last frame (or a folder of pairs) → 3 seed previews → turbo finish</text>
+<rect x="459" y="725" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="459" y="732" width="3" height="30" rx="1.5" fill="#34d3bd"/>
+<text x="473" y="744" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">MiniMax H3 T2V</text>
+<text x="473" y="759" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">One image → dense ~15s multi-shot prompt → long-form video</text>
+<rect x="459" y="776" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="459" y="783" width="3" height="30" rx="1.5" fill="#34d3bd"/>
+<text x="473" y="795" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">MiniMax Character</text>
+<text x="473" y="810" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">1-2 character refs act out a scene image, story mode splits clips</text>
+<rect x="856" y="128" width="389" height="630" rx="14" fill="#151d2e" stroke="#26324a"/>
+<rect x="856" y="128" width="389" height="4" rx="2" fill="#f0a93b"/>
+<text x="874" y="155" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="14" font-weight="700">Enhance &amp; platform</text>
+<text x="874" y="171" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Shared services behind every tab</text>
+<text x="874" y="202" fill="#f0a93b" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5" font-weight="700" letter-spacing="1.4">ENHANCE VIDEO WINDOW</text>
+<rect x="870" y="218" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="870" y="225" width="3" height="30" rx="1.5" fill="#f0a93b"/>
+<text x="884" y="237" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">Interpolate</text>
+<text x="884" y="252" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">GIMM frame interpolation for smooth slow motion</text>
+<rect x="870" y="269" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="870" y="276" width="3" height="30" rx="1.5" fill="#f0a93b"/>
+<text x="884" y="288" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">Upscale</text>
+<text x="884" y="303" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">RTX Super Resolution or SeedVR2 7B INT8, selectable scale</text>
+<text x="874" y="328" fill="#f0a93b" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5" font-weight="700" letter-spacing="1.4">PLATFORM SERVICES</text>
+<rect x="870" y="344" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="870" y="351" width="3" height="30" rx="1.5" fill="#f0a93b"/>
+<text x="884" y="363" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">LLM analysis</text>
+<text x="884" y="378" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">LM Studio / Ollama / llama-server vision analyze, saved server profiles</text>
+<rect x="870" y="395" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="870" y="402" width="3" height="30" rx="1.5" fill="#f0a93b"/>
+<text x="884" y="414" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">Prompt library</text>
+<text x="884" y="429" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Per-tab system prompts in prompts/ + persistent scene library</text>
+<rect x="870" y="446" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="870" y="453" width="3" height="30" rx="1.5" fill="#f0a93b"/>
+<text x="884" y="465" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">Queue engine</text>
+<text x="884" y="480" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Per-tab queues with pause / resume / cancel, persisted across restarts</text>
+<rect x="870" y="497" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="870" y="504" width="3" height="30" rx="1.5" fill="#f0a93b"/>
+<text x="884" y="516" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">Missing model resolver</text>
+<text x="884" y="531" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Offers download, locate-folder or register when a model is absent</text>
+<rect x="870" y="548" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="870" y="555" width="3" height="30" rx="1.5" fill="#f0a93b"/>
+<text x="884" y="567" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">Missing node resolver</text>
+<text x="884" y="582" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Detects unknown class types and git-clones the node pack</text>
+<rect x="870" y="599" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="870" y="606" width="3" height="30" rx="1.5" fill="#f0a93b"/>
+<text x="884" y="618" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">LoRA manager</text>
+<text x="884" y="633" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Local or network LoRA folders, multi-slot Power LoRA stacks</text>
+<rect x="870" y="650" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="870" y="657" width="3" height="30" rx="1.5" fill="#f0a93b"/>
+<text x="884" y="669" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">16 GB tier</text>
+<text x="884" y="684" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Auto-swaps to memory-optimised workflow/16gb graphs on smaller GPUs</text>
+<rect x="870" y="701" width="361" height="44" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="870" y="708" width="3" height="30" rx="1.5" fill="#f0a93b"/>
+<text x="884" y="720" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">ComfyUI lifecycle</text>
+<text x="884" y="735" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Auto-start, crash restart, fresh install, clone/backup + restore</text>
+<text x="34" y="867" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">Windows 11 &#183; .NET 8 WPF (MVVM) &#183; drives a local or remote ComfyUI over HTTP + WebSocket</text>
+</svg>

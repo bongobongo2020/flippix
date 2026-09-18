@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=FlipPix
+GenericName=AI Image and Video Generator
+Comment=Drive ComfyUI image and video workflows from a desktop UI
+Exec=flippix %F
+Icon=flippix
+Terminal=false
+Categories=Graphics;2DGraphics;AudioVideo;Video;
+Keywords=AI;ComfyUI;StableDiffusion;image;video;generation;
+StartupNotify=true
+StartupWMClass=FlipPix.UI.Linux
+MimeType=image/png;image/jpeg;video/mp4;

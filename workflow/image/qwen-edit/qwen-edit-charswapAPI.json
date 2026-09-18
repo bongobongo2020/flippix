@@ -325,11 +325,12 @@
   },
   "217": {
     "inputs": {
-      "unet_name": "qwen-image-edit-2511-Q8_0.gguf"
+      "unet_name": "qwen/qwen_image_edit_2511_int8_convrot.safetensors",
+      "weight_dtype": "default"
     },
-    "class_type": "UnetLoaderGGUF",
+    "class_type": "UNETLoader",
     "_meta": {
-      "title": "Unet Loader (GGUF)"
+      "title": "Load Diffusion Model"
     }
   },
   "220": {

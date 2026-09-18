@@ -1,0 +1,168 @@
+{
+  "9": {
+    "inputs": {
+      "filename_prefix": "z-image-base",
+      "images": [
+        "76:65",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "76:67": {
+    "inputs": {
+      "text": "The subject is a young woman, appearing to be in her twenties, with a medium complexion and an oval face shape that is slightly narrower at the chin. Her forehead is high and smooth, sloping gently backward. Her eyebrows are dark, thick, and highly arched with a defined peak, extending to the outer corners of her eyes. Her eyes are large, dark brown, and almond-shaped with a slight upward tilt at the outer corners; they are wide open with visible upper and lower eyelashes and distinct double eyelids. The nose is straight with a rounded tip and moderate width, leading to nostrils that are slightly flared. Her mouth is slightly open in a closed-lip smile, revealing the upper teeth; her lips are full, particularly the lower lip, with a defined cupid's bow and a deep philtrum. Her jawline is soft but defined, tapering to a rounded chin. Her skin is clear with a smooth texture. She has long, dark, wavy hair that is parted on the side and falls loosely around her shoulders and back, partially covering her left shoulder. Her head is tilted slightly to her right, resting on her right hand, which is positioned against her cheek. She is wearing a dark, long-sleeved top and a red scarf draped around her neck and over her left shoulder. Her right arm is visible, adorned with multiple thin, dark bangles with gold accents stacked on her wrist. She wears a small gold stud earring in her visible left ear. Her gaze is directed straight at the camera. The composition is a close-up portrait, with the subject positioned slightly off-center to the right, filling most of the frame.",
+      "clip": [
+        "76:62",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "76:68": {
+    "inputs": {
+      "width": 1024,
+      "height": 1280,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "EmptySD3LatentImage"
+    }
+  },
+  "76:63": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "76:62": {
+    "inputs": {
+      "clip_name": "qwen_3_4b_int8_convrot.safetensors",
+      "type": "lumina2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "76:65": {
+    "inputs": {
+      "samples": [
+        "76:69",
+        0
+      ],
+      "vae": [
+        "76:63",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "76:71": {
+    "inputs": {
+      "text": "",
+      "clip": [
+        "76:62",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "76:70": {
+    "inputs": {
+      "shift": 3,
+      "model": [
+        "76:95",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "ModelSamplingAuraFlow"
+    }
+  },
+  "76:95": {
+    "inputs": {
+      "attention": "comfy kitchen attention",
+      "model": [
+        "76:96",
+        0
+      ]
+    },
+    "class_type": "ModelAttentionBackend",
+    "_meta": {
+      "title": "ModelAttentionBackend"
+    }
+  },
+  "76:66": {
+    "inputs": {
+      "unet_name": "z_image_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "76:69": {
+    "inputs": {
+      "seed": 586159881536122,
+      "steps": 30,
+      "cfg": 2.500000000000002,
+      "sampler_name": "res_2m",
+      "scheduler": "beta57",
+      "denoise": 1,
+      "model": [
+        "76:70",
+        0
+      ],
+      "positive": [
+        "76:67",
+        0
+      ],
+      "negative": [
+        "76:71",
+        0
+      ],
+      "latent_image": [
+        "76:68",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "76:96": {
+    "inputs": {
+      "lora_name": "zimage/zib/skin texture style zib v2.1.safetensors",
+      "strength_model": 0.8,
+      "model": [
+        "76:66",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  }
+}

@@ -1469,7 +1469,7 @@ namespace FlipPix.UI.Linux.ViewModels
             }
         }
 
-        private string QueueFilePath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FlipPix", "queue", "amateur_generator_queue.json");
+        private string QueueFilePath => UserPaths.Queue("amateur_generator_queue.json");
 
         private void SaveQueueToFile()
         {

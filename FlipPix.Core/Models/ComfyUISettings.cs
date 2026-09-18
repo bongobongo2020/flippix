@@ -1,4 +1,7 @@
+using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
 namespace FlipPix.Core.Models;
@@ -15,6 +18,11 @@ public class ComfyUISettings
     public string RemoteOutputFolderPath { get; set; } = string.Empty; // Network path to remote ComfyUI output folder
     public string RemoteLoraFolderPath { get; set; } = string.Empty; // Network path to remote ComfyUI LoRA folder
     public string KreaLoraFolderPath { get; set; } = string.Empty; // Network path to the Krea2 LoRA folder (e.g. loras\krea2)
+    // Trigger word to prepend to the prompt for each Krea2 LoRA, keyed by the LoRA file name
+    // (lower-cased, no extension). Seeded from the file name the first time a LoRA is picked;
+    // a correction typed into the Krea2 LoRA row is remembered here for every later session.
+    public Dictionary<string, string> KreaLoraTriggerWords { get; set; } = new();
+
     public string WslModelsFolderPath { get; set; } = string.Empty; // Windows models folder to expose to a WSL ComfyUI (e.g. E:\aimodels\comfyui\models)
 
     // Network/UNC path to a REMOTE ComfyUI's "models" folder. Lets the missing-model resolver
@@ -35,7 +43,73 @@ public class ComfyUISettings
     public double DetectedVramGb { get; set; } = 0;
 
     public List<SavedCameraPrompt> SavedCameraPrompts { get; set; } = new();
+
+    /// <summary>
+    /// What the 🌀 MiniMax I2V tab puts in the draft-idea box when &lt;Picture 1&gt; turns out to be a
+    /// stereoscopic pair packed into one frame. <c>{LAYOUT}</c> is replaced with "side-by-side" or
+    /// "over-under" to match what was detected.
+    ///
+    /// <para>Editable because the wording is source-specific — "wide-angle fisheye" is right for VR180
+    /// footage and wrong for a stereo photograph, and the tab has no way to tell which it is looking at.
+    /// Blank turns the auto-insert off.</para>
+    /// </summary>
+    public string MiniMaxI2VStereoPrompt { get; set; } = MiniMaxI2VStereoPromptDefault;
+
+    /// <summary>The shipped wording for <see cref="MiniMaxI2VStereoPrompt"/>, and what Reset restores.</summary>
+    public const string MiniMaxI2VStereoPromptDefault =
+        "The video maintains the identity and appearance of <Subject 2> from <Picture 2>. "
+        + "The visual style retains the wide-angle fisheye lens distortion and stereoscopic 3D "
+        + "{LAYOUT} format of <Picture 1>, with <Subject 2> as the central figure.";
     public LMStudioSettings LMStudioSettings { get; set; } = new LMStudioSettings();
+
+    /// <summary>
+    /// Where ComfyUI's outputs land <i>as seen from this machine</i>, for a local or remote server.
+    ///
+    /// <para>There are two configured paths and only one of them is right for a given server, so every
+    /// caller used to write <c>isRemote ? RemoteOutputFolderPath : OutputFolderPath</c> by hand. That
+    /// picks a path even when it is stale or unreachable — a remote setup whose
+    /// <see cref="RemoteOutputFolderPath"/> points at a dead network drive would keep scanning it and
+    /// ignore the perfectly good <see cref="OutputFolderPath"/> the user had just corrected, because
+    /// the main Settings window only ever edited the latter.</para>
+    ///
+    /// <para>So: prefer the path that matches the server, but fall back to the other one when the
+    /// preferred path is unset or not reachable. When neither is reachable the preferred path is
+    /// returned unchanged, so logs and error messages name the folder the user actually configured.</para>
+    /// </summary>
+    public string ResolveOutputFolder(bool isRemote)
+    {
+        var preferred = (isRemote ? RemoteOutputFolderPath : OutputFolderPath) ?? string.Empty;
+        var fallback = (isRemote ? OutputFolderPath : RemoteOutputFolderPath) ?? string.Empty;
+
+        if (IsReachableFolder(preferred)) return preferred;
+        if (IsReachableFolder(fallback)) return fallback;
+
+        return string.IsNullOrWhiteSpace(preferred) ? fallback : preferred;
+    }
+
+    // Probing a disconnected network drive can block for seconds, and the callers below sit in
+    // polling loops, so remember the answer briefly. A folder that appears (or disappears) is
+    // picked up on the next expiry rather than instantly, which is fine for an output directory.
+    private static readonly ConcurrentDictionary<string, (DateTime Probed, bool Exists)> _folderProbes =
+        new(StringComparer.OrdinalIgnoreCase);
+    private static readonly TimeSpan FolderProbeTtl = TimeSpan.FromSeconds(30);
+
+    /// <summary>True when <paramref name="path"/> is set and currently resolves to a real directory.</summary>
+    public static bool IsReachableFolder(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+
+        var now = DateTime.UtcNow;
+        if (_folderProbes.TryGetValue(path, out var cached) && now - cached.Probed < FolderProbeTtl)
+            return cached.Exists;
+
+        bool exists;
+        try { exists = Directory.Exists(path); }
+        catch { exists = false; }   // unreachable share, denied, malformed path
+
+        _folderProbes[path] = (now, exists);
+        return exists;
+    }
 
     /// <summary>
     /// Last-used browse folder per dialog context, keyed by an arbitrary caller key
@@ -78,6 +152,28 @@ public class ComfyUISettings
     public string SelectedVideoWorkflow { get; set; } = "ltx2_i2v"; // Default to LTXV
     public int Ltx23FrameCount { get; set; } = 240;
 
+    // Scail 2 tab: internal per-chunk window (frames) for the SCAIL2 hi-res loop (workflow node 45
+    // "VIDEO BATCH SIZE"). Lower = less peak VRAM per pass (avoids OOM on long clips). Default 40 is
+    // safe on a 24GB card; persisted so the choice survives restarts.
+    public int Scail2VideoBatchSize { get; set; } = 40;
+
+    // Scail 2 tab: output resolution override for the final SCAIL II video, as "WxH" (e.g. "1280x720").
+    // Empty or "0x0" keeps the workflow's authored ResolutionMaster default; a concrete value forces the
+    // generation canvas (EmptyImage node 30) to exactly that size. Persisted so the choice survives restarts.
+    public string Scail2Resolution { get; set; } = "0x0";
+
+    // Scail 2 tab: keep the driving video's original background (SCAIL2 "replacement" mode, node 39) and
+    // regenerate only the swapped character, instead of regenerating the whole frame ("animation" mode).
+    // Keeping the original background composites the real scene every frame, so a static background (e.g.
+    // a waterfall) cannot colour-drift or soften across the autoregressive chunks. Persisted per user.
+    public bool Scail2KeepOriginalBackground { get; set; } = false;
+
+    // Scail 2 tab: run the segmentation-control workflow's post pass — RIFE frame interpolation (2×) then
+    // the RTX Video Super Resolution upscale (2×) — instead of saving the raw sampler output. Doubles both
+    // the frame rate and the resolution at the cost of a longer run, and needs the RIFE + nvidia-vfx nodes
+    // installed. Off by default so the tab works on a plain SCAIL install. Persisted per user.
+    public bool Scail2Interpolate { get; set; } = false;
+
     // Painter (WAN 2.2 LightX2V) workflow model names — adjust to match your ComfyUI server
     public string PainterHighNoiseModel { get; set; } = @"wan\wan2.2_i2v_high_noise_14B_Q8_0.gguf";
     public string PainterLowNoiseModel { get; set; } = @"wan\wan2.2_i2v_low_noise_14B_Q8_0.gguf";
@@ -115,6 +211,35 @@ public class ComfyUISettings
 
     /// <summary>Saved LM Studio server URLs (most-recent first), surfaced for UI binding.</summary>
     public List<string> LMStudioServerHistory => LMStudioSettings?.ServerHistory ?? new List<string>();
+
+    /// <summary>Friendly name of the default LLM server, for UI binding.</summary>
+    public string LMStudioServerName
+    {
+        get => LMStudioSettings?.DefaultProfile?.Name ?? string.Empty;
+        set
+        {
+            LMStudioSettings ??= new LMStudioSettings();
+            LMStudioSettings.EnsureProfiles();
+            var profile = LMStudioSettings.DefaultProfile;
+            if (profile != null) profile.Name = (value ?? string.Empty).Trim();
+        }
+    }
+
+    /// <summary>Friendly name of the default LLM model, for UI binding.</summary>
+    public string LMStudioModelName
+    {
+        get => LMStudioSettings?.DefaultProfile?.ModelName ?? string.Empty;
+        set
+        {
+            LMStudioSettings ??= new LMStudioSettings();
+            LMStudioSettings.EnsureProfiles();
+            var profile = LMStudioSettings.DefaultProfile;
+            if (profile != null) profile.ModelName = (value ?? string.Empty).Trim();
+        }
+    }
+
+    /// <summary>Where image analysis is currently sent, e.g. "Alien Box (http://alien:8080) · Qwen2.5-VL 7B".</summary>
+    public string LlmTargetDescription => LMStudioSettings?.DescribeTarget() ?? string.Empty;
 
     // Selected model for binding to the ComboBox
     public string SelectedModel

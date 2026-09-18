@@ -12,7 +12,7 @@
         ResizeMode="CanResize"
         MinHeight="420"
         MinWidth="560"
-        Background="#1E1E1E">
+        Background="{StaticResource AppBackgroundBrush}">
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -27,25 +27,25 @@
                    Text="Some models aren't installed"
                    FontSize="20"
                    FontWeight="Bold"
-                   Foreground="White"
+                   Foreground="{StaticResource TextPrimaryBrush}"
                    Margin="0,0,0,8"/>
 
         <TextBlock Grid.Row="1"
                    TextWrapping="Wrap"
                    FontSize="13"
-                   Foreground="#CCCCCC"
+                   Foreground="{StaticResource TextSecondaryBrush}"
                    Margin="0,0,0,12"
                    Text="The connected ComfyUI is missing the model file(s) below. Download the known ones automatically, or point FlipPix at a folder that already contains them — that folder is remembered so you're only asked once."/>
 
         <Border Grid.Row="2"
-                Background="#252526"
-                BorderBrush="#3F3F46"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="1"
                 Padding="2">
             <ListView Name="ModelsList"
                       Background="Transparent"
                       BorderThickness="0"
-                      Foreground="White"
+                      Foreground="{StaticResource TextPrimaryBrush}"
                       ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                 <ListView.View>
                     <GridView>
@@ -66,15 +66,15 @@
                      Margin="0,12,0,6"
                      Minimum="0"
                      Maximum="100"
-                     Foreground="#0E639C"
-                     Background="#2D2D30"
+                     Foreground="{StaticResource AccentIndigoBrush}"
+                     Background="{StaticResource SurfaceAltBrush}"
                      BorderThickness="0"
                      Visibility="Collapsed"/>
 
         <TextBlock Grid.Row="4"
                    Name="StatusText"
                    FontSize="12"
-                   Foreground="#AAAAAA"
+                   Foreground="{StaticResource TextMutedBrush}"
                    TextWrapping="Wrap"
                    Margin="0,0,0,12"/>
 
@@ -86,36 +86,28 @@
                     Click="DownloadButton_Click"
                     Padding="20,10"
                     Margin="0,0,10,0"
-                    Background="#0E639C"
-                    Foreground="White"
-                    BorderThickness="0"
+                    Style="{StaticResource PrimaryButtonStyle}"
                     Cursor="Hand"/>
             <Button Name="LocateButton"
                     Content="Locate folder..."
                     Click="LocateButton_Click"
                     Padding="20,10"
                     Margin="0,0,10,0"
-                    Background="#0E639C"
-                    Foreground="White"
-                    BorderThickness="0"
+                    Style="{StaticResource PrimaryButtonStyle}"
                     Cursor="Hand"/>
             <Button Name="DoneButton"
                     Content="Done"
                     Click="DoneButton_Click"
                     Padding="20,10"
                     Margin="0,0,10,0"
-                    Background="#3F8E3F"
-                    Foreground="White"
-                    BorderThickness="0"
+                    Style="{StaticResource SuccessButtonStyle}"
                     Cursor="Hand"
                     IsEnabled="False"/>
             <Button Name="CancelButton"
                     Content="Cancel"
                     Click="CancelButton_Click"
                     Padding="20,10"
-                    Background="#3F3F46"
-                    Foreground="White"
-                    BorderThickness="0"
+                    Style="{StaticResource SecondaryButtonStyle}"
                     Cursor="Hand"/>
         </StackPanel>
     </Grid>

@@ -27,9 +27,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         private const int FramesPerChunk = 81;
         private const string OutputSubfolder = "wan_vace";
 
-        private string QueueFilePath => Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "FlipPix", "queue", "vace_queue.json");
+        private string QueueFilePath => UserPaths.Queue("vace_queue.json");
 
         private string _prompt = string.Empty;
         private string _foregroundImagePath = string.Empty;
@@ -865,44 +863,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         }
 
         private void MergeVideoChunksWithFFmpeg(List<string> chunkFiles, string outputPath)
-        {
-            var ffmpegPath = FindFFmpeg();
-            if (string.IsNullOrEmpty(ffmpegPath))
-            {
-                AddLog("ERROR: ffmpeg not found. Cannot merge video chunks.");
-                throw new InvalidOperationException("ffmpeg is required to merge video chunks.");
-            }
-
-            var listFile = Path.Combine(Path.GetTempPath(), $"ffmpeg_vace_{Guid.NewGuid()}.txt");
-            using (var writer = new StreamWriter(listFile))
-            {
-                foreach (var f in chunkFiles)
-                    writer.WriteLine($"file '{f.Replace("\\", "/")}'");
-            }
-
-            AddLog($"Merging {chunkFiles.Count} chunks with ffmpeg...");
-
-            var startInfo = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = ffmpegPath,
-                Arguments = $"-f concat -safe 0 -i \"{listFile}\" -c copy \"{outputPath}\"",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using var process = System.Diagnostics.Process.Start(startInfo);
-            if (process == null) throw new InvalidOperationException("Failed to start ffmpeg.");
-
-            process.WaitForExit(120000);
-            try { File.Delete(listFile); } catch { }
-
-            if (!File.Exists(outputPath))
-                throw new InvalidOperationException($"ffmpeg merge failed. Output not found: {outputPath}");
-
-            AddLog($"Merge complete: {Path.GetFileName(outputPath)}");
-        }
+            => MergeVideoChunks(chunkFiles, outputPath, "vace");
 
         #endregion
 

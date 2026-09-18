@@ -5,6 +5,7 @@
     <!-- Converters -->
     <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
     <converters:SubtractConverter x:Key="SubtractConverter"/>
+    <converters:StringToVisibilityConverter x:Key="StringToVisibilityConverter"/>
 
     <!-- ============================================================= -->
     <!--  DESIGN TOKENS                                                -->
@@ -26,17 +27,37 @@
     <SolidColorBrush x:Key="BorderStrongBrush" Color="#D1D5DB"/>
     <Color x:Key="BorderColor">#E5E7EB</Color>
 
-    <!-- Text -->
-    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#1F2937"/>
-    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#6B7280"/>
-    <SolidColorBrush x:Key="TextMutedBrush" Color="#9CA3AF"/>
+    <!-- Text ramp. Three clearly separated steps, all of which clear WCAG AA (4.5:1)
+         on the light surfaces above — the previous muted grey sat at 2.5:1 on white,
+         which made hints and placeholders hard to read. -->
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#1F2937"/>   <!-- 12.6:1 on white -->
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#4B5563"/> <!--  7.5:1 on white -->
+    <SolidColorBrush x:Key="TextMutedBrush" Color="#656C78"/>     <!--  5.2:1 on white, 4.7:1 on the page -->
+    <!-- Non-text greys (icons, rules, decorative dots) may stay lighter. -->
+    <SolidColorBrush x:Key="TextFaintBrush" Color="#9CA3AF"/>
 
     <!-- Secondary action / neutral controls -->
     <SolidColorBrush x:Key="NeutralBrush" Color="#475569"/>
     <SolidColorBrush x:Key="NeutralHoverBrush" Color="#334155"/>
 
+    <!-- Video/image players sit on near-black so the frame edge reads cleanly. This is the
+         one dark surface in the app; every player uses it rather than its own shade. -->
+    <SolidColorBrush x:Key="PlayerSurfaceBrush" Color="#0C0A09"/>
+    <!-- Busy/hover scrim drawn over a frame; white text sits on top of it. -->
+    <SolidColorBrush x:Key="ScrimBrush" Color="#CC0C0A09"/>
+    <!-- Placeholder/caption text drawn ON PlayerSurfaceBrush. The normal text ramp is
+         tuned for light surfaces and drops below AA against near-black, so on-dark text
+         gets its own token (11:1 here) instead of reusing TextSecondary/TextMuted. -->
+    <SolidColorBrush x:Key="PlayerTextBrush" Color="#D1D5DB"/>
+    <!-- Chip/badge raised off the player surface (empty-state icons, overlay pills). -->
+    <SolidColorBrush x:Key="PlayerSurfaceRaisedBrush" Color="#1F2937"/>
+
     <!-- Semantic -->
-    <SolidColorBrush x:Key="SuccessBrush" Color="#16A34A"/>
+    <!-- Fill for success buttons; dark enough for the bold white label on top. -->
+    <SolidColorBrush x:Key="SuccessBrush" Color="#15803D"/>
+    <SolidColorBrush x:Key="SuccessHoverBrush" Color="#166534"/>
+    <!-- Green as small TEXT on a light surface needs to go darker still (5.6:1). -->
+    <SolidColorBrush x:Key="SuccessTextBrush" Color="#166534"/>
     <SolidColorBrush x:Key="DangerBrush" Color="#DC2626"/>
     <SolidColorBrush x:Key="DangerHoverBrush" Color="#EF4444"/>
     <SolidColorBrush x:Key="DisabledBrush" Color="#CBD5E1"/>
@@ -44,13 +65,84 @@
     <SolidColorBrush x:Key="DisabledTextBrush" Color="#475569"/>
 
     <!-- ============================================================= -->
+    <!--  PER-TAB ACCENT                                               -->
+    <!--                                                               -->
+    <!--  Every tab shares the same neutral surfaces, cards, spacing   -->
+    <!--  and type. A tab differs only by its accent, which appears in  -->
+    <!--  small doses: the section dots, the intro banner and the       -->
+    <!--  primary action button.                                        -->
+    <!--                                                               -->
+    <!--  A tab claims its identity by overriding TabAccentBrush once,  -->
+    <!--  in its root element's Resources:                              -->
+    <!--                                                               -->
+    <!--      <Grid.Resources>                                          -->
+    <!--          <SolidColorBrush x:Key="TabAccentBrush"               -->
+    <!--                  Color="{StaticResource AccentRoseColor}"/>    -->
+    <!--      </Grid.Resources>                                         -->
+    <!--                                                               -->
+    <!--  The styles below reference it with DynamicResource, not       -->
+    <!--  StaticResource: StaticResource would bind once at the point   -->
+    <!--  the style is DEFINED (here, always the brand orange), while   -->
+    <!--  DynamicResource resolves from where the style is APPLIED and  -->
+    <!--  so picks up each tab's override.                              -->
+    <!--                                                               -->
+    <!--  Every accent is dark enough to carry white text at AA.        -->
+    <!-- ============================================================= -->
+    <Color x:Key="AccentVioletColor">#7C3AED</Color>
+    <Color x:Key="AccentIndigoColor">#4F46E5</Color>
+    <Color x:Key="AccentCyanColor">#0E7490</Color>
+    <Color x:Key="AccentEmeraldColor">#047857</Color>
+    <Color x:Key="AccentAmberColor">#B45309</Color>
+    <Color x:Key="AccentRoseColor">#E11D48</Color>
+
+    <!-- Brush forms, for windows that are not tab-based and just need a named accent. -->
+    <SolidColorBrush x:Key="AccentVioletBrush" Color="{StaticResource AccentVioletColor}"/>
+    <SolidColorBrush x:Key="AccentIndigoBrush" Color="{StaticResource AccentIndigoColor}"/>
+    <SolidColorBrush x:Key="AccentCyanBrush" Color="{StaticResource AccentCyanColor}"/>
+    <SolidColorBrush x:Key="AccentEmeraldBrush" Color="{StaticResource AccentEmeraldColor}"/>
+    <SolidColorBrush x:Key="AccentAmberBrush" Color="{StaticResource AccentAmberColor}"/>
+    <SolidColorBrush x:Key="AccentRoseBrush" Color="{StaticResource AccentRoseColor}"/>
+
+    <!-- Default accent, used by any tab that does not override it. -->
+    <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource BrandColor}"/>
+
+    <!-- ============================================================= -->
     <!--  TEXT STYLES                                                  -->
+    <!--                                                               -->
+    <!--  Two heading levels, used consistently:                        -->
+    <!--    HeaderTextStyle  - page/panel heading in a full-width area   -->
+    <!--    SectionHeader    - compact heading inside a side rail        -->
+    <!--                      (the accent-dot + caps control)            -->
     <!-- ============================================================= -->
     <Style x:Key="HeaderTextStyle" TargetType="TextBlock">
         <Setter Property="FontSize" Value="15"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
         <Setter Property="Margin" Value="0,0,0,10"/>
+    </Style>
+
+    <!-- Label above an input -->
+    <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="10"/>
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+        <Setter Property="Margin" Value="0,0,0,2"/>
+    </Style>
+
+    <!-- Explanatory note under an input -->
+    <Style x:Key="HintTextStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="9"/>
+        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="Margin" Value="0,4,0,0"/>
+    </Style>
+
+    <!-- "none" / "not built yet" text inside an empty preview frame -->
+    <Style x:Key="PlaceholderTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+        <Setter Property="FontStyle" Value="Italic"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 
     <!-- ============================================================= -->
@@ -63,6 +155,63 @@
         <Setter Property="CornerRadius" Value="8"/>
         <Setter Property="Padding" Value="16"/>
         <Setter Property="Margin" Value="0,0,0,12"/>
+    </Style>
+
+    <!-- Same card, tightened for the narrow side rail of a two-column tab. -->
+    <Style x:Key="SectionCardStyle" TargetType="Border" BasedOn="{StaticResource SectionPanelStyle}">
+        <Setter Property="Padding" Value="14"/>
+        <Setter Property="Margin" Value="0,0,0,10"/>
+    </Style>
+
+    <!-- Root of a tab page: the one page colour behind every tab. -->
+    <Style x:Key="TabPageStyle" TargetType="Grid">
+        <Setter Property="Background" Value="{StaticResource AppBackgroundBrush}"/>
+    </Style>
+
+    <!-- Left input rail of a two-column tab. -->
+    <Style x:Key="TabSideRailStyle" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="0,0,1,0"/>
+    </Style>
+
+    <!-- Strip that separates a region of the results pane (tiles, toolbars). -->
+    <Style x:Key="ToolStripStyle" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+        <Setter Property="Padding" Value="12,8"/>
+    </Style>
+
+    <!-- Frame around an image/video preview. -->
+    <Style x:Key="PreviewFrameStyle" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Margin" Value="0,0,0,8"/>
+    </Style>
+
+    <!-- Accent-filled explainer at the top of a tab's side rail. -->
+    <Style x:Key="IntroBannerStyle" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource TabAccentBrush}"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="14,12"/>
+        <Setter Property="Margin" Value="0,0,0,10"/>
+    </Style>
+
+    <Style x:Key="IntroTitleStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Foreground" Value="White"/>
+    </Style>
+
+    <Style x:Key="IntroBodyStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11"/>
+        <!-- White at ~90%: legible on every accent without going muddy. -->
+        <Setter Property="Foreground" Value="#E6FFFFFF"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="Margin" Value="0,4,0,0"/>
     </Style>
 
     <!-- ============================================================= -->
@@ -159,6 +308,116 @@
                 <Setter Property="Cursor" Value="Arrow"/>
             </Trigger>
         </Style.Triggers>
+    </Style>
+
+    <!-- Compact flat action button (small toolbar/result buttons that keep their own inline
+         Background/Foreground/size). Adds a rounded flat template and — critically — a readable,
+         on-theme disabled state (dark fill + light muted text) instead of the OS default light-gray
+         disabled chrome that renders near-invisible text on a dark panel. -->
+    <Style x:Key="CompactActionButtonStyle" TargetType="Button">
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                            CornerRadius="6" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter x:Name="Cp" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.9"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.8"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bd" Property="Background" Value="#374151"/>
+                            <Setter TargetName="Cp" Property="TextElement.Foreground" Value="#CBD5E1"/>
+                            <Setter Property="Cursor" Value="Arrow"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Primary action inside a tab: same shape as PrimaryButtonStyle but filled with
+         the tab's own accent, so each tab's main verb reads as that tab's colour. -->
+    <Style x:Key="AccentButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="{DynamicResource TabAccentBrush}"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <!-- Deliberately tight: these sit in rails on buttons with an explicit Height="28". -->
+        <Setter Property="Padding" Value="12,6"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="6"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter x:Name="Cp" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.88"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.75"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource DisabledBrush}"/>
+                            <Setter TargetName="Cp" Property="TextElement.Foreground" Value="{StaticResource DisabledTextBrush}"/>
+                            <Setter Property="Cursor" Value="Arrow"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Terminal/confirming action ("Upscale selected", "Finish"). Green carries the meaning
+         here, so it stays fixed rather than following the tab accent. -->
+    <Style x:Key="SuccessButtonStyle" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
+        <Setter Property="Background" Value="{StaticResource SuccessBrush}"/>
+    </Style>
+
+    <!-- Quiet companion to AccentButtonStyle: outlined, accent text. For the secondary
+         verb in a pair (Reroll next to Generate, Browse next to Analyze). -->
+    <Style x:Key="AccentOutlineButtonStyle" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource TabAccentBrush}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{DynamicResource TabAccentBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter x:Name="Cp" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.75"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DisabledBrush}"/>
+                            <Setter TargetName="Cp" Property="TextElement.Foreground" Value="{StaticResource TextMutedBrush}"/>
+                            <Setter Property="Cursor" Value="Arrow"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <!-- Nav buttons: one consistent neutral pill, no per-button colors -->

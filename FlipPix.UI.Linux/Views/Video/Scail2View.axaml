@@ -1,0 +1,436 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:FlipPix.UI.Linux.Controls"
+             xmlns:sys="clr-namespace:System;assembly=System.Runtime"
+             x:Class="FlipPix.UI.Linux.Views.Video.Scail2View">
+
+    <!-- Ported from VideoGeneratorWindow.xaml lines 57-490 ("🎭 Scail 2").
+         DataContext is the window's Scail2VM. -->
+
+    <Grid Theme="{StaticResource TabPageStyle}">
+        <Grid.Resources>
+            <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource AccentIndigoColor}"/>
+        </Grid.Resources>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="14" MaxWidth="640" HorizontalAlignment="Center">
+
+                <!-- ═══ 1) Base scene (video) ═══════════════════════════ -->
+                <Border Theme="{StaticResource SectionCardStyle}">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Ellipse Width="7" Height="7" Fill="{DynamicResource TabAccentBrush}" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="BASE SCENE" FontSize="12" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="{Binding InputVideoInfo}" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"
+                                           FontStyle="Italic" VerticalAlignment="Center" Margin="10,0,0,0"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="Upload video…"
+                                    Command="{Binding SelectVideoCommand}"
+                                    Height="30" Padding="12,0" FontSize="11"
+                                    Theme="{StaticResource SuccessButtonStyle}" Cursor="Hand"/>
+                        </Grid>
+
+                        <!-- Reference "player". WPF scrubs a live MediaElement; there is no
+                             in-process video on Avalonia, so the playhead re-posters the frame
+                             at PlaybackPositionSeconds instead - the same frame the Klein
+                             char-swap and "Use this frame" work from. -->
+                        <Border Background="{StaticResource PlayerSurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                CornerRadius="6" Height="200">
+                            <Grid>
+                                <TextBlock Text="Upload a base scene video, then scrub to a frame showing both people"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{StaticResource PlayerTextBrush}" FontSize="12" TextAlignment="Center"
+                                           TextWrapping="Wrap" MaxWidth="320"
+                                           IsVisible="{Binding HasInputVideo, Converter={StaticResource InverseBoolConverter}}"/>
+                                <controls:VideoPreview x:Name="Scail2RefVideoPlayer"
+                                                       Source="{Binding VideoFileUri}"
+                                                       PosterAtSeconds="{Binding PlaybackPositionSeconds}"
+                                                       IsVisible="{Binding HasInputVideo}"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- The scrub itself. Dragging it moves PlaybackPositionSeconds, which
+                             re-posters the frame above and is what ⟦ In / Out ⟧ mark. -->
+                        <Grid Margin="0,8,0,0" IsVisible="{Binding HasInputVideo}"
+                              ColumnDefinitions="Auto,*,Auto">
+                            <TextBlock Grid.Column="0" Text="Scrub" FontSize="10" Margin="0,0,8,0"
+                                       VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
+                            <Slider Grid.Column="1" Name="Scail2Scrub"
+                                    Minimum="0" Maximum="{Binding VideoDurationSeconds}"
+                                    Value="{Binding PlaybackPositionSeconds, Mode=TwoWay}"
+                                    VerticalAlignment="Center"
+                                    ToolTip.Tip="Pick the frame the Klein char-swap and 'Use this frame' work from"/>
+                            <TextBlock Grid.Column="2" Text="{Binding PlaybackPositionSeconds, StringFormat={}{0:F2}s}"
+                                       FontSize="10" FontFamily="Consolas" Margin="8,0,0,0"
+                                       VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
+                        </Grid>
+
+                        <!-- Scrub + In/Out trim track (playhead = Klein frame; markers = SCAIL II range) -->
+                        <Grid x:Name="Scail2TrimTrack" Height="30" Margin="2,10,2,0"
+                              Background="Transparent" ClipToBounds="False"
+                              SizeChanged="Scail2TrimTrack_SizeChanged"
+                              IsVisible="{Binding HasInputVideo}">
+                            <Border Height="8" VerticalAlignment="Center" CornerRadius="4" Background="{StaticResource BorderStrongBrush}"/>
+                            <Border x:Name="Scail2TrimRegion" Height="8" Width="0"
+                                    VerticalAlignment="Center" HorizontalAlignment="Left"
+                                    CornerRadius="4" Background="{DynamicResource TabAccentBrush}" IsHitTestVisible="False"/>
+                            <Border x:Name="Scail2TrimPlayhead" Width="2" Height="24"
+                                    VerticalAlignment="Center" HorizontalAlignment="Left"
+                                    Background="{StaticResource TextMutedBrush}" IsHitTestVisible="False"/>
+                            <Thumb x:Name="Scail2InThumb" Width="14" Height="24"
+                                   HorizontalAlignment="Left" VerticalAlignment="Center" Cursor="SizeWestEast"
+                                   DragDelta="Scail2InThumb_DragDelta"
+                                   ToolTip.Tip="Drag to set the start (in) point">
+                                <Thumb.Template>
+                                    <ControlTemplate TargetType="Thumb">
+                                        <Border Background="{StaticResource SuccessBrush}" CornerRadius="3" BorderBrush="{StaticResource SuccessBrush}" BorderThickness="1"/>
+                                    </ControlTemplate>
+                                </Thumb.Template>
+                            </Thumb>
+                            <Thumb x:Name="Scail2OutThumb" Width="14" Height="24"
+                                   HorizontalAlignment="Left" VerticalAlignment="Center" Cursor="SizeWestEast"
+                                   DragDelta="Scail2OutThumb_DragDelta"
+                                   ToolTip.Tip="Drag to set the end (out) point">
+                                <Thumb.Template>
+                                    <ControlTemplate TargetType="Thumb">
+                                        <Border Background="{StaticResource DangerBrush}" CornerRadius="3" BorderBrush="{StaticResource DangerBrush}" BorderThickness="1"/>
+                                    </ControlTemplate>
+                                </Thumb.Template>
+                            </Thumb>
+                        </Grid>
+
+                        <Grid Margin="0,8,0,0"
+                              IsVisible="{Binding HasInputVideo}">
+                            <StackPanel Orientation="Horizontal">
+                                <!-- WPF's transport is play/pause on the MediaElement. Here the
+                                     playhead is the slider above, so this hands the clip to the
+                                     desktop player instead of pretending to play it inline. -->
+                                <Button Content="▶ Player" Click="Scail2Play_Click"
+                                        Height="26" Padding="8,0" FontSize="11" Margin="0,0,10,0"
+                                        Theme="{StaticResource SecondaryButtonStyle}" Cursor="Hand"
+                                        ToolTip.Tip="Open the base scene clip in your desktop's video player"/>
+                                <Button Content="⟦ In" Command="{Binding MarkInCommand}"
+                                        Height="26" Padding="8,0" FontSize="11" FontWeight="Bold" Margin="0,0,4,0"
+                                        Theme="{StaticResource SuccessButtonStyle}" Cursor="Hand"/>
+                                <Button Content="Out ⟧" Command="{Binding MarkOutCommand}"
+                                        Height="26" Padding="8,0" FontSize="11" FontWeight="Bold" Margin="0,0,4,0"
+                                        Theme="{StaticResource DangerButtonStyle}" Cursor="Hand"/>
+                                <Button Content="Reset" Command="{Binding ResetTrimCommand}"
+                                        Height="26" Padding="8,0" FontSize="11" Margin="0,0,10,0"
+                                        Theme="{StaticResource SecondaryButtonStyle}" Cursor="Hand"/>
+                                <Button Content="📌 Use this frame" Command="{Binding UsePoseFrameCommand}"
+                                        Height="26" Padding="8,0" FontSize="11" FontWeight="Bold"
+                                        Theme="{StaticResource AccentButtonStyle}" Cursor="Hand"
+                                        ToolTip.Tip="Pins the frame under the playhead as the pose source, like the Image Generator ▸ Advanced ▸ Control tab's 'Use This Frame'. Analyze and every Generate then work from this exact still, so re-runs keep the same pose."/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <TextBlock Text="ETA" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                <TextBlock Text="{Binding EstimatedTime}" FontSize="13" FontWeight="Bold"
+                                           FontFamily="Consolas" Foreground="{DynamicResource TabAccentBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding TrimInfo}" FontSize="10" Foreground="{StaticResource TextMutedBrush}"
+                                   FontFamily="Consolas" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"
+                                   IsVisible="{Binding HasInputVideo}"/>
+
+                        <!-- Pinned pose frame (the Control tab's "Use This Frame" still) -->
+                        <Grid Margin="0,8,0,0"
+                              IsVisible="{Binding HasInputVideo}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Width="112" Height="64" CornerRadius="4"
+                                    Background="{StaticResource PlayerSurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                <Grid>
+                                    <TextBlock Text="🕴️" FontSize="20" Foreground="{StaticResource PlayerTextBrush}"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               IsVisible="{Binding NoPoseFrame}"/>
+                                    <Image Source="{Binding PoseFrameSource, Converter={StaticResource PathToBitmapConverter}}" Stretch="Uniform"/>
+                                    <Border Background="{StaticResource ScrimBrush}"
+                                            IsVisible="{Binding IsGrabbingPoseFrame}">
+                                        <TextBlock Text="⏳" Foreground="White" FontSize="14"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding PoseFrameInfo}" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                                <Button Content="Unpin" Command="{Binding ClearPoseFrameCommand}"
+                                        HorizontalAlignment="Left" Height="22" Padding="8,0" FontSize="10"
+                                        Margin="0,5,0,0" Theme="{StaticResource SecondaryButtonStyle}"
+                                        BorderThickness="0" Cursor="Hand"
+                                        ToolTip.Tip="Drop the pinned frame and go back to using whatever frame the playhead is on"
+                                        IsVisible="{Binding HasPoseFrame}"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- ═══ 2) Characters → Character image (Klein char-swap) ═══ -->
+                <Border Theme="{StaticResource SectionCardStyle}">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,10">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Ellipse Width="7" Height="7" Fill="{DynamicResource TabAccentBrush}" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="CHARACTERS" FontSize="12" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <TextBlock Text="Replace method" FontSize="10" Foreground="{StaticResource TextMutedBrush}"
+                                           VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <ComboBox SelectedIndex="{Binding CharReplaceMethodIndex, Mode=TwoWay}"
+                                          Width="190" Height="26" FontSize="10" VerticalContentAlignment="Center"
+                                          ToolTip.Tip="Which workflow the single-character 'Replace this one only' button runs. Klein Flux2 Control (default) holds the subject's likeness more accurately; Character Replacer is the legacy path; Krea2 Edit (two ref) keeps the base scene composition while swapping the subject in. 'Replace Both' always uses the 2-character replacer.">
+                                    <ComboBoxItem Content="🟢 Klein Flux2 Control"/>
+                                    <ComboBoxItem Content="⚪ Character Replacer (legacy)"/>
+                                    <ComboBoxItem Content="🔵 Krea2 Edit (two ref)"/>
+                                </ComboBox>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Krea2 Edit (two ref) instruction prompt — only for that method -->
+                        <StackPanel Margin="0,0,0,10"
+                                    IsVisible="{Binding IsKrea2EditSelected}">
+                            <TextBlock Text="Edit instruction (Krea2 Edit)" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                            <TextBox Text="{Binding Krea2EditPrompt}"
+                                     FontSize="10" MinHeight="46" TextWrapping="Wrap" AcceptsReturn="True"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     Padding="6"
+                                     ToolTip.Tip="Instruction written into the Krea2 Edit grounded-encode node. 'image a' is the base scene frame (person to replace); 'image b' is Character 1. Edit for either sex or extra guidance."/>
+                        </StackPanel>
+
+                        <!-- Klein Flux2 Control — the Image Generator ▸ Advanced ▸ Control flow:
+                             Step 1 Analyze (QwenVL subject + pose) → Step 2 edit prompt → Step 3 Generate (repeatable) -->
+                        <StackPanel Margin="0,0,0,10"
+                                    IsVisible="{Binding IsKleinControlSelected}">
+                            <Grid Margin="0,0,0,4">
+                                <TextBlock Text="Step 1 — Analyze pose + subject" FontSize="10" Foreground="{StaticResource TextMutedBrush}"
+                                           VerticalAlignment="Center"/>
+                                <Button Content="🔍 Analyze"
+                                        Command="{Binding AnalyzeKleinPromptCommand}"
+                                        HorizontalAlignment="Right" Height="24" Padding="14,0" FontSize="10"
+                                        Theme="{StaticResource SuccessButtonStyle}"
+                                        ToolTip.Tip="Runs the Klein Flux2 Control workflow's QwenVL pass on Character 1 (appearance) and the pinned pose frame, then fills the box below with the combined prompt so you can edit it. The generated image is also adopted as the character image."/>
+                            </Grid>
+                            <TextBlock Text="Step 2 — Edit prompt" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,4"/>
+                            <TextBox Text="{Binding KleinControlPrompt}"
+                                     FontSize="10" MinHeight="80" MaxHeight="180" TextWrapping="Wrap" AcceptsReturn="True"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     Padding="6"
+                                     ToolTip.Tip="Positive prompt for the Klein Flux2 Control generation. Leave empty to let the workflow write it from QwenVL (subject appearance + pose frame); anything here is used instead."/>
+                            <TextBlock Text="Leave empty to let QwenVL write the prompt during Generate."
+                                       FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3,0,6"/>
+                            <Grid>
+                                <TextBlock Text="Step 3 — Generate (press again for another take)"
+                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
+                                <Button Content="🚀 Generate image"
+                                        Command="{Binding GenerateKleinImageCommand}"
+                                        HorizontalAlignment="Right" Height="24" Padding="14,0" FontSize="10"
+                                        Theme="{StaticResource AccentButtonStyle}"
+                                        ToolTip.Tip="Sends the edited prompt to ComfyUI with Character 1 and the pinned pose frame, reseeding each run. Press it again if the first image isn't good enough — the result becomes the character image."/>
+                            </Grid>
+                            <ProgressBar Value="{Binding KleinProgress, Mode=OneWay}" Maximum="100" Height="4"
+                                         Margin="0,6,0,0" Foreground="{DynamicResource TabAccentBrush}"
+                                         BorderThickness="0"/>
+                        </StackPanel>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="28"/>
+                                <ColumnDefinition Width="1.4*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Character 1 -->
+                            <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                <Border Height="110" CornerRadius="6" Background="{StaticResource PlayerSurfaceBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Cursor="Hand">
+                                    <Grid>
+                                        <TextBlock Text="＋ Character 1 (LEFT)" Foreground="{StaticResource PlayerTextBrush}" FontSize="11"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   IsVisible="{Binding NoChar1Image}"/>
+                                        <Image Source="{Binding Char1ImageSource, Converter={StaticResource PathToBitmapConverter}}" Stretch="UniformToFill"/>
+                                        <Button Content="✕" Command="{Binding RemoveChar1Command}"
+                                                Width="20" Height="20" Margin="0,3,3,0" Padding="0" FontSize="11"
+                                                HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                Background="{StaticResource ScrimBrush}" Foreground="White" BorderThickness="0"
+                                                Cursor="Hand" ToolTip.Tip="Remove Character 1"
+                                                IsVisible="{Binding HasChar1Image}"/>
+                                    </Grid>
+                                </Border>
+                                <Button Content="Browse…" Command="{Binding BrowseChar1Command}"
+                                        Height="26" FontSize="10" Margin="0,5,0,0"
+                                        Theme="{StaticResource SecondaryButtonStyle}" Cursor="Hand"/>
+                                <Button Content="Replace this one only"
+                                        Command="{Binding SwapChar1OnlyCommand}"
+                                        Height="26" FontSize="10" Margin="0,4,0,0"
+                                        Theme="{StaticResource AccentButtonStyle}"
+                                        ToolTip.Tip="Replace just one person in the pose frame with Character 1 (works for a man or a woman), then use the result as the character image. In Klein Flux2 Control mode this is the same as Step 3 — Generate image."/>
+                            </StackPanel>
+
+                            <!-- Character 2 -->
+                            <StackPanel Grid.Column="1" Margin="0,0,6,0">
+                                <Border Height="110" CornerRadius="6" Background="{StaticResource PlayerSurfaceBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Cursor="Hand">
+                                    <Grid>
+                                        <TextBlock Text="＋ Character 2 (RIGHT)" Foreground="{StaticResource PlayerTextBrush}" FontSize="11"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   IsVisible="{Binding NoChar2Image}"/>
+                                        <Image Source="{Binding Char2ImageSource, Converter={StaticResource PathToBitmapConverter}}" Stretch="UniformToFill"/>
+                                        <Button Content="✕" Command="{Binding RemoveChar2Command}"
+                                                Width="20" Height="20" Margin="0,3,3,0" Padding="0" FontSize="11"
+                                                HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                Background="{StaticResource ScrimBrush}" Foreground="White" BorderThickness="0"
+                                                Cursor="Hand" ToolTip.Tip="Remove Character 2"
+                                                IsVisible="{Binding HasChar2Image}"/>
+                                    </Grid>
+                                </Border>
+                                <Button Content="Browse…" Command="{Binding BrowseChar2Command}"
+                                        Height="26" FontSize="10" Margin="0,5,0,0"
+                                        Theme="{StaticResource SecondaryButtonStyle}" Cursor="Hand"/>
+                                <Button Content="Replace Both"
+                                        Command="{Binding SwapCharactersCommand}"
+                                        Height="26" FontSize="10" Margin="0,4,0,0"
+                                        Theme="{StaticResource AccentButtonStyle}"
+                                        ToolTip.Tip="Replace both people in the current base frame with Character 1 (left) and Character 2 (right), then use the result as the character image"/>
+                            </StackPanel>
+
+                            <TextBlock Grid.Column="2" Text="→" FontSize="20" Foreground="{DynamicResource TabAccentBrush}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+                            <!-- Character image (Klein composite) -->
+                            <StackPanel Grid.Column="3">
+                                <Border Height="110" CornerRadius="6" Background="{StaticResource PlayerSurfaceBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                    <Grid>
+                                        <TextBlock Text="Character image"
+                                                   Foreground="{StaticResource PlayerTextBrush}" FontSize="11"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   IsVisible="{Binding NoCharSwapResult}"/>
+                                        <Image Source="{Binding CharSwapResultSource, Converter={StaticResource PathToBitmapConverter}}" Stretch="Uniform"/>
+                                        <Border Background="{StaticResource ScrimBrush}"
+                                                IsVisible="{Binding IsCharSwapping}">
+                                            <TextBlock Text="⏳ working…" Foreground="White" FontSize="12"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                                <Button Content="Browse…" Command="{Binding BrowseFinalImageCommand}"
+                                        Height="26" FontSize="10" Margin="0,5,0,0"
+                                        Theme="{StaticResource SecondaryButtonStyle}" Cursor="Hand"
+                                        ToolTip.Tip="Upload your own image to use as the final character image instead of running a swap"/>
+                                <TextBlock Text="Built by Replace Both / Replace this one only, or upload your own" FontSize="9"
+                                           Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic" Margin="0,5,0,0" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="{Binding CharSwapStatus}" FontSize="11" Foreground="{DynamicResource TabAccentBrush}"
+                                   TextWrapping="Wrap" Margin="0,10,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- ═══ 3) Generate progress / status ═══════════════════ -->
+                <Border Theme="{StaticResource SectionCardStyle}">
+                    <StackPanel>
+                        <ProgressBar Height="6" Margin="0,0,0,8"
+                                     Value="{Binding ProcessingProgress, Mode=OneWay}" Foreground="{DynamicResource TabAccentBrush}"
+                                     IsVisible="{Binding IsProcessingQueue}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <TextBlock Text="Chunk size (VRAM)" FontSize="10" Foreground="{StaticResource TextMutedBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <ComboBox SelectedValue="{Binding VideoBatchSize, Mode=TwoWay}" SelectedValueBinding="{Binding Tag}"
+                                      Width="150" Height="24" FontSize="10" VerticalContentAlignment="Center"
+                                      ToolTip.Tip="Frames processed per internal chunk. The clip is generated in windows of this size (VRAM purged between them) then stitched into one video.&#10;&#10;Measured: lowering this does NOT prevent the crash seen at 1280 × 720 — a full-length clip died at both 40 and 17 frames, while 17 ran ~5× slower. Use the Resolution setting below to stay within memory; leave this at 40 unless you have a specific reason.">
+                                <ComboBoxItem Content="24 — lowest VRAM"><ComboBoxItem.Tag><sys:Int32>24</sys:Int32></ComboBoxItem.Tag></ComboBoxItem>
+                                <ComboBoxItem Content="40 — recommended"><ComboBoxItem.Tag><sys:Int32>40</sys:Int32></ComboBoxItem.Tag></ComboBoxItem>
+                                <ComboBoxItem Content="60 — balanced"><ComboBoxItem.Tag><sys:Int32>60</sys:Int32></ComboBoxItem.Tag></ComboBoxItem>
+                                <ComboBoxItem Content="80 — most VRAM"><ComboBoxItem.Tag><sys:Int32>80</sys:Int32></ComboBoxItem.Tag></ComboBoxItem>
+                            </ComboBox>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <TextBlock Text="Resolution" FontSize="10" Foreground="{StaticResource TextMutedBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <ComboBox SelectedValue="{Binding OutputResolution, Mode=TwoWay}" SelectedValueBinding="{Binding Tag}"
+                                      Width="200" Height="24" FontSize="10" VerticalContentAlignment="Center"
+                                      ToolTip.Tip="Resolution the video is generated at. Measured on a 24 GB card with a ~21s clip: 960 × 544 completes in ~14 min; 1280 × 720 takes the ComfyUI server down mid-run (a hard process kill, not a recoverable error) on anything longer than a few seconds, at any chunk size. Memory use grows with clip LENGTH as well as resolution, so longer clips need a lower preset.">
+                                <ComboBoxItem Content="960 × 544 (landscape — recommended)" Tag="960x544"/>
+                                <ComboBoxItem Content="Default (640 × 960 portrait)" Tag="0x0"/>
+                                <ComboBoxItem Content="832 × 480 (landscape)" Tag="832x480"/>
+                                <ComboBoxItem Content="768 × 768 (square)" Tag="768x768"/>
+                                <ComboBoxItem Content="544 × 960 (portrait)" Tag="544x960"/>
+                                <ComboBoxItem Content="1280 × 720 (720p — crashes on long clips)" Tag="1280x720"/>
+                                <ComboBoxItem Content="720 × 1280 (720p portrait — crashes on long clips)" Tag="720x1280"/>
+                            </ComboBox>
+                        </StackPanel>
+                        <CheckBox Content="Keep original background" IsChecked="{Binding KeepOriginalBackground, Mode=TwoWay}"
+                                  FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,8"
+                                  ToolTip.Tip="Replacement mode: composite the driving video's real background every frame and regenerate only the swapped character.&#10;&#10;Turn ON when the scene behind the person is real footage you want kept (e.g. a waterfall). Because the background is never generated, it can't colour-drift or soften across the internal chunks — the artefacts that appear ~20s into a long clip.&#10;&#10;Turn OFF (animation mode) to regenerate the whole frame, e.g. when re-lighting the character into a new environment."/>
+                        <CheckBox Content="Interpolate + RTX upscale (2× fps, 2× size)" IsChecked="{Binding InterpolateAndUpscale, Mode=TwoWay}"
+                                  FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,8"
+                                  ToolTip.Tip="Runs the workflow's post pass after generation: RIFE frame interpolation (2× the frame rate) followed by the RTX Video Super Resolution upscale (2× the resolution).&#10;&#10;A 960 × 544 clip at 16 fps comes out 1920 × 1088 at 32 fps. It adds a noticeable amount of time to every run and needs the RIFE VFI and NVIDIA RTX (nvidia-vfx) custom nodes installed on the server, so it's off by default — with it off the raw sampler output is saved instead."/>
+                        <Grid>
+                            <TextBlock Text="{Binding ProcessingStatus}" FontSize="11" Foreground="{StaticResource TextMutedBrush}"
+                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                            <Button Content="⚡ Generate video" HorizontalAlignment="Right"
+                                    Click="Scail2Process_Click" Height="30" Padding="14,0" FontSize="11"
+                                    FontWeight="Bold" Theme="{StaticResource SuccessButtonStyle}"
+                                    BorderThickness="0" Cursor="Hand"
+                                    IsEnabled="{Binding CanAddToQueue}"
+                                    ToolTip.Tip="Analyzes the marked In/Out range and generates the SCAIL II video. Build the character image first."/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- ═══ 4) Result ═══════════════════════════════════════ -->
+                <Border Theme="{StaticResource SectionCardStyle}">
+                    <StackPanel>
+                        <TextBlock Text="🎥 RESULT" FontSize="12" FontWeight="Bold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                        <Border Background="{StaticResource PlayerSurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                Height="200" CornerRadius="6" Margin="0,0,0,8">
+                            <Grid>
+                                <TextBlock Text="The motion-transfer video will appear here"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{StaticResource PlayerTextBrush}" FontStyle="Italic"
+                                           IsVisible="{Binding HasResult, Converter={StaticResource InverseBoolConverter}}"/>
+                                <controls:VideoPreview x:Name="Scail2VideoPlayer" Source="{Binding ResultVideoPath}" IsVisible="{Binding HasResult}"/>
+                            </Grid>
+                        </Border>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="▶ Play" Command="{Binding PlayVideoCommand}"
+                                    IsEnabled="{Binding HasResult}" Height="30" Padding="14,0" FontSize="11"
+                                    Theme="{StaticResource AccentButtonStyle}" Margin="0,0,8,0"/>
+                            <Button Content="📁 Open folder" Command="{Binding OpenResultFolderCommand}"
+                                    IsEnabled="{Binding HasResult}" Height="30" Padding="14,0" FontSize="11"
+                                    Theme="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0"/>
+                            <Button Content="📷 Send to Edit Camera" Command="{Binding SendToEditCameraCommand}"
+                                    IsEnabled="{Binding HasResult}" Height="30" Padding="14,0" FontSize="11"
+                                    Theme="{StaticResource SecondaryButtonStyle}"/>
+                        </StackPanel>
+                        <TextBlock Text="{Binding ResultVideoInfo}" FontStyle="Italic"
+                                   Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" Margin="0,6,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- ═══ Log ═════════════════════════════════════════════ -->
+                <Expander Header="📝 Log" IsExpanded="False" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4">
+                    <ScrollViewer MaxHeight="130" VerticalScrollBarVisibility="Auto" Margin="0,4,0,0">
+                        <TextBox Text="{Binding LogOutput, Mode=OneWay}"
+                                 TextWrapping="Wrap" IsReadOnly="True"
+                                 FontFamily="Consolas" FontSize="10"
+                                 Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}" BorderThickness="0" Padding="10"/>
+                    </ScrollViewer>
+                </Expander>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+
+</UserControl>

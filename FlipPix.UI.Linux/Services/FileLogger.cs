@@ -14,12 +14,8 @@ public class FileLogger : IAppLogger
     {
         _logger = logger;
         
-        // Configure log directory
-        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        _logDirectory = Path.Combine(appDataPath, "FlipPix", "Logs");
-        
-        // Ensure directory exists
-        Directory.CreateDirectory(_logDirectory);
+        // XDG state dir; UserPaths creates it for us.
+        _logDirectory = UserPaths.LogDir;
         
         // Create log file path with timestamp
         var timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");

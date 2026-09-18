@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -38,6 +38,8 @@ namespace FlipPix.UI.ViewModels
             // Base/fallback workflow loaded by explicit path when no style is selected —
             // not a selectable style preset.
             "Zib-Zit",
+            // Its own entry in the Model Workflow dropdown (TextGeneratorWorkflow.ZimageBase).
+            "z-image-base",
         };
 
         public static bool IsNonStyleWorkflow(string fileNameWithoutExtension) =>
@@ -94,6 +96,8 @@ namespace FlipPix.UI.ViewModels
         // Krea2 LoRA list (loaded from the <loras>/krea2 subfolder)
         private ObservableCollection<string> _kreaLoras = new();
         private ObservableCollection<KreaLoraSelection> _selectedKreaLoras = new();
+        // Remembers the per-LoRA trigger words prepended to the prompt (shared with the other tabs).
+        private readonly KreaLoraTriggerTracker _kreaTriggers;
         private string _kreaLoraSubfolder = "krea2";
 
         // Input mode
@@ -120,6 +124,8 @@ namespace FlipPix.UI.ViewModels
             _lmStudioService = lmStudioService ?? throw new ArgumentNullException(nameof(lmStudioService));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
             _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
+            _kreaTriggers = new KreaLoraTriggerTracker(_settingsService, m => _logger.LogInfo(m));
+            _kreaTriggers.Track(_selectedKreaLoras);
 
             // Initialize commands
             BrowseImageCommand = new RelayCommand(BrowseImage, () => !IsAnalyzing);
@@ -374,20 +380,29 @@ namespace FlipPix.UI.ViewModels
         }
 
         /// <summary>
-        /// Previously used LM Studio servers (most-recent first) for the quick-switch dropdown.
+        /// Saved LM Studio servers (most-recent first) for the quick-switch dropdown, listed under
+        /// the friendly names given in Settings.
         /// </summary>
-        public List<string> ServerHistory => _settingsService.Settings?.LMStudioSettings?.ServerHistory ?? new List<string>();
+        public List<FlipPix.Core.Models.LlmServerProfile> ServerProfiles
+        {
+            get
+            {
+                var lm = _settingsService.Settings?.LMStudioSettings;
+                lm?.EnsureProfiles();
+                return lm?.Servers?.ToList() ?? new List<FlipPix.Core.Models.LlmServerProfile>();
+            }
+        }
 
         /// <summary>
         /// Bound to the "Recent" quick-switch combo. Selecting a saved server applies its host+port.
         /// </summary>
-        public string? SelectedServerUrl
+        public FlipPix.Core.Models.LlmServerProfile? SelectedServerProfile
         {
             get => null; // always show the placeholder; the textboxes are the source of truth
             set
             {
-                if (string.IsNullOrWhiteSpace(value)) return;
-                var (host, port) = FlipPix.Core.Models.LMStudioSettings.ParseBaseUrl(value);
+                if (value == null) return;
+                var (host, port) = FlipPix.Core.Models.LMStudioSettings.ParseBaseUrl(value.BaseUrl);
                 LMStudioServer = host;
                 if (!string.IsNullOrEmpty(port)) LMStudioPort = port;
             }
@@ -513,7 +528,9 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        public bool ShowLoraOptions => SelectedWorkflow == TextGeneratorWorkflow.Zimage;
+        // Both Z-Image paths pick their LoRA from the same <loras>/zimage folder.
+        public bool ShowLoraOptions => SelectedWorkflow == TextGeneratorWorkflow.Zimage
+                                       || SelectedWorkflow == TextGeneratorWorkflow.ZimageBase;
 
         public bool ShowKreaLoraOptions => SelectedWorkflow == TextGeneratorWorkflow.Krea2;
 
@@ -593,7 +610,7 @@ namespace FlipPix.UI.ViewModels
         public ObservableCollection<KreaLoraSelection> SelectedKreaLoras
         {
             get => _selectedKreaLoras;
-            set { _selectedKreaLoras = value; OnPropertyChanged(); }
+            set { _selectedKreaLoras = value; _kreaTriggers.Track(_selectedKreaLoras); OnPropertyChanged(); }
         }
 
         public bool IsImageAnalysisMode
@@ -884,7 +901,7 @@ namespace FlipPix.UI.ViewModels
                     {
                         _settingsService.Settings.LMStudioSettings.RememberServer(baseUrl);
                         _settingsService.SaveSettings(_settingsService.Settings);
-                        OnPropertyChanged(nameof(ServerHistory));
+                        OnPropertyChanged(nameof(ServerProfiles));
                     }
 
                     // Select previously saved model or find a good default
@@ -1561,7 +1578,7 @@ namespace FlipPix.UI.ViewModels
                 _logger.LogInfo("=== Starting image analysis with LM Studio QwenVL ===");
                 IsAnalyzing = true;
                 StatusBarMessage = "Analyzing image...";
-                AnalysisText = "Analyzing image with LM Studio QwenVL AI...";
+                AnalysisText = "Analyzing image...";
 
                 // Dynamically fetch whichever model is currently loaded on the server
                 string modelToUse = SelectedModel;
@@ -1579,6 +1596,12 @@ namespace FlipPix.UI.ViewModels
                 {
                     _logger.LogWarning($"Could not fetch active model from server, falling back to '{SelectedModel}': {ex.Message}");
                 }
+
+                // Name the machine and model so it's obvious where the image is going.
+                var target = _lmStudioService.DescribeTarget(modelToUse);
+                StatusBarMessage = $"Sending image to {target}...";
+                AnalysisText = $"Sending image to {target}...";
+                _logger.LogInfo($"Image analysis target: {target}");
 
                 // Use LM Studio for image analysis
                 string analysisResult;
@@ -1600,17 +1623,48 @@ namespace FlipPix.UI.ViewModels
                 else
                 {
                     // The analysis text is injected into the ZStyle template's {$@} slot, so it must
-                    // describe only the subject/action/composition. If it includes colors, lighting,
-                    // mood, or rendering style, those literal attributes override the style template's
-                    // intended aesthetic and every style collapses to the same look.
-                    var analysisPrompt = "Describe only the main subject(s), their pose/action, clothing, "
-                        + "and spatial composition in this image, in 1-2 plain sentences. Do NOT mention "
-                        + "colors, lighting, mood, art style, medium, or rendering — those are set separately.";
+                    // describe only the subject/action/composition. If it includes scene colors,
+                    // lighting, mood, or rendering style, those literal attributes override the style
+                    // template's intended aesthetic and every style collapses to the same look.
+                    // Exception: when a face is the subject, its identity traits (facial geometry,
+                    // hair/eye/skin colour, marks) are what the generated image must reproduce, so
+                    // those are described exhaustively — they belong to the person, not the style.
+                    var analysisPrompt =
+                        "Describe the main subject(s), their pose/action, clothing, and spatial composition "
+                        + "in this image. Do NOT mention scene colors, lighting, mood, art style, medium, or "
+                        + "rendering — those are set separately.\n\n"
+                        + "IF one or more human faces are clearly visible, the face is the priority: write a "
+                        + "forensically detailed portrait description precise enough to redraw that exact "
+                        + "person. Cover, in flowing prose:\n"
+                        + "- Apparent age range, sex, ethnicity/heritage, build\n"
+                        + "- Head and face shape (oval/round/square/heart/oblong), width-to-length proportion, "
+                        + "forehead height and slope, cheekbone height and prominence, cheek fullness or hollowing, "
+                        + "jawline definition and angle, chin shape (pointed/rounded/square, cleft, projection)\n"
+                        + "- Eyes: shape (almond/round/hooded/monolid/downturned/upturned), size, spacing, set depth, "
+                        + "canthal tilt, iris color and pattern, eyelid crease, lash density, under-eye area\n"
+                        + "- Eyebrows: shape, arch, thickness, density, length, spacing, color\n"
+                        + "- Nose: overall size, bridge width and profile (straight/convex/concave), tip shape and "
+                        + "rotation, nostril shape and flare, columella\n"
+                        + "- Mouth and lips: width, upper/lower lip fullness ratio, cupid's bow definition, philtrum "
+                        + "length and depth, mouth corners, visible teeth, natural lip color\n"
+                        + "- Ears if visible: size, protrusion, lobe attachment\n"
+                        + "- Skin: tone and undertone, texture, pores, freckles, moles/beauty marks with their exact "
+                        + "positions, scars, wrinkles and lines (nasolabial, forehead, crow's feet), blemishes\n"
+                        + "- Facial hair: type, coverage, density, length, color, grooming\n"
+                        + "- Hair: color (including roots/highlights), texture, length, density, hairline shape, "
+                        + "part, and how it is styled or falls\n"
+                        + "- Expression and micro-expression, gaze direction, head tilt and rotation relative to camera\n"
+                        + "- Any glasses, piercings, makeup, or jewelry on or near the face\n"
+                        + "Describe only what is actually visible; never invent traits. Be exhaustive and specific "
+                        + "(use comparative and geometric terms rather than vague adjectives), and put the facial "
+                        + "description first, followed by the body, clothing, and composition.\n\n"
+                        + "IF no face is clearly visible, answer in 1-2 plain sentences instead.\n\n"
+                        + "Output the description only — no headings, no bullet points, no preamble.";
                     analysisResult = await _lmStudioService.AnalyzeImageAsync(
                         modelToUse,
                         SourceImagePath,
                         analysisPrompt,
-                        maxTokens: 2000,
+                        maxTokens: 3000,
                         _cancellationTokenSource.Token);
                 }
 
@@ -2029,8 +2083,8 @@ namespace FlipPix.UI.ViewModels
                 switch (item.SelectedWorkflow)
                 {
                     case TextGeneratorWorkflow.Qwen2512:
-                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "qwen2512API-text.json");
-                        _logger.LogInfo($"Using Qwen2512 workflow");
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "qwen", "Qwen_Image_2512_INT8_Convrot_WF.json");
+                        _logger.LogInfo($"Using Qwen2512 workflow (INT8 ConvRot)");
                         break;
 
                     case TextGeneratorWorkflow.Klien:
@@ -2046,6 +2100,11 @@ namespace FlipPix.UI.ViewModels
                     case TextGeneratorWorkflow.Krea2:
                         workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "krea", "krea2RealismV1_krea2RealismV1WF.json");
                         _logger.LogInfo($"Using Krea2 workflow");
+                        break;
+
+                    case TextGeneratorWorkflow.ZimageBase:
+                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "zimage", "base", "z-image-base.json");
+                        _logger.LogInfo($"Using Zimage Base workflow");
                         break;
 
                     case TextGeneratorWorkflow.Zimage:
@@ -2120,8 +2179,9 @@ namespace FlipPix.UI.ViewModels
                 _negativePrompt = item.NegativePrompt;
                 _selectedStyleIndex = item.SelectedStyleIndex;
 
-                // Only set LORA properties if using Zimage workflow
-                if (item.SelectedWorkflow == TextGeneratorWorkflow.Zimage)
+                // Only set LORA properties for the Z-Image workflows (they share the zimage LoRA folder)
+                if (item.SelectedWorkflow == TextGeneratorWorkflow.Zimage
+                    || item.SelectedWorkflow == TextGeneratorWorkflow.ZimageBase)
                 {
                     LoraEnabled = item.LoraEnabled;
                     SelectedLora = item.SelectedLora;
@@ -2243,6 +2303,7 @@ namespace FlipPix.UI.ViewModels
                         TextGeneratorWorkflow.Klien => "f2k-txt2img",
                         TextGeneratorWorkflow.Anima => "anima",
                         TextGeneratorWorkflow.Krea2 => "krea2",
+                        TextGeneratorWorkflow.ZimageBase => "z-image-base",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");
@@ -2713,15 +2774,21 @@ namespace FlipPix.UI.ViewModels
                 // Handle different workflows with their specific node IDs
                 string promptNodeId = selectedWorkflow switch
                 {
-                    TextGeneratorWorkflow.Qwen2512 => "71",
+                    TextGeneratorWorkflow.Qwen2512 => "108",
                     TextGeneratorWorkflow.Klien => "10",
                     TextGeneratorWorkflow.Anima => "60:11",
                     TextGeneratorWorkflow.Krea2 => "6",
+                    TextGeneratorWorkflow.ZimageBase => "76:67",
                     _ => ""  // Empty for Zimage (will use generic search)
                 };
 
                 // Determine the input key for the prompt (text vs value)
                 string promptInputKey = "text";
+
+                // Krea2's LoRAs only fire when their trigger words are in the prompt.
+                var promptText = selectedWorkflow == TextGeneratorWorkflow.Krea2
+                    ? ImageGeneratorViewModel.ApplyKreaLoraTriggers(AnalysisText, SelectedKreaLoras, m => _logger.LogInfo(m))
+                    : AnalysisText ?? "";
 
                 if (!string.IsNullOrEmpty(promptNodeId) && workflow.ContainsKey(promptNodeId))
                 {
@@ -2733,7 +2800,7 @@ namespace FlipPix.UI.ViewModels
                         var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(node["inputs"]));
                         if (inputs != null && inputs.ContainsKey(promptInputKey))
                         {
-                            inputs[promptInputKey] = AnalysisText ?? "";
+                            inputs[promptInputKey] = promptText;
                             node["inputs"] = inputs;
                             workflow[promptNodeId] = node;
                             _logger.LogInfo($"✓ Updated node {promptNodeId} ({promptInputKey}) with analysis text (length: {AnalysisText?.Length ?? 0})");
@@ -2745,7 +2812,8 @@ namespace FlipPix.UI.ViewModels
                     {
                         if (selectedWorkflow == TextGeneratorWorkflow.Qwen2512)
                         {
-                            string emptyLatentNodeId = "51";
+                            // Qwen_Image_2512_INT8_Convrot_WF.json: node 107 = EmptySD3LatentImage
+                            string emptyLatentNodeId = "107";
 
                             if (workflow.ContainsKey(emptyLatentNodeId))
                             {
@@ -2886,6 +2954,25 @@ namespace FlipPix.UI.ViewModels
                             // only image output returned by prompt-history/remote retrieval.
                             workflow.Remove("5");
                         }
+                        else if (selectedWorkflow == TextGeneratorWorkflow.ZimageBase)
+                        {
+                            // z-image-base.json is run AS AUTHORED — see the matching note in
+                            // ImageGeneratorViewModel.UpdateZimageBaseWorkflow. Only the prompts,
+                            // the seed and the save prefix are injected; the latent (1024x1280),
+                            // the sampler settings and the LoRA node (76:96) are the workflow's own.
+                            //   76:67 = CLIPTextEncode (positive, handled above)
+                            //   76:71 = CLIPTextEncode (negative)                   [set here]
+                            //   9     = SaveImage → filename_prefix                 [set here]
+                            //   76:68 = EmptySD3LatentImage (1024x1280)             [as authored]
+                            //   76:96 = LoraLoaderModelOnly, zib skin texture v2.1  [as authored]
+                            UpdateNodeInputs(workflow, "76:71", nodeInputs => nodeInputs["text"] = NegativePrompt ?? "");
+
+                            // Saved at the output root so the prefix-based local retrieval matches.
+                            UpdateNodeInputs(workflow, "9", nodeInputs => nodeInputs["filename_prefix"] = "ZBase");
+
+                            _logger.LogInfo("✓ Zimage Base: running the workflow as authored — resolution, " +
+                                            "sampler settings and LoRA come from z-image-base.json");
+                        }
                     }
 
                     // Randomize seed for non-Zimage workflows
@@ -2893,20 +2980,25 @@ namespace FlipPix.UI.ViewModels
 
                     if (selectedWorkflow == TextGeneratorWorkflow.Qwen2512)
                     {
-                        // Node 120 is Seed (rgthree) - feeds into KSampler node 74
-                        string seedNodeId = "120";
-                        if (workflow.ContainsKey(seedNodeId))
+                        // Node 106 is the KSampler; it carries the seed inline (the old workflow's
+                        // rgthree Seed node is gone). Steps/cfg/denoise come from the UI sliders,
+                        // matching how the Image Generator drives this same workflow.
+                        string samplerNodeId = "106";
+                        if (workflow.ContainsKey(samplerNodeId))
                         {
-                            var seedNode = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(workflow[seedNodeId]));
-                            if (seedNode != null && seedNode.ContainsKey("inputs"))
+                            var samplerNode = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(workflow[samplerNodeId]));
+                            if (samplerNode != null && samplerNode.ContainsKey("inputs"))
                             {
-                                var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(seedNode["inputs"]));
+                                var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(samplerNode["inputs"]));
                                 if (inputs != null)
                                 {
                                     inputs["seed"] = randomSeed;
-                                    seedNode["inputs"] = inputs;
-                                    workflow[seedNodeId] = seedNode;
-                                    _logger.LogInfo($"✓ Updated Qwen2512 seed node {seedNodeId} with seed: {randomSeed}");
+                                    inputs["steps"] = Steps;
+                                    inputs["cfg"] = Cfg;
+                                    inputs["denoise"] = Denoise;
+                                    samplerNode["inputs"] = inputs;
+                                    workflow[samplerNodeId] = samplerNode;
+                                    _logger.LogInfo($"✓ Updated Qwen2512 sampler node {samplerNodeId} with seed: {randomSeed}, steps: {Steps}, cfg: {Cfg}, denoise: {Denoise}");
                                 }
                             }
                         }
@@ -2979,6 +3071,13 @@ namespace FlipPix.UI.ViewModels
                                 }
                             }
                         }
+                    }
+                    else if (selectedWorkflow == TextGeneratorWorkflow.ZimageBase)
+                    {
+                        // z-image-base.json: node 76:69 = KSampler. Seed only — steps 30 / cfg 2.5 /
+                        // res_2m / beta57 / denoise 1 are the workflow's own and are left alone.
+                        UpdateNodeInputs(workflow, "76:69", nodeInputs => nodeInputs["seed"] = randomSeed);
+                        _logger.LogInfo($"✓ Updated Zimage Base sampler node 76:69 with seed: {randomSeed} (steps/cfg/denoise as authored)");
                     }
 
                     return workflow;
@@ -3498,6 +3597,25 @@ namespace FlipPix.UI.ViewModels
             return node.ToString();
         }
 
+        /// <summary>
+        /// Reads node <paramref name="nodeId"/>'s inputs into a mutable dictionary, hands it to
+        /// <paramref name="mutate"/>, and writes the node back. No-op if the node is absent.
+        /// </summary>
+        private static void UpdateNodeInputs(Dictionary<string, object> workflow, string nodeId, Action<Dictionary<string, object>> mutate)
+        {
+            if (!workflow.ContainsKey(nodeId)) return;
+
+            var node = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(workflow[nodeId]));
+            if (node == null || !node.ContainsKey("inputs")) return;
+
+            var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(node["inputs"]));
+            if (inputs == null) return;
+
+            mutate(inputs);
+            node["inputs"] = inputs;
+            workflow[nodeId] = node;
+        }
+
         private (int, int) GetDimensionsForAspectRatio(int aspectRatioIndex)
         {
             // Z-Image recommended dimensions based on aspect ratios
@@ -3684,6 +3802,7 @@ namespace FlipPix.UI.ViewModels
                     TextGeneratorWorkflow.Klien => "F2K_txt2img_",
                     TextGeneratorWorkflow.Anima => "Anima_",
                     TextGeneratorWorkflow.Krea2 => "Krea2_",
+                    TextGeneratorWorkflow.ZimageBase => "ZBase_",
                     _ => ""  // Empty for Zimage (will use ZI/z-image pattern)
                 };
 
@@ -4108,6 +4227,29 @@ namespace FlipPix.UI.ViewModels
             LoadResultPreview(item.OutputImagePath);
             HasResultImage = true;
             StatusBarMessage = $"Loaded result: {Path.GetFileName(item.OutputImagePath)}";
+
+            // The in-app preview is downscaled, so clicking a queue thumbnail also hands the
+            // original file to the OS default image viewer for full-resolution inspection.
+            OpenInDefaultViewer(item.OutputImagePath);
+        }
+
+        /// <summary>
+        /// Open a file with the OS-associated application. Never throws.
+        /// </summary>
+        private void OpenInDefaultViewer(string imagePath)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = imagePath,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error opening image in default viewer: {ex.Message}");
+            }
         }
 
         private void LoadResultPreview(string imagePath)

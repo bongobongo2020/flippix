@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -28,7 +29,10 @@ namespace FlipPix.UI.ViewModels
         Qwen2512,
         Klien,
         Anima,
-        Krea2
+        Krea2,
+        // Plain Z-Image base pass (z-image-base.json): no style preset, no Power Lora
+        // Loader — one UNETLoader → LoraLoaderModelOnly → KSampler chain.
+        ZimageBase
     }
 
     public class ImageGeneratorViewModel : BasePromptViewModel, IDisposable
@@ -62,6 +66,8 @@ namespace FlipPix.UI.ViewModels
         private bool _loraEnabled = false;
         private ObservableCollection<string> _kreaLoras = new();
         private ObservableCollection<KreaLoraSelection> _selectedKreaLoras = new();
+        // Remembers the per-LoRA trigger words the rows prepend to the prompt.
+        private readonly KreaLoraTriggerTracker _kreaTriggers;
         private string _kreaLoraSubfolder = "krea2";
         private TextGeneratorWorkflow _selectedWorkflow = TextGeneratorWorkflow.Zimage;
         private JsonElement _lastWorkflow;
@@ -81,9 +87,7 @@ namespace FlipPix.UI.ViewModels
 
         // Nested ViewModels for tabs
         private ImageAnalyzerViewModel _analyzer;
-        private FlipPixViewModel _cameraEdit;
         private StoryImageGeneratorQViewModel _storyGeneratorQ;
-        private StoryImageGeneratorAmateurViewModel _storyGeneratorAmateur;
         private AmateurGeneratorViewModel _amateurGenerator;
         private CameraAngleViewModel _cameraAngle;
         private InpaintEditorViewModel _inpaintEditor;
@@ -92,6 +96,7 @@ namespace FlipPix.UI.ViewModels
         private IdeogramViewModel _ideogram;
         private QwenEditViewModel _qwenEdit;
         private RestoreViewModel _restore;
+        private ImageUpscalerViewModel _imageUpscaler;
 
 
         public ImageGeneratorViewModel(FlipPix.ComfyUI.Services.ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider? serviceProvider = null, IPromptService? promptService = null)
@@ -99,6 +104,7 @@ namespace FlipPix.UI.ViewModels
         {
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+            _kreaTriggers = new KreaLoraTriggerTracker(_settingsService, AddLog);
             _serviceProvider = serviceProvider;
             _workflowCoordinator = serviceProvider?.GetRequiredService<WorkflowQueueCoordinator>() ?? throw new InvalidOperationException("WorkflowQueueCoordinator is required");
 
@@ -110,13 +116,14 @@ namespace FlipPix.UI.ViewModels
             var loraManager = serviceProvider?.GetRequiredService<LoraManager>() ?? throw new InvalidOperationException("LoraManager is required");
             var imageRetriever = serviceProvider?.GetRequiredService<ComfyUIImageRetriever>() ?? throw new InvalidOperationException("ComfyUIImageRetriever is required");
 
-            // Initialize nested ViewModels
+            // Initialize nested ViewModels.
+            // Hand down _promptService (the base already resolved the nullable ctor arg to a real
+            // instance) rather than the raw parameter: passing null here reached ImageAnalyzer's
+            // non-nullable IPromptService and left every child holding a separate service.
             var lmStudioService = serviceProvider?.GetRequiredService<LMStudioService>();
-            _analyzer = new ImageAnalyzerViewModel(comfyUIService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), logger, settingsService, _workflowCoordinator, fileDialogService, promptService);
-            _cameraEdit = new FlipPixViewModel(comfyUIService, logger, settingsService, serviceProvider, promptService, fileDialogService);
+            _analyzer = new ImageAnalyzerViewModel(comfyUIService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), logger, settingsService, _workflowCoordinator, fileDialogService, _promptService);
             _storyGeneratorQ = new StoryImageGeneratorQViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService, loraManager, imageRetriever, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"));
-            _storyGeneratorAmateur = new StoryImageGeneratorAmateurViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService, loraManager, imageRetriever);
-            _amateurGenerator = new AmateurGeneratorViewModel(comfyUIService, logger, settingsService, promptService, loraManager, imageRetriever, _workflowCoordinator, lmStudioService, fileDialogService);
+            _amateurGenerator = new AmateurGeneratorViewModel(comfyUIService, logger, settingsService, _promptService, loraManager, imageRetriever, _workflowCoordinator, lmStudioService, fileDialogService);
             _cameraAngle = new CameraAngleViewModel(comfyUIService, logger, settingsService, fileDialogService, imageRetriever);
             _inpaintEditor = new InpaintEditorViewModel(comfyUIService, logger, settingsService, fileDialogService);
             _kleinInpaintEditor = new KleinInpaintViewModel(comfyUIService, logger, settingsService, fileDialogService);
@@ -125,6 +132,7 @@ namespace FlipPix.UI.ViewModels
             _ideogram = new IdeogramViewModel(comfyUIService, logger, settingsService, fileDialogService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), _workflowCoordinator);
             _qwenEdit = new QwenEditViewModel(comfyUIService, logger, settingsService, fileDialogService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), _workflowCoordinator);
             _restore = new RestoreViewModel(comfyUIService, logger, settingsService, fileDialogService);
+            _imageUpscaler = new ImageUpscalerViewModel(comfyUIService, logger, settingsService, fileDialogService, imageRetriever);
 
             // Keep the shared Tab 1 settings panel pointed at the active mode's VM.
             _analyzer.PropertyChanged += (s, e) =>
@@ -169,10 +177,8 @@ namespace FlipPix.UI.ViewModels
             SendToCameraAngleCommand = new RelayCommand(SendToCameraAngle);
             SendToVideoGeneratorCommand = new RelayCommand(SendToVideoGenerator);
             SendToStoryCommand = new RelayCommand(SendToStory);
-            OpenKeyframesInFflfSeedHunterCommand = new RelayCommand(OpenKeyframesInFflfSeedHunter);
-            NavigateToImageAnalyzerCommand = new RelayCommand(NavigateToImageAnalyzer);
+            OpenKeyframesInMiniMaxFflfCommand = new RelayCommand(OpenKeyframesInMiniMaxFflf);
             NavigateToVideoGeneratorCommand = new RelayCommand(NavigateToVideoGenerator);
-                NavigateToStoryVideoCommand = new RelayCommand(NavigateToStoryVideo);
             NavigateToEnhanceVideoCommand = new RelayCommand(NavigateToEnhanceVideo);
             RefreshLorasCommand = new RelayCommand(RefreshLoras);
             RefreshKreaLorasCommand = new RelayCommand(RefreshKreaLoras);
@@ -206,6 +212,7 @@ namespace FlipPix.UI.ViewModels
             CancelQueueCommand = new RelayCommand(CancelQueue, () => IsProcessingQueue);
 
             // Load available Loras
+            _kreaTriggers.Track(_selectedKreaLoras);
             LoadAvailableLoras();
             LoadKreaLoras();
 
@@ -299,9 +306,7 @@ namespace FlipPix.UI.ViewModels
 
         // Nested ViewModel properties
         public ImageAnalyzerViewModel Analyzer => _analyzer;
-        public FlipPixViewModel CameraEdit => _cameraEdit;
         public StoryImageGeneratorQViewModel StoryGeneratorQ => _storyGeneratorQ;
-        public StoryImageGeneratorAmateurViewModel StoryGeneratorAmateur => _storyGeneratorAmateur;
         public AmateurGeneratorViewModel AmateurGenerator => _amateurGenerator;
         public CameraAngleViewModel CameraAngle => _cameraAngle;
         public InpaintEditorViewModel InpaintEditor => _inpaintEditor;
@@ -310,6 +315,7 @@ namespace FlipPix.UI.ViewModels
         public IdeogramViewModel Ideogram => _ideogram;
         public QwenEditViewModel QwenEdit => _qwenEdit;
         public RestoreViewModel Restore => _restore;
+        public ImageUpscalerViewModel ImageUpscaler => _imageUpscaler;
 
         public string ProcessingStatus
         {
@@ -478,7 +484,9 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        public bool ShowLoraOptions => SelectedWorkflow == TextGeneratorWorkflow.Zimage;
+        // Both Z-Image paths pick their LoRA from the same <loras>/zimage folder.
+        public bool ShowLoraOptions => SelectedWorkflow == TextGeneratorWorkflow.Zimage
+                                       || SelectedWorkflow == TextGeneratorWorkflow.ZimageBase;
 
         // Krea2 LoRA Properties (loaded from the <loras>/krea2 subfolder)
         public ObservableCollection<string> KreaLoras
@@ -494,7 +502,12 @@ namespace FlipPix.UI.ViewModels
         public ObservableCollection<KreaLoraSelection> SelectedKreaLoras
         {
             get => _selectedKreaLoras;
-            set { _selectedKreaLoras = value; OnPropertyChanged(); }
+            set
+            {
+                _selectedKreaLoras = value;
+                _kreaTriggers.Track(_selectedKreaLoras);
+                OnPropertyChanged();
+            }
         }
 
         public bool ShowKreaLoraOptions => SelectedWorkflow == TextGeneratorWorkflow.Krea2;
@@ -531,10 +544,8 @@ namespace FlipPix.UI.ViewModels
         public ICommand SendToCameraAngleCommand { get; }
         public ICommand SendToVideoGeneratorCommand { get; }
         public ICommand SendToStoryCommand { get; }
-        public ICommand OpenKeyframesInFflfSeedHunterCommand { get; }
-        public ICommand NavigateToImageAnalyzerCommand { get; }
+        public ICommand OpenKeyframesInMiniMaxFflfCommand { get; }
         public ICommand NavigateToVideoGeneratorCommand { get; }
-              public ICommand NavigateToStoryVideoCommand { get; }
         public ICommand NavigateToEnhanceVideoCommand { get; }
         public ICommand RefreshLorasCommand { get; }
         public ICommand RefreshKreaLorasCommand { get; }
@@ -769,8 +780,8 @@ namespace FlipPix.UI.ViewModels
                 switch (SelectedWorkflow)
                 {
                     case TextGeneratorWorkflow.Qwen2512:
-                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "qwen2512API-text.json");
-                        AddLog("Using Qwen2512 workflow");
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "qwen", "Qwen_Image_2512_INT8_Convrot_WF.json");
+                        AddLog("Using Qwen2512 workflow (INT8 ConvRot)");
                         break;
 
                     case TextGeneratorWorkflow.Klien:
@@ -786,6 +797,11 @@ namespace FlipPix.UI.ViewModels
                     case TextGeneratorWorkflow.Krea2:
                         workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "krea", "krea2RealismV1_krea2RealismV1WF.json");
                         AddLog("Using Krea2 workflow");
+                        break;
+
+                    case TextGeneratorWorkflow.ZimageBase:
+                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "zimage", "base", "z-image-base.json");
+                        AddLog("Using Zimage Base workflow");
                         break;
 
                     case TextGeneratorWorkflow.Zimage:
@@ -890,6 +906,7 @@ namespace FlipPix.UI.ViewModels
                         TextGeneratorWorkflow.Klien => "f2k-txt2img",
                         TextGeneratorWorkflow.Anima => "anima",
                         TextGeneratorWorkflow.Krea2 => "krea2",
+                        TextGeneratorWorkflow.ZimageBase => "z-image-base",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");
@@ -1425,6 +1442,8 @@ namespace FlipPix.UI.ViewModels
                     return UpdateAnimaWorkflow(workflowDict);
                 case TextGeneratorWorkflow.Krea2:
                     return UpdateKrea2Workflow(workflowDict);
+                case TextGeneratorWorkflow.ZimageBase:
+                    return UpdateZimageBaseWorkflow(workflowDict);
                 default:
                     return workflow;
             }
@@ -1434,8 +1453,8 @@ namespace FlipPix.UI.ViewModels
         /// Applies the user's LoRA selection to a ZStyle workflow's own Power Lora Loader
         /// (rgthree) node. The node id varies per workflow (Lo-Fi-Mobile=128, EpicGreg=392,
         /// …), so it's located by class_type rather than a fixed id. Returns true if such a
-        /// node was found and updated. Node 583 (Zib-Zit) is handled by its own block before
-        /// this is reached, so it is not double-processed.
+        /// node was found and updated. Node 583 is handled by its own block before this is
+        /// reached, so it is not double-processed. Zib-Zit reaches this path — its loader is 747.
         /// </summary>
         private bool TryApplyPowerLoraLoader(Dictionary<string, JsonElement> workflowDict)
         {
@@ -1496,7 +1515,8 @@ namespace FlipPix.UI.ViewModels
 
         private JsonElement UpdateZimageWorkflow(Dictionary<string, JsonElement> workflowDict)
         {
-            // Zib-Zit workflow uses Power Lora Loader (node 583)
+            // Some Zimage workflows put the Power Lora Loader at node 583; Zib-Zit's is 747 and is
+            // found by class_type in TryApplyPowerLoraLoader below.
             // Handle LoRA: enable/disable lora_1 slot in the Power Lora Loader
             if (workflowDict.ContainsKey("583"))
             {
@@ -1802,9 +1822,10 @@ namespace FlipPix.UI.ViewModels
 
             // Zib-Zit workflow uses different node IDs:
             // Node 445: Textbox - Negative Prompt
-            // Node 569: Seed String
-            // Node 639: KSamplerAdvanced - Z-image (steps, cfg, denoise)
+            // Node 639: KSamplerAdvanced - Z-image (steps, cfg, noise_seed)
             // Node 176: CR Aspect Ratio
+            // (Node 569, a Mikey "Seed String", is gone — that pack isn't installed. The block
+            //  below is kept for any other workflow that still has one.)
 
             // Update seed (node 569 - Seed String)
             if (workflowDict.ContainsKey("569"))
@@ -1877,6 +1898,14 @@ namespace FlipPix.UI.ViewModels
                         inputs["steps"] = Steps;
                         inputs["cfg"] = Cfg;
                         inputs["denoise"] = Denoise;
+                        // The seed used to come from a Mikey "Seed String" node (569), whose pack
+                        // isn't installed; it's a literal on the sampler now.
+                        if (inputs.ContainsKey("noise_seed"))
+                        {
+                            var seed639 = Seed == 0 ? new Random().NextInt64(0, 999999999999999) : Seed;
+                            inputs["noise_seed"] = (long)seed639;
+                            AddLog($"Updated Z-image seed: {seed639}");
+                        }
                         node639["inputs"] = inputs;
                         workflowDict["639"] = JsonSerializer.SerializeToElement(node639);
                         AddLog($"Updated Z-image sampler: steps={Steps}, cfg={Cfg}, denoise={Denoise}");
@@ -1884,17 +1913,21 @@ namespace FlipPix.UI.ViewModels
                 }
             }
 
-            // Update aspect ratio (node 176 - CR Aspect Ratio)
+            // Update aspect ratio (node 176 - CR Aspect Ratio).
+            // The named presets this used to write ("SDXL - 16:9 landscape 1600x1088", …) are not in
+            // CR Aspect Ratio's list — its SDXL 16:9 entry is 1344x768 — so every submit was rejected
+            // with value_not_in_list. "custom" makes the node honour the width/height widgets, which
+            // is the only way to get the resolutions this tab actually wants.
             if (workflowDict.ContainsKey("176"))
             {
-                var aspectRatios = new[]
+                var resolutions = new[]
                 {
-                    "SDXL - 16:9 landscape 1600x1088",
-                    "SDXL - 9:16 portrait 1088x1600",
-                    "SDXL - 1:1 square 1600x1600"
+                    (1600, 1088), // Landscape
+                    (1088, 1600), // Portrait
+                    (1600, 1600), // Square
                 };
 
-                var selectedRatio = aspectRatios[Math.Min(AspectRatioIndex, aspectRatios.Length - 1)];
+                var (crWidth, crHeight) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
 
                 var node176 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["176"].GetRawText());
                 if (node176 != null && node176.ContainsKey("inputs"))
@@ -1903,12 +1936,14 @@ namespace FlipPix.UI.ViewModels
                         JsonSerializer.Serialize(node176["inputs"]));
                     if (inputs != null)
                     {
-                        inputs["aspect_ratio"] = selectedRatio;
+                        inputs["aspect_ratio"] = "custom";
+                        inputs["width"] = crWidth;
+                        inputs["height"] = crHeight;
                         // Turn off swap_dimensions to prevent width/height inversion
                         inputs["swap_dimensions"] = "Off";
                         node176["inputs"] = inputs;
                         workflowDict["176"] = JsonSerializer.SerializeToElement(node176);
-                        AddLog($"Updated aspect ratio: {selectedRatio}");
+                        AddLog($"Updated aspect ratio: {crWidth}x{crHeight} (custom)");
                     }
                 }
             }
@@ -2118,26 +2153,20 @@ namespace FlipPix.UI.ViewModels
                 workflowDict.Remove("109");
                 AddLog("Removed node 109 (metadata viewer) to prevent errors");
             }
-            // Also remove watermark nodes that depend on node 107 (747, 748, 749, 751)
-            if (workflowDict.ContainsKey("747"))
+            // Also remove the watermark nodes that depend on node 107 (747, 748, 749, 751).
+            // Node id only means "watermark" in amateurZimageAPI — in Zib-Zit those same ids are the
+            // Power Lora Loader and both Text to Conditioning nodes feeding the sampler, so deleting
+            // them unconditionally left node 639 pointing at nodes that no longer existed and every
+            // generation failed. Check what node 747 actually is before touching the chain.
+            if (workflowDict.TryGetValue("747", out var node747) &&
+                node747.TryGetProperty("class_type", out var class747) &&
+                class747.GetString() == "AddLabel")
             {
-                workflowDict.Remove("747");
-                AddLog("Removed node 747 (watermark label)");
-            }
-            if (workflowDict.ContainsKey("748"))
-            {
-                workflowDict.Remove("748");
-                AddLog("Removed node 748 (watermark label)");
-            }
-            if (workflowDict.ContainsKey("749"))
-            {
-                workflowDict.Remove("749");
-                AddLog("Removed node 749 (image concatenation)");
-            }
-            if (workflowDict.ContainsKey("751"))
-            {
-                workflowDict.Remove("751");
-                AddLog("Removed node 751 (watermark save)");
+                foreach (var id in new[] { "747", "748", "749", "751" })
+                {
+                    if (workflowDict.Remove(id))
+                        AddLog($"Removed node {id} (amateurZimageAPI watermark chain)");
+                }
             }
 
             // Fix node 651 (main SaveImage for amateurZimageAPI): redirect output to ZImage folder
@@ -2230,6 +2259,13 @@ namespace FlipPix.UI.ViewModels
 
         private JsonElement UpdateQwen2512Workflow(Dictionary<string, JsonElement> workflowDict)
         {
+            // Qwen_Image_2512_INT8_Convrot_WF.json node map:
+            //   108 = CLIPTextEncode (positive prompt) → inputs.text
+            //         (the negative branch is a ConditioningZeroOut of 108, so there is nothing to set)
+            //   106 = KSampler → inputs.seed / steps / cfg / denoise
+            //   107 = EmptySD3LatentImage → inputs.width / height
+            //   130 = FantasticLoraLoader — Lightning 8-step LoRA is baked in by the workflow
+
             // Get resolution from aspect ratio index
             var resolutions = new[]
             {
@@ -2239,74 +2275,60 @@ namespace FlipPix.UI.ViewModels
             };
             var (width, height) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
 
-            // Update prompt (node 71 - CLIPTextEncode)
-            if (workflowDict.ContainsKey("71"))
+            // Update prompt (node 108 - CLIPTextEncode)
+            if (workflowDict.ContainsKey("108"))
             {
-                var node71 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["71"].GetRawText());
-                if (node71 != null && node71.ContainsKey("inputs"))
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["108"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
                 {
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node71["inputs"]));
+                        JsonSerializer.Serialize(node["inputs"]));
                     if (inputs != null)
                     {
                         inputs["text"] = ImagePrompt;
-                        node71["inputs"] = inputs;
-                        workflowDict["71"] = JsonSerializer.SerializeToElement(node71);
+                        node["inputs"] = inputs;
+                        workflowDict["108"] = JsonSerializer.SerializeToElement(node);
                     }
                 }
             }
 
-            // Update seed (node 120 - Seed)
-            if (workflowDict.ContainsKey("120"))
+            // Update seed and sampler settings (node 106 - KSampler)
+            if (workflowDict.ContainsKey("106"))
             {
-                var node120 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["120"].GetRawText());
-                if (node120 != null && node120.ContainsKey("inputs"))
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["106"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
                 {
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node120["inputs"]));
+                        JsonSerializer.Serialize(node["inputs"]));
                     if (inputs != null)
                     {
-                        var actualSeed = Seed == 0 ? -1 : Seed;
+                        // KSampler takes the seed inline (no rgthree Seed node here), and the
+                        // widget is an unsigned INT — so 0 means "randomise", not "-1".
+                        var actualSeed = Seed == 0 ? new Random().NextInt64(0, 999999999999999) : Seed;
                         inputs["seed"] = actualSeed;
-                        node120["inputs"] = inputs;
-                        workflowDict["120"] = JsonSerializer.SerializeToElement(node120);
-                    }
-                }
-            }
-
-            // Update sampler settings (node 74 - KSampler)
-            if (workflowDict.ContainsKey("74"))
-            {
-                var node74 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["74"].GetRawText());
-                if (node74 != null && node74.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node74["inputs"]));
-                    if (inputs != null)
-                    {
                         inputs["steps"] = Steps;
                         inputs["cfg"] = Cfg;
                         inputs["denoise"] = Denoise;
-                        node74["inputs"] = inputs;
-                        workflowDict["74"] = JsonSerializer.SerializeToElement(node74);
+                        node["inputs"] = inputs;
+                        workflowDict["106"] = JsonSerializer.SerializeToElement(node);
                     }
                 }
             }
 
-            // Update resolution (node 51 - EmptyLatentImage)
-            if (workflowDict.ContainsKey("51"))
+            // Update resolution (node 107 - EmptySD3LatentImage)
+            if (workflowDict.ContainsKey("107"))
             {
-                var node51 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["51"].GetRawText());
-                if (node51 != null && node51.ContainsKey("inputs"))
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["107"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
                 {
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node51["inputs"]));
+                        JsonSerializer.Serialize(node["inputs"]));
                     if (inputs != null)
                     {
                         inputs["width"] = width;
                         inputs["height"] = height;
-                        node51["inputs"] = inputs;
-                        workflowDict["51"] = JsonSerializer.SerializeToElement(node51);
+                        node["inputs"] = inputs;
+                        workflowDict["107"] = JsonSerializer.SerializeToElement(node);
                     }
                 }
             }
@@ -2486,7 +2508,7 @@ namespace FlipPix.UI.ViewModels
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(node["inputs"]));
                     if (inputs != null)
                     {
-                        inputs["text"] = ImagePrompt;
+                        inputs["text"] = ApplyKreaLoraTriggers(ImagePrompt, SelectedKreaLoras, AddLog);
                         node["inputs"] = inputs;
                         workflowDict["6"] = JsonSerializer.SerializeToElement(node);
                     }
@@ -2545,6 +2567,61 @@ namespace FlipPix.UI.ViewModels
             workflowDict.Remove("5");
 
             return JsonSerializer.SerializeToElement(workflowDict);
+        }
+
+        private JsonElement UpdateZimageBaseWorkflow(Dictionary<string, JsonElement> workflowDict)
+        {
+            // z-image-base.json is run AS AUTHORED. Only the prompt and the seed are injected;
+            // everything the file specifies is left alone, because overriding it is what produced
+            // the bad output: the tab's defaults sent steps=9 / cfg=1.5 into a graph tuned for
+            // steps=30 / cfg=2.5, resized the latent from 1024x1280 to 1600x1088, and — since
+            // LoraEnabled is off by default — deleted node 76:96 outright, dropping the skin LoRA
+            // the workflow depends on.
+            //
+            // z-image-base.json node map:
+            //   76:67 = CLIPTextEncode (positive prompt) → inputs.text          [set here]
+            //   76:69 = KSampler → inputs.seed                                  [set here]
+            //   9     = SaveImage → inputs.filename_prefix                      [set here]
+            //   76:68 = EmptySD3LatentImage (1024x1280)                         [as authored]
+            //   76:69 = steps 30 / cfg 2.5 / res_2m / beta57 / denoise 1        [as authored]
+            //   76:96 = LoraLoaderModelOnly, zib skin texture v2.1 @ 0.8        [as authored]
+            //
+            // Consequence: the tab's Steps / CFG / Denoise / aspect-ratio / LoRA controls do not
+            // apply to this workflow. Edit the JSON to change them.
+
+            var actualSeed = Seed == 0 ? new Random().NextInt64(0, 999999999999999) : Seed;
+
+            UpdateNodeInputs(workflowDict, "76:67", inputs => inputs["text"] = ImagePrompt);
+
+            UpdateNodeInputs(workflowDict, "76:69", inputs => inputs["seed"] = actualSeed);
+
+            // Saved at the output root so the prefix-based local retrieval matches.
+            UpdateNodeInputs(workflowDict, "9", inputs => inputs["filename_prefix"] = "ZBase");
+
+            AddLog($"Zimage Base: running the workflow as authored (seed={actualSeed}); " +
+                   "steps, CFG, denoise, resolution and the LoRA come from z-image-base.json, " +
+                   "not from the tab's controls.");
+
+            return JsonSerializer.SerializeToElement(workflowDict);
+        }
+
+        /// <summary>
+        /// Reads node <paramref name="nodeId"/>'s inputs into a mutable dictionary, hands it to
+        /// <paramref name="mutate"/>, and writes the node back. No-op if the node is absent.
+        /// </summary>
+        private static void UpdateNodeInputs(Dictionary<string, JsonElement> workflowDict, string nodeId, Action<Dictionary<string, object>> mutate)
+        {
+            if (!workflowDict.ContainsKey(nodeId)) return;
+
+            var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
+            if (node == null || !node.ContainsKey("inputs")) return;
+
+            var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(node["inputs"]));
+            if (inputs == null) return;
+
+            mutate(inputs);
+            node["inputs"] = inputs;
+            workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
         }
 
         /// <summary>
@@ -2616,6 +2693,54 @@ namespace FlipPix.UI.ViewModels
             }
 
             log?.Invoke($"Krea2 LoRAs: {string.Join(", ", valid.Select(v => $"{v.LoraName}@{v.Strength:0.##}"))}");
+        }
+
+        /// <summary>
+        /// Prepends the selected Krea2 LoRAs' trigger words to the positive prompt, in row order,
+        /// e.g. "Famegrid, casual smartphone photo of a woman sitting at a coffee shop." A row whose
+        /// trigger field is empty contributes nothing, and a word the prompt already contains is not
+        /// repeated, so the user can still write it by hand. Applied at submit time only — the prompt
+        /// box keeps what was typed.
+        /// </summary>
+        internal static string ApplyKreaLoraTriggers(
+            string? prompt,
+            IEnumerable<KreaLoraSelection> selections,
+            Action<string>? log = null)
+        {
+            var body = (prompt ?? string.Empty).Trim();
+
+            var words = new List<string>();
+            foreach (var selection in selections ?? Enumerable.Empty<KreaLoraSelection>())
+            {
+                if (string.IsNullOrEmpty(selection.LoraName)
+                    || selection.LoraName == "No LoRAs available"
+                    || selection.LoraName == "Error loading LoRAs")
+                    continue;
+
+                var word = selection.TriggerWord?.Trim();
+                if (string.IsNullOrEmpty(word)) continue;
+                if (words.Any(w => string.Equals(w, word, StringComparison.OrdinalIgnoreCase))) continue;
+                if (PromptContainsTrigger(body, word)) continue;
+
+                words.Add(word);
+            }
+
+            if (words.Count == 0) return body;
+
+            var prefix = string.Join(", ", words);
+            log?.Invoke($"Krea2 trigger words prepended: {prefix}");
+
+            // Drop a leading comma so an already-comma-led prompt doesn't double up.
+            body = body.TrimStart(',', ' ');
+            return body.Length == 0 ? prefix : $"{prefix}, {body}";
+        }
+
+        /// <summary>Whole-word, case-insensitive check so "Realism" doesn't match "surrealism".</summary>
+        private static bool PromptContainsTrigger(string prompt, string word)
+        {
+            if (prompt.Length == 0) return false;
+            var pattern = $@"(?<!\w){Regex.Escape(word)}(?!\w)";
+            return Regex.IsMatch(prompt, pattern, RegexOptions.IgnoreCase);
         }
 
         private Dictionary<string, JsonElement> AddLoraToWorkflow(Dictionary<string, JsonElement> workflowDict, string loraName)
@@ -2825,9 +2950,13 @@ namespace FlipPix.UI.ViewModels
                         return images;
                     }
 
-                    // Check if workflow is amateurZimageAPI (has node 760 or 107)
+                    // Check if workflow is amateurZimageAPI (has node 760 or 107).
+                    // Scoped to Zimage: other workflows (e.g. Qwen 2512 ConvRot) also use node id 107,
+                    // and must not be redirected into the ZImage output subfolder.
                     var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(_lastWorkflow.GetRawText());
-                    bool isAmateurZimageApi = workflowDict != null && (workflowDict.ContainsKey("760") || workflowDict.ContainsKey("107"));
+                    bool isAmateurZimageApi = SelectedWorkflow == TextGeneratorWorkflow.Zimage
+                        && workflowDict != null
+                        && (workflowDict.ContainsKey("760") || workflowDict.ContainsKey("107"));
 
                     // For Zimage (Zib-Zit workflow), the output is in a subdirectory: ZImage/%date/
                     string searchDirectory;
@@ -2917,6 +3046,7 @@ namespace FlipPix.UI.ViewModels
                             TextGeneratorWorkflow.Klien => "F2K_txt2img_",
                             TextGeneratorWorkflow.Anima => "Anima_",
                             TextGeneratorWorkflow.Krea2 => "Krea2_",
+                            TextGeneratorWorkflow.ZimageBase => "ZBase_",
                             _ => "z-image_"
                         };
                         imageFiles = Directory.GetFiles(comfyUIOutputDir, $"{prefix}*.png")
@@ -3050,6 +3180,7 @@ namespace FlipPix.UI.ViewModels
                 TextGeneratorWorkflow.Klien => new[] { @"F2K_txt2img_(\d+)_", @"F2K_txt2img_(\d+)$" },
                 TextGeneratorWorkflow.Anima => new[] { @"Anima_(\d+)_", @"Anima_(\d+)$" },
                 TextGeneratorWorkflow.Krea2 => new[] { @"Krea2_(\d+)_", @"Krea2_(\d+)$" },
+                TextGeneratorWorkflow.ZimageBase => new[] { @"ZBase_(\d+)_", @"ZBase_(\d+)$" },
                 _ => new[] { @"z-image_(\d+)_", @"z-image_(\d+)$" }
             };
 
@@ -3078,6 +3209,29 @@ namespace FlipPix.UI.ViewModels
             LoadResultPreview(item.OutputImagePath);
             HasResultImage = true;
             StatusBarMessage = $"Loaded result: {Path.GetFileName(item.OutputImagePath)}";
+
+            // The in-app preview is downscaled, so clicking a queue thumbnail also hands the
+            // original file to the OS default image viewer for full-resolution inspection.
+            OpenInDefaultViewer(item.OutputImagePath);
+        }
+
+        /// <summary>
+        /// Open a file with the OS-associated application. Never throws.
+        /// </summary>
+        private void OpenInDefaultViewer(string imagePath)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = imagePath,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR opening image in default viewer: {ex.Message}");
+            }
         }
 
         private void LoadResultPreview(string imagePath)
@@ -3243,10 +3397,12 @@ namespace FlipPix.UI.ViewModels
         }
 
         /// <summary>
-        /// Opens the Video Generator's FFLF Seed Hunter tab and loads the current Story Image Q
-        /// session's generated keyframes as a folder batch (overlapping FFLF pairs → continuous shot).
+        /// Opens the Video Generator's 🌀🎯 MiniMax FFLF tab and hands it this Story Image Q session's
+        /// generated keyframes as a folder: the first still becomes the opening frame and each one after
+        /// it becomes a keyframe a clip has to arrive at. A ten-keyframe run is more than one chain holds,
+        /// so the tab walks it as a series of takes, each opening on the keyframe the last one ended with.
         /// </summary>
-        private void OpenKeyframesInFflfSeedHunter()
+        private void OpenKeyframesInMiniMaxFflf()
         {
             if (_serviceProvider == null) return;
 
@@ -3265,7 +3421,8 @@ namespace FlipPix.UI.ViewModels
                 if (pngCount < 2)
                 {
                     System.Windows.MessageBox.Show(
-                        $"Need at least 2 generated keyframes to form an FFLF pair (found {pngCount}).",
+                        $"Need at least 2 generated keyframes — an opening frame and something for the "
+                        + $"first clip to reach (found {pngCount}).",
                         "Not Enough Keyframes", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
                     return;
                 }
@@ -3285,18 +3442,18 @@ namespace FlipPix.UI.ViewModels
 
                 if (videoWindow.DataContext is VideoGeneratorViewModel vm)
                 {
-                    // FFLF Seed Hunter is the last tab in VideoGeneratorWindow's TabControl (index 11).
-                    vm.SelectedTabIndex = 11;
-                    vm.FflfSeedHuntVM.LoadFolder(folder);
-                    AddLog($"Opened FFLF Seed Hunter with {pngCount} keyframes from: {folder}");
-                    StatusBarMessage = $"Loaded {pngCount} keyframes into FFLF Seed Hunter";
+                    // MiniMax FFLF is the fourth tab in VideoGeneratorWindow's TabControl.
+                    vm.SelectedTabIndex = 3;
+                    vm.MiniMaxFflfVM.LoadFolder(folder);
+                    AddLog($"Opened MiniMax FFLF with {pngCount} keyframes from: {folder}");
+                    StatusBarMessage = $"Loaded {pngCount} keyframes into MiniMax FFLF";
                 }
             }
             catch (Exception ex)
             {
-                AddLog($"ERROR opening FFLF Seed Hunter: {ex.Message}");
-                _logger.LogError($"Error opening FFLF Seed Hunter: {ex}");
-                System.Windows.MessageBox.Show($"Error opening FFLF Seed Hunter:\n\n{ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                AddLog($"ERROR opening MiniMax FFLF: {ex.Message}");
+                _logger.LogError($"Error opening MiniMax FFLF: {ex}");
+                System.Windows.MessageBox.Show($"Error opening MiniMax FFLF:\n\n{ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }
         }
 
@@ -3361,77 +3518,7 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        private void NavigateToImageAnalyzer()
-        {
-            if (_serviceProvider == null) return;
-
-            try
-            {
-                var imageAnalyzerWindow = _serviceProvider.GetService(typeof(ImageAnalyzerWindow)) as ImageAnalyzerWindow;
-                if (imageAnalyzerWindow != null)
-                {
-                    // Ensure window appears on screen
-                    var screenWidth = SystemParameters.PrimaryScreenWidth;
-                    var screenHeight = SystemParameters.PrimaryScreenHeight;
-                    var windowWidth = imageAnalyzerWindow.Width;
-                    var windowHeight = imageAnalyzerWindow.Height;
-
-                    // Use conservative positioning
-                    imageAnalyzerWindow.Left = 150;
-                    imageAnalyzerWindow.Top = 150;
-
-                    // Ensure window is fully visible on screen
-                    if (imageAnalyzerWindow.Left + windowWidth > screenWidth)
-                        imageAnalyzerWindow.Left = Math.Max(50, screenWidth - windowWidth - 50);
-                    if (imageAnalyzerWindow.Top + windowHeight > screenHeight)
-                        imageAnalyzerWindow.Top = Math.Max(50, screenHeight - windowHeight - 50);
-
-                    imageAnalyzerWindow.Show();
-                    AddLog("Opened Image Analyzer window");
-                }
-            }
-            catch (Exception ex)
-            {
-                AddLog($"ERROR navigating to Image Analyzer: {ex.Message}");
-            }
-        }
-
   
-        private void NavigateToStoryVideo()
-        {
-            if (_serviceProvider == null) return;
-
-            try
-            {
-                var storyVideoWindow = _serviceProvider.GetService(typeof(StoryVideoWindow)) as StoryVideoWindow;
-                if (storyVideoWindow != null)
-                {
-                    // Ensure window appears on screen
-                    var screenWidth = SystemParameters.PrimaryScreenWidth;
-                    var screenHeight = SystemParameters.PrimaryScreenHeight;
-                    var windowWidth = storyVideoWindow.Width;
-                    var windowHeight = storyVideoWindow.Height;
-
-                    // Use conservative positioning
-                    storyVideoWindow.Left = 200;
-                    storyVideoWindow.Top = 200;
-
-                    // Ensure window is fully visible on screen
-                    if (storyVideoWindow.Left + windowWidth > screenWidth)
-                        storyVideoWindow.Left = Math.Max(50, screenWidth - windowWidth - 50);
-                    if (storyVideoWindow.Top + windowHeight > screenHeight)
-                        storyVideoWindow.Top = Math.Max(50, screenHeight - windowHeight - 50);
-
-                    storyVideoWindow.Show();
-                    AddLog("Opened Story Video window");
-                }
-            }
-            catch (Exception ex)
-            {
-                AddLog($"ERROR navigating to Story Video: {ex.Message}");
-            }
-        }
-
         private void PauseQueue()
         {
             IsQueuePaused = true;
@@ -3943,8 +4030,8 @@ namespace FlipPix.UI.ViewModels
                 switch (queueItem.SelectedWorkflow)
                 {
                     case TextGeneratorWorkflow.Qwen2512:
-                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "qwen2512API-text.json");
-                        AddLog("Using Qwen2512 workflow");
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "qwen", "Qwen_Image_2512_INT8_Convrot_WF.json");
+                        AddLog("Using Qwen2512 workflow (INT8 ConvRot)");
                         break;
 
                     case TextGeneratorWorkflow.Klien:
@@ -3960,6 +4047,11 @@ namespace FlipPix.UI.ViewModels
                     case TextGeneratorWorkflow.Krea2:
                         workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "krea", "krea2RealismV1_krea2RealismV1WF.json");
                         AddLog("Using Krea2 workflow");
+                        break;
+
+                    case TextGeneratorWorkflow.ZimageBase:
+                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "zimage", "base", "z-image-base.json");
+                        AddLog("Using Zimage Base workflow");
                         break;
 
                     case TextGeneratorWorkflow.Zimage:
@@ -4111,6 +4203,7 @@ namespace FlipPix.UI.ViewModels
                         TextGeneratorWorkflow.Klien => "f2k-txt2img",
                         TextGeneratorWorkflow.Anima => "anima",
                         TextGeneratorWorkflow.Krea2 => "krea2",
+                        TextGeneratorWorkflow.ZimageBase => "z-image-base",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");
@@ -4181,9 +4274,7 @@ namespace FlipPix.UI.ViewModels
 
                 // Dispose nested ViewModels
                 _analyzer?.Dispose();
-                _cameraEdit?.Dispose();
                 _storyGeneratorQ?.Dispose();
-                _storyGeneratorAmateur?.Dispose();
                 _amateurGenerator?.Dispose();
                 _cameraAngle?.Dispose();
 

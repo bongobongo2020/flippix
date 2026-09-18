@@ -740,7 +740,7 @@ namespace FlipPix.UI.ViewModels.Video
                         throw new Exception("No models available in LM Studio. Please load a vision model.");
                 }
 
-                AddLog($"Using model: {selectedModel}");
+                AddLog($"Sending to {_lmStudioService.DescribeTarget(selectedModel)}");
 
                 var promptFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
                     "prompts", "prompt2json", "image-analysis-prompt.md");
@@ -795,7 +795,7 @@ namespace FlipPix.UI.ViewModels.Video
                         throw new Exception("No models available in LM Studio.");
                 }
 
-                AddLog($"Using model: {selectedModel}");
+                AddLog($"Sending to {_lmStudioService.DescribeTarget(selectedModel)}");
 
                 var promptFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
                     "prompts", "prompt2json", "ltx-audio-video.md");

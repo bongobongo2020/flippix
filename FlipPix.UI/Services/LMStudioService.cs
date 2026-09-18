@@ -1,12 +1,14 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using FlipPix.Core.Interfaces;
@@ -21,18 +23,38 @@ namespace FlipPix.UI.Services
         private readonly SemaphoreSlim _semaphore;
         private bool _disposed = false;
         private readonly Func<string> _getBaseUrl;
+        private readonly Func<FlipPix.Core.Models.LMStudioSettings?>? _getSettings;
 
-        public LMStudioService(HttpClient httpClient, IAppLogger logger, Func<string>? getBaseUrl = null)
+        public LMStudioService(
+            HttpClient httpClient,
+            IAppLogger logger,
+            Func<string>? getBaseUrl = null,
+            Func<FlipPix.Core.Models.LMStudioSettings?>? getSettings = null)
         {
             _httpClient = httpClient;
             _logger = logger;
             _getBaseUrl = getBaseUrl ?? (() => "http://alien:8080");
+            _getSettings = getSettings;
             // Don't set BaseAddress - we'll use full URLs instead to allow changing the URL
             _httpClient.Timeout = TimeSpan.FromMinutes(15); // 15 minute timeout for large generation tasks
             _semaphore = new SemaphoreSlim(1, 1); // Limit concurrent requests
         }
 
         private string _baseUrl => _getBaseUrl();
+
+        /// <summary>
+        /// Describes where a request is going using the friendly names configured in Settings,
+        /// e.g. "Alien Box (http://alien:8080) · Qwen2.5-VL 7B [qwen2.5-vl-7b-instruct]". Pass the
+        /// model actually being used; omit it to describe the configured default.
+        /// </summary>
+        public string DescribeTarget(string? modelName = null)
+        {
+            var settings = _getSettings?.Invoke();
+            if (settings != null) return settings.DescribeTarget(modelName);
+
+            var url = _baseUrl.TrimEnd('/');
+            return string.IsNullOrWhiteSpace(modelName) ? url : $"{url} · {modelName}";
+        }
 
         public async Task<bool> IsRunningAsync(CancellationToken cancellationToken = default)
         {
@@ -165,8 +187,7 @@ namespace FlipPix.UI.Services
                     PropertyNamingPolicy = JsonNamingPolicy.CamelCase
                 });
 
-                _logger.LogInfo($"Sending image analysis request to LM Studio for model: {modelName}");
-                _logger.LogInfo($"Image: {Path.GetFileName(imagePath)}, Size: {imageBytes.Length} bytes");
+                _logger.LogInfo($"Sending image {Path.GetFileName(imagePath)} ({imageBytes.Length} bytes) to {DescribeTarget(modelName)}");
 
                 var fullUrl = $"{_baseUrl.TrimEnd('/')}/v1/chat/completions";
                 using var content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -241,7 +262,7 @@ namespace FlipPix.UI.Services
                 var firstDataUrl = ToDataUrl(firstImagePath);
                 var lastDataUrl  = ToDataUrl(lastImagePath);
 
-                _logger.LogInfo($"Sending two-image FFLF analysis (resized 512px): first={Path.GetFileName(firstImagePath)}, last={Path.GetFileName(lastImagePath)}, max_tokens={maxTokens}");
+                _logger.LogInfo($"Sending 2 images (first={Path.GetFileName(firstImagePath)}, last={Path.GetFileName(lastImagePath)}, resized 512px, max_tokens={maxTokens}) to {DescribeTarget(modelName)}");
 
                 var requestBody = new
                 {
@@ -319,7 +340,7 @@ namespace FlipPix.UI.Services
             }
         }
 
-        public async Task<string> AnalyzeImageWithSystemPromptAsync(string modelName, string imagePath, string userPrompt, string systemPrompt, int maxTokens = 36000, CancellationToken cancellationToken = default)
+        public async Task<string> AnalyzeImageWithSystemPromptAsync(string modelName, string imagePath, string userPrompt, string systemPrompt, int maxTokens = 36000, CancellationToken cancellationToken = default, LlmSampling? sampling = null)
         {
             await _semaphore.WaitAsync(cancellationToken);
             try
@@ -338,10 +359,10 @@ namespace FlipPix.UI.Services
                 _logger.LogInfo($"User prompt: {userPrompt}");
 
                 // Create the request with vision and system prompt
-                var requestBody = new
-                {
-                    model = modelName,
-                    messages = new object[]
+                var s = sampling ?? LlmSampling.Default;
+                var requestBody = BuildChatBody(
+                    modelName,
+                    new object[]
                     {
                         new
                         {
@@ -356,7 +377,7 @@ namespace FlipPix.UI.Services
                                 new
                                 {
                                     type = "text",
-                                    text = SuppressThinking(userPrompt, modelName)
+                                    text = s.AllowThinking ? userPrompt : SuppressThinking(userPrompt, modelName)
                                 },
                                 new
                                 {
@@ -369,26 +390,14 @@ namespace FlipPix.UI.Services
                             }
                         }
                     },
-                    max_tokens = maxTokens,
-                    temperature = 0.7,
-                    // Reasoning models (Qwen3 etc.) ignore the /no_think text hint and route
-                    // their whole answer into reasoning_content, leaving content empty — which
-                    // makes this method return "" and silently breaks the downstream enhance
-                    // step. Disable chain-of-thought at the chat-template level so the final
-                    // answer lands in content. Unknown fields are ignored by servers that
-                    // don't support them.
-                    chat_template_kwargs = new { enable_thinking = false },
-                    reasoning_budget = 0,
-                    stream = false
-                };
+                    maxTokens, s);
 
                 var json = JsonSerializer.Serialize(requestBody, new JsonSerializerOptions
                 {
                     PropertyNamingPolicy = JsonNamingPolicy.CamelCase
                 });
 
-                _logger.LogInfo($"Sending image analysis request to LM Studio for model: {modelName}");
-                _logger.LogInfo($"Image: {Path.GetFileName(imagePath)}, Size: {imageBytes.Length} bytes");
+                _logger.LogInfo($"Sending image {Path.GetFileName(imagePath)} ({imageBytes.Length} bytes) to {DescribeTarget(modelName)}");
 
                 var fullUrl = $"{_baseUrl.TrimEnd('/')}/v1/chat/completions";
                 using var content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -539,41 +548,39 @@ namespace FlipPix.UI.Services
             }
         }
 
+        /// <param name="sampling">
+        /// Optional repetition controls. Omitted, the request is byte-for-byte what it has always been.
+        /// Supplied, it is the answer to a long structured reply degenerating into a copy loop — the
+        /// failure mode of asking one model for N near-identical blocks in a single turn. See
+        /// <see cref="LlmSampling"/>.
+        /// </param>
         public async Task<string> SendTextChatAsync(
             string modelName,
             string systemPrompt,
             string userMessage,
             int maxTokens = 2000,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            LlmSampling? sampling = null)
         {
             await _semaphore.WaitAsync(cancellationToken);
             try
             {
-                var requestBody = new
-                {
-                    model = modelName,
-                    messages = new object[]
+                var s = sampling ?? LlmSampling.Default;
+                var requestBody = BuildChatBody(
+                    modelName,
+                    new object[]
                     {
                         new { role = "system", content = systemPrompt },
-                        new { role = "user",   content = SuppressThinking(userMessage, modelName)  }
+                        new { role = "user",   content = s.AllowThinking ? userMessage : SuppressThinking(userMessage, modelName) }
                     },
-                    max_tokens = maxTokens,
-                    temperature = 0.7,
-                    // Reasoning models (Qwen3 etc.) ignore the /no_think text hint and route
-                    // their whole answer into reasoning_content, leaving content empty. Disable
-                    // chain-of-thought at the chat-template level so the enhanced prompt lands
-                    // in content. Unknown fields are ignored by servers that don't support them.
-                    chat_template_kwargs = new { enable_thinking = false },
-                    reasoning_budget = 0,
-                    stream = false
-                };
+                    maxTokens, s);
 
                 var json = JsonSerializer.Serialize(requestBody, new JsonSerializerOptions
                 {
                     PropertyNamingPolicy = JsonNamingPolicy.CamelCase
                 });
 
-                _logger.LogInfo($"SendTextChatAsync: model={modelName}, userMessage length={userMessage.Length}");
+                _logger.LogInfo($"SendTextChatAsync: model={modelName}, userMessage length={userMessage.Length}{s.Describe()}");
 
                 var fullUrl = $"{_baseUrl.TrimEnd('/')}/v1/chat/completions";
                 using var content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -609,6 +616,128 @@ namespace FlipPix.UI.Services
             }
         }
 
+        /// <summary>
+        /// Sends one chat turn whose answer is a forced <b>tool call</b>, and returns the call the model
+        /// made — the client-side half of the MCP flow llama-server exposes (the server hands the call back
+        /// to whoever asked; it does not run the tool itself).
+        ///
+        /// <para><c>tool_choice</c> is forced to the named tool, so the reply is the call itself and not prose
+        /// about maybe calling it — the dependable shape for a local model. <paramref name="parametersSchemaJson"/>
+        /// is a raw JSON-Schema object passed through verbatim, so the caller owns the argument shape the
+        /// grammar constrains the model to.</para>
+        ///
+        /// <para>Returns the first call's name and its arguments <i>string</i>; null when the server replied
+        /// with plain content instead (caller decides whether that text is a usable fallback). Servers that
+        /// reject the <c>tools</c> field entirely will throw, as usual.</para>
+        /// </summary>
+        public async Task<LMStudioToolCall?> CallToolAsync(
+            string modelName,
+            string systemPrompt,
+            string userMessage,
+            string toolName,
+            string toolDescription,
+            string parametersSchemaJson,
+            int maxTokens = 4000,
+            CancellationToken cancellationToken = default,
+            LlmSampling? sampling = null)
+        {
+            await _semaphore.WaitAsync(cancellationToken);
+            try
+            {
+                var s = sampling ?? LlmSampling.Default;
+                var messages = new object[]
+                {
+                    new { role = "system", content = systemPrompt },
+                    new { role = "user",   content = userMessage }
+                };
+
+                _logger.LogInfo($"CallToolAsync: model={modelName}, tool={toolName}, userMessage length={userMessage.Length}{s.Describe()}");
+
+                // ── Attempt 1: the tool call proper ───────────────────────────────────
+                var body = BuildChatBody(modelName, messages, maxTokens, s);
+
+                // The schema rides as a parsed node so it reaches the wire verbatim, not re-cased.
+                var schema = JsonNode.Parse(parametersSchemaJson)
+                               ?? throw new ArgumentException("parametersSchemaJson is not valid JSON.");
+                body["tools"] = new object[]
+                {
+                    new { type = "function", function = new { name = toolName, description = toolDescription, parameters = schema } }
+                };
+                // OpenAI's forced-call shape — {"type":"function","function":{"name":...}} — which is the
+                // one an OpenAI-compatible /v1/chat/completions parses. (This used to send Anthropic's
+                // {"type":"tool","name":...}; llama-server silently ignores a tool_choice it cannot read,
+                // so the call was never actually forced — a model willing to answer in prose just did,
+                // which is the failure this pairs with the fallback below to close.)
+                body["tool_choice"] = new Dictionary<string, object>
+                {
+                    ["type"] = "function",
+                    ["function"] = new Dictionary<string, object> { ["name"] = toolName }
+                };
+
+                var result = await PostChatAsync(body, cancellationToken);
+
+                var call = result?.Choices?.FirstOrDefault(c => c.Message?.ToolCalls?.Count > 0)?.Message?.ToolCalls?[0];
+                if (call != null)
+                {
+                    _logger.LogInfo($"CallToolAsync: model called '{call.Function.Name}' with {call.Function.Arguments?.Length ?? 0} chars of arguments");
+                    return call;
+                }
+
+                // ── Attempt 2: the same schema, enforced as structured output ───────────────
+                // Not every model reaches this point able to call a tool: the server only emits tool_calls
+                // when the loaded chat template knows how to express them, and when it does not, the tools
+                // field is dropped on the floor and the model just writes prose until the token ceiling.
+                // response_format carries the identical schema down the grammar path instead, which needs
+                // no template support, and the JSON that comes back IS the arguments payload the caller was
+                // about to parse — so the call is synthesised from it and the flow upstream never learns
+                // the difference. It is a floor, not a substitute: a grammar-constrained reply tends to be
+                // terser than a real tool call, which is why the caller checks the brief for thinness.
+                _logger.LogInfo("CallToolAsync: no tool_calls in the reply — retrying under " +
+                                "response_format json_schema (this template may not support tool calling)");
+
+                var jsonBody = BuildChatBody(modelName, messages, maxTokens, s);
+                jsonBody["response_format"] = new Dictionary<string, object>
+                {
+                    ["type"] = "json_schema",
+                    ["json_schema"] = new Dictionary<string, object>
+                    {
+                        ["name"] = toolName,
+                        // Parsed fresh: the node above is spoken for by the tools payload.
+                        ["schema"] = JsonNode.Parse(parametersSchemaJson)!
+                    }
+                };
+
+                var structured = await PostChatAsync(jsonBody, cancellationToken);
+                var text = StripThinkingBlocks(
+                    structured?.Choices?.FirstOrDefault()?.Message?.EffectiveContent?.Trim() ?? string.Empty);
+                var arguments = ExtractJsonObject(text);
+
+                if (!string.IsNullOrWhiteSpace(arguments))
+                {
+                    _logger.LogInfo("CallToolAsync: structured-output fallback stood in for the tool call " +
+                                    $"({arguments.Length} chars of arguments)");
+                    return new LMStudioToolCall
+                    {
+                        Type = "function",
+                        Function = new LMStudioToolCallFunction { Name = toolName, Arguments = arguments }
+                    };
+                }
+
+                _logger.LogInfo("CallToolAsync: model replied with content instead of a tool call, and the " +
+                                "structured-output fallback produced no JSON object either");
+                return null;
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (HttpRequestException ex)
+            {
+                throw new Exception($"Failed to connect to LM Studio at {_baseUrl}: {ex.Message}", ex);
+            }
+            finally
+            {
+                _semaphore.Release();
+            }
+        }
+
         public async Task<string> AnalyzeMultipleImagesWithSystemPromptAsync(
             string modelName,
             IList<string> imagePaths,
@@ -631,7 +760,7 @@ namespace FlipPix.UI.Services
                     contentParts.Add(new { type = "image_url", image_url = new { url = dataUrl } });
                 }
 
-                _logger.LogInfo($"Sending {contentParts.Count - 1} image(s) with system prompt, max_tokens: {maxTokens}");
+                _logger.LogInfo($"Sending {contentParts.Count - 1} image(s) with system prompt (max_tokens: {maxTokens}) to {DescribeTarget(modelName)}");
 
                 var requestBody = new
                 {
@@ -796,10 +925,108 @@ namespace FlipPix.UI.Services
         /// its chain-of-thought preamble and outputs only the final answer.
         /// No-op for non-thinking models.
         /// </summary>
+        /// <summary>
+        /// The chat/completions body every call in this class used to build inline. Pulled out so the
+        /// repetition controls in <see cref="LlmSampling"/> have one place to land, and so the
+        /// thinking-suppression fields stay written exactly as they were for every caller that does not
+        /// ask for anything else.
+        ///
+        /// <para>A dictionary rather than an anonymous type because half these fields are conditional: a
+        /// server rejects <c>repeat_penalty: 0</c>, and a reasoning model given <c>reasoning_budget: 0</c>
+        /// cannot plan. <c>DictionaryKeyPolicy</c> is unset, so the snake_case keys reach the wire
+        /// verbatim.</para>
+        /// </summary>
+        private static Dictionary<string, object> BuildChatBody(
+            string modelName, object[] messages, int maxTokens, LlmSampling sampling)
+        {
+            var body = new Dictionary<string, object>
+            {
+                ["model"] = modelName,
+                ["messages"] = messages,
+                ["max_tokens"] = maxTokens,
+                ["temperature"] = sampling.Temperature,
+                ["stream"] = false,
+            };
+
+            // OpenAI-standard, honoured by llama-server and LM Studio alike. 0 is the API default, so
+            // sending 0 and leaving them out are the same request — they are omitted anyway so an
+            // untouched caller's payload stays byte-for-byte what it was.
+            if (sampling.PresencePenalty != 0) body["presence_penalty"] = sampling.PresencePenalty;
+            if (sampling.FrequencyPenalty != 0) body["frequency_penalty"] = sampling.FrequencyPenalty;
+            // llama.cpp's own knob, and the only one of the three that looks at a window of recent tokens
+            // rather than at whole-reply counts. Ignored by servers that do not implement it.
+            if (sampling.RepeatPenalty > 0) body["repeat_penalty"] = sampling.RepeatPenalty;
+
+            if (!sampling.AllowThinking)
+            {
+                // Reasoning models (Qwen3 etc.) ignore the /no_think text hint and route their whole
+                // answer into reasoning_content, leaving content empty — which makes the caller return ""
+                // and silently breaks the step downstream. Disable chain-of-thought at the chat-template
+                // level so the final answer lands in content. Unknown fields are ignored by servers that
+                // don't support them.
+                body["chat_template_kwargs"] = new { enable_thinking = false };
+                body["reasoning_budget"] = 0;
+            }
+
+            return body;
+        }
+
         private static string SuppressThinking(string prompt, string modelName)
         {
             if (!IsThinkingModel(modelName)) return prompt;
             return "/no_think\n" + prompt;
+        }
+
+        /// <summary>
+        /// Posts one already-built chat body to <c>/v1/chat/completions</c> and deserialises the reply.
+        /// Shared by the two attempts <see cref="CallToolAsync"/> makes, which differ only in the body.
+        /// </summary>
+        private async Task<LMStudioChatResponse?> PostChatAsync(
+            Dictionary<string, object> body, CancellationToken cancellationToken)
+        {
+            var json = JsonSerializer.Serialize(body, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
+
+            var fullUrl = $"{_baseUrl.TrimEnd('/')}/v1/chat/completions";
+            using var content = new StringContent(json, Encoding.UTF8, "application/json");
+            using var response = await _httpClient.PostAsync(fullUrl, content, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                throw new Exception($"LM Studio API error: {response.StatusCode} - {errorContent}");
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            return await JsonSerializer.DeserializeAsync<LMStudioChatResponse>(stream,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }, cancellationToken);
+        }
+
+        /// <summary>
+        /// Pulls the one JSON object out of a reply that is supposed to be nothing but JSON — grammar
+        /// constrained replies are clean, but a model that ignores the constraint wraps it in a ```json
+        /// fence or a sentence of preamble. Returns empty when there is no braced span at all, which is
+        /// the caller's signal that the structured-output path failed too.
+        /// </summary>
+        private static string ExtractJsonObject(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+
+            var trimmed = text.Trim();
+
+            // A fenced block, ```json or bare ``` — take what is inside it.
+            var fence = System.Text.RegularExpressions.Regex.Match(
+                trimmed, @"```(?:json)?\s*([\s\S]*?)```",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (fence.Success) trimmed = fence.Groups[1].Value.Trim();
+
+            var start = trimmed.IndexOf('{');
+            var end = trimmed.LastIndexOf('}');
+            if (start < 0 || end <= start) return string.Empty;
+
+            return trimmed.Substring(start, end - start + 1).Trim();
         }
 
         private static string StripThinkingBlocks(string text)

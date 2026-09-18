@@ -1,0 +1,79 @@
+{
+  "1": {
+    "inputs": {
+      "image": "input.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "2": {
+    "inputs": {
+      "model": "seedvr2_ema_3b_fp8_e4m3fn.safetensors",
+      "device": "cuda:0",
+      "blocks_to_swap": 0,
+      "swap_io_components": false,
+      "offload_device": "none",
+      "cache_model": false,
+      "attention_mode": "sdpa"
+    },
+    "class_type": "SeedVR2LoadDiTModel",
+    "_meta": {
+      "title": "SeedVR2 (Down)Load DiT Model"
+    }
+  },
+  "3": {
+    "inputs": {
+      "model": "ema_vae_fp16.safetensors",
+      "device": "cuda:0",
+      "encode_tiled": false,
+      "encode_tile_size": 1024,
+      "encode_tile_overlap": 128,
+      "decode_tiled": false,
+      "decode_tile_size": 1024,
+      "decode_tile_overlap": 128,
+      "tile_debug": "false",
+      "offload_device": "none",
+      "cache_model": false
+    },
+    "class_type": "SeedVR2LoadVAEModel",
+    "_meta": {
+      "title": "SeedVR2 (Down)Load VAE Model"
+    }
+  },
+  "4": {
+    "inputs": {
+      "image": ["1", 0],
+      "dit": ["2", 0],
+      "vae": ["3", 0],
+      "seed": 100,
+      "new_resolution": 2048,
+      "tile_width": 512,
+      "tile_height": 512,
+      "mask_blur": 0,
+      "tile_padding": 32,
+      "tile_upscale_resolution": 1024,
+      "tiling_strategy": "Chess",
+      "anti_aliasing_strength": 0.0,
+      "blending_method": "auto",
+      "color_correction": "lab",
+      "resolution_target": "longest",
+      "tile_batch_size": 1
+    },
+    "class_type": "SeedVR2TilingUpscaler",
+    "_meta": {
+      "title": "SeedVR2 Tiling Upscaler"
+    }
+  },
+  "5": {
+    "inputs": {
+      "filename_prefix": "seedvr2_upscale",
+      "images": ["4", 0]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  }
+}

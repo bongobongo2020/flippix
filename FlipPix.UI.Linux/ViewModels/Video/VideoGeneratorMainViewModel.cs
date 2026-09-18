@@ -19,7 +19,6 @@ using CommunityToolkit.Mvvm.Input;
 using FlipPix.UI.Linux.Models;
 using FlipPix.UI.Linux.Services;
 using Microsoft.Extensions.DependencyInjection;
-using FlipPix.UI.Linux;
 
 namespace FlipPix.UI.Linux.ViewModels.Video
 {
@@ -94,18 +93,31 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         private string _selectedWorkflow = "ltx2_i2v";
         private bool _useLTXWorkflow = true;
         private SingleVideoWorkflow _selectedSingleWorkflow = SingleVideoWorkflow.LTX2V;
+        private StoryVideoWorkflow _selectedStoryWorkflow = StoryVideoWorkflow.VantageSulphur2;
         private bool _isStoryVideoMode = false;
         private string _painterHighNoiseModel = @"wan\wan2.2_i2v_high_noise_14B_Q8_0.gguf";
         private string _painterLowNoiseModel = @"wan\wan2.2_i2v_low_noise_14B_Q8_0.gguf";
 
         /// <summary>
         /// Workflow options for single video generation (Tab 1).
-        /// Story Video (Tab 2) uses UseLTXWorkflow separately.
+        /// Story Video (Tab 2) uses SelectedStoryWorkflow separately.
         /// </summary>
         public enum SingleVideoWorkflow
         {
             LTX2V,
             Wan22
+        }
+
+        /// <summary>
+        /// LTX workflow options for the Story Video Generator (Tab 2).
+        /// </summary>
+        public enum StoryVideoWorkflow
+        {
+            VantageSulphur2,
+            Eros10S,
+            LTX22B,
+            DasiwaWan22,
+            Wan22I2V
         }
 
         // UI state
@@ -769,8 +781,17 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             }
         }
 
-        public string WorkflowDisplay => UseLTXWorkflow ? "LTXV (LTX-2_image2video_distilledAPI.json)" : "Painter (painteri2vAPI.json)";
-        public string WorkflowIndicator => UseLTXWorkflow ? "LTXV" : "Painter";
+        public string WorkflowDisplay => _isStoryVideoMode ? StoryWorkflowDisplay : (UseLTXWorkflow ? "LTXV (LTX-2_image2video_distilledAPI.json)" : "Painter (painteri2vAPI.json)");
+        public string WorkflowIndicator => _isStoryVideoMode
+            ? (_selectedStoryWorkflow switch
+            {
+                StoryVideoWorkflow.Eros10S => "10Eros",
+                StoryVideoWorkflow.LTX22B => "LTX-22-B",
+                StoryVideoWorkflow.DasiwaWan22 => "DaSiWa",
+                StoryVideoWorkflow.Wan22I2V => "WAN 2.2",
+                _ => "Vantage"
+            })
+            : (UseLTXWorkflow ? "LTXV" : "Painter");
 
         public string PainterHighNoiseModel
         {
@@ -807,6 +828,42 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             get => UseLTXWorkflow ? 0 : 1;
             set => UseLTXWorkflow = value == 0;
         }
+
+        // Story Video Generator Workflow (Tab 2)
+        public StoryVideoWorkflow SelectedStoryWorkflow
+        {
+            get => _selectedStoryWorkflow;
+            set
+            {
+                if (_selectedStoryWorkflow != value)
+                {
+                    _selectedStoryWorkflow = value;
+                    _useLTXWorkflow = true;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(UseLTXWorkflow));
+                    OnPropertyChanged(nameof(WorkflowDisplay));
+                    OnPropertyChanged(nameof(WorkflowIndicator));
+                    OnPropertyChanged(nameof(SelectedStoryWorkflowIndex));
+                    NotifyCommandsCanExecuteChanged();
+                    AddLog($"Story workflow changed to: {StoryWorkflowDisplay}");
+                }
+            }
+        }
+
+        public int SelectedStoryWorkflowIndex
+        {
+            get => (int)_selectedStoryWorkflow;
+            set => SelectedStoryWorkflow = (StoryVideoWorkflow)value;
+        }
+
+        public string StoryWorkflowDisplay => _selectedStoryWorkflow switch
+        {
+            StoryVideoWorkflow.Eros10S => "10Eros InstantAction (10Eros_10SNodes_InstantAction_I2VAPI.json)",
+            StoryVideoWorkflow.LTX22B => "LTX-22-B (LTX-22-B.json)",
+            StoryVideoWorkflow.DasiwaWan22 => "DaSiWa WAN 2.2 I2V/FLF2V (DasiwaWan22WorkflowsI2VSVI2_fastfidelityCAioV83API.json)",
+            StoryVideoWorkflow.Wan22I2V => "WAN 2.2 FunCamera I2V (WAN22-I2V-API.json)",
+            _ => "Vantage Sulphur 2 (Vantage-Sulphur-2-WorkflowAPI.json)"
+        };
 
         // Single Video Generator Workflow (Tab 1) - separate from Story Video (Tab 2)
         public SingleVideoWorkflow SelectedSingleWorkflow
@@ -985,7 +1042,8 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Input Image",
                 "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "videomain.image");
 
             if (filePath != null)
             {
@@ -1006,7 +1064,8 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select First Frame Image",
                 "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "videomain.first-frame");
 
             if (filePath != null)
             {
@@ -1027,7 +1086,8 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Last Frame Image",
                 "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "videomain.last-frame");
 
             if (filePath != null)
             {
@@ -1212,7 +1272,6 @@ namespace FlipPix.UI.Linux.ViewModels.Video
 
                 var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://alien:8080";
                 await _lmStudioService.SetBaseUrlAsync(baseUrl);
-                AddLog($"Using LM Studio at: {baseUrl}");
 
                 var models = await _lmStudioService.GetAvailableModelsAsync(_analysisCancellationTokenSource.Token);
                 string selectedModel = _settingsService.Settings?.LMStudioSettings?.SelectedModel ?? string.Empty;
@@ -1238,7 +1297,9 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                     }
                 }
 
-                AnalysisStatus = "Analyzing with LM Studio...";
+                var analysisTarget = _lmStudioService.DescribeTarget(selectedModel);
+                AnalysisStatus = $"Sending image to {analysisTarget}...";
+                AddLog($"Sending image to {analysisTarget}");
                 AnalysisProgress = 30;
 
                 // Determine which prompt to use based on workflow selection
@@ -1333,7 +1394,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             {
                 try
                 {
-                    FlipPix.UI.Linux.Services.ClipboardService.SetText(ImageAnalysis);
+                    System.Windows.Clipboard.SetText(ImageAnalysis);
                     AddLog("Analysis copied to clipboard");
                 }
                 catch (Exception ex)
@@ -1695,12 +1756,12 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 }
 
                 // Load workflow
-                // Story video uses UseLTXWorkflow (LTXV or Painter)
+                // Story video uses SelectedStoryWorkflow (3 LTX variants or Painter)
                 // Single video uses SelectedSingleWorkflow (LTX2V or Wan22)
                 string workflowFileName;
                 if (_isStoryVideoMode)
                 {
-                    workflowFileName = UseLTXWorkflow ? "LTXV-DoEverything-v2.json" : "painteri2vAPI.json";
+                    workflowFileName = StoryWorkflowPatcher.GetWorkflowRelativePath(_selectedStoryWorkflow);
                 }
                 else
                 {
@@ -1764,7 +1825,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 AddLog("Executing video generation workflow...");
 
                 // Record existing video files BEFORE execution
-                var existingFilesBeforeExecution = GetExistingVideoFiles("*.mp4", "testrun", "testrun/vid", "video", "intpups", "intp", "ups");
+                var existingFilesBeforeExecution = GetExistingVideoFiles("*.mp4", "testrun", "testrun/vid", "video", "intpups", "intp", "ups", "ltx2.3/my");
                 AddLog($"Recording {existingFilesBeforeExecution.Count} existing video files before execution");
 
                 var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
@@ -1793,7 +1854,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                     "*.mp4",
                     TimeSpan.FromSeconds(60),
                     TimeSpan.FromSeconds(2),
-                    "testrun", "testrun/vid", "video", "intpups", "intp", "ups");
+                    "testrun", "testrun/vid", "video", "intpups", "intp", "ups", "ltx2.3/my");
 
                 if (outputVideo != null && File.Exists(outputVideo))
                 {
@@ -1835,10 +1896,18 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             if (workflowDict == null) return workflow;
 
             // Determine which workflow to use:
-            // - Story video: UseLTXWorkflow (LTXV or Painter)
+            // - Story video: SelectedStoryWorkflow (VantageSulphur2, Eros10S, LTX22B, or DasiwaWan22)
+            //   all route through the node-mapping path in UpdateStoryLtxWorkflowParameters
             // - Single video: SelectedSingleWorkflow (LTX2V or Wan22)
-            bool isLTXV = _isStoryVideoMode ? UseLTXWorkflow : SelectedSingleWorkflow == SingleVideoWorkflow.LTX2V;
+            bool isStoryLtx = _isStoryVideoMode;
+            bool isLTXV = !_isStoryVideoMode && SelectedSingleWorkflow == SingleVideoWorkflow.LTX2V;
             bool isWan22 = !_isStoryVideoMode && SelectedSingleWorkflow == SingleVideoWorkflow.Wan22;
+
+            // Handle the 3 new story LTX workflows
+            if (isStoryLtx)
+            {
+                return UpdateStoryLtxWorkflowParameters(workflowDict, firstFrameImageName);
+            }
 
             // Update first frame image - node IDs differ by workflow
             // Painter uses node 119 (LoadImage → GetImageRangeFromBatch → start_image)
@@ -2096,6 +2165,23 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             return JsonSerializer.SerializeToElement(workflowDict);
         }
 
+        private JsonElement UpdateStoryLtxWorkflowParameters(Dictionary<string, JsonElement> workflowDict, string imageName)
+        {
+            // Node-id maps for every story workflow live in StoryWorkflowPatcher so the Story Video
+            // Generator (batch) and the Single Video tab (single image) stay in sync.
+            return StoryWorkflowPatcher.Patch(
+                workflowDict,
+                _selectedStoryWorkflow,
+                imageName,
+                FirstFrameImagePath,
+                VideoPrompt,
+                NegativePrompt,
+                VideoLength,
+                Fps,
+                Seed,
+                AddLog);
+        }
+
         private (int width, int height) GetVideoDimensionsForImage(string imagePath, bool isLTXV, bool isWan22)
         {
             // Wan22 auto-derives from image — skip
@@ -2268,7 +2354,8 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Story Prompts File",
                 "Prompt Files (*.json;*.txt)|*.json;*.txt|JSON Files (*.json)|*.json|Text Files (*.txt)|*.txt|All Files (*.*)|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "videomain.story-prompts");
 
             if (filePath != null)
             {
@@ -2282,6 +2369,21 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 }
 
                 AddLog($"Selected story prompts file: {Path.GetFileName(StoryPromptJsonPath)}");
+
+                // Auto-detect images folder if the same directory contains images
+                if (!string.IsNullOrEmpty(folderPath) &&
+                    (string.IsNullOrEmpty(StoryImagesFolderPath) || !Directory.Exists(StoryImagesFolderPath)))
+                {
+                    var hasImages = Directory.GetFiles(folderPath, "*.png")
+                        .Concat(Directory.GetFiles(folderPath, "*.jpg"))
+                        .Concat(Directory.GetFiles(folderPath, "*.jpeg"))
+                        .Any();
+                    if (hasImages)
+                    {
+                        StoryImagesFolderPath = folderPath;
+                        AddLog($"Auto-detected images folder: {folderPath}");
+                    }
+                }
             }
         }
 
@@ -2292,7 +2394,8 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             var selectedPath = await _fileDialogService.OpenFolderDialogAsync(
                 "Select the folder containing the story images",
                 !string.IsNullOrEmpty(initialPath) && Directory.Exists(initialPath) ? initialPath : null,
-                false);
+                false,
+                persistKey: "videomain.story-images-folder");
 
             if (selectedPath != null)
             {
@@ -2331,24 +2434,26 @@ namespace FlipPix.UI.Linux.ViewModels.Video
 
             try
             {
-                List<string> prompts;
+                List<(string? ImageName, string Prompt)> promptPairs;
                 var ext = Path.GetExtension(StoryPromptJsonPath).ToLowerInvariant();
 
                 if (ext == ".txt")
                 {
                     AddLog("Loading story prompts from TXT file...");
                     var txtContent = await File.ReadAllTextAsync(StoryPromptJsonPath);
-                    prompts = ParsePromptsFromTxt(txtContent);
+                    promptPairs = ParsePromptsFromTxt(txtContent);
                 }
                 else
                 {
                     AddLog("Loading story prompts from JSON file...");
                     var jsonContent = await File.ReadAllTextAsync(StoryPromptJsonPath);
                     var storyData = JsonSerializer.Deserialize<StoryPromptData>(jsonContent);
-                    prompts = storyData?.Prompts ?? new List<string>();
+                    promptPairs = (storyData?.Prompts ?? new List<string>())
+                        .Select(p => ((string?)null, p))
+                        .ToList();
                 }
 
-                if (!prompts.Any())
+                if (!promptPairs.Any())
                 {
                     AddLog("ERROR: No prompts found in file");
                     System.Windows.MessageBox.Show("No prompts found in the file.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
@@ -2361,29 +2466,65 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                     .OrderBy(f => f)
                     .ToList();
 
+                // Build lookup dictionaries for name-based pairing
+                var imageByFilename = imageFiles.ToDictionary(
+                    f => Path.GetFileName(f),
+                    f => f,
+                    StringComparer.OrdinalIgnoreCase);
+                var imageByStem = imageFiles.ToDictionary(
+                    f => Path.GetFileNameWithoutExtension(f),
+                    f => f,
+                    StringComparer.OrdinalIgnoreCase);
+
+                bool useNamePairing = promptPairs.Any(p => p.ImageName != null);
+
                 StoryVideoQueue.Clear();
 
-                int count = Math.Min(prompts.Count, imageFiles.Count);
-                for (int i = 0; i < count; i++)
+                if (useNamePairing)
                 {
-                    var queueItem = new StoryVideoQueueItem
+                    int idx = 1;
+                    foreach (var (imageName, prompt) in promptPairs)
                     {
-                        Index = i + 1,
-                        Prompt = prompts[i],
-                        InputImagePath = imageFiles[i],
-                        Status = "Pending"
-                    };
-
-                    queueItem.PropertyChanged += (s, e) =>
-                    {
-                        if (e.PropertyName == nameof(StoryVideoQueueItem.Status))
+                        string? imagePath = null;
+                        if (imageName != null)
                         {
-                            OnPropertyChanged(nameof(CanProcessStoryQueue));
-                            NotifyCommandsCanExecuteChanged();
+                            imageByFilename.TryGetValue(imageName, out imagePath);
+                            if (imagePath == null)
+                                imageByStem.TryGetValue(Path.GetFileNameWithoutExtension(imageName), out imagePath);
                         }
-                    };
 
-                    StoryVideoQueue.Add(queueItem);
+                        if (imagePath == null)
+                        {
+                            AddLog($"WARNING: No matching image found for '{imageName}', skipping");
+                            continue;
+                        }
+
+                        var queueItem = new StoryVideoQueueItem
+                        {
+                            Index = idx++,
+                            Prompt = prompt,
+                            InputImagePath = imagePath,
+                            Status = "Pending"
+                        };
+                        queueItem.PropertyChanged += StoryQueueItem_StatusChanged;
+                        StoryVideoQueue.Add(queueItem);
+                    }
+                }
+                else
+                {
+                    int count = Math.Min(promptPairs.Count, imageFiles.Count);
+                    for (int i = 0; i < count; i++)
+                    {
+                        var queueItem = new StoryVideoQueueItem
+                        {
+                            Index = i + 1,
+                            Prompt = promptPairs[i].Prompt,
+                            InputImagePath = imageFiles[i],
+                            Status = "Pending"
+                        };
+                        queueItem.PropertyChanged += StoryQueueItem_StatusChanged;
+                        StoryVideoQueue.Add(queueItem);
+                    }
                 }
 
                 UpdateStoryQueueStatus();
@@ -2398,22 +2539,112 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             }
         }
 
-        private List<string> ParsePromptsFromTxt(string content)
+        private void StoryQueueItem_StatusChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
-            var dict = new SortedDictionary<int, string>();
-            // Split on "Scene N:" lines, capturing the scene number
-            var parts = Regex.Split(content, @"^Scene\s+(\d+):\s*$", RegexOptions.Multiline);
-            // parts layout: [pre-text, sceneNum, sceneText, sceneNum, sceneText, ...]
-            for (int i = 1; i + 1 < parts.Length; i += 2)
+            if (e.PropertyName == nameof(StoryVideoQueueItem.Status))
             {
-                if (int.TryParse(parts[i].Trim(), out var sceneNum))
-                {
-                    var text = parts[i + 1].Trim();
-                    if (!string.IsNullOrWhiteSpace(text))
-                        dict[sceneNum] = text;
-                }
+                OnPropertyChanged(nameof(CanProcessStoryQueue));
+                NotifyCommandsCanExecuteChanged();
             }
-            return dict.Values.ToList();
+        }
+
+        private List<(string? ImageName, string Prompt)> ParsePromptsFromTxt(string content)
+        {
+            var imageExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                { ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif" };
+
+            // Format A0: "# imagename.ext" header lines followed by prompt text
+            if (Regex.IsMatch(content, @"^#\s+\S+\.(png|jpg|jpeg|webp|bmp|gif)\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase))
+            {
+                var result = new List<(string? ImageName, string Prompt)>();
+                var parts = Regex.Split(content, @"^(#\s+\S+\.(png|jpg|jpeg|webp|bmp|gif)\s*)$", RegexOptions.Multiline | RegexOptions.IgnoreCase);
+                for (int i = 1; i + 2 < parts.Length; i += 3)
+                {
+                    var imageName = parts[i].TrimStart('#').Trim();
+                    var promptText = parts[i + 2].Trim();
+                    if (!string.IsNullOrWhiteSpace(promptText))
+                        result.Add((imageName, promptText));
+                }
+                AddLog($"TXT format: # filename.ext headers ({result.Count} prompts)");
+                return result;
+            }
+
+
+            // Format A: "Scene N:" headers (written by SaveFinalStoryboard)
+            if (Regex.IsMatch(content, @"^Scene\s+\d+:\s*$", RegexOptions.Multiline))
+            {
+                var dict = new SortedDictionary<int, string>();
+                var parts = Regex.Split(content, @"^Scene\s+(\d+):\s*$", RegexOptions.Multiline);
+                for (int i = 1; i + 1 < parts.Length; i += 2)
+                {
+                    if (int.TryParse(parts[i].Trim(), out var sceneNum))
+                    {
+                        var text = parts[i + 1].Trim();
+                        if (!string.IsNullOrWhiteSpace(text))
+                            dict[sceneNum] = text;
+                    }
+                }
+                AddLog($"TXT format: Scene N: headers ({dict.Count} prompts)");
+                return dict.Values.Select(v => ((string?)null, v)).ToList();
+            }
+
+            var lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            var nonEmpty = lines.Where(l => !string.IsNullOrWhiteSpace(l)).ToList();
+            if (!nonEmpty.Any()) return new();
+
+            // Format B: tab-separated "filename.ext\tprompt"
+            var tabPairs = nonEmpty
+                .Select(l => { var t = l.IndexOf('\t'); return t > 0 ? (l[..t].Trim(), l[(t + 1)..].Trim()) : (null, (string?)null); })
+                .Where(p => p.Item1 != null && imageExts.Contains(Path.GetExtension(p.Item1)) && !string.IsNullOrWhiteSpace(p.Item2))
+                .Select(p => (p.Item1, p.Item2!))
+                .ToList();
+
+            if (tabPairs.Count >= nonEmpty.Count * 0.7)
+            {
+                AddLog($"TXT format: tab-separated filename\\tprompt ({tabPairs.Count} pairs)");
+                return tabPairs.Select(p => ((string?)p.Item1, p.Item2)).ToList();
+            }
+
+            // Format C: "filename.ext: prompt" or "C:\path\file.ext: prompt"
+            var colonPairs = nonEmpty
+                .Select(l =>
+                {
+                    var c = l.IndexOf(':');
+                    if (c <= 0) return ((string?)null, (string?)null);
+                    // Skip Windows drive letter colon (e.g. "C:\...")
+                    if (c == 1 && char.IsLetter(l[0]))
+                        c = l.IndexOf(':', c + 1);
+                    if (c <= 0) return (null, (string?)null);
+                    var name = l[..c].Trim();
+                    if (!imageExts.Contains(Path.GetExtension(name))) return (null, (string?)null);
+                    var prompt = l[(c + 1)..].Trim();
+                    return string.IsNullOrWhiteSpace(prompt) ? (null, (string?)null) : (name, prompt);
+                })
+                .Where(p => p.Item1 != null)
+                .Select(p => (p.Item1!, p.Item2!))
+                .ToList();
+
+            if (colonPairs.Count >= nonEmpty.Count * 0.7)
+            {
+                AddLog($"TXT format: colon-separated filename.ext: prompt ({colonPairs.Count} pairs)");
+                return colonPairs.Select(p => ((string?)p.Item1, p.Item2)).ToList();
+            }
+
+            // Format D: blank-line separated paragraphs (each paragraph = one prompt)
+            var paragraphs = Regex.Split(content, @"\r?\n(?:\s*\r?\n)+")
+                .Select(b => b.Trim())
+                .Where(b => !string.IsNullOrWhiteSpace(b))
+                .ToList();
+
+            if (paragraphs.Count > 1)
+            {
+                AddLog($"TXT format: blank-line separated paragraphs ({paragraphs.Count} prompts)");
+                return paragraphs.Select(p => ((string?)null, p)).ToList();
+            }
+
+            // Format E: one prompt per line
+            AddLog($"TXT format: line-by-line ({nonEmpty.Count} prompts)");
+            return nonEmpty.Select(l => ((string?)null, l.Trim())).ToList();
         }
 
         private async Task ProcessStoryQueueAsync()
@@ -2482,6 +2713,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                                 item.Progress = 100;
                                 AddLog($"Story video #{item.Index} completed");
                                 SaveStoryQueueToFile();
+                                _ = ExtractStoryThumbnailAsync(item);
                             }
                             else
                             {
@@ -2562,6 +2794,63 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 VideoPrompt = originalPrompt;
                 FirstFrameImagePath = originalFirstFramePath;
                 LastFrameImagePath = originalLastFramePath;
+            }
+        }
+
+        private async Task ExtractStoryThumbnailAsync(StoryVideoQueueItem item)
+        {
+            var videoPath = item.OutputVideoPath;
+            if (string.IsNullOrEmpty(videoPath)) return;
+
+            var ffmpeg = FindFFmpeg();
+            if (ffmpeg == null) return;
+
+            var thumbPath = Path.ChangeExtension(videoPath, null) + "_thumb.jpg";
+
+            // Fast path: a thumbnail already exists on disk — load it (this runs on a background
+            // task) instead of re-running ffmpeg. Avoids redundant ffmpeg passes over a network
+            // drive for every already-thumbnailed clip on queue load.
+            if (File.Exists(thumbPath))
+            {
+                item.LoadVideoThumbnail(thumbPath);
+                return;
+            }
+
+            // Retry up to 3 times — the file may still be flushing/locked right after generation
+            for (int attempt = 1; attempt <= 3; attempt++)
+            {
+                await Task.Delay(attempt * 2000);
+
+                if (!File.Exists(videoPath)) continue;
+
+                try
+                {
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = ffmpeg,
+                        Arguments = $"-y -i \"{videoPath}\" -vframes 1 -q:v 2 \"{thumbPath}\"",
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardError = true,
+                        RedirectStandardOutput = true
+                    };
+                    using var proc = Process.Start(psi);
+                    if (proc != null)
+                    {
+                        await proc.WaitForExitAsync();
+                        if (File.Exists(thumbPath))
+                        {
+                            await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+                                () => item.LoadVideoThumbnail(thumbPath));
+                            AddLog($"Thumbnail extracted for clip #{item.Index}");
+                            return;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AddLog($"Thumbnail extraction attempt {attempt} failed for clip #{item.Index}: {ex.Message}");
+                }
             }
         }
 
@@ -2859,6 +3148,13 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                     }
                     UpdateStoryQueueStatus();
                     AddLog($"Story queue loaded from file: {_storyVideoQueue.Count} items");
+
+                    // Retroactively extract thumbnails for completed clips that don't have one yet
+                    var needThumbnail = _storyVideoQueue
+                        .Where(i => i.Status == "Completed" && !i.HasVideoThumbnail && !string.IsNullOrEmpty(i.OutputVideoPath))
+                        .ToList();
+                    if (needThumbnail.Any())
+                        _ = Task.Run(async () => { foreach (var i in needThumbnail) await ExtractStoryThumbnailAsync(i); });
                 }
             }
             catch (Exception ex)

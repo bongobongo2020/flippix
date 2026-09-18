@@ -833,7 +833,7 @@ namespace FlipPix.UI.Linux.ViewModels
             AddLog("Queue force cancelled. You can now restart processing.");
         }
 
-        private string QueueFilePath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FlipPix", "queue", QueuePersistenceFileName);
+        private string QueueFilePath => UserPaths.Queue(QueuePersistenceFileName);
 
         protected void SaveQueueToFile()
         {

@@ -25,6 +25,18 @@ namespace FlipPix.UI.Linux.ViewModels
         private const string WorkflowFile = "workflow/image/klein/flux2_klein_control_netAPI.json";
         private const string SavePrefix = "flux2_klein";
 
+        // The saved image is painted by the PiD 4K stage (nodes 203-212), not by Klein — the
+        // Klein result only feeds it as guidance. PiD drifts off that guidance into a cool
+        // colour cast once an axis runs past MaxPidAxis, so the canvas is clamped here.
+        private const int MaxPidAxis = 4096;
+        private const int PidScale = 4;                     // canvas stays exactly 4x the base
+        private const int MaxBaseAxis = MaxPidAxis / PidScale;
+        private const int BaseTargetPixels = 1024 * 1024;
+
+        // 57/62 caption the reference image, 63 joins them, 59 shows the result. Analyze runs
+        // this chain to fill the prompt box; Generate has no use for it once the box is filled.
+        private static readonly string[] QwenVlChainNodes = { "57", "62", "63", "59" };
+
         private readonly ComfyUIService _comfyUIService;
         private readonly SettingsService _settingsService;
         private readonly IFileDialogService _fileDialogService;
@@ -557,9 +569,68 @@ namespace FlipPix.UI.Linux.ViewModels
             UpdateNode(dict, "1", inputs => inputs["image"] = uploadedRef);
             UpdateNode(dict, "19", inputs => inputs["image"] = uploadedPose);
             UpdateNode(dict, "7", inputs => inputs["noise_seed"] = new Random().NextInt64(0, 999_999_999_999_999L));
-            if (customPrompt != null) UpdateNode(dict, "6", inputs => inputs["text"] = customPrompt);
+
+            // Size both stages here rather than in-graph. The workflow used to take the base
+            // from a 1 MP rescale of the pose (nodes 17/45/46) and the PiD canvas from an
+            // independent 16 MP rescale (nodes 205/206), which put the long axis at ~5461 px
+            // on a 9:16 source and tinted the bottom quarter. Driving 8:17/8:18 and 207 from
+            // one base size keeps the canvas at exactly 4x, as the other PiD workflows do.
+            var (baseWidth, baseHeight) = ComputeBaseSize(PoseImagePath);
+            int pidWidth = baseWidth * PidScale;
+            int pidHeight = baseHeight * PidScale;
+
+            UpdateNode(dict, "8:17", inputs => { inputs["width"] = baseWidth; inputs["height"] = baseHeight; });
+            UpdateNode(dict, "8:18", inputs => { inputs["width"] = baseWidth; inputs["height"] = baseHeight; });
+            UpdateNode(dict, "207", inputs => { inputs["width"] = pidWidth; inputs["height"] = pidHeight; });
+            AddLog($"Base {baseWidth}x{baseHeight} → PiD canvas {pidWidth}x{pidHeight}");
+
+            if (customPrompt != null)
+            {
+                // 59 (ShowText) feeds both the Klein encoder (6) and the PiD encoder (201);
+                // a typed prompt has to replace it in both or PiD paints from the stale
+                // caption node 6 no longer reads.
+                UpdateNode(dict, "6", inputs => inputs["text"] = customPrompt);
+                UpdateNode(dict, "201", inputs => inputs["text"] = customPrompt);
+
+                // With both encoders holding literal text, the QwenVL chain is dead weight -
+                // except 59 is an OUTPUT_NODE, so ComfyUI would still run 57/62 to reach it.
+                // That matters beyond wasted time: a native crash inside the GGUF runtime
+                // takes the whole ComfyUI process down (no node error, the port just dies),
+                // which killed Generate as well as Analyze. Drop the branch.
+                foreach (var deadNode in QwenVlChainNodes)
+                    dict.Remove(deadNode);
+            }
+
             return JsonSerializer.SerializeToElement(dict);
         }
+
+        // Base render size at the pose image's aspect: ~1 MP, but never more than MaxBaseAxis
+        // on the long edge so the 4x PiD canvas stays inside MaxPidAxis.
+        private (int Width, int Height) ComputeBaseSize(string posePath)
+        {
+            int srcW = 1024, srcH = 1024;
+            try
+            {
+                var frame = LoadBitmap(posePath);
+                if (frame.PixelWidth > 0 && frame.PixelHeight > 0)
+                {
+                    srcW = frame.PixelWidth;
+                    srcH = frame.PixelHeight;
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Could not read pose dimensions ({ex.Message}) — using {srcW}x{srcH}");
+            }
+
+            var scale = Math.Sqrt(BaseTargetPixels / ((double)srcW * srcH));
+            scale = Math.Min(scale, (double)MaxBaseAxis / Math.Max(srcW, srcH));
+
+            return (SnapToBlock(srcW * scale), SnapToBlock(srcH * scale));
+        }
+
+        private static int SnapToBlock(double value)
+            => Math.Clamp((int)Math.Round(value / 16.0) * 16, 256, MaxBaseAxis);
 
         private static void UpdateNode(Dictionary<string, JsonElement> dict, string nodeId, Action<Dictionary<string, object>> updater)
         {
@@ -677,13 +748,13 @@ namespace FlipPix.UI.Linux.ViewModels
         private void OpenResultFolder()
         {
             if (!string.IsNullOrEmpty(ResultImagePath) && File.Exists(ResultImagePath))
-                Process.Start("explorer.exe", $"/select,\"{ResultImagePath}\"");
+                DesktopIntegration.RevealInFileManager(ResultImagePath);
         }
 
         private void OpenResultImage()
         {
             if (!string.IsNullOrEmpty(ResultImagePath) && File.Exists(ResultImagePath))
-                Process.Start(new ProcessStartInfo(ResultImagePath) { UseShellExecute = true });
+                DesktopIntegration.OpenFile(ResultImagePath);
         }
 
         private static string StripThinkingTokens(string text)

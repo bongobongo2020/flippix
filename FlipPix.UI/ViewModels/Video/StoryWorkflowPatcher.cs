@@ -10,10 +10,9 @@ namespace FlipPix.UI.ViewModels.Video
     /// Shared parameter injection for the "story" video workflows (Vantage Sulphur 2, 10Eros,
     /// LTX-22-B, DaSiWa WAN 2.2, WAN 2.2 FunCamera I2V).
     ///
-    /// These workflows are offered both by the Story Video Generator (batch, via
-    /// <see cref="VideoGeneratorMainViewModel"/>) and the Single Video tab (single image, via
-    /// <see cref="LTX23BasicViewModel"/>). Keeping the node-id maps in one place means both callers
-    /// stay in sync when a workflow JSON changes.
+    /// These workflows are driven by the Story Video Generator (batch, via
+    /// <see cref="VideoGeneratorMainViewModel"/>). Keeping the node-id maps in one place means
+    /// every caller stays in sync when a workflow JSON changes.
     /// </summary>
     public static class StoryWorkflowPatcher
     {

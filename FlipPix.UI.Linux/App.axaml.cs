@@ -6,6 +6,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.LogicalTree;
+using System.Linq;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -49,7 +51,28 @@ public partial class App : Application
         var settingsService = _serviceProvider.GetRequiredService<SettingsService>();
         settingsService.SetLogger(logger);
 
+        // Let the ComfyUI client offer to install missing models (download / locate folder) or
+        // missing custom-node packs (clone + restart) instead of failing the workflow with a
+        // dead-end error — exactly as the WPF app does at startup.
+        try
+        {
+            var httpClient = _serviceProvider.GetRequiredService<ComfyUIHttpClient>();
+            httpClient.MissingModelResolver = _serviceProvider.GetRequiredService<IMissingModelResolver>();
+            httpClient.MissingNodeResolver = _serviceProvider.GetRequiredService<IMissingNodeResolver>();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning($"Could not wire missing-model/node resolver: {ex.Message}");
+        }
+
+        // Resolve the VRAM tier up-front from saved settings so workflow routing is correct even
+        // before (or without) a successful ComfyUI connection. CheckServerConnectivityAsync refines
+        // DetectedVramGb from /system_stats when the server answers (same as the WPF app).
+        VramContext.Configure(settingsService.Settings.VramTier, settingsService.Settings.DetectedVramGb);
+        logger.LogInfo($"VRAM tier: {VramContext.EffectiveTier} (setting={settingsService.Settings.VramTier}, detected={settingsService.Settings.DetectedVramGb:0.#} GB)");
+
         logger.LogInfo("FlipPix Linux starting up");
+        ConfigureMediaTooling(logger);
 
         var splash = new SplashWindow();
         desktop.MainWindow = splash;
@@ -90,6 +113,10 @@ public partial class App : Application
                 {
                     var setupWin = new SetupChoiceWindow();
                     desktop.MainWindow = setupWin;
+                    // Prevent the default OnLastWindowClose shutdown from killing the app
+                    // while we transition between setup windows and the main window
+                    // (those transitions are async and lose the race otherwise).
+                    desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
                     setupWin.Show();
                     splash.Close();
 
@@ -152,17 +179,108 @@ public partial class App : Application
 
     private async Task ShowMainWindowAsync(IClassicDesktopStyleApplicationLifetime desktop, Window? closePrev)
     {
-        await Dispatcher.UIThread.InvokeAsync(() =>
+        try
         {
-            if (_serviceProvider == null) return;
-            var imageGeneratorViewModel = _serviceProvider.GetRequiredService<ImageGeneratorViewModel>();
-            var settingsService = _serviceProvider.GetRequiredService<SettingsService>();
-            var windowPositionService = _serviceProvider.GetRequiredService<WindowPositionService>();
-            var mainWindow = new Windows.ImageGeneratorWindow(imageGeneratorViewModel, settingsService, windowPositionService);
-            desktop.MainWindow = mainWindow;
-            mainWindow.Show();
-            closePrev?.Close();
-        });
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                if (_serviceProvider == null) return;
+                var imageGeneratorViewModel = _serviceProvider.GetRequiredService<ImageGeneratorViewModel>();
+                var settingsService = _serviceProvider.GetRequiredService<SettingsService>();
+                var windowPositionService = _serviceProvider.GetRequiredService<WindowPositionService>();
+                var mainWindow = new Windows.ImageGeneratorWindow(imageGeneratorViewModel, settingsService, windowPositionService);
+                desktop.MainWindow = mainWindow;
+                mainWindow.Show();
+                closePrev?.Close();
+
+                // Smoke-test hook (CI / headless verification): FLIPPIX_SMOKE=1 opens every
+                // main window, logs the tab census of each, and shuts down cleanly. A XAML or
+                // resource error in either window throws here and is logged as a failure
+                // instead of waiting for a user to click the nav button.
+                if (Environment.GetEnvironmentVariable("FLIPPIX_SMOKE") == "1")
+                {
+                    try
+                    {
+                        var videoVm = _serviceProvider.GetRequiredService<VideoGeneratorViewModel>();
+                        var wps = _serviceProvider.GetRequiredService<WindowPositionService>();
+                        var videoWindow = new VideoGeneratorWindow(videoVm, wps);
+                        videoWindow.Show();
+
+                        LogTabCensus(mainWindow, "ImageGeneratorWindow");
+                        LogTabCensus(videoWindow, "VideoGeneratorWindow");
+
+                        // The Phase 3 dialogs: constructed (not just shown) so a XAML or resource
+                        // error in either fails loudly here rather than at first missing model/node.
+                        var modelInstaller = _serviceProvider.GetRequiredService<Services.ModelInstallerService>();
+                        var nodeInstaller = _serviceProvider.GetRequiredService<Services.NodeInstallerService>();
+                        var smokeLogger = _serviceProvider.GetRequiredService<IAppLogger>();
+                        var missingModels = new List<Core.Models.MissingModelInfo>
+                        {
+                            new() { Name = "test/smoke_model.safetensors", Category = "loras" },
+                        };
+                        var missingNodes = new List<Core.Models.MissingNodeInfo>
+                        {
+                            new() { ClassType = "SmokeTestNode", PackName = "smoke-pack", RepoUrl = "" },
+                        };
+                        var mm = new Windows.MissingModelsWindow(missingModels, modelInstaller, smokeLogger);
+                        var mn = new Windows.MissingNodesWindow(missingNodes, nodeInstaller, smokeLogger);
+                        var st = new Windows.SettingsWindow(settingsService);
+                        smokeLogger.LogInfo("SMOKE: resolver dialogs + settings window constructed OK");
+                    }
+                    catch (Exception ex)
+                    {
+                        Services?.GetRequiredService<IAppLogger>()?.LogError(ex, "SMOKE: failed to open windows");
+                    }
+                    finally
+                    {
+                        Task.Delay(3000).ContinueWith(_ => Dispatcher.UIThread.Post(() => desktop.Shutdown()));
+                    }
+                }
+                // Back to normal lifecycle: closing the last window exits the app.
+                desktop.ShutdownMode = ShutdownMode.OnLastWindowClose;
+            });
+        }
+        catch (Exception ex)
+        {
+            // This method is often invoked fire-and-forget; never let the failure be silent.
+            _serviceProvider?.GetRequiredService<IAppLogger>()?.LogError(ex, "Failed to show main window");
+            await Dispatcher.UIThread.InvokeAsync(async () =>
+            {
+                var box = MessageBoxManager.GetMessageBoxStandard(
+                    "Startup Error",
+                    $"FlipPix failed to open the main window:\n{ex.Message}",
+                    ButtonEnum.Ok, Icon.Error);
+                await box.ShowAsync();
+                desktop.Shutdown();
+            });
+        }
+    }
+
+    /// <summary>
+    /// Points FFMpegCore at the ffmpeg/ffprobe this machine actually has. Its default is to
+    /// look beside the executable, which never matches a distro package such as Arch's
+    /// /usr/bin/ffmpeg, so video analysis would fail with a confusing "not found".
+    /// </summary>
+    private static void ConfigureMediaTooling(IAppLogger logger)
+    {
+        var binaryFolder = MediaTools.BinaryFolder;
+        if (binaryFolder is null)
+        {
+            logger.LogWarning("ffmpeg was not found on PATH. Install it (pacman -S ffmpeg) "
+                            + "or set FLIPPIX_FFMPEG; video features stay disabled until then.");
+            return;
+        }
+
+        FFMpegCore.GlobalFFOptions.Configure(options => options.BinaryFolder = binaryFolder);
+        logger.LogInfo($"Using ffmpeg from {binaryFolder}");
+    }
+
+    /// <summary>Logs how many TabItems each window's top-level TabControl holds (smoke test evidence).</summary>
+    private static void LogTabCensus(Window window, string name)
+    {
+        var logger = Services?.GetRequiredService<IAppLogger>();
+        var tabs = window.GetLogicalDescendants().OfType<TabControl>().FirstOrDefault();
+        var headers = tabs?.Items.OfType<TabItem>().Select(t => t.Header?.ToString()).ToList();
+        logger?.LogInfo($"SMOKE: {name} tabs={headers?.Count ?? -1}: {string.Join(" | ", headers ?? new List<string?>())}");
     }
 
     private void ConfigureServices(IServiceCollection services)
@@ -188,6 +306,10 @@ public partial class App : Application
         services.AddSingleton<WindowPositionService>();
         services.AddSingleton<LoraManager>();
         services.AddSingleton<ComfyUIImageRetriever>();
+        services.AddSingleton<ModelInstallerService>();
+        services.AddSingleton<IMissingModelResolver, MissingModelResolver>();
+        services.AddSingleton<NodeInstallerService>();
+        services.AddSingleton<IMissingNodeResolver, MissingNodeResolver>();
 
         services.AddSingleton<LMStudioService>(provider =>
         {

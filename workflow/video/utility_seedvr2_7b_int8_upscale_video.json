@@ -1,0 +1,267 @@
+{
+  "106": {
+    "inputs": {
+      "tile_size": 512,
+      "overlap": 128,
+      "temporal_size": 60,
+      "temporal_overlap": 8,
+      "pixels": [
+        "112",
+        0
+      ],
+      "vae": [
+        "107",
+        0
+      ]
+    },
+    "class_type": "VAEEncodeTiled",
+    "_meta": {
+      "title": "VAE Encode (Tiled)"
+    }
+  },
+  "107": {
+    "inputs": {
+      "vae_name": "ema_vae_fp16.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "108": {
+    "inputs": {
+      "unet_name": "seedvr2_7b_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "109": {
+    "inputs": {
+      "seed": 959948902156062,
+      "steps": 1,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "128",
+        0
+      ],
+      "positive": [
+        "114",
+        0
+      ],
+      "negative": [
+        "114",
+        1
+      ],
+      "latent_image": [
+        "119",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "110": {
+    "inputs": {
+      "tile_size": 512,
+      "overlap": 128,
+      "temporal_size": 60,
+      "temporal_overlap": 8,
+      "samples": [
+        "120",
+        0
+      ],
+      "vae": [
+        "107",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeTiled",
+    "_meta": {
+      "title": "VAE Decode (Tiled)"
+    }
+  },
+  "111": {
+    "inputs": {
+      "resize_type": "scale by multiplier",
+      "resize_type.multiplier": 1.5,
+      "scale_method": "lanczos",
+      "input": [
+        "125",
+        0
+      ]
+    },
+    "class_type": "ResizeImageMaskNode",
+    "_meta": {
+      "title": "Resize Image/Mask"
+    }
+  },
+  "112": {
+    "inputs": {
+      "resized_images": [
+        "111",
+        0
+      ]
+    },
+    "class_type": "SeedVR2Preprocess",
+    "_meta": {
+      "title": "Pre-Process SeedVR2 Input"
+    }
+  },
+  "113": {
+    "inputs": {
+      "color_correction_method": "none",
+      "images": [
+        "110",
+        0
+      ],
+      "original_resized_images": [
+        "111",
+        0
+      ]
+    },
+    "class_type": "SeedVR2PostProcessing",
+    "_meta": {
+      "title": "Post-Process SeedVR2 Output"
+    }
+  },
+  "114": {
+    "inputs": {
+      "model": [
+        "128",
+        0
+      ],
+      "vae_conditioning": [
+        "119",
+        0
+      ]
+    },
+    "class_type": "SeedVR2Conditioning",
+    "_meta": {
+      "title": "Apply SeedVR2 Conditioning"
+    }
+  },
+  "119": {
+    "inputs": {
+      "temporal_overlap": 8,
+      "chunking_mode": "manual",
+      "chunking_mode.frames_per_chunk": 61,
+      "latent": [
+        "106",
+        0
+      ]
+    },
+    "class_type": "SeedVR2TemporalChunk",
+    "_meta": {
+      "title": "Split SeedVR2 Latent"
+    }
+  },
+  "120": {
+    "inputs": {
+      "latents": [
+        "109",
+        0
+      ],
+      "temporal_overlap": [
+        "119",
+        1
+      ]
+    },
+    "class_type": "SeedVR2TemporalMerge",
+    "_meta": {
+      "title": "Merge SeedVR2 Latents"
+    }
+  },
+  "124": {
+    "inputs": {
+      "frame_rate": [
+        "126",
+        0
+      ],
+      "loop_count": 0,
+      "filename_prefix": "AnimateDiff",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "113",
+        0
+      ],
+      "audio": [
+        "125",
+        2
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine 🎥🅥🅗🅢"
+    }
+  },
+  "125": {
+    "inputs": {
+      "video": "MiniMaxH3_20260809_101258.mp4",
+      "force_rate": 0,
+      "custom_width": 0,
+      "custom_height": 0,
+      "frame_load_cap": 0,
+      "start_time": 0,
+      "format": "AnimateDiff"
+    },
+    "class_type": "VHS_LoadVideoFFmpeg",
+    "_meta": {
+      "title": "Load Video FFmpeg (Upload) 🎥🅥🅗🅢"
+    }
+  },
+  "126": {
+    "inputs": {
+      "video_info": [
+        "125",
+        3
+      ]
+    },
+    "class_type": "VHS_VideoInfoLoaded",
+    "_meta": {
+      "title": "Video Info (Loaded) 🎥🅥🅗🅢"
+    }
+  },
+  "127": {
+    "inputs": {
+      "mode": "always",
+      "volume": 0.5,
+      "file": "notify.mp3",
+      "any": [
+        "124",
+        0
+      ]
+    },
+    "class_type": "PlaySound|pysssss",
+    "_meta": {
+      "title": "PlaySound 🐍"
+    }
+  },
+  "128": {
+    "inputs": {
+      "sage_attention": "sageattn_qk_int8_pv_fp16_triton",
+      "allow_compile": true,
+      "model": [
+        "108",
+        0
+      ]
+    },
+    "class_type": "PathchSageAttentionKJ",
+    "_meta": {
+      "title": "Patch Sage Attention KJ"
+    }
+  }
+}

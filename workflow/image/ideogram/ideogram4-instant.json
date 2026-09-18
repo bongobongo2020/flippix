@@ -1,0 +1,247 @@
+{
+  "167": {
+    "inputs": {
+      "text": [
+        "185",
+        0
+      ],
+      "clip": [
+        "243",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "185": {
+    "inputs": {
+      "width": [
+        "246",
+        0
+      ],
+      "height": [
+        "246",
+        1
+      ],
+      "high_level_description": "",
+      "background": "",
+      "style": "art_style",
+      "aesthetics": "",
+      "lighting": "",
+      "medium": "",
+      "style_palette_data": "",
+      "elements_data": "[]",
+      "bg_brightness": 25,
+      "import_mode": "always",
+      "output_format": "compact",
+      "coord_mode": "normalized",
+      "bbox_order": "yx",
+      "style.art_style": "",
+      "import_json": [
+        "186",
+        0
+      ]
+    },
+    "class_type": "Ideogram4PromptBuilderKJ",
+    "_meta": {
+      "title": "Ideogram 4 Prompt Builder KJ"
+    }
+  },
+  "198": {
+    "inputs": {
+      "shift": 5.25,
+      "model": [
+        "209",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "ModelSamplingAuraFlow"
+    }
+  },
+  "199": {
+    "inputs": {
+      "source": [
+        "185",
+        0
+      ]
+    },
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "Preview as Text"
+    }
+  },
+  "209": {
+    "inputs": {
+      "lora_data": "{\"loras\":[],\"enabledFolders\":null}",
+      "model": [
+        "260",
+        0
+      ]
+    },
+    "class_type": "FantasticLoraLoader",
+    "_meta": {
+      "title": "Fantastic Lora Loader 📁"
+    }
+  },
+  "219": {
+    "inputs": {
+      "unet_name": "Fal_Ideo_4_NSFW-int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "220": {
+    "inputs": {
+      "images": [
+        "235",
+        4
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "230": {
+    "inputs": {
+      "conditioning": [
+        "167",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "Conditioning Zero Out"
+    }
+  },
+  "235": {
+    "inputs": {
+      "seed": 900745498414940,
+      "steps": 8,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "decode_image": true,
+      "tiled_vae_decoding": 1.15,
+      "max_shift": 0.5,
+      "base_shift": 0.5,
+      "model": [
+        "198",
+        0
+      ],
+      "positive": [
+        "167",
+        0
+      ],
+      "latent": [
+        "247",
+        0
+      ],
+      "vae": [
+        "244",
+        0
+      ],
+      "negative": [
+        "230",
+        0
+      ]
+    },
+    "class_type": "StarSampler",
+    "_meta": {
+      "title": "⭐ StarSampler (Unified)"
+    }
+  },
+  "241": {
+    "inputs": {
+      "filename_prefix": "gram",
+      "images": [
+        "235",
+        4
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "243": {
+    "inputs": {
+      "clip_name": "qwen3vl_8b_fp8_scaled.safetensors",
+      "type": "ideogram4",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Qwen3-VL text encoder"
+    }
+  },
+  "244": {
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "VAE"
+    }
+  },
+  "246": {
+    "inputs": {
+      "megapixel": "2.5",
+      "aspect_ratio": "21:9 (Epic Ultrawide)",
+      "divisible_by": "16",
+      "custom_ratio": false,
+      "custom_aspect_ratio": "1:1"
+    },
+    "class_type": "FluxResolutionNode",
+    "_meta": {
+      "title": "Flux Resolution Calc"
+    }
+  },
+  "247": {
+    "inputs": {
+      "width": [
+        "246",
+        0
+      ],
+      "height": [
+        "246",
+        1
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {
+      "title": "Empty Flux 2 Latent"
+    }
+  },
+  "260": {
+    "inputs": {
+      "attention": "comfy kitchen attention",
+      "model": [
+        "219",
+        0
+      ]
+    },
+    "class_type": "ModelAttentionBackend",
+    "_meta": {
+      "title": "ModelAttentionBackend"
+    }
+  },
+  "186": {
+    "inputs": {
+      "value": ""
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Manual JSON"
+    }
+  }
+}

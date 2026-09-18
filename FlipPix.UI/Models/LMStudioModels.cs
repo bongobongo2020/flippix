@@ -53,7 +53,7 @@ namespace FlipPix.UI.Models
     public class LMStudioMessage
     {
         [JsonPropertyName("role")]
-        public string Role { get; set; } = string.Empty; // "system", "user", "assistant"
+        public string Role { get; set; } = string.Empty; // "system", "user", "assistant", "tool"
 
         [JsonPropertyName("content")]
         public string Content { get; set; } = string.Empty;
@@ -62,11 +62,40 @@ namespace FlipPix.UI.Models
         [JsonPropertyName("reasoning_content")]
         public string? ReasoningContent { get; set; }
 
+        // Present when the model answers by calling a tool instead of writing content
+        // (finish_reason "tool_calls"). The arguments arrive as a JSON *string* per the
+        // OpenAI schema, not as a parsed object.
+        [JsonPropertyName("tool_calls")]
+        public List<LMStudioToolCall>? ToolCalls { get; set; }
+
         // The actual answer from the model. For reasoning models (reasoning_in_content=false),
         // the thinking lands in reasoning_content and the answer lands here. If this is empty
         // the model ran out of tokens during thinking — do NOT fall back to reasoning_content.
         [JsonIgnore]
         public string EffectiveContent => Content;
+    }
+
+    /// <summary>One tool call a model made in its reply, OpenAI shape: id / type / function.</summary>
+    public class LMStudioToolCall
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
+
+        [JsonPropertyName("type")]
+        public string Type { get; set; } = "function";
+
+        [JsonPropertyName("function")]
+        public LMStudioToolCallFunction Function { get; set; } = new();
+    }
+
+    public class LMStudioToolCallFunction
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+
+        /// <summary>The arguments as a JSON-encoded string — parse it, don't bind it.</summary>
+        [JsonPropertyName("arguments")]
+        public string Arguments { get; set; } = string.Empty;
     }
 
     public class LMStudioChatResponse

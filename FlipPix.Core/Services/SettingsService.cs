@@ -43,6 +43,9 @@ namespace FlipPix.Core.Services
                     var settings = JsonSerializer.Deserialize<ComfyUISettings>(json);
                     if (settings != null)
                     {
+                        // Older settings files only had a list of plain URLs; fold those into
+                        // named server profiles so the UI always has something to show.
+                        settings.LMStudioSettings?.EnsureProfiles();
                         return settings;
                     }
                 }

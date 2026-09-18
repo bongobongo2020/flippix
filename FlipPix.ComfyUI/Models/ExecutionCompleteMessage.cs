@@ -16,7 +16,14 @@ public class ExecutionCompleteData
     
     [JsonPropertyName("output")]
     public Dictionary<string, object> Output { get; set; } = new();
-    
+
+    /// <summary>
+    /// Populated only for synthetic "execution_error" messages: a human-readable
+    /// description (node + exception message) of why ComfyUI aborted the prompt.
+    /// </summary>
+    [JsonIgnore]
+    public string? ErrorMessage { get; set; }
+
     /// <summary>
     /// Extracts video output information from the completion data
     /// </summary>

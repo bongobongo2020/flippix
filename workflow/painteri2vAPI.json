@@ -396,13 +396,15 @@
   },
   "138": {
     "inputs": {
+      "scale": 2,
       "resize_type": "scale by multiplier",
       "resize_type.scale": 2,
       "quality": "ULTRA",
       "images": [
         "134",
         0
-      ]
+      ],
+      "deblur": "OFF"
     },
     "class_type": "RTXVideoSuperResolution",
     "_meta": {

@@ -49,7 +49,10 @@ namespace FlipPix.UI.ViewModels
 
         // --- Workflow mode ---
 
-        public static readonly IReadOnlyList<string> WorkflowModes = new[] { "Qwen", "Klein", "FireRed", "StoryImageZ", "Krea2" };
+        /// <summary>Krea2 two-reference identity edit mode (workflow/image/krea/krea2_edit_two_ref.json).</summary>
+        public const string Krea2EditMode = "krea2-edit";
+
+        public static readonly IReadOnlyList<string> WorkflowModes = new[] { "Qwen", "Klein", "FireRed", "StoryImageZ", "Krea2", "krea2-edit" };
 
         private string _selectedWorkflowMode = "Qwen";
         public string SelectedWorkflowMode
@@ -65,11 +68,15 @@ namespace FlipPix.UI.ViewModels
                         Steps = 8;
                     else if (value == "Krea2")
                         Steps = 8; // Krea2 Turbo
+                    else if (value == Krea2EditMode)
+                        Steps = 12; // Krea2 Edit (turbo LoRA + identity edit LoRA)
                     else
                         Steps = DefaultSteps;
 
                     OnPropertyChanged(nameof(ShowLoRAOption));
                     OnPropertyChanged(nameof(ShowKreaLoraOption));
+                    OnPropertyChanged(nameof(ShowKrea2EditOption));
+                    OnPropertyChanged(nameof(ShowKrea2Orientation));
                     OnPropertyChanged(nameof(ShowZOptions));
                     OnPropertyChanged(nameof(CanLoadPrompts));
 
@@ -121,9 +128,116 @@ namespace FlipPix.UI.ViewModels
 
         public bool ShowZOptions => SelectedWorkflowMode == "StoryImageZ";
 
+        public bool ShowKrea2EditOption => SelectedWorkflowMode == Krea2EditMode;
+
+        public bool ShowKrea2Orientation => SelectedWorkflowMode == "Krea2";
+
+        // --- Krea2 canvas size ---
+        // Only the text-to-image Krea2 mode needs this; krea2-edit takes its canvas from the
+        // input image. Every option sits near 1 MP so the Turbo pass stays fast — the workflow's
+        // own FluxResolutionNode link defaults to a ~2.5 MP latent, which is why node 10 is pinned.
+
+        public static readonly IReadOnlyList<string> Krea2Orientations = new[]
+        {
+            "Portrait (1024x1280)",
+            "Tall Portrait (768x1344)",
+            "Square (1152x1152)",
+            "Widescreen (1344x768)",
+            "Ultrawide (1536x640)"
+        };
+
+        private string _krea2SelectedOrientation = "Portrait (1024x1280)";
+        public string Krea2SelectedOrientation
+        {
+            get => _krea2SelectedOrientation;
+            set { if (_krea2SelectedOrientation != value) { _krea2SelectedOrientation = value; OnPropertyChanged(); } }
+        }
+
+        /// <summary>
+        /// Pixel size behind the selected Krea2 orientation label, parsed from its "(WxH)" suffix.
+        /// Falls back to the portrait default if the label is ever malformed.
+        /// </summary>
+        private (int Width, int Height) Krea2Canvas()
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(Krea2SelectedOrientation ?? string.Empty, @"\((\d+)x(\d+)\)");
+            if (match.Success
+                && int.TryParse(match.Groups[1].Value, out var w)
+                && int.TryParse(match.Groups[2].Value, out var h))
+                return (w, h);
+
+            return (1024, 1280);
+        }
+
+        // --- Krea2 Edit fields ---
+        // Image A (the scene being edited) is the queue's normal input image, per story item.
+        // Image B is a single identity/subject reference reused for every prompt in the run,
+        // which is what keeps the same character across all the story keyframes.
+
+        private string _krea2EditRefImagePath = string.Empty;
+        public string Krea2EditRefImagePath
+        {
+            get => _krea2EditRefImagePath;
+            set
+            {
+                if (SetProperty(ref _krea2EditRefImagePath, value))
+                    LoadKrea2EditRefImagePreview();
+            }
+        }
+
+        private System.Windows.Media.Imaging.BitmapImage? _krea2EditRefImagePreview;
+        public System.Windows.Media.Imaging.BitmapImage? Krea2EditRefImagePreview
+        {
+            get => _krea2EditRefImagePreview;
+            set => SetProperty(ref _krea2EditRefImagePreview, value);
+        }
+
+        public ICommand SelectKrea2EditRefImageCommand { get; private set; } = null!;
+
+        private async void SelectKrea2EditRefImage()
+        {
+            var selectedFile = await _fileDialogService.OpenFileDialogAsync(
+                "Select Krea2 Edit Reference Image (image B)",
+                "Image Files (*.jpg;*.jpeg;*.png;*.bmp)|*.jpg;*.jpeg;*.png;*.bmp|All Files (*.*)|*.*",
+                Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
+                persistKey: "storyimage.krea2-edit-ref-image");
+
+            if (!string.IsNullOrEmpty(selectedFile))
+            {
+                Krea2EditRefImagePath = selectedFile;
+                AddLog($"Selected Krea2 Edit reference image: {Path.GetFileName(selectedFile)}");
+            }
+        }
+
+        private void LoadKrea2EditRefImagePreview()
+        {
+            if (string.IsNullOrEmpty(Krea2EditRefImagePath) || !File.Exists(Krea2EditRefImagePath))
+            {
+                Krea2EditRefImagePreview = null;
+                return;
+            }
+
+            try
+            {
+                var bitmap = new System.Windows.Media.Imaging.BitmapImage();
+                bitmap.BeginInit();
+                bitmap.UriSource = new Uri(Krea2EditRefImagePath, UriKind.Absolute);
+                bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                bitmap.EndInit();
+                bitmap.Freeze();
+                Krea2EditRefImagePreview = bitmap;
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error loading Krea2 Edit reference preview: {ex.Message}");
+                Krea2EditRefImagePreview = null;
+            }
+        }
+
         // --- Krea2 LoRA fields (loaded from the <loras>/krea2 subfolder) ---
         private ObservableCollection<string> _kreaLoras = new();
         private ObservableCollection<KreaLoraSelection> _selectedKreaLoras = new();
+        // Remembers the per-LoRA trigger words prepended to the prompt (shared with the other tabs).
+        private KreaLoraTriggerTracker? _kreaTriggers;
         private string _kreaLoraSubfolder = "krea2";
 
         public ObservableCollection<string> KreaLoras
@@ -138,7 +252,7 @@ namespace FlipPix.UI.ViewModels
         public ObservableCollection<KreaLoraSelection> SelectedKreaLoras
         {
             get => _selectedKreaLoras;
-            set { if (_selectedKreaLoras != value) { _selectedKreaLoras = value; OnPropertyChanged(); } }
+            set { if (_selectedKreaLoras != value) { _selectedKreaLoras = value; _kreaTriggers?.Track(_selectedKreaLoras); OnPropertyChanged(); } }
         }
 
         public ICommand RefreshKreaLorasCommand { get; private set; } = null!;
@@ -284,9 +398,12 @@ namespace FlipPix.UI.ViewModels
                 async () => await AnalyzeImageWithQwenVLAsync(),
                 () => !string.IsNullOrEmpty(InputImagePath) && File.Exists(InputImagePath) && !IsAnalyzingImage);
             RefreshZLorasCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(RefreshZLoras);
+            _kreaTriggers = new KreaLoraTriggerTracker(_settingsService, AddLog);
+            _kreaTriggers.Track(_selectedKreaLoras);
             RefreshKreaLorasCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(RefreshKreaLoras);
             AddKreaLoraCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(AddKreaLora);
             RemoveKreaLoraCommand = new CommunityToolkit.Mvvm.Input.RelayCommand<KreaLoraSelection>(RemoveKreaLora, (item) => item != null);
+            SelectKrea2EditRefImageCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(SelectKrea2EditRefImage);
             LoadZWorkflowsAndStyles();
             LoadZAvailableLoras();
             LoadKreaLoras();
@@ -796,14 +913,18 @@ namespace FlipPix.UI.ViewModels
 
             var workflowJson = await File.ReadAllTextAsync(workflowPath, cancellationToken);
 
-            // Node 6 - CLIPTextEncode (positive prompt)
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "6", "text", item.Prompt);
+            // Node 6 - CLIPTextEncode (positive prompt), with the LoRAs' trigger words in front of it
+            // (a Krea2 LoRA only fires when its trigger word is in the prompt).
+            var prompt = ImageGeneratorViewModel.ApplyKreaLoraTriggers(item.Prompt, SelectedKreaLoras, AddLog);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "6", "text", prompt);
             // Node 27 - ClownsharKSampler_Beta (seed only; turbo steps/cfg fixed in workflow)
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "27", "seed", Random.Shared.NextInt64(0, long.MaxValue));
-            // Node 10 - EmptyLatentImage: pin a fixed portrait size, overriding the workflow's
-            // FluxResolutionNode link (which defaults to a slow 2.5 MP latent).
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "10", "width", 1024);
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "10", "height", 1280);
+            // Node 10 - EmptyLatentImage: pin the selected orientation's size, overriding the
+            // workflow's FluxResolutionNode link (which defaults to a slow 2.5 MP latent).
+            var (kreaWidth, kreaHeight) = Krea2Canvas();
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "10", "width", kreaWidth);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "10", "height", kreaHeight);
+            AddLog($"Krea2 canvas: {Krea2SelectedOrientation} -> {kreaWidth}x{kreaHeight}");
 
             // Replace SaveImageKJ (node 23) with a standard SaveImage fed from the RTX-upscaled
             // image (node 28 - RTXVideoSuperResolution, 2×), drop the PreviewImage (node 5), and
@@ -846,6 +967,66 @@ namespace FlipPix.UI.ViewModels
             await File.WriteAllBytesAsync(outputPath, outputImages.First());
             await LocalCopyService.CopyImageAsync(outputPath);
             AddLog($"Story Q (Krea2 mode) image #{item.Index} saved: {outputPath}");
+            return outputPath;
+        }
+
+        /// <summary>
+        /// krea2-edit mode: Krea2 two-reference identity edit. Image A (node 72) is this story
+        /// item's input image — the scene being edited — and image B (node 86) is the single
+        /// reference subject reused for the whole run, which keeps the character consistent
+        /// across every keyframe. The workflow already carries its own SaveImage (node 29).
+        /// </summary>
+        private async Task<string> ProcessKrea2EditQueueItemAsync(StoryPromptItem item, string inputImagePath, string jsonFileName, CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(Krea2EditRefImagePath) || !File.Exists(Krea2EditRefImagePath))
+                throw new InvalidOperationException("krea2-edit needs a reference image (image B). Pick one in the Krea2 Edit panel.");
+
+            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "krea", "krea2_edit_two_ref.json");
+            AddLog("Using Krea2 Edit workflow (two-reference identity edit)");
+
+            if (!File.Exists(workflowPath))
+                throw new FileNotFoundException($"Workflow file not found: {workflowPath}");
+
+            var workflowJson = await File.ReadAllTextAsync(workflowPath, cancellationToken);
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var uploadedImageA = await _comfyUIService.UploadImageAsync(inputImagePath);
+            var uploadedImageB = await _comfyUIService.UploadImageAsync(Krea2EditRefImagePath);
+
+            // Node 72 - LoadImage (image A: scene to edit)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "72", "image", uploadedImageA);
+            // Node 86 - LoadImage (image B: subject / identity reference)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "86", "image", uploadedImageB);
+            // Node 84 - Krea2EditGroundedEncode (positive)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "84", "prompt", item.Prompt);
+            // Node 85 - Krea2EditGroundedEncode (negative)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "85", "prompt", NegativePrompt ?? string.Empty);
+            // Node 53 - KSampler (cfg/denoise stay at the turbo LoRA's fixed values)
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "53", new Dictionary<string, object>
+            {
+                { "seed", Random.Shared.NextInt64(0, long.MaxValue) },
+                { "steps", Steps }
+            });
+            // Node 29 - SaveImage: write into the per-session subfolder like the other modes
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "29", "filename_prefix", $"{jsonFileName}/{jsonFileName}-{item.Index}");
+
+            var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
+
+            var progress = CreateProgressReporter(item);
+            var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progress, cancellationToken);
+
+            var outputImages = await GetOutputImagesFromComfyUI(promptId, jsonFileName, item.Index);
+            if (!outputImages.Any())
+                throw new InvalidOperationException("No output images were generated");
+
+            var baseOutputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", OutputFolderName, jsonFileName);
+            Directory.CreateDirectory(baseOutputDir);
+            var outputPath = Path.Combine(baseOutputDir, $"{jsonFileName}-{item.Index}.png");
+
+            await File.WriteAllBytesAsync(outputPath, outputImages.First());
+            await LocalCopyService.CopyImageAsync(outputPath);
+            AddLog($"Story Q (krea2-edit mode) image #{item.Index} saved: {outputPath}");
             return outputPath;
         }
 
@@ -1092,8 +1273,8 @@ namespace FlipPix.UI.ViewModels
             try
             {
                 IsAnalyzingImage = true;
-                AnalysisStatus = "Analyzing image with Qwen VL...";
-                AddLog("Starting image analysis with Qwen VL...");
+                AnalysisStatus = $"Sending image to {_lmStudioService.DescribeTarget()}...";
+                AddLog($"Starting image analysis — sending to {_lmStudioService.DescribeTarget()}");
 
                 // Read system prompt from the selected template file
                 var promptFileName = SelectedStoryPromptTemplate?.FileName ?? "story-prompt.md";
@@ -1310,6 +1491,9 @@ namespace FlipPix.UI.ViewModels
             if (SelectedWorkflowMode == "Krea2")
                 return await ProcessKrea2QueueItemAsync(item, jsonFileName, cancellationToken);
 
+            if (SelectedWorkflowMode == Krea2EditMode)
+                return await ProcessKrea2EditQueueItemAsync(item, inputImagePath, jsonFileName, cancellationToken);
+
             string workflowPath;
             if (SelectedWorkflowMode == "Klein")
             {
@@ -1323,8 +1507,8 @@ namespace FlipPix.UI.ViewModels
             }
             else
             {
-                workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "RapidEditAIO-API.json");
-                AddLog("Using Qwen workflow (RapidEditAIO)");
+                workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "qwen-edit", "Qwen_Edit_2511_INT8_Convrot_WF.json");
+                AddLog("Using Qwen workflow (Qwen-Image-Edit 2511 INT8 ConvRot)");
             }
 
             if (!File.Exists(workflowPath))
@@ -1369,24 +1553,36 @@ namespace FlipPix.UI.ViewModels
         {
             var workflowJson = workflow.GetRawText();
 
-            // Node 213 - LoadImage
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "213", "image", inputImageName);
-            // Node 153 - TextEncodeQwenImageEditPlus (positive)
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "153", "prompt", promptText);
-            // Node 154 - TextEncodeQwenImageEditPlus (negative)
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "154", "prompt", NegativePrompt);
-            // Node 3 - KSampler
-            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "3", new Dictionary<string, object>
+            // Qwen_Edit_2511_INT8_Convrot_WF.json node map. The "115:" ids are literal keys in
+            // the API export (the graph was authored inside a subgraph), not a path expression.
+            // Node 78 - LoadImage (the scene being edited)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "78", "image", inputImageName);
+            // Node 115:111 - TextEncodeQwenImageEditPlus (positive)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "115:111", "prompt", promptText);
+            // Node 115:110 - TextEncodeQwenImageEditPlus (negative)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "115:110", "prompt", NegativePrompt);
+            // Node 115:3 - KSampler (8-step lightning LoRA is baked into the graph)
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "115:3", new Dictionary<string, object>
             {
                 { "seed", Random.Shared.NextInt64(0, long.MaxValue) },
                 { "steps", Steps },
                 { "cfg", Cfg },
                 { "denoise", Denoise }
             });
-            // Node 145 - ModelSamplingAuraFlow
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "145", "shift", 3.1);
-            // Node 218 - SaveImage
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "218", "filename_prefix", $"{jsonFileName}/{jsonFileName}-{imageIndex}");
+            // Node 60 - SaveImage (fed from the 2x RTX upscale, node 115:124)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "60", "filename_prefix", $"{jsonFileName}/{jsonFileName}-{imageIndex}");
+
+            // Drop the PreviewImage (115:116) and the unused EmptySD3LatentImage (115:112).
+            // PreviewImage is an OUTPUT_NODE, so its temp file lands in /history next to the
+            // saved image and the "any png from this prompt" fallback in
+            // GetOutputImagesFromComfyUI would try to fetch it from the output folder.
+            var root = JsonNode.Parse(workflowJson)?.AsObject();
+            if (root != null)
+            {
+                root.Remove("115:116");
+                root.Remove("115:112");
+                workflowJson = root.ToJsonString();
+            }
 
             return JsonSerializer.Deserialize<JsonElement>(workflowJson);
         }

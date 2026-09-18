@@ -27,24 +27,46 @@ namespace System.Windows
     {
         public static MessageBoxResult Show(string text, string caption, MessageBoxButton button, MessageBoxImage icon)
         {
-            // Show async message box via Avalonia dispatcher
-            MessageBoxResult result = MessageBoxResult.OK;
-            if (Dispatcher.UIThread.CheckAccess())
+            // The ported WPF call sites expect a blocking dialog. Avalonia's dialogs only
+            // complete while the UI thread pumps messages, so we cannot simply block on the
+            // task: on the UI thread that deadlocks, and off it the old code read `result`
+            // before the dialog had closed. Handle the two threads separately.
+            if (!Dispatcher.UIThread.CheckAccess())
             {
-                result = ShowAsync(text, caption, button, icon).GetAwaiter().GetResult();
+                // Background thread: marshal over and genuinely wait for the dialog to close.
+                var operation = Dispatcher.UIThread.InvokeAsync(() => ShowAsync(text, caption, button, icon));
+                return operation.GetAwaiter().GetResult();
             }
-            else
-            {
-                Dispatcher.UIThread.InvokeAsync(async () =>
+
+            // UI thread: run a nested message loop so the dialog can render and respond
+            // while this call appears synchronous to the caller.
+            var result = MessageBoxResult.OK;
+            var frame = new DispatcherFrame();
+
+            _ = ShowAsync(text, caption, button, icon).ContinueWith(
+                task =>
                 {
-                    result = await ShowAsync(text, caption, button, icon);
-                }).GetAwaiter().GetResult();
-            }
+                    if (task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion)
+                        result = task.Result;
+                    frame.Continue = false;
+                },
+                System.Threading.CancellationToken.None,
+                System.Threading.Tasks.TaskContinuationOptions.ExecuteSynchronously,
+                System.Threading.Tasks.TaskScheduler.Default);
+
+            Dispatcher.UIThread.PushFrame(frame);
             return result;
         }
 
         public static MessageBoxResult Show(string text, string caption, MessageBoxButton button)
             => Show(text, caption, button, MessageBoxImage.None);
+
+        /// <summary>
+        /// WPF's overload taking a default result. Avalonia's dialogs have no notion of a
+        /// pre-selected button, so the value is accepted and ignored.
+        /// </summary>
+        public static MessageBoxResult Show(string text, string caption, MessageBoxButton button, MessageBoxImage icon, MessageBoxResult defaultResult)
+            => Show(text, caption, button, icon);
 
         public static MessageBoxResult Show(string text)
             => Show(text, "FlipPix", MessageBoxButton.OK, MessageBoxImage.None);
@@ -124,101 +146,32 @@ namespace System.Windows
                 Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(action).GetAwaiter().GetResult();
         }
 
-        public void BeginInvoke(Action action, DispatcherPriority priority = DispatcherPriority.Normal)
+        public void BeginInvoke(Action action, System.Windows.Threading.DispatcherPriority priority = System.Windows.Threading.DispatcherPriority.Normal)
         {
             Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(action);
         }
 
-        public void BeginInvoke(Delegate method, DispatcherPriority priority, params object[] args)
+        public void BeginInvoke(Delegate method, System.Windows.Threading.DispatcherPriority priority, params object[] args)
         {
             Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => method.DynamicInvoke(args));
         }
+
+        public System.Threading.Tasks.Task InvokeAsync(Action action)
+            => Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(action).GetTask();
+
+        public System.Threading.Tasks.Task InvokeAsync(Action action, System.Windows.Threading.DispatcherPriority priority)
+            => Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(action).GetTask();
+
+        public System.Threading.Tasks.Task<T> InvokeAsync<T>(Func<T> function)
+            => Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(function).GetTask();
     }
 
-    public enum DispatcherPriority
-    {
-        ApplicationIdle = 1,
-        Background = 2,
-        ContextIdle = 3,
-        DataBind = 8,
-        Input = 5,
-        Loaded = 6,
-        Normal,
-        Render,
-        Send,
-        SystemIdle
-    }
+    // DispatcherPriority is declared in System.Windows.Threading, as in WPF.
+
 }
 
-// BitmapImage shim - in Linux ViewModels we store string paths instead
-// but some VMs still have BitmapImage type references
-namespace System.Windows.Media.Imaging
-{
-    public class BitmapImage
-    {
-        public int PixelWidth { get; set; }
-        public int PixelHeight { get; set; }
-        public int DecodePixelWidth { get; set; }
-        public int DecodePixelHeight { get; set; }
-        public Uri? UriSource { get; set; }
-        public BitmapCacheOption CacheOption { get; set; }
-        public BitmapCreateOptions CreateOptions { get; set; }
-        public Stream? StreamSource { get; set; }
-
-        public Avalonia.Media.Imaging.Bitmap? AvaloniaBitmap { get; private set; }
-
-        public void BeginInit() { }
-
-        public void EndInit()
-        {
-            try
-            {
-                if (StreamSource != null)
-                {
-                    if (StreamSource.CanSeek)
-                        StreamSource.Position = 0;
-                    AvaloniaBitmap = new Avalonia.Media.Imaging.Bitmap(StreamSource);
-                }
-                else if (UriSource != null)
-                {
-                    string localPath = UriSource.IsAbsoluteUri ? UriSource.LocalPath : UriSource.ToString();
-                    if (File.Exists(localPath))
-                        AvaloniaBitmap = new Avalonia.Media.Imaging.Bitmap(localPath);
-                }
-
-                if (AvaloniaBitmap != null)
-                {
-                    PixelWidth = (int)AvaloniaBitmap.Size.Width;
-                    PixelHeight = (int)AvaloniaBitmap.Size.Height;
-                }
-            }
-            catch { }
-        }
-
-        public void Freeze() { }
-    }
-
-    public class BitmapDecoder
-    {
-        public System.Collections.ObjectModel.ReadOnlyCollection<BitmapFrame> Frames { get; } =
-            new System.Collections.ObjectModel.ReadOnlyCollection<BitmapFrame>(new List<BitmapFrame>());
-
-        public static BitmapDecoder Create(System.IO.Stream stream, BitmapCreateOptions createOptions, BitmapCacheOption cacheOption)
-            => new BitmapDecoder();
-        public static BitmapDecoder Create(Uri uri, BitmapCreateOptions createOptions, BitmapCacheOption cacheOption)
-            => new BitmapDecoder();
-    }
-
-    public class BitmapFrame : BitmapImage
-    {
-        public int Width { get; }
-        public int Height { get; }
-    }
-
-    [Flags]
-    public enum BitmapCreateOptions { None = 0, PreservePixelFormat = 1, IgnoreImageCache = 2, OnDemand = 4, DelayCreation = 8 }
-    public enum BitmapCacheOption { Default, None, OnDemand, OnLoad }
-}
+// The System.Windows.Media.Imaging types now live in Compat/WpfImaging.cs, backed by
+// ImageSharp so crop/scale/encode actually work rather than returning empty stubs.
 
 namespace System.Windows
 {
@@ -236,13 +189,55 @@ namespace System.Windows
 
 namespace System.Windows.Threading
 {
-    // Allow using System.Windows.Threading without breaking
+    /// <summary>
+    /// WPF's DispatcherTimer under its original name. Avalonia ships the same Interval/Tick/
+    /// Start/Stop surface in Avalonia.Threading, so this only re-homes the type.
+    /// </summary>
+    public class DispatcherTimer
+    {
+        private readonly Avalonia.Threading.DispatcherTimer _inner = new();
+
+        public DispatcherTimer() { }
+
+        public DispatcherTimer(DispatcherPriority priority) { }
+
+        public TimeSpan Interval
+        {
+            get => _inner.Interval;
+            set => _inner.Interval = value;
+        }
+
+        public bool IsEnabled
+        {
+            get => _inner.IsEnabled;
+            set => _inner.IsEnabled = value;
+        }
+
+        public event EventHandler? Tick
+        {
+            add => _inner.Tick += value;
+            remove => _inner.Tick -= value;
+        }
+
+        public void Start() => _inner.Start();
+
+        public void Stop() => _inner.Stop();
+    }
+
     public enum DispatcherPriority
     {
-        ApplicationIdle = 1, Background = 2, ContextIdle = 3,
-        DataBind = 8, Input = 5, Loaded = 6, Normal = 9,
-        Render = 7, Send = 10, SystemIdle = 0
+        ApplicationIdle = 1,
+        Background = 2,
+        ContextIdle = 3,
+        DataBind = 8,
+        Input = 5,
+        Loaded = 6,
+        Normal,
+        Render,
+        Send,
+        SystemIdle
     }
+
 }
 
 // Windows.Forms stub for InputBox (used in FlipPixViewModel)

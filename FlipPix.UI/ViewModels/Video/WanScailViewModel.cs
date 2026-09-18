@@ -32,7 +32,7 @@ namespace FlipPix.UI.ViewModels.Video
         // exceed the default 30 min on longer clips. Real completion is detected via /history,
         // so this is just a safety net — keep it generous.
         protected virtual TimeSpan ExecutionTimeout => TimeSpan.FromHours(3);
-        private const string OutputSubfolder = "wan_scail";
+        protected const string OutputSubfolder = "wan_scail";
 
         private string QueueFilePath => Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -51,6 +51,8 @@ namespace FlipPix.UI.ViewModels.Video
         private int _fps = 24;
         private int _maxEdge = 1280;
         private long _seed = -1;
+        // Seed-widget nodes ("easy globalSeed", rgthree seed) reject values above 2^50.
+        protected const long MaxSeed = 1125899906842624L;
         private int _totalFrames;
         private bool _isAnalyzing;
         private bool _isProcessingQueue;
@@ -244,7 +246,7 @@ namespace FlipPix.UI.ViewModels.Video
             SendToEditCameraCommand = new RelayCommand(SendToEditCamera, () => HasResult);
             AnalyzeImageCommand = new RelayCommand(async () => await AnalyzeImageAsync(), () => CanAnalyzeImage);
             AnalyzeAllChunksCommand = new RelayCommand(async () => await AnalyzeAllChunksAsync(), () => CanAnalyzeAllChunks);
-            RandomSeedCommand = new RelayCommand(() => Seed = new Random().NextInt64(0, long.MaxValue));
+            RandomSeedCommand = new RelayCommand(() => Seed = new Random().NextInt64(0, MaxSeed));
             MarkInCommand = new RelayCommand(MarkIn);
             MarkOutCommand = new RelayCommand(MarkOut);
             ResetTrimCommand = new RelayCommand(ResetTrim);
@@ -757,7 +759,7 @@ namespace FlipPix.UI.ViewModels.Video
                     return;
                 }
 
-                AddLog($"=== WAN SCAIL analysis started (model: {selectedModel}) ===");
+                AddLog($"=== WAN SCAIL analysis started — sending to {_lmStudioService.DescribeTarget(selectedModel)} ===");
 
                 // Step 1: Extract character appearance from the reference image (once, reused for every chunk)
                 const string appearanceSystemPrompt =
@@ -1308,8 +1310,9 @@ namespace FlipPix.UI.ViewModels.Video
                 var chunkFiles = new List<string>();
                 AddLog($"=== Processing {numChunks} chunk(s) of {FramesPerChunk} frames ===");
 
-                // Per-run seed: if -1, generate random once for the whole job
-                var runSeed = item.Seed >= 0 ? item.Seed : (long)(new Random().NextDouble() * long.MaxValue);
+                // Per-run seed: if -1, generate random once for the whole job. Kept under MaxSeed
+                // because seed-widget nodes (e.g. "easy globalSeed") reject values above 2^50.
+                var runSeed = item.Seed >= 0 ? item.Seed % MaxSeed : new Random().NextInt64(0, MaxSeed - numChunks);
 
                 for (int chunkIndex = startChunk; chunkIndex < endChunk; chunkIndex++)
                 {
@@ -1440,6 +1443,13 @@ namespace FlipPix.UI.ViewModels.Video
                     foreach (var f in chunkFiles)
                         try { File.Delete(f); } catch { }
 
+                    // Optional second pass, run only once the sampler's own output is safely on disk
+                    // (see RunPostProcessAsync). If it fails it returns null and we keep the raw video,
+                    // so post-processing can never cost the sampling run that produced it.
+                    var postProcessed = await RunPostProcessAsync(finalPath, item, cancellationToken);
+                    if (!string.IsNullOrWhiteSpace(postProcessed) && File.Exists(postProcessed))
+                        finalPath = postProcessed;
+
                     item.OutputVideoPath = finalPath;
                     ResultVideoPath = finalPath;
                     await LocalCopyService.CopyVideoAsync(finalPath);
@@ -1479,6 +1489,17 @@ namespace FlipPix.UI.ViewModels.Video
                 IsProcessing = false;
             }
         }
+
+        /// <summary>
+        /// Optional second ComfyUI pass over the finished video, run after the sampler's output has been
+        /// merged and written to disk. Returns the path to the post-processed video, or null to keep the
+        /// raw one. Overrides must swallow their own failures and return null rather than throw: the
+        /// sampler's result is already final by the time this runs, and no post-processing failure is
+        /// worth discarding it. Base implementation is a no-op.
+        /// </summary>
+        protected virtual Task<string?> RunPostProcessAsync(
+            string rawVideoPath, WanScailQueueItem item, CancellationToken cancellationToken)
+            => Task.FromResult<string?>(null);
 
         // Subclasses override this to fix a specific output resolution (e.g. GGUF always uses 832×480).
         protected virtual (int Width, int Height) ComputeOutputResolution(int videoW, int videoH, int maxEdge)
@@ -1541,56 +1562,9 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         private void MergeVideoChunksWithFFmpeg(List<string> chunkFiles, string outputPath)
-        {
-            var ffmpegPath = FindFFmpeg();
-            if (string.IsNullOrEmpty(ffmpegPath))
-            {
-                AddLog("ERROR: ffmpeg not found. Cannot merge video chunks.");
-                throw new InvalidOperationException("ffmpeg is required to merge video chunks.");
-            }
-
-            var listFile = Path.Combine(Path.GetTempPath(), $"ffmpeg_wanscail_{Guid.NewGuid()}.txt");
-            using (var writer = new StreamWriter(listFile))
-            {
-                foreach (var f in chunkFiles)
-                    writer.WriteLine($"file '{f.Replace("\\", "/")}'");
-            }
-
-            AddLog($"Merging {chunkFiles.Count} chunks with ffmpeg...");
-
-            var startInfo = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = ffmpegPath,
-                Arguments = $"-f concat -safe 0 -i \"{listFile}\" -c copy \"{outputPath}\"",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using var process = System.Diagnostics.Process.Start(startInfo);
-            if (process == null) throw new InvalidOperationException("Failed to start ffmpeg.");
-            process.WaitForExit(120000);
-            try { File.Delete(listFile); } catch { }
-
-            if (!File.Exists(outputPath))
-                throw new InvalidOperationException($"ffmpeg merge failed. Output not found: {outputPath}");
-
-            AddLog($"Merge complete: {Path.GetFileName(outputPath)}");
-        }
+            => MergeVideoChunks(chunkFiles, outputPath, "wanscail");
 
         #endregion
-
-        protected static string CleanLLMOutput(string text)
-        {
-            if (string.IsNullOrWhiteSpace(text)) return text;
-            text = text.Replace("**", "");
-            var trimmed = text.TrimStart();
-            var lower = trimmed.ToLowerInvariant();
-            if (lower.StartsWith("prompt:") || lower.StartsWith("prompt :"))
-                trimmed = trimmed.Substring(trimmed.IndexOf(':') + 1);
-            return trimmed.Trim();
-        }
 
         protected override void OnCanExecuteChanged()
         {

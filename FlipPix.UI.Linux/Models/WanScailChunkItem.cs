@@ -39,6 +39,13 @@ namespace FlipPix.UI.Linux.Models
             }
         }
 
+        private bool _hasCachedPrompt;
+        public bool HasCachedPrompt
+        {
+            get => _hasCachedPrompt;
+            set { SetProperty(ref _hasCachedPrompt, value); OnPropertyChanged(nameof(StatusDot)); }
+        }
+
         public string BackgroundColor => Status switch
         {
             WanScailChunkStatus.Processing => "#FEF3C7",
@@ -76,7 +83,7 @@ namespace FlipPix.UI.Linux.Models
             WanScailChunkStatus.Processing => "⏳",
             WanScailChunkStatus.Done       => "✓",
             WanScailChunkStatus.Failed     => "✗",
-            _                              => string.Empty
+            _ => HasCachedPrompt           ? "🧠" : string.Empty
         };
 
         public string Label => $"Chunk {Index + 1}";

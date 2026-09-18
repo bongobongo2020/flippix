@@ -1387,17 +1387,48 @@ namespace FlipPix.UI.Linux.ViewModels
                 else
                 {
                     // The analysis text is injected into the ZStyle template's {$@} slot, so it must
-                    // describe only the subject/action/composition. If it includes colors, lighting,
-                    // mood, or rendering style, those literal attributes override the style template's
-                    // intended aesthetic and every style collapses to the same look.
-                    var analysisPrompt = "Describe only the main subject(s), their pose/action, clothing, "
-                        + "and spatial composition in this image, in 1-2 plain sentences. Do NOT mention "
-                        + "colors, lighting, mood, art style, medium, or rendering — those are set separately.";
+                    // describe only the subject/action/composition. If it includes scene colors,
+                    // lighting, mood, or rendering style, those literal attributes override the style
+                    // template's intended aesthetic and every style collapses to the same look.
+                    // Exception: when a face is the subject, its identity traits (facial geometry,
+                    // hair/eye/skin colour, marks) are what the generated image must reproduce, so
+                    // those are described exhaustively — they belong to the person, not the style.
+                    var analysisPrompt =
+                        "Describe the main subject(s), their pose/action, clothing, and spatial composition "
+                        + "in this image. Do NOT mention scene colors, lighting, mood, art style, medium, or "
+                        + "rendering — those are set separately.\n\n"
+                        + "IF one or more human faces are clearly visible, the face is the priority: write a "
+                        + "forensically detailed portrait description precise enough to redraw that exact "
+                        + "person. Cover, in flowing prose:\n"
+                        + "- Apparent age range, sex, ethnicity/heritage, build\n"
+                        + "- Head and face shape (oval/round/square/heart/oblong), width-to-length proportion, "
+                        + "forehead height and slope, cheekbone height and prominence, cheek fullness or hollowing, "
+                        + "jawline definition and angle, chin shape (pointed/rounded/square, cleft, projection)\n"
+                        + "- Eyes: shape (almond/round/hooded/monolid/downturned/upturned), size, spacing, set depth, "
+                        + "canthal tilt, iris color and pattern, eyelid crease, lash density, under-eye area\n"
+                        + "- Eyebrows: shape, arch, thickness, density, length, spacing, color\n"
+                        + "- Nose: overall size, bridge width and profile (straight/convex/concave), tip shape and "
+                        + "rotation, nostril shape and flare, columella\n"
+                        + "- Mouth and lips: width, upper/lower lip fullness ratio, cupid's bow definition, philtrum "
+                        + "length and depth, mouth corners, visible teeth, natural lip color\n"
+                        + "- Ears if visible: size, protrusion, lobe attachment\n"
+                        + "- Skin: tone and undertone, texture, pores, freckles, moles/beauty marks with their exact "
+                        + "positions, scars, wrinkles and lines (nasolabial, forehead, crow's feet), blemishes\n"
+                        + "- Facial hair: type, coverage, density, length, color, grooming\n"
+                        + "- Hair: color (including roots/highlights), texture, length, density, hairline shape, "
+                        + "part, and how it is styled or falls\n"
+                        + "- Expression and micro-expression, gaze direction, head tilt and rotation relative to camera\n"
+                        + "- Any glasses, piercings, makeup, or jewelry on or near the face\n"
+                        + "Describe only what is actually visible; never invent traits. Be exhaustive and specific "
+                        + "(use comparative and geometric terms rather than vague adjectives), and put the facial "
+                        + "description first, followed by the body, clothing, and composition.\n\n"
+                        + "IF no face is clearly visible, answer in 1-2 plain sentences instead.\n\n"
+                        + "Output the description only — no headings, no bullet points, no preamble.";
                     analysisResult = await _lmStudioService.AnalyzeImageAsync(
                         modelToUse,
                         SourceImagePath,
                         analysisPrompt,
-                        maxTokens: 2000,
+                        maxTokens: 3000,
                         _cancellationTokenSource.Token);
                 }
 
@@ -1815,8 +1846,8 @@ namespace FlipPix.UI.Linux.ViewModels
                 switch (item.SelectedWorkflow)
                 {
                     case TextGeneratorWorkflow.Qwen2512:
-                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "qwen2512API-text.json");
-                        _logger.LogInfo($"Using Qwen2512 workflow");
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "qwen", "Qwen_Image_2512_INT8_Convrot_WF.json");
+                        _logger.LogInfo($"Using Qwen2512 workflow (INT8 ConvRot)");
                         break;
 
                     case TextGeneratorWorkflow.Klien:
@@ -2485,7 +2516,7 @@ namespace FlipPix.UI.Linux.ViewModels
                 // Handle different workflows with their specific node IDs
                 string promptNodeId = selectedWorkflow switch
                 {
-                    TextGeneratorWorkflow.Qwen2512 => "71",
+                    TextGeneratorWorkflow.Qwen2512 => "108",
                     TextGeneratorWorkflow.Klien => "76",
                     TextGeneratorWorkflow.Anima => "60:11",
                     _ => ""  // Empty for Zimage (will use generic search)
@@ -2516,7 +2547,8 @@ namespace FlipPix.UI.Linux.ViewModels
                     {
                         if (selectedWorkflow == TextGeneratorWorkflow.Qwen2512)
                         {
-                            string emptyLatentNodeId = "51";
+                            // Qwen_Image_2512_INT8_Convrot_WF.json: node 107 = EmptySD3LatentImage
+                            string emptyLatentNodeId = "107";
 
                             if (workflow.ContainsKey(emptyLatentNodeId))
                             {
@@ -2628,20 +2660,25 @@ namespace FlipPix.UI.Linux.ViewModels
 
                     if (selectedWorkflow == TextGeneratorWorkflow.Qwen2512)
                     {
-                        // Node 120 is Seed (rgthree) - feeds into KSampler node 74
-                        string seedNodeId = "120";
-                        if (workflow.ContainsKey(seedNodeId))
+                        // Node 106 is the KSampler; it carries the seed inline (the old workflow's
+                        // rgthree Seed node is gone). Steps/cfg/denoise come from the UI sliders,
+                        // matching how the Image Generator drives this same workflow.
+                        string samplerNodeId = "106";
+                        if (workflow.ContainsKey(samplerNodeId))
                         {
-                            var seedNode = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(workflow[seedNodeId]));
-                            if (seedNode != null && seedNode.ContainsKey("inputs"))
+                            var samplerNode = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(workflow[samplerNodeId]));
+                            if (samplerNode != null && samplerNode.ContainsKey("inputs"))
                             {
-                                var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(seedNode["inputs"]));
+                                var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(samplerNode["inputs"]));
                                 if (inputs != null)
                                 {
                                     inputs["seed"] = randomSeed;
-                                    seedNode["inputs"] = inputs;
-                                    workflow[seedNodeId] = seedNode;
-                                    _logger.LogInfo($"✓ Updated Qwen2512 seed node {seedNodeId} with seed: {randomSeed}");
+                                    inputs["steps"] = Steps;
+                                    inputs["cfg"] = Cfg;
+                                    inputs["denoise"] = Denoise;
+                                    samplerNode["inputs"] = inputs;
+                                    workflow[samplerNodeId] = samplerNode;
+                                    _logger.LogInfo($"✓ Updated Qwen2512 sampler node {samplerNodeId} with seed: {randomSeed}, steps: {Steps}, cfg: {Cfg}, denoise: {Denoise}");
                                 }
                             }
                         }
@@ -3863,7 +3900,7 @@ namespace FlipPix.UI.Linux.ViewModels
             _logger.LogInfo("Queue resumed");
         }
 
-        private string QueueFilePath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FlipPix", "queue", "image_analyzer_queue.json");
+        private string QueueFilePath => UserPaths.Queue("image_analyzer_queue.json");
 
         private void SaveQueueToFile()
         {
