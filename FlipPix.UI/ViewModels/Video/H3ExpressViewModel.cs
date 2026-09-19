@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -85,6 +85,7 @@ namespace FlipPix.UI.ViewModels.Video
                                                   () => SelectedClip != null && IsQueued(SelectedClip));
 
             InitTaoMate();
+            InitBunny();
             InitSteps();
             InitStoryPrompts();
             InitCast();
@@ -111,6 +112,8 @@ namespace FlipPix.UI.ViewModels.Video
                         TryStartQueuedRegenerations();
                         break;
                     case nameof(UseSingularity):
+                    case nameof(UseTaoMate):
+                    case nameof(UseBunny):
                     case nameof(SingularityErSde):
                         OnPropertyChanged(nameof(StackSummary));
                         // Both change what "authored" means for the loaded checkpoint, and ✴️'s sub-option
@@ -973,14 +976,19 @@ namespace FlipPix.UI.ViewModels.Video
             : QueuedJobCount > 1 ? $"⚡ Render {QueuedJobCount} queued jobs"
             : "⚡ Render every story";
 
-        public string StackSummary => UseTaoMate
-            ? $"TaoMate relay · fl2va checkpoint · linear/euler/beta57 · {FirstPassSteps} steps, " +
-              $"6 then the TaoMate LoRA · RTX ×{TaoMateUpscale:0.#} finish"
-            : !UseSingularity
-                ? $"H3 Eros hybrid checkpoint · er_sde/beta · {FirstPassSteps} steps"
-                : SingularityErSde
-                    ? $"Singularity ref2va checkpoint · er_sde/beta + sigma shift · {FirstPassSteps} steps"
-                    : $"Singularity ref2va checkpoint · euler/simple · {FirstPassSteps} steps";
+        public string StackSummary => Stack switch
+        {
+            ExpressStack.TaoMate =>
+                $"TaoMate relay · fl2va checkpoint · linear/euler/beta57 · {FirstPassSteps} steps, " +
+                $"6 then the TaoMate LoRA · RTX ×{TaoMateUpscale:0.#} finish",
+            ExpressStack.Bunny =>
+                $"BUNNY sigma split · fl2va/ref2va hybrid · res_multistep/simple · {FirstPassSteps} steps " +
+                $"+3 mid sigmas, last {BunnySplit:0%} as cleanup · Combat LoRA 1.00 → 0.65",
+            ExpressStack.Singularity => SingularityErSde
+                ? $"Singularity ref2va checkpoint · er_sde/beta + sigma shift · {FirstPassSteps} steps"
+                : $"Singularity ref2va checkpoint · euler/simple · {FirstPassSteps} steps",
+            _ => $"H3 Eros hybrid checkpoint · er_sde/beta · {FirstPassSteps} steps"
+        };
 
         public string PromptBuildSummary => _specPrompts
             ? "Not used while 📐 Singularity spec prompts is on."

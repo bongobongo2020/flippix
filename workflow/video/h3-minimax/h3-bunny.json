@@ -1,7 +1,7 @@
 {
   "171:4": {
     "inputs": {
-      "unet_name": "h3-minimax/Minimax-h3_Singularity_ref2va_Pruned_v1.3_int8.safetensors",
+      "unet_name": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
       "weight_dtype": "default"
     },
     "class_type": "UNETLoader",
@@ -51,37 +51,10 @@
       "title": "ModelAttentionBackend"
     }
   },
-  "193": {
-    "inputs": {
-      "model": [
-        "196",
-        0
-      ],
-      "chunks": 2,
-      "seq_threshold": 4096
-    },
-    "class_type": "MiniMaxChunkFeedForward",
-    "_meta": {
-      "title": "MiniMaxChunkFeedForward"
-    }
-  },
-  "torch": {
-    "inputs": {
-      "model": [
-        "193",
-        0
-      ],
-      "enable_fp16_accumulation": true
-    },
-    "class_type": "ModelPatchTorchSettings",
-    "_meta": {
-      "title": "ModelPatchTorchSettings"
-    }
-  },
   "21": {
     "inputs": {
       "model": [
-        "torch",
+        "196",
         0
       ],
       "PowerLoraLoaderHeaderWidget": {
@@ -94,23 +67,37 @@
       "title": "Power Lora Loader (rgthree)"
     }
   },
-  "shift": {
+  "bn:combat1": {
     "inputs": {
       "model": [
         "21",
         0
       ],
-      "shift_video": 12.0,
-      "shift_audio": 3.0
+      "lora_name": "H3/H3_Combat_V2.safetensors",
+      "strength_model": 1.0
     },
-    "class_type": "MiniMaxH3SigmaShift",
+    "class_type": "LoraLoaderModelOnly",
     "_meta": {
-      "title": "MiniMaxH3SigmaShift"
+      "title": "Combat LoRA — stage 1 (action structure)"
+    }
+  },
+  "bn:combat2": {
+    "inputs": {
+      "model": [
+        "21",
+        0
+      ],
+      "lora_name": "H3/H3_Combat_V2.safetensors",
+      "strength_model": 0.65
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "Combat LoRA — stage 2 (cleanup)"
     }
   },
   "22:11": {
     "inputs": {
-      "value": "The story's own text is written into this node at submit time — 🗂️ H3 Batch overwrites it on every clip. Whatever is left here is never rendered."
+      "value": "The story's own clip prompt is written into this node at submit time — H3 Express overwrites it on every clip. Whatever is left here is never rendered."
     },
     "class_type": "PrimitiveStringMultiline",
     "_meta": {
@@ -119,7 +106,7 @@
   },
   "22:23": {
     "inputs": {
-      "value": 15.0
+      "value": 10.0
     },
     "class_type": "PrimitiveFloat",
     "_meta": {
@@ -142,7 +129,7 @@
   "22:9": {
     "inputs": {
       "aspect_ratio": "16:9 (Widescreen)",
-      "megapixels": 0.6,
+      "megapixels": 0.5,
       "multiple": 32
     },
     "class_type": "ResolutionSelector",
@@ -152,7 +139,7 @@
   },
   "22:8": {
     "inputs": {
-      "value": 10
+      "value": 8
     },
     "class_type": "INTConstant",
     "_meta": {
@@ -162,7 +149,7 @@
   "22:7": {
     "inputs": {
       "model": [
-        "shift",
+        "bn:combat1",
         0
       ],
       "scheduler": "simple",
@@ -179,11 +166,47 @@
   },
   "22:6": {
     "inputs": {
-      "sampler_name": "euler"
+      "sampler_name": "res_multistep"
     },
     "class_type": "KSamplerSelect",
     "_meta": {
       "title": "KSamplerSelect"
+    }
+  },
+  "bn:ext": {
+    "inputs": {
+      "sigmas": [
+        "22:7",
+        0
+      ],
+      "steps": 3,
+      "start_at_sigma": 0.65,
+      "end_at_sigma": 0.28,
+      "spacing": "sine"
+    },
+    "class_type": "ExtendIntermediateSigmas",
+    "_meta": {
+      "title": "BUNNY sigma extension"
+    }
+  },
+  "bn:split": {
+    "inputs": {
+      "sigmas": [
+        "bn:ext",
+        0
+      ],
+      "denoise": 0.25
+    },
+    "class_type": "SplitSigmasDenoise",
+    "_meta": {
+      "title": "BUNNY split — the last 25%"
+    }
+  },
+  "bn:nonoise": {
+    "inputs": {},
+    "class_type": "DisableNoise",
+    "_meta": {
+      "title": "BUNNY stage 2: do not re-noise"
     }
   },
   "5": {
@@ -223,19 +246,10 @@
       "title": "MiniMaxH3ReferenceToVideo"
     }
   },
-  "125:17": {
-    "inputs": {
-      "noise_seed": 0
-    },
-    "class_type": "RandomNoise",
-    "_meta": {
-      "title": "RandomNoise"
-    }
-  },
-  "125:14": {
+  "bn:guide1": {
     "inputs": {
       "model": [
-        "shift",
+        "bn:combat1",
         0
       ],
       "conditioning": [
@@ -245,17 +259,42 @@
     },
     "class_type": "BasicGuider",
     "_meta": {
-      "title": "BasicGuider"
+      "title": "BUNNY stage 1 guider"
     }
   },
-  "125:12": {
+  "bn:guide2": {
+    "inputs": {
+      "model": [
+        "bn:combat2",
+        0
+      ],
+      "conditioning": [
+        "5",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "BUNNY stage 2 guider (low strength)"
+    }
+  },
+  "125:17": {
+    "inputs": {
+      "noise_seed": 0
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "bn:s1a": {
     "inputs": {
       "noise": [
         "125:17",
         0
       ],
       "guider": [
-        "125:14",
+        "bn:guide1",
         0
       ],
       "sampler": [
@@ -263,7 +302,7 @@
         0
       ],
       "sigmas": [
-        "22:7",
+        "bn:split",
         0
       ],
       "latent_image": [
@@ -273,7 +312,35 @@
     },
     "class_type": "SamplerCustomAdvanced",
     "_meta": {
-      "title": "Sampler #1"
+      "title": "Stage 1 #1 — action structure"
+    }
+  },
+  "125:12": {
+    "inputs": {
+      "noise": [
+        "bn:nonoise",
+        0
+      ],
+      "guider": [
+        "bn:guide2",
+        0
+      ],
+      "sampler": [
+        "22:6",
+        0
+      ],
+      "sigmas": [
+        "bn:split",
+        1
+      ],
+      "latent_image": [
+        "bn:s1a",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "Stage 2 #1 — cleanup"
     }
   },
   "176": {
@@ -312,7 +379,7 @@
     "inputs": {
       "frame_rate": 24,
       "loop_count": 0,
-      "filename_prefix": "h3_singularity/preview_1",
+      "filename_prefix": "h3_bunny/preview_1",
       "format": "video/h264-mp4",
       "pix_fmt": "yuv420p",
       "crf": 19,
@@ -343,30 +410,14 @@
       "title": "RandomNoise"
     }
   },
-  "133:130": {
-    "inputs": {
-      "model": [
-        "shift",
-        0
-      ],
-      "conditioning": [
-        "5",
-        0
-      ]
-    },
-    "class_type": "BasicGuider",
-    "_meta": {
-      "title": "BasicGuider"
-    }
-  },
-  "133:129": {
+  "bn:s2a": {
     "inputs": {
       "noise": [
         "133:128",
         0
       ],
       "guider": [
-        "133:130",
+        "bn:guide1",
         0
       ],
       "sampler": [
@@ -374,7 +425,7 @@
         0
       ],
       "sigmas": [
-        "22:7",
+        "bn:split",
         0
       ],
       "latent_image": [
@@ -384,7 +435,35 @@
     },
     "class_type": "SamplerCustomAdvanced",
     "_meta": {
-      "title": "Sampler #2"
+      "title": "Stage 1 #2 — action structure"
+    }
+  },
+  "133:129": {
+    "inputs": {
+      "noise": [
+        "bn:nonoise",
+        0
+      ],
+      "guider": [
+        "bn:guide2",
+        0
+      ],
+      "sampler": [
+        "22:6",
+        0
+      ],
+      "sigmas": [
+        "bn:split",
+        1
+      ],
+      "latent_image": [
+        "bn:s2a",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "Stage 2 #2 — cleanup"
     }
   },
   "187": {
@@ -423,7 +502,7 @@
     "inputs": {
       "frame_rate": 24,
       "loop_count": 0,
-      "filename_prefix": "h3_singularity/preview_2",
+      "filename_prefix": "h3_bunny/preview_2",
       "format": "video/h264-mp4",
       "pix_fmt": "yuv420p",
       "crf": 19,
@@ -454,30 +533,14 @@
       "title": "RandomNoise"
     }
   },
-  "143:140": {
-    "inputs": {
-      "model": [
-        "shift",
-        0
-      ],
-      "conditioning": [
-        "5",
-        0
-      ]
-    },
-    "class_type": "BasicGuider",
-    "_meta": {
-      "title": "BasicGuider"
-    }
-  },
-  "143:139": {
+  "bn:s3a": {
     "inputs": {
       "noise": [
         "143:138",
         0
       ],
       "guider": [
-        "143:140",
+        "bn:guide1",
         0
       ],
       "sampler": [
@@ -485,7 +548,7 @@
         0
       ],
       "sigmas": [
-        "22:7",
+        "bn:split",
         0
       ],
       "latent_image": [
@@ -495,7 +558,35 @@
     },
     "class_type": "SamplerCustomAdvanced",
     "_meta": {
-      "title": "Sampler #3"
+      "title": "Stage 1 #3 — action structure"
+    }
+  },
+  "143:139": {
+    "inputs": {
+      "noise": [
+        "bn:nonoise",
+        0
+      ],
+      "guider": [
+        "bn:guide2",
+        0
+      ],
+      "sampler": [
+        "22:6",
+        0
+      ],
+      "sigmas": [
+        "bn:split",
+        1
+      ],
+      "latent_image": [
+        "bn:s3a",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "Stage 2 #3 — cleanup"
     }
   },
   "180": {
@@ -534,7 +625,7 @@
     "inputs": {
       "frame_rate": 24,
       "loop_count": 0,
-      "filename_prefix": "h3_singularity/preview_3",
+      "filename_prefix": "h3_bunny/preview_3",
       "format": "video/h264-mp4",
       "pix_fmt": "yuv420p",
       "crf": 19,
@@ -632,7 +723,7 @@
   },
   "135:30": {
     "inputs": {
-      "sampler_name": "euler"
+      "sampler_name": "res_multistep"
     },
     "class_type": "KSamplerSelect",
     "_meta": {
@@ -651,7 +742,7 @@
   "135:29": {
     "inputs": {
       "model": [
-        "shift",
+        "bn:combat2",
         0
       ],
       "conditioning": [
@@ -661,7 +752,7 @@
     },
     "class_type": "BasicGuider",
     "_meta": {
-      "title": "BasicGuider"
+      "title": "Upscale Guider"
     }
   },
   "135:26": {
@@ -692,7 +783,7 @@
       "title": "Upscale Pass"
     }
   },
-  "clean": {
+  "bn:clean": {
     "inputs": {
       "anything": [
         "135:26",
@@ -707,7 +798,7 @@
   "189": {
     "inputs": {
       "samples": [
-        "clean",
+        "bn:clean",
         0
       ],
       "vae": [
@@ -723,7 +814,7 @@
   "190": {
     "inputs": {
       "samples": [
-        "clean",
+        "bn:clean",
         0
       ],
       "vae": [
@@ -790,7 +881,7 @@
     "inputs": {
       "frame_rate": 48,
       "loop_count": 0,
-      "filename_prefix": "h3_singularity/final",
+      "filename_prefix": "h3_bunny/final",
       "format": "video/h264-mp4",
       "pix_fmt": "yuv420p",
       "crf": 16,

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -16,6 +16,32 @@ namespace FlipPix.UI.Models
         Running,
         Done,
         Stopped
+    }
+
+    /// <summary>
+    /// Which sampling stack a clip is rendered on — one choice, four graphs, all of them driven through
+    /// <c>h3-eros.json</c>'s node ids so that picking one is a change of workflow file, checkpoint and step
+    /// count and nothing else.
+    ///
+    /// <para>The rail keeps a persisted flag per stack, because each one logs and moves the model dropdown
+    /// in its own right; a job snapshot keeps this instead, because "three flags, one of which is true" has
+    /// states that mean nothing and would have to be resolved at every read.</para>
+    /// </summary>
+    public enum ExpressStack
+    {
+        /// <summary>h3-eros.json — the 10Eros hybrid, er_sde/beta, draft canvas + latent upscale.</summary>
+        Eros,
+
+        /// <summary>h3-singularity.json — the Singularity ref2va build and the author's patches.</summary>
+        Singularity,
+
+        /// <summary>h3-taomate.json — the two-model relay, sampled at the Quality canvas, RTX ×2 finish.</summary>
+        TaoMate,
+
+        /// <summary>h3-bunny.json — the BUNNY sigma split: the action structure sampled on the Combat LoRA,
+        /// the last quarter of the schedule run out as a no-re-noise cleanup, then the tab's latent
+        /// upscale.</summary>
+        Bunny
     }
 
     /// <summary>
@@ -131,15 +157,33 @@ namespace FlipPix.UI.Models
 
         // ── The stack ───────────────────────────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// Which of the four graphs this job's clips are rendered on. One value rather than a flag per
+        /// stack: "which stack" has exactly one answer, and a snapshot that could hold two of them is a
+        /// snapshot whose answer depends on who reads it first.
+        ///
+        /// <para>Singularity by default, because that is what a fresh ⚡ H3 Express install starts on — a
+        /// job built from nothing still has to name a stack, and the rail's own default is the honest one
+        /// to name.</para>
+        /// </summary>
         [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(UseTaoMate))]
+        [NotifyPropertyChangedFor(nameof(UseBunny))]
+        [NotifyPropertyChangedFor(nameof(UseSingularity))]
         [NotifyPropertyChangedFor(nameof(StackLabel))]
         [NotifyPropertyChangedFor(nameof(RenderLine))]
-        private bool _useTaoMate;
+        private ExpressStack _stack = ExpressStack.Singularity;
 
-        [ObservableProperty]
-        [NotifyPropertyChangedFor(nameof(StackLabel))]
-        [NotifyPropertyChangedFor(nameof(RenderLine))]
-        private bool _useSingularity = true;
+        /// <summary>The rail keeps a flag per stack, each in its own settings slot;
+        /// <c>H3ExpressViewModel.ApplyJob</c> writes <see cref="Stack"/> across all of them at once. These
+        /// are here so a reader that thinks in flags does not have to.</summary>
+        public bool UseTaoMate => Stack == ExpressStack.TaoMate;
+
+        /// <inheritdoc cref="UseTaoMate"/>
+        public bool UseBunny => Stack == ExpressStack.Bunny;
+
+        /// <inheritdoc cref="UseTaoMate"/>
+        public bool UseSingularity => Stack == ExpressStack.Singularity;
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(StackLabel))]
@@ -156,10 +200,13 @@ namespace FlipPix.UI.Models
         [ObservableProperty] private string _lora = string.Empty;
         [ObservableProperty] private double _loraStrength = 1.0;
 
-        public string StackLabel =>
-            UseTaoMate ? "🍥 TaoMate"
-            : UseSingularity ? (SingularityErSde ? "✴️ Singularity · er_sde" : "✴️ Singularity")
-            : "🌹 H3 Eros";
+        public string StackLabel => Stack switch
+        {
+            ExpressStack.TaoMate => "🍥 TaoMate",
+            ExpressStack.Bunny => "🐰 BUNNY",
+            ExpressStack.Singularity => SingularityErSde ? "✴️ Singularity · er_sde" : "✴️ Singularity",
+            _ => "🌹 H3 Eros"
+        };
 
         // ── The canvas ──────────────────────────────────────────────────────────────────────────────
 
@@ -294,8 +341,7 @@ namespace FlipPix.UI.Models
                 Cast2OutfitSource = Cast2OutfitSource,
                 CastOwnClothes = CastOwnClothes,
                 CastPhotoEngine = CastPhotoEngine,
-                UseTaoMate = UseTaoMate,
-                UseSingularity = UseSingularity,
+                Stack = Stack,
                 SingularityErSde = SingularityErSde,
                 DiffusionModel = DiffusionModel,
                 Steps = Steps,
@@ -339,8 +385,7 @@ namespace FlipPix.UI.Models
             Cast2OutfitSource = other.Cast2OutfitSource;
             CastOwnClothes = other.CastOwnClothes;
             CastPhotoEngine = other.CastPhotoEngine;
-            UseTaoMate = other.UseTaoMate;
-            UseSingularity = other.UseSingularity;
+            Stack = other.Stack;
             SingularityErSde = other.SingularityErSde;
             DiffusionModel = other.DiffusionModel;
             Steps = other.Steps;

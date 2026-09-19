@@ -1,0 +1,2336 @@
+{
+  "id": "279ef820-ce0a-4522-9864-29919a88db1c",
+  "revision": 0,
+  "last_node_id": 165,
+  "last_link_id": 316,
+  "nodes": [
+    {
+      "id": 121,
+      "type": "VAEDecodeAudio",
+      "pos": [
+        -1453.2704878098923,
+        5886.933446324147
+      ],
+      "size": [
+        230.59637734639773,
+        59.403622653601815
+      ],
+      "flags": {
+        "collapsed": false
+      },
+      "order": 30,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 314
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 250
+        }
+      ],
+      "outputs": [
+        {
+          "name": "AUDIO",
+          "type": "AUDIO",
+          "links": [
+            259
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "VAEDecodeAudio",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      }
+    },
+    {
+      "id": 126,
+      "type": "BasicGuider",
+      "pos": [
+        -1836.7921625495003,
+        5832.857310663938
+      ],
+      "size": [
+        304.4355226361108,
+        55.23733051166619
+      ],
+      "flags": {},
+      "order": 22,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 297
+        },
+        {
+          "name": "conditioning",
+          "type": "CONDITIONING",
+          "link": 270
+        }
+      ],
+      "outputs": [
+        {
+          "name": "GUIDER",
+          "type": "GUIDER",
+          "links": [
+            254
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "BasicGuider",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 123,
+      "type": "KSamplerSelect",
+      "pos": [
+        -1851.9363690975158,
+        5949.12173643594
+      ],
+      "size": [
+        316.02307913222216,
+        58.88710452722262
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "SAMPLER",
+          "type": "SAMPLER",
+          "links": [
+            255,
+            310
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "KSamplerSelect",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "res_multistep"
+      ],
+      "widgets_values_named": {
+        "sampler_name": "res_multistep"
+      },
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 132,
+      "type": "PrimitiveFloat",
+      "pos": [
+        -2550.7142608686468,
+        5903.527025312085
+      ],
+      "size": [
+        310.02163249323394,
+        58
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "FLOAT",
+          "type": "FLOAT",
+          "links": [
+            261
+          ]
+        }
+      ],
+      "title": "视频时长（秒）",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "PrimitiveFloat",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        10
+      ],
+      "widgets_values_named": {
+        "value": 10
+      },
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 124,
+      "type": "BasicScheduler",
+      "pos": [
+        -2553.001742492062,
+        6019.045416778717
+      ],
+      "size": [
+        314.43552263611105,
+        106
+      ],
+      "flags": {},
+      "order": 23,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 298
+        }
+      ],
+      "outputs": [
+        {
+          "name": "SIGMAS",
+          "type": "SIGMAS",
+          "links": [
+            300
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "BasicScheduler",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "simple",
+        8,
+        1
+      ],
+      "widgets_values_named": {
+        "scheduler": "simple",
+        "steps": 8,
+        "denoise": 1
+      },
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 131,
+      "type": "ComfyMathExpression",
+      "pos": [
+        -2183.994148562713,
+        6076.012749269552
+      ],
+      "size": [
+        225,
+        74
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "a",
+          "name": "values.a",
+          "type": "FLOAT,INT,BOOLEAN",
+          "link": 261
+        },
+        {
+          "label": "b",
+          "name": "values.b",
+          "shape": 7,
+          "type": "FLOAT,INT,BOOLEAN",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "FLOAT",
+          "type": "FLOAT",
+          "links": []
+        },
+        {
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            275
+          ]
+        },
+        {
+          "name": "BOOL",
+          "type": "BOOLEAN",
+          "links": []
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "ComfyMathExpression",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17"
+      ],
+      "widgets_values_named": {
+        "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17"
+      }
+    },
+    {
+      "id": 136,
+      "type": "MiniMaxH3ReferenceToVideo",
+      "pos": [
+        -2232.574187202984,
+        5657.6736513537135
+      ],
+      "size": [
+        333.8153034352513,
+        534.5343486393813
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 272
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 273
+        },
+        {
+          "name": "audio_vae",
+          "type": "VAE",
+          "link": 274
+        },
+        {
+          "label": "ref_image_0",
+          "name": "ref_images.ref_image_0",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 278
+        },
+        {
+          "label": "ref_image_1",
+          "name": "ref_images.ref_image_1",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 299
+        },
+        {
+          "label": "ref_image_2",
+          "name": "ref_images.ref_image_2",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "label": "ref_video_0",
+          "name": "ref_videos.ref_video_0",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "label": "ref_video_audio_0",
+          "name": "ref_video_audios.ref_video_audio_0",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "label": "ref_audio_0",
+          "name": "ref_audios.ref_audio_0",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": 279
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": 291
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": 292
+        },
+        {
+          "name": "length",
+          "type": "INT",
+          "widget": {
+            "name": "length"
+          },
+          "link": 275
+        }
+      ],
+      "outputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": [
+            270,
+            307
+          ]
+        },
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            271
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "MiniMaxH3ReferenceToVideo",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "prompt": true,
+            "width": true,
+            "height": true,
+            "length": true
+          },
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "",
+        576,
+        1024,
+        124,
+        "match"
+      ],
+      "widgets_values_named": {
+        "prompt": "",
+        "width": 576,
+        "height": 1024,
+        "length": 124,
+        "ref_image_size": "match"
+      },
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 154,
+      "type": "ExtendIntermediateSigmas",
+      "pos": [
+        -1141.7856464654517,
+        5649.430196892945
+      ],
+      "size": [
+        270,
+        130
+      ],
+      "flags": {},
+      "order": 25,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": 300
+        }
+      ],
+      "outputs": [
+        {
+          "name": "SIGMAS",
+          "type": "SIGMAS",
+          "links": [
+            302
+          ]
+        }
+      ],
+      "title": "BUNNY 动作 Sigma 扩展",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "ExtendIntermediateSigmas",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        3,
+        0.65,
+        0.28,
+        "sine"
+      ],
+      "widgets_values_named": {
+        "steps": 3,
+        "start_at_sigma": 0.65,
+        "end_at_sigma": 0.28,
+        "spacing": "sine"
+      },
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 160,
+      "type": "DisableNoise",
+      "pos": [
+        -1131.5792856582736,
+        6063.902979320024
+      ],
+      "size": [
+        240,
+        55
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "NOISE",
+          "type": "NOISE",
+          "links": [
+            308
+          ]
+        }
+      ],
+      "title": "BUNNY 二采：禁止重复加噪",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "DisableNoise",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 157,
+      "type": "BasicGuider",
+      "pos": [
+        -1124.6668746522273,
+        6118.27861633966
+      ],
+      "size": [
+        250,
+        70
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 24,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 306
+        },
+        {
+          "name": "conditioning",
+          "type": "CONDITIONING",
+          "link": 307
+        }
+      ],
+      "outputs": [
+        {
+          "name": "GUIDER",
+          "type": "GUIDER",
+          "links": [
+            309
+          ]
+        }
+      ],
+      "title": "BUNNY 二采低强度引导",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "BasicGuider",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 158,
+      "type": "SplitSigmasDenoise",
+      "pos": [
+        -865.6594385080399,
+        5652.988422778007
+      ],
+      "size": [
+        270,
+        82
+      ],
+      "flags": {},
+      "order": 26,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": 302
+        }
+      ],
+      "outputs": [
+        {
+          "name": "high_sigmas",
+          "type": "SIGMAS",
+          "links": [
+            303
+          ]
+        },
+        {
+          "name": "low_sigmas",
+          "type": "SIGMAS",
+          "links": [
+            311
+          ]
+        }
+      ],
+      "title": "BUNNY 二采切分：末段 25%",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "SplitSigmasDenoise",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        0.25
+      ],
+      "widgets_values_named": {
+        "denoise": 0.25
+      },
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 159,
+      "type": "SamplerCustomAdvanced",
+      "pos": [
+        -733.3635433476508,
+        5781.43129487682
+      ],
+      "size": [
+        290,
+        326
+      ],
+      "flags": {},
+      "order": 28,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "noise",
+          "type": "NOISE",
+          "link": 308
+        },
+        {
+          "name": "guider",
+          "type": "GUIDER",
+          "link": 309
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "link": 310
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": 311
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 312
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "type": "LATENT",
+          "links": [
+            313,
+            314
+          ]
+        },
+        {
+          "name": "denoised_output",
+          "type": "LATENT",
+          "links": []
+        }
+      ],
+      "title": "BUNNY 二采：清噪与细节收敛",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "SamplerCustomAdvanced",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 122,
+      "type": "VAEDecode",
+      "pos": [
+        -399.12431075388537,
+        5657.783217631
+      ],
+      "size": [
+        235.34354102372504,
+        55.008321610650455
+      ],
+      "flags": {
+        "collapsed": false
+      },
+      "order": 29,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 313
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 251
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            258
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "VAEDecode",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 130,
+      "type": "CreateVideo",
+      "pos": [
+        -403.20275521870104,
+        5760.585833694574
+      ],
+      "size": [
+        239.69210325606036,
+        102
+      ],
+      "flags": {},
+      "order": 31,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 258
+        },
+        {
+          "name": "audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": 259
+        }
+      ],
+      "outputs": [
+        {
+          "name": "VIDEO",
+          "type": "VIDEO",
+          "links": [
+            260
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "CreateVideo",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        24,
+        8
+      ],
+      "widgets_values_named": {
+        "fps": 24,
+        "bit_depth": 8
+      },
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 119,
+      "type": "VAELoader",
+      "pos": [
+        -3552.565791097096,
+        5924.871744736227
+      ],
+      "size": [
+        494.79595210655043,
+        58
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            251,
+            273
+          ]
+        }
+      ],
+      "title": "VAE",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "VAELoader",
+        "models": [
+          {
+            "name": "minimax_h3_video_vae_fp16.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_fp16.safetensors",
+            "directory": "vae"
+          }
+        ],
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "minimax_h3_video_vae_int8_convrot.safetensors"
+      ],
+      "widgets_values_named": {
+        "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      },
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 120,
+      "type": "VAELoader",
+      "pos": [
+        -3550.9555722618215,
+        6025.858751926472
+      ],
+      "size": [
+        493.46019041942327,
+        58
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            250,
+            274
+          ]
+        }
+      ],
+      "title": "VAE",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "VAELoader",
+        "models": [
+          {
+            "name": "minimax_h3_audio_vae_fp32.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors",
+            "directory": "vae"
+          }
+        ],
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "minimax_h3_audio_vae_fp32.safetensors"
+      ],
+      "widgets_values_named": {
+        "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+      },
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 129,
+      "type": "RandomNoise",
+      "pos": [
+        -1848.159067061655,
+        5674.399801546879
+      ],
+      "size": [
+        311.57952686861086,
+        86.82488700777776
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "NOISE",
+          "type": "NOISE",
+          "links": [
+            253
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "RandomNoise",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        516430109499183,
+        "fixed"
+      ],
+      "widgets_values_named": {
+        "noise_seed": 516430109499183,
+        "control_after_generate": "fixed"
+      },
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 92,
+      "type": "SaveVideo",
+      "pos": [
+        -150.51731412835127,
+        5662.17365825741
+      ],
+      "size": [
+        1184.9712490556237,
+        793.4837077981869
+      ],
+      "flags": {},
+      "order": 32,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "link": 260
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "SaveVideo",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "video/MiniMax_H3",
+        "mp4",
+        "h264",
+        "auto",
+        "auto"
+      ],
+      "widgets_values_named": {
+        "filename_prefix": "video/MiniMax_H3",
+        "format": "mp4",
+        "format.codec": "h264",
+        "format.codec.encoding": "auto",
+        "codec": "auto"
+      },
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 164,
+      "type": "MarkdownNote",
+      "pos": [
+        -3690.533620464761,
+        4644.989170542809
+      ],
+      "size": [
+        745.1177690449858,
+        913.4572823396438
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "BUNNY的工作流 | BUNNY Workflow",
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "# BUNNY的工作流 | BUNNY Workflow\n\n专为 MiniMax H3 与 BUNNY 武打 LoRA 优化：增强动作逻辑与流畅度，并通过末段二采减少噪点、重影和纹理涂抹。\n\nOptimized for MiniMax H3 and the BUNNY Combat LoRA: improves action logic and motion continuity, then uses a low-sigma second pass to reduce noise, ghosting, and texture smearing.\n\n---\n\n## 模型下载 | Model Download\n\n- 模型详情 / Model page: [minimax_h3_hybrid_fl2va_ref2va_b25-49.safetensors](https://huggingface.co/smhfacct/Minimax-H3-fl2va-ref2va-hybrid-models/blob/main/minimax_h3_hybrid_fl2va_ref2va_b25-49.safetensors)\n- 直接下载 / Direct download: [下载 minimax_h3_hybrid_fl2va_ref2va_b25-49.safetensors](https://huggingface.co/smhfacct/Minimax-H3-fl2va-ref2va-hybrid-models/resolve/main/minimax_h3_hybrid_fl2va_ref2va_b25-49.safetensors?download=true)\n- 推荐目录 / Recommended folder: `ComfyUI/models/diffusion_models/`\n\n> 全能参考版本默认使用该 Hybrid 模型。FL2VA 版本会保留工作流中当前选择的 FL2VA 模型；如需测试 Hybrid，请在 UNET Loader 中手动切换。\n>\n> The all-reference edition uses this Hybrid model by default. The FL2VA edition keeps its currently selected FL2VA model; switch it manually in UNET Loader if you want to test Hybrid.\n\n**Hybrid 原理**：以 FL2VA 为主体，仅将部分 Transformer Block 的 adaln_proj 条件调制层替换为 Ref2VA 权重，不需要双模型二采，单模型即可尝试兼顾 FL2VA 的画质与 Ref2VA 的参考能力。b25-49 即第 25–49 Block 使用 Ref2VA 的调制层权重。\n\n**Hybrid Principle:** Based on FL2VA, this approach replaces only the adaln_proj conditional modulation layers in some Transformer blocks with Ref2VA weights. It does not require a second selection from two models; a single model can attempt to balance the image quality of FL2VA with the reference capabilities of Ref2VA. b25-49 refers to blocks 25–49, which use the modulation layer weights from Ref2VA.\n\n---\n\n## 格斗提示词模板署名 | Combat Prompt Template Credit\n\n- 格斗提示词模板作者 / Original combat prompt template: [Work-Fisher](https://space.bilibili.com/17919458?spm_id_from=333.788.upinfo.detail.click)\n\n请保留以上署名信息。 / Please retain the attribution above.\n\n\n---\n\n## 全能参考模式 | All-Reference Mode\n\n### 使用方法 | How to Use\n\n1. 在参考图节点载入角色图片；按提示词中的 `<picture 1>`、`<picture 2>` 顺序对应角色。\n   Load character images into the reference-image nodes and keep their order consistent with `<picture 1>` and `<picture 2>` in the prompt.\n2. 输入英文动作提示词，并保持人物、服装、场景和镜头描述清楚一致。\n   Enter the English action prompt and keep character, costume, scene, and camera descriptions consistent.\n3. 一采负责动作结构；请优先保持一采参数不变，以免固定种子的动作轨迹发生改变。\n   Stage 1 builds the action structure. Keep its parameters unchanged whenever possible to preserve the motion trajectory for a fixed seed.\n4. 二采负责末段清噪，不会重复加噪；视频和音频均解码二采输出。\n   Stage 2 performs low-sigma cleanup without adding noise again; both video and audio decode the Stage 2 output.\n5. 固定种子做参数对照，每次只修改一个值。\n   Use a fixed seed for comparisons and change only one parameter at a time.\n\n### 默认参数 | Default Settings\n\n**一采 / Stage 1**\n\n- Hybrid H3 UNet\n- Base steps: `8`\n- Sigma extension: `3 / 0.65 → 0.28 / sine`\n- Turbo: `0.70`\n- Combat LoRA: `1.00`\n\n**二采 / Stage 2**\n\n- Low-sigma fraction: `25%`\n- `DisableNoise`\n- Turbo: `0.20`\n- Combat LoRA: `0.65`\n\n### 调节建议 | Tuning Guide\n\n- 仍有噪点 / Remaining noise: `Second-pass fraction 0.25 → 0.30`\n- 画面偏软 / Image too soft: `Stage-2 Turbo 0.20 → 0.10`\n- 动作减弱 / Motion becomes weaker: `Second-pass fraction 0.25 → 0.20`\n- 不要优先改一采 / Avoid changing Stage 1 first; it can alter choreography.\n\n© BUNNY Workflow\n"
+      ],
+      "widgets_values_named": {
+        "text": "# BUNNY的工作流 | BUNNY Workflow\n\n专为 MiniMax H3 与 BUNNY 武打 LoRA 优化：增强动作逻辑与流畅度，并通过末段二采减少噪点、重影和纹理涂抹。\n\nOptimized for MiniMax H3 and the BUNNY Combat LoRA: improves action logic and motion continuity, then uses a low-sigma second pass to reduce noise, ghosting, and texture smearing.\n\n---\n\n## 模型下载 | Model Download\n\n- 模型详情 / Model page: [minimax_h3_hybrid_fl2va_ref2va_b25-49.safetensors](https://huggingface.co/smhfacct/Minimax-H3-fl2va-ref2va-hybrid-models/blob/main/minimax_h3_hybrid_fl2va_ref2va_b25-49.safetensors)\n- 直接下载 / Direct download: [下载 minimax_h3_hybrid_fl2va_ref2va_b25-49.safetensors](https://huggingface.co/smhfacct/Minimax-H3-fl2va-ref2va-hybrid-models/resolve/main/minimax_h3_hybrid_fl2va_ref2va_b25-49.safetensors?download=true)\n- 推荐目录 / Recommended folder: `ComfyUI/models/diffusion_models/`\n\n> 全能参考版本默认使用该 Hybrid 模型。FL2VA 版本会保留工作流中当前选择的 FL2VA 模型；如需测试 Hybrid，请在 UNET Loader 中手动切换。\n>\n> The all-reference edition uses this Hybrid model by default. The FL2VA edition keeps its currently selected FL2VA model; switch it manually in UNET Loader if you want to test Hybrid.\n\n**Hybrid 原理**：以 FL2VA 为主体，仅将部分 Transformer Block 的 adaln_proj 条件调制层替换为 Ref2VA 权重，不需要双模型二采，单模型即可尝试兼顾 FL2VA 的画质与 Ref2VA 的参考能力。b25-49 即第 25–49 Block 使用 Ref2VA 的调制层权重。\n\n**Hybrid Principle:** Based on FL2VA, this approach replaces only the adaln_proj conditional modulation layers in some Transformer blocks with Ref2VA weights. It does not require a second selection from two models; a single model can attempt to balance the image quality of FL2VA with the reference capabilities of Ref2VA. b25-49 refers to blocks 25–49, which use the modulation layer weights from Ref2VA.\n\n---\n\n## 格斗提示词模板署名 | Combat Prompt Template Credit\n\n- 格斗提示词模板作者 / Original combat prompt template: [Work-Fisher](https://space.bilibili.com/17919458?spm_id_from=333.788.upinfo.detail.click)\n\n请保留以上署名信息。 / Please retain the attribution above.\n\n\n---\n\n## 全能参考模式 | All-Reference Mode\n\n### 使用方法 | How to Use\n\n1. 在参考图节点载入角色图片；按提示词中的 `<picture 1>`、`<picture 2>` 顺序对应角色。\n   Load character images into the reference-image nodes and keep their order consistent with `<picture 1>` and `<picture 2>` in the prompt.\n2. 输入英文动作提示词，并保持人物、服装、场景和镜头描述清楚一致。\n   Enter the English action prompt and keep character, costume, scene, and camera descriptions consistent.\n3. 一采负责动作结构；请优先保持一采参数不变，以免固定种子的动作轨迹发生改变。\n   Stage 1 builds the action structure. Keep its parameters unchanged whenever possible to preserve the motion trajectory for a fixed seed.\n4. 二采负责末段清噪，不会重复加噪；视频和音频均解码二采输出。\n   Stage 2 performs low-sigma cleanup without adding noise again; both video and audio decode the Stage 2 output.\n5. 固定种子做参数对照，每次只修改一个值。\n   Use a fixed seed for comparisons and change only one parameter at a time.\n\n### 默认参数 | Default Settings\n\n**一采 / Stage 1**\n\n- Hybrid H3 UNet\n- Base steps: `8`\n- Sigma extension: `3 / 0.65 → 0.28 / sine`\n- Turbo: `0.70`\n- Combat LoRA: `1.00`\n\n**二采 / Stage 2**\n\n- Low-sigma fraction: `25%`\n- `DisableNoise`\n- Turbo: `0.20`\n- Combat LoRA: `0.65`\n\n### 调节建议 | Tuning Guide\n\n- 仍有噪点 / Remaining noise: `Second-pass fraction 0.25 → 0.30`\n- 画面偏软 / Image too soft: `Stage-2 Turbo 0.20 → 0.10`\n- 动作减弱 / Motion becomes weaker: `Second-pass fraction 0.25 → 0.20`\n- 不要优先改一采 / Avoid changing Stage 1 first; it can alter choreography.\n\n© BUNNY Workflow\n"
+      },
+      "color": "#4a254f",
+      "bgcolor": "#763d7e"
+    },
+    {
+      "id": 148,
+      "type": "ResolutionSelector",
+      "pos": [
+        -2546.7542172260933,
+        5677.3702126712105
+      ],
+      "size": [
+        270,
+        170
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "showAdvanced": true,
+      "inputs": [
+        {
+          "label": "aspect_ratio",
+          "name": "aspect_ratio",
+          "type": "COMBO",
+          "widget": {
+            "name": "aspect_ratio"
+          },
+          "link": null
+        },
+        {
+          "label": "megapixels",
+          "name": "megapixels",
+          "type": "FLOAT",
+          "widget": {
+            "name": "megapixels"
+          },
+          "link": null
+        },
+        {
+          "label": "multiple",
+          "name": "multiple",
+          "type": "INT",
+          "widget": {
+            "name": "multiple"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "width",
+          "name": "width",
+          "type": "INT",
+          "links": [
+            291
+          ]
+        },
+        {
+          "label": "height",
+          "name": "height",
+          "type": "INT",
+          "links": [
+            292
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.30.0",
+        "Node name for S&R": "ResolutionSelector",
+        "ue_properties": {
+          "version": "7.8",
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "16:9 (Widescreen)",
+        0.5,
+        32
+      ],
+      "widgets_values_named": {
+        "aspect_ratio": "16:9 (Widescreen)",
+        "megapixels": 0.5,
+        "multiple": 32
+      },
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 125,
+      "type": "SamplerCustomAdvanced",
+      "pos": [
+        -1480.314314991302,
+        5673.115680371274
+      ],
+      "size": [
+        300.28068650301384,
+        447.9357571192659
+      ],
+      "flags": {},
+      "order": 27,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "noise",
+          "type": "NOISE",
+          "link": 253
+        },
+        {
+          "name": "guider",
+          "type": "GUIDER",
+          "link": 254
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "link": 255
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": 303
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 271
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "type": "LATENT",
+          "links": [
+            312
+          ]
+        },
+        {
+          "name": "denoised_output",
+          "type": "LATENT",
+          "links": []
+        }
+      ],
+      "title": "BUNNY 一采：武打动作结构",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "SamplerCustomAdvanced",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 162,
+      "type": "LoadImage",
+      "pos": [
+        -2093.320527732782,
+        4875.7689170487765
+      ],
+      "size": [
+        374.0667981622446,
+        599.7125953816849
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 4,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": []
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "LoadImage",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "ChatGPT Image 2026年8月15日 01_17_52 (1).png",
+        "image"
+      ],
+      "widgets_values_named": {
+        "image": "ChatGPT Image 2026年8月15日 01_17_52 (1).png",
+        "upload": "image"
+      },
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 128,
+      "type": "CLIPLoader",
+      "pos": [
+        -3550.3908931466744,
+        5778.0338132281295
+      ],
+      "size": [
+        493.62001525492303,
+        106
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            272
+          ]
+        }
+      ],
+      "title": "CLIP",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "CLIPLoader",
+        "models": [
+          {
+            "name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+            "directory": "text_encoders"
+          }
+        ],
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "qwen3vl_32b_minimax_h3-w4a8_convrot.safetensors",
+        "minimax",
+        "default"
+      ],
+      "widgets_values_named": {
+        "clip_name": "qwen3vl_32b_minimax_h3-w4a8_convrot.safetensors",
+        "type": "minimax",
+        "device": "default"
+      },
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 147,
+      "type": "LoraLoaderModelOnly",
+      "pos": [
+        -3548.3300278718325,
+        6126.127025856193
+      ],
+      "size": [
+        523.281459015165,
+        82
+      ],
+      "flags": {},
+      "order": 18,
+      "mode": 4,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 295
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            296
+          ]
+        }
+      ],
+      "title": "LoRA",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "LoraLoaderModelOnly",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "H3\\minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors",
+        0.7
+      ],
+      "widgets_values_named": {
+        "lora_name": "H3\\minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors",
+        "strength_model": 0.7
+      },
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 151,
+      "type": "LoraLoaderModelOnly",
+      "pos": [
+        -3549.854296786695,
+        6247.6684426288175
+      ],
+      "size": [
+        524.3643558960161,
+        82
+      ],
+      "flags": {},
+      "order": 20,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 296
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            297,
+            298
+          ]
+        }
+      ],
+      "title": "LoRA",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "LoraLoaderModelOnly",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "H3/H3_Combat_V2.safetensors",
+        1
+      ],
+      "widgets_values_named": {
+        "lora_name": "H3/H3_Combat_V2.safetensors",
+        "strength_model": 1
+      },
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 155,
+      "type": "LoraLoaderModelOnly",
+      "pos": [
+        -1146.6587425622945,
+        5817.149161770569
+      ],
+      "size": [
+        390,
+        82
+      ],
+      "flags": {},
+      "order": 19,
+      "mode": 4,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 304
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            305
+          ]
+        }
+      ],
+      "title": "BUNNY 二采模型：Turbo 0.20",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "LoraLoaderModelOnly",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "H3\\minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors",
+        0.2
+      ],
+      "widgets_values_named": {
+        "lora_name": "H3\\minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors",
+        "strength_model": 0.2
+      },
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 156,
+      "type": "LoraLoaderModelOnly",
+      "pos": [
+        -1138.5587496007618,
+        5931.4958926501595
+      ],
+      "size": [
+        390,
+        82
+      ],
+      "flags": {},
+      "order": 21,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 305
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            306
+          ]
+        }
+      ],
+      "title": "BUNNY 二采模型：Combat 0.65",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "LoraLoaderModelOnly",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "H3/H3_Combat_V2.safetensors",
+        0.65
+      ],
+      "widgets_values_named": {
+        "lora_name": "H3/H3_Combat_V2.safetensors",
+        "strength_model": 0.65
+      },
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 137,
+      "type": "LoadImage",
+      "pos": [
+        -2903.9674562408527,
+        4872.87827862204
+      ],
+      "size": [
+        374.0667981622446,
+        599.7125953816849
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            278
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "LoadImage",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "cast_1_20260916135041_00001_.png",
+        "image"
+      ],
+      "widgets_values_named": {
+        "image": "cast_1_20260916135041_00001_.png",
+        "upload": "image"
+      },
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 152,
+      "type": "LoadImage",
+      "pos": [
+        -2507.297807181523,
+        4875.165608680478
+      ],
+      "size": [
+        374.0667981622446,
+        599.7125953816849
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            299
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "LoadImage",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "cast_2_20260916130619_00001_.png",
+        "image"
+      ],
+      "widgets_values_named": {
+        "image": "cast_2_20260916130619_00001_.png",
+        "upload": "image"
+      },
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 138,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        -1675.1653411444552,
+        4843.640805783159
+      ],
+      "size": [
+        630.3445804646342,
+        699.0989961049809
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            279
+          ]
+        }
+      ],
+      "title": "Input Text (Prompt)",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "PrimitiveStringMultiline",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "subject_definitions:\n<Subject 1> is the agile female fighter from <picture 1>, topless, specializing in rapid acrobatic kicking techniques, spinning hook kicks, and high front kicks.\n<Subject 2> is the tactical male fighter from <picture 2>, wearing spandex shorts, specializing in heavy close-range boxing combinations, rapid jabs, and counter-punches.\n\nsummary:\n[Reference-to-Video generation] A 10-second continuous, fluid combat sequence inside a dimly-lit modern industrial alleyway. <Subject 1>'s continuous acrobatic kickboxing (<picture 1>) seamlessly clashes with <Subject 2>'s heavy boxing combinations (<picture 2>) in real-time 1.0x speed without slow motion, resulting in an evenly matched simultaneous stalemate.\n\nretention_analysis:\n- <Subject 1>: Retain the character design, facial mask, fitted black leather jumpsuit, and sleek boots from <picture 1>.\n- <Subject 2>: Retain the facial features, red wavy hair, dark blue tactical suit, wrist gauntlets, and belt holster design from <picture 2>.\n\ndetailed_description:\nThe target video is a single continuous 10-second shot rendered in strict 1.0x real-time speed, featuring high shutter speed clarity, wet pavement reflections, and zero slow-motion.\n[Shot 1] The seamless fight takes place in a narrow alleyway space.\n- From 00:00.000 to 00:02.500: <Subject 1> (<picture 1>) initiates with a high spinning hook kick toward <Subject 2> (<picture 2>). <Subject 2> duck-slips underneath the kicking leg, stepping inward to deliver a fast jab-cross-hook boxing combo, which <Subject 1> fluidly deflects with tight forearm parries without stopping her movement.\n- From 00:02.500 to 00:05.500: <Subject 1> instantly vaults off an alley wall to launch a rapid double mid-air front kick. <Subject 2> braces her forearms to absorb the heavy impacts, slides backward across the wet ground, and instantly fires back a heavy straight right punch. <Subject 1> avoids it with a crisp back-handspring landing back into a low combat stance.\n- From 00:05.500 to 00:08.000: The camera executes a dynamic 360-degree orbital tracking shot around the pair as they trade an uninterrupted, high-velocity flurry of strikes—<Subject 1> executing continuous low axe kicks and roundhouse sweeps, while <Subject 2> counters with relentless short upper-hooks and palm deflections. Every action flows into the next without a single pause.\n- From 00:08.000 to 00:10.000: Both fighters strike simultaneously in a final lethal move: <Subject 1> snaps a sharp side kick stopping an inch from <Subject 2>'s neck, while <Subject 2> drives a heavy straight fist stopping an inch from <Subject 1>'s face. Both freeze instantly in a breathless, evenly matched checkmate standoff.\n\noverall_soundscape:\nRapid fabric swishes from high kicks, visceral leather punch thuds (\"THUD-THUD-THUD!\"), boots scraping across wet ground, heavy intense exhales, and faint ambient rain.\n\nnon_diegetic_music:\nN/A"
+      ],
+      "widgets_values_named": {
+        "value": "subject_definitions:\n<Subject 1> is the agile female fighter from <picture 1>, topless, specializing in rapid acrobatic kicking techniques, spinning hook kicks, and high front kicks.\n<Subject 2> is the tactical male fighter from <picture 2>, wearing spandex shorts, specializing in heavy close-range boxing combinations, rapid jabs, and counter-punches.\n\nsummary:\n[Reference-to-Video generation] A 10-second continuous, fluid combat sequence inside a dimly-lit modern industrial alleyway. <Subject 1>'s continuous acrobatic kickboxing (<picture 1>) seamlessly clashes with <Subject 2>'s heavy boxing combinations (<picture 2>) in real-time 1.0x speed without slow motion, resulting in an evenly matched simultaneous stalemate.\n\nretention_analysis:\n- <Subject 1>: Retain the character design, facial mask, fitted black leather jumpsuit, and sleek boots from <picture 1>.\n- <Subject 2>: Retain the facial features, red wavy hair, dark blue tactical suit, wrist gauntlets, and belt holster design from <picture 2>.\n\ndetailed_description:\nThe target video is a single continuous 10-second shot rendered in strict 1.0x real-time speed, featuring high shutter speed clarity, wet pavement reflections, and zero slow-motion.\n[Shot 1] The seamless fight takes place in a narrow alleyway space.\n- From 00:00.000 to 00:02.500: <Subject 1> (<picture 1>) initiates with a high spinning hook kick toward <Subject 2> (<picture 2>). <Subject 2> duck-slips underneath the kicking leg, stepping inward to deliver a fast jab-cross-hook boxing combo, which <Subject 1> fluidly deflects with tight forearm parries without stopping her movement.\n- From 00:02.500 to 00:05.500: <Subject 1> instantly vaults off an alley wall to launch a rapid double mid-air front kick. <Subject 2> braces her forearms to absorb the heavy impacts, slides backward across the wet ground, and instantly fires back a heavy straight right punch. <Subject 1> avoids it with a crisp back-handspring landing back into a low combat stance.\n- From 00:05.500 to 00:08.000: The camera executes a dynamic 360-degree orbital tracking shot around the pair as they trade an uninterrupted, high-velocity flurry of strikes—<Subject 1> executing continuous low axe kicks and roundhouse sweeps, while <Subject 2> counters with relentless short upper-hooks and palm deflections. Every action flows into the next without a single pause.\n- From 00:08.000 to 00:10.000: Both fighters strike simultaneously in a final lethal move: <Subject 1> snaps a sharp side kick stopping an inch from <Subject 2>'s neck, while <Subject 2> drives a heavy straight fist stopping an inch from <Subject 1>'s face. Both freeze instantly in a breathless, evenly matched checkmate standoff.\n\noverall_soundscape:\nRapid fabric swishes from high kicks, visceral leather punch thuds (\"THUD-THUD-THUD!\"), boots scraping across wet ground, heavy intense exhales, and faint ambient rain.\n\nnon_diegetic_music:\nN/A"
+      },
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 127,
+      "type": "UNETLoader",
+      "pos": [
+        -3552.882051554467,
+        5652.8193459763215
+      ],
+      "size": [
+        494.8081778421516,
+        82
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            315
+          ]
+        }
+      ],
+      "title": "Hybrid H3 UNet",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "Node name for S&R": "UNETLoader",
+        "models": [
+          {
+            "name": "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+            "directory": "diffusion_models"
+          }
+        ],
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "h3-minimax/minimax_h3_fastvideo_vsa_datafree_1300step_4step_int8_convrot.safetensors",
+        "default"
+      ],
+      "widgets_values_named": {
+        "unet_name": "h3-minimax/minimax_h3_fastvideo_vsa_datafree_1300step_4step_int8_convrot.safetensors",
+        "weight_dtype": "default"
+      },
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 165,
+      "type": "ModelAttentionBackend",
+      "pos": [
+        -2887.660840088185,
+        5650.5735162111705
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 315
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            316
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.0",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "ModelAttentionBackend"
+      },
+      "widgets_values": [
+        "comfy kitchen attention"
+      ],
+      "widgets_values_named": {
+        "attention": "comfy kitchen attention"
+      }
+    },
+    {
+      "id": 150,
+      "type": "MiniMaxH3MemoryEfficientSageAttentionPatch",
+      "pos": [
+        -2931.8502562310764,
+        5913.573226477619
+      ],
+      "size": [
+        320.323828125,
+        26
+      ],
+      "flags": {},
+      "order": 17,
+      "mode": 4,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 316
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            295,
+            304
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-kjnodes",
+        "ver": "35e5956193769d18a13136cdedb73a36a05c73e6",
+        "Node name for S&R": "MiniMaxH3MemoryEfficientSageAttentionPatch",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "color": "#223",
+      "bgcolor": "#335"
+    }
+  ],
+  "links": [
+    [
+      250,
+      120,
+      0,
+      121,
+      1,
+      "VAE"
+    ],
+    [
+      251,
+      119,
+      0,
+      122,
+      1,
+      "VAE"
+    ],
+    [
+      253,
+      129,
+      0,
+      125,
+      0,
+      "NOISE"
+    ],
+    [
+      254,
+      126,
+      0,
+      125,
+      1,
+      "GUIDER"
+    ],
+    [
+      255,
+      123,
+      0,
+      125,
+      2,
+      "SAMPLER"
+    ],
+    [
+      258,
+      122,
+      0,
+      130,
+      0,
+      "IMAGE"
+    ],
+    [
+      259,
+      121,
+      0,
+      130,
+      1,
+      "AUDIO"
+    ],
+    [
+      260,
+      130,
+      0,
+      92,
+      0,
+      "VIDEO"
+    ],
+    [
+      261,
+      132,
+      0,
+      131,
+      0,
+      "FLOAT"
+    ],
+    [
+      270,
+      136,
+      0,
+      126,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      271,
+      136,
+      1,
+      125,
+      4,
+      "LATENT"
+    ],
+    [
+      272,
+      128,
+      0,
+      136,
+      0,
+      "CLIP"
+    ],
+    [
+      273,
+      119,
+      0,
+      136,
+      1,
+      "VAE"
+    ],
+    [
+      274,
+      120,
+      0,
+      136,
+      2,
+      "VAE"
+    ],
+    [
+      275,
+      131,
+      1,
+      136,
+      12,
+      "INT"
+    ],
+    [
+      278,
+      137,
+      0,
+      136,
+      3,
+      "IMAGE"
+    ],
+    [
+      279,
+      138,
+      0,
+      136,
+      9,
+      "STRING"
+    ],
+    [
+      291,
+      148,
+      0,
+      136,
+      10,
+      "INT"
+    ],
+    [
+      292,
+      148,
+      1,
+      136,
+      11,
+      "INT"
+    ],
+    [
+      295,
+      150,
+      0,
+      147,
+      0,
+      "MODEL"
+    ],
+    [
+      296,
+      147,
+      0,
+      151,
+      0,
+      "MODEL"
+    ],
+    [
+      297,
+      151,
+      0,
+      126,
+      0,
+      "MODEL"
+    ],
+    [
+      298,
+      151,
+      0,
+      124,
+      0,
+      "MODEL"
+    ],
+    [
+      299,
+      152,
+      0,
+      136,
+      4,
+      "IMAGE"
+    ],
+    [
+      300,
+      124,
+      0,
+      154,
+      0,
+      "SIGMAS"
+    ],
+    [
+      302,
+      154,
+      0,
+      158,
+      0,
+      "SIGMAS"
+    ],
+    [
+      303,
+      158,
+      0,
+      125,
+      3,
+      "SIGMAS"
+    ],
+    [
+      304,
+      150,
+      0,
+      155,
+      0,
+      "MODEL"
+    ],
+    [
+      305,
+      155,
+      0,
+      156,
+      0,
+      "MODEL"
+    ],
+    [
+      306,
+      156,
+      0,
+      157,
+      0,
+      "MODEL"
+    ],
+    [
+      307,
+      136,
+      0,
+      157,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      308,
+      160,
+      0,
+      159,
+      0,
+      "NOISE"
+    ],
+    [
+      309,
+      157,
+      0,
+      159,
+      1,
+      "GUIDER"
+    ],
+    [
+      310,
+      123,
+      0,
+      159,
+      2,
+      "SAMPLER"
+    ],
+    [
+      311,
+      158,
+      1,
+      159,
+      3,
+      "SIGMAS"
+    ],
+    [
+      312,
+      125,
+      0,
+      159,
+      4,
+      "LATENT"
+    ],
+    [
+      313,
+      159,
+      0,
+      122,
+      0,
+      "LATENT"
+    ],
+    [
+      314,
+      159,
+      0,
+      121,
+      0,
+      "LATENT"
+    ],
+    [
+      315,
+      127,
+      0,
+      165,
+      0,
+      "MODEL"
+    ],
+    [
+      316,
+      165,
+      0,
+      150,
+      0,
+      "MODEL"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "模型加载",
+      "bounding": [
+        -3566.816838597206,
+        5585.461463654055,
+        636.0191653456666,
+        754.8350181161959
+      ],
+      "color": "#8A8",
+      "flags": {}
+    },
+    {
+      "id": 2,
+      "title": "采样区",
+      "bounding": [
+        -1877.540082720494,
+        5585.151888725086,
+        711.2724567094906,
+        750.2097568907229
+      ],
+      "color": "#8A8",
+      "flags": {}
+    },
+    {
+      "id": 5,
+      "title": "用户输入",
+      "bounding": [
+        -2924.072287026314,
+        4749.113267813096,
+        1902.541651606944,
+        825.167425609252
+      ],
+      "color": "#88A",
+      "flags": {}
+    },
+    {
+      "id": 20,
+      "title": "二段采样：动作结构 → 低 Sigma 细节",
+      "bounding": [
+        -1151.599622404038,
+        5584.001963371037,
+        731.1687726384089,
+        744.2276207308578
+      ],
+      "color": "#a1309b",
+      "flags": {}
+    },
+    {
+      "id": 21,
+      "title": "BUNNY 专属说明与调参区",
+      "bounding": [
+        -3701.2935538546913,
+        4573.449173980619,
+        765.8066744286307,
+        1003.6262049195593
+      ],
+      "color": "#a448b3",
+      "flags": {}
+    },
+    {
+      "id": 22,
+      "title": "sage",
+      "bounding": [
+        -2922.1554634403524,
+        5585.2350439206,
+        347.48035628177377,
+        288.09634541164087
+      ],
+      "color": "#88A",
+      "flags": {}
+    },
+    {
+      "id": 23,
+      "title": "K",
+      "bounding": [
+        -2560.0444994520726,
+        5584.716408313725,
+        670.299868004345,
+        623.274336784727
+      ],
+      "color": "#A88",
+      "flags": {}
+    },
+    {
+      "id": 24,
+      "title": "video",
+      "bounding": [
+        -411.50982013947686,
+        5584.430666035756,
+        1560.288603357209,
+        1150.6009180838591
+      ],
+      "color": "#8A8",
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1.0810461585050168,
+      "offset": [
+        2349.454363875212,
+        -4856.119137520022
+      ]
+    },
+    "frontendVersion": "1.49.6",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true,
+    "ue_links": [],
+    "links_added_by_ue": [],
+    "qgn_navigation_groups": [],
+    "qgn_locked": false,
+    "two_stage_sampling_notes": {
+      "stage_1": "Original Turbo 0.7 + Combat 1.0; high sigma branch; preserves motion logic.",
+      "stage_2": "DisableNoise; Turbo 0.25 + Combat 0.70; final 25% low sigma branch; restores detail.",
+      "extension": "steps 4, sigma 0.65 to 0.22, sine spacing",
+      "tuning": "If still soft, raise split denoise from 0.25 to 0.30 or reduce stage-2 Turbo to 0.10. If motion weakens, lower split denoise to 0.20."
+    },
+    "bunny_workflow": {
+      "name": "BUNNY Combat H3",
+      "version": "1.0",
+      "purpose": "MiniMax H3 martial-arts motion, temporal continuity and clean low-noise finishing",
+      "source": "MiniMax_H3_00028_.mp4",
+      "motion_stage": {
+        "base_steps": 8,
+        "sigma_extension": [
+          3,
+          0.65,
+          0.28,
+          "sine"
+        ],
+        "turbo": 0.7,
+        "combat": 1
+      },
+      "cleanup_stage": {
+        "low_sigma_fraction": 0.25,
+        "disable_noise": true,
+        "turbo": 0.2,
+        "combat": 0.65
+      }
+    },
+    "anomalous_hashes": {
+      "119_minimax_h3_video_vae_fp16.safetensors": {
+        "hash": "",
+        "size": 5207808496
+      },
+      "120_minimax_h3_audio_vae_fp32.safetensors": {
+        "hash": "",
+        "size": 605254808
+      },
+      "147_H3\\minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors": {
+        "hash": "",
+        "size": 1956171984
+      },
+      "151_H3/H3_Combat_V2.safetensors": {
+        "hash": "3cf92c17c19fda838e83a4fcc1070fcf44a70a83835e93ef9ee2b5dd36bb03a2",
+        "size": 155110280
+      },
+      "155_H3\\minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors": {
+        "hash": "",
+        "size": 1956171984
+      },
+      "156_H3/H3_Combat_V2.safetensors": {
+        "hash": "3cf92c17c19fda838e83a4fcc1070fcf44a70a83835e93ef9ee2b5dd36bb03a2",
+        "size": 155110280
+      },
+      "127_h3-minimax/minimax_h3_fastvideo_vsa_datafree_1300step_4step_int8_convrot.safetensors": {
+        "hash": "",
+        "size": 22898594920
+      }
+    }
+  },
+  "version": 0.4
+}

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
@@ -286,13 +286,23 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>What each stack loads and samples at, for the sheet's stack radio — this checkpoint's own
         /// saved step count when it has one, and its stack's authored count otherwise.</summary>
-        private ExpressStackDefaults StackDefaultsFor(bool taoMate, bool singularity)
+        private ExpressStackDefaults StackDefaultsFor(ExpressStack stack)
         {
-            var model = taoMate ? TaoMateModel
-                      : singularity ? SingularityModel
-                      : "h3-minimax/10Eros_Max_h3_TURBO-hybrid_beta4_int8_convrot.safetensors";
-            var authored = taoMate ? 10 : singularity && !SingularityErSde ? 10 : 12;
-            var min = taoMate ? 7 : MinSteps;
+            var model = stack switch
+            {
+                ExpressStack.TaoMate => TaoMateModel,
+                ExpressStack.Bunny => BunnyModel,
+                ExpressStack.Singularity => SingularityModel,
+                _ => "h3-minimax/10Eros_Max_h3_TURBO-hybrid_beta4_int8_convrot.safetensors"
+            };
+            var authored = stack switch
+            {
+                ExpressStack.TaoMate => 10,
+                ExpressStack.Bunny => BunnySteps,
+                ExpressStack.Singularity when !SingularityErSde => 10,
+                _ => 12
+            };
+            var min = stack == ExpressStack.TaoMate ? 7 : MinSteps;
             return new ExpressStackDefaults(model, RecallSteps(StepsKey(model)) ?? authored, min);
         }
 
@@ -315,8 +325,7 @@ namespace FlipPix.UI.ViewModels.Video
                 Cast2OutfitSource = CastMember2.OutfitSource,
                 CastOwnClothes = CastOwnClothes,
                 CastPhotoEngine = CastPhotoEngine,
-                UseTaoMate = UseTaoMate,
-                UseSingularity = UseSingularity,
+                Stack = Stack,
                 SingularityErSde = SingularityErSde,
                 DiffusionModel = SelectedDiffusionModel,
                 Steps = FirstPassStepCount,
@@ -356,9 +365,7 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 {
                     // The stack, and the checkpoint and steps that belong to it.
-                    if (job.UseTaoMate) StackIsTaoMate = true;
-                    else if (job.UseSingularity) StackIsSingularity = true;
-                    else StackIsEros = true;
+                    Stack = job.Stack;
                     SingularityErSde = job.SingularityErSde;
 
                     if (job.DiffusionModel.Length > 0)

@@ -1,4 +1,4 @@
-using FlipPix.UI.Models;
+﻿using FlipPix.UI.Models;
 
 namespace FlipPix.Tests;
 
@@ -36,8 +36,7 @@ public class ExpressJobTests
         Cast2OutfitSource = @"D:\faces\ray.png",
         CastOwnClothes = true,
         CastPhotoEngine = "ideogram",
-        UseTaoMate = true,
-        UseSingularity = false,
+        Stack = ExpressStack.Bunny,
         SingularityErSde = true,
         DiffusionModel = "h3-minimax/taomate.safetensors",
         Steps = 13,
@@ -136,7 +135,7 @@ public class ExpressJobTests
     {
         var job = Filled();
         Assert.Equal("noir", job.Title);
-        Assert.Equal("🍥 TaoMate", job.StackLabel);
+        Assert.Equal("🐰 BUNNY", job.StackLabel);
         Assert.Contains("13 steps", job.RenderLine);
         Assert.Equal(2, job.CastCount);
         Assert.Contains("their own clothes", job.CastLine);
@@ -151,12 +150,28 @@ public class ExpressJobTests
     [Fact]
     public void TheStackLabelNamesTheSingularitySampler()
     {
-        var job = new ExpressJob { UseTaoMate = false, UseSingularity = true, SingularityErSde = false };
+        var job = new ExpressJob { Stack = ExpressStack.Singularity, SingularityErSde = false };
         Assert.Equal("✴️ Singularity", job.StackLabel);
         job.SingularityErSde = true;
         Assert.Equal("✴️ Singularity · er_sde", job.StackLabel);
-        job.UseSingularity = false;
+        job.Stack = ExpressStack.Eros;
         Assert.Equal("🌹 H3 Eros", job.StackLabel);
+    }
+
+    /// <summary>Every stack has a name on the card. A job whose stack has no label of its own would read as
+    /// another stack's job in the queue — which is the one thing the card is there to prevent.</summary>
+    [Theory]
+    [InlineData(ExpressStack.Eros, "🌹 H3 Eros")]
+    [InlineData(ExpressStack.Singularity, "✴️ Singularity")]
+    [InlineData(ExpressStack.TaoMate, "🍥 TaoMate")]
+    [InlineData(ExpressStack.Bunny, "🐰 BUNNY")]
+    public void EveryStackHasItsOwnLabel(ExpressStack stack, string expected)
+    {
+        var job = new ExpressJob { Stack = stack, SingularityErSde = false };
+        Assert.Equal(expected, job.StackLabel);
+        Assert.Equal(stack == ExpressStack.TaoMate, job.UseTaoMate);
+        Assert.Equal(stack == ExpressStack.Bunny, job.UseBunny);
+        Assert.Equal(stack == ExpressStack.Singularity, job.UseSingularity);
     }
 
     /// <summary>Re-queueing a finished job puts its stories back to waiting — otherwise the run would walk

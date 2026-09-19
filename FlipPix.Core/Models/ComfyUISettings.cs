@@ -229,6 +229,11 @@ public class ComfyUISettings
     // instead of a latent one. Mutually exclusive with Singularity above; the Express tab's radio group
     // keeps the two in step, and this wins if both are somehow set.
     public bool H3ExpressUseTaoMate { get; set; }
+    // 🐰 The fourth stack: the author's BUNNY 12GB Universal render (h3-bunny.json) — one schedule extended
+    // through the mid sigmas and split at 75%, the action structure sampled on the Combat LoRA at full
+    // strength and the last quarter run out as a cleanup that does not re-noise, then the tab's own latent
+    // upscale. Mutually exclusive with the two above; the Express tab's radio group keeps them in step.
+    public bool H3ExpressUseBunny { get; set; }
     // Sampling steps per checkpoint: the first-pass step count the Express tab renders with, keyed by the
     // model name it was set for (lowercased, forward slashes). A checkpoint that has never been set is not
     // in here at all and renders at the step count its stack was authored at — Singularity's 10, the Eros
