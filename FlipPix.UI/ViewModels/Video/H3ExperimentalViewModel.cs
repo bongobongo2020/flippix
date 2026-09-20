@@ -635,6 +635,14 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>
+        /// A block, ending in a blank line, appended after "the clip before this one" for a clip that is
+        /// rendered as the continuation of it, or nothing (the default). H3 Express's chained clips
+        /// override it: the previous clip's last frames are pinned into this one's first, and the
+        /// prompt has to agree with them.
+        /// </summary>
+        protected virtual string ChainedOpening(int clipIndex) => string.Empty;
+
+        /// <summary>
         /// One clip's user message: the fixed context every clip shares (style, setting, cast tags, wardrobe
         /// lock, length, shot count) and the three lines of story that make this clip this clip — the beat
         /// before it for continuity, its own beat to write, and the beat after it so it ends mid-action.
@@ -730,6 +738,7 @@ namespace FlipPix.UI.ViewModels.Video
                 research +
                 $"{pacing}\n\n" +
                 $"{previous}\n\n" +
+                ChainedOpening(index) +
                 $"THIS CLIP'S ACTION — expand ONLY this, and fill the whole {s} seconds with it:\n" +
                 $"{beat.Text}{part}\n\n" +
                 $"{next}\n\n" +

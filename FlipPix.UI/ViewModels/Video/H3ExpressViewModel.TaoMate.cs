@@ -305,7 +305,7 @@ namespace FlipPix.UI.ViewModels.Video
             // The RTX upscale is what feeds the mux — or RIFE, which reads it in turn.
             WireSink(root, item, NodeTaoRtx, NodeUpscaledAudio, runToken);
 
-            var json = PruneToOutputs(root.ToJsonString(), new[] { NodeFinalSave }, out var pruned);
+            var json = PruneToOutputs(root.ToJsonString(), FinishOutputs(item), out var pruned);
             AddLog($"{row.Title}: rendering the TaoMate relay (seed {seed}, {TaoMateSteps} steps, six on " +
                    $"the base weights then resampled on the TaoMate LoRA) at {sw}×{sh}, RTX ×{TaoMateUpscale:0.#} " +
                    $"to {fw}×{fh}, {(item.UseRife ? $"RIFE → {DraftFrameRate * 2}fps" : $"{DraftFrameRate}fps")}. " +

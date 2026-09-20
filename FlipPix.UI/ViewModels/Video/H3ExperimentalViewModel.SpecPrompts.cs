@@ -125,6 +125,7 @@ namespace FlipPix.UI.ViewModels.Video
                                       hasContinuityPlan: !environment.IsEmpty, lastClip: lastClip) + "\n\n" +
                 $"THIS IS CLIP {index + 1} OF {clipCount}. It is {s} seconds long.\n\n" +
                 $"{previous}\n\n" +
+                ChainedOpening(index) +
                 $"THIS CLIP'S BEAT — direct it and fill the whole {s} seconds with it. Invent the blow-by-blow " +
                 "choreography inside it, but add no character, place or outcome it does not have:\n" +
                 $"{beat.Text}{StoryBeatSheet.DescribePart(beat)}{lines}\n\n" +

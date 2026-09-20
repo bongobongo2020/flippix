@@ -2916,6 +2916,22 @@
                                                              Foreground="{StaticResource TextPrimaryBrush}"
                                                              ToolTip="Sample every clip on h3-eros.json — the 10Eros hybrid checkpoint, er_sde/beta at 12 steps — composed at the draft canvas and lifted to the quality one by the 3D latent upscaler. Locked while anything is rendering."/>
                                                 <TextBlock Text="{Binding StackSummary}" FontSize="10" TextWrapping="Wrap"
+                                                           Foreground="{StaticResource TextMutedBrush}" Margin="20,0,0,6"/>
+
+                                                <!-- Chained clips: the story's clips rendered as one continuous shot, each
+                                                     continuing from the last second of the one before it (H3 Motion Context). -->
+                                                <CheckBox Content="🔗 Chain clips into one continuous shot" IsChecked="{Binding ChainClips}"
+                                                          IsEnabled="{Binding CanChangeWorkflow}"
+                                                          FontSize="11" Margin="0,2,0,2"
+                                                          Foreground="{StaticResource TextPrimaryBrush}"
+                                                          ToolTip="Render a story's clips as ONE shot instead of separate clips glued together. Clip 2 onward is generated continuing from the last second of the clip before it — the picture and the sound both, carried across as latents by the H3 Motion Context node pack — and the pinned head is trimmed off, so five 5-second clips play as one seamless 25 seconds.&#x0a;&#x0a;Needs ComfyUI-H3-Motion-Context (github.com/NikoDemon80/ComfyUI-H3-Motion-Context) installed on the ComfyUI server; without it the run says so and renders every clip on its own.&#x0a;&#x0a;Clips have to render in order. Regenerating one clip in the middle re-does it from the clip before, but the clips after it still continue from the old take.&#x0a;&#x0a;New clip prompts are written to open on the previous clip's last moment. Prompts saved before this was on are not — untick Reuse saved prompts to have them rewritten."/>
+                                                <CheckBox Content="also pin the upscale pass" IsChecked="{Binding ChainPinFinish}"
+                                                          IsEnabled="{Binding CanChangeWorkflow}"
+                                                          Visibility="{Binding ChainClips, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                          FontSize="11" Margin="20,2,0,2"
+                                                          Foreground="{StaticResource TextPrimaryBrush}"
+                                                          ToolTip="The finish re-samples the draft from a high noise level, so a join that is only pinned on the draft can be undone by it. With this on, the upscale pass is pinned to the previous clip's FINISHED tail as well (a second latent is saved per clip). Untick it if the finish misbehaves — the draft pass stays chained. 🍥 TaoMate has no upscale pass; both its legs are pinned regardless."/>
+                                                <TextBlock Text="{Binding ChainSummary}" FontSize="10" TextWrapping="Wrap"
                                                            Foreground="{StaticResource TextMutedBrush}" Margin="20,0,0,10"/>
 
                                                 <!-- Sampling steps. Per checkpoint and remembered, so each

@@ -1925,7 +1925,7 @@ namespace FlipPix.UI.ViewModels.Video
             // Which decode feeds the mux, and whether RIFE stands between them.
             WireSink(root, item, NodeUpscaledVideo, NodeUpscaledAudio, runToken);
 
-            var json = PruneToOutputs(root.ToJsonString(), new[] { NodeFinalSave }, out var pruned);
+            var json = PruneToOutputs(root.ToJsonString(), FinishOutputs(item), out var pruned);
             AddLog($"{row.Title}: finishing take {chosen} (seed {seed}, {item.UpscaleSteps} fixed sigmas " +
                    $"at {fw}×{fh}, {(item.UseRife ? $"RIFE → {DraftFrameRate * 2}fps" : $"{DraftFrameRate}fps")}). " +
                    $"Finish graph: the picked branch kept, {pruned} node(s) removed.");
@@ -1940,23 +1940,42 @@ namespace FlipPix.UI.ViewModels.Video
         protected void WireSink(JsonObject root, H3CastQueueItem item, string video, string audio,
                                 string runToken)
         {
+            // A stack's own step between the decodes and the mux (Express's chained clips drop their
+            // pinned head here). Its outputs are images at slot 0 and audio at slot 1.
+            var trim = InsertTrim(root, item, video, audio);
+            var pictureFrom = trim ?? video;
+            var soundFrom = trim ?? audio;
+            var soundSlot = trim != null ? 1 : 0;
+
             if (item.UseRife)
             {
                 SetInput(root, NodeRife, "source_fps", (double)DraftFrameRate);
                 SetInput(root, NodeRife, "target_fps", (double)(DraftFrameRate * 2));
-                Link(root, NodeRife, "images", video, 0);
+                Link(root, NodeRife, "images", pictureFrom, 0);
                 Link(root, NodeFinalSave, "images", NodeRife, 0);
                 SetInput(root, NodeFinalSave, "frame_rate", DraftFrameRate * 2);
             }
             else
             {
-                Link(root, NodeFinalSave, "images", video, 0);
+                Link(root, NodeFinalSave, "images", pictureFrom, 0);
                 SetInput(root, NodeFinalSave, "frame_rate", DraftFrameRate);
             }
-            Link(root, NodeFinalSave, "audio", audio, 0);
+            Link(root, NodeFinalSave, "audio", soundFrom, soundSlot);
             SetInput(root, NodeFinalSave, "save_output", true);
             SetInput(root, NodeFinalSave, "filename_prefix", $"{OutputSubfolder}/{runToken}_final");
         }
+
+        /// <summary>
+        /// A node inserted between the finish's decodes and the mux, or null for none (the default). Given
+        /// the ids of the picture and sound decodes; returns the id of a node whose output 0 is the
+        /// picture and output 1 the sound. It runs before RIFE, so it sees the frames at the render's own
+        /// rate.
+        /// </summary>
+        protected virtual string? InsertTrim(JsonObject root, H3CastQueueItem item, string video, string audio) => null;
+
+        /// <summary>The output nodes a finish graph is pruned down to. Just the final mux, unless a stack
+        /// has more it needs to run — Express's chained clips also save their latents.</summary>
+        protected virtual IReadOnlyList<string> FinishOutputs(H3CastQueueItem item) => new[] { NodeFinalSave };
 
         // ── Graph patching ──────────────────────────────────────────────────────────────────────────
 

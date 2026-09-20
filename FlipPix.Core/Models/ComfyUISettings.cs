@@ -243,6 +243,11 @@ public class ComfyUISettings
     // 📐 Clip prompts written to the MiniMax H3 Singularity prompt-writing spec (six-section full-reference
     // prompts) instead of the researched/shipped writer.
     public bool H3ExpressSpecPrompts { get; set; }
+    // Chained clips: each clip after the first in a story continues from the tail of the one before it
+    // (H3 Motion Context — the latent, picture and sound, is carried across), so a story's clips play as one
+    // seamless shot. PinFinish also pins the finish (upscale) pass to the previous clip's finished tail.
+    public bool H3ExpressChainClips { get; set; } = true;
+    public bool H3ExpressChainPinFinish { get; set; } = true;
     // Saved stories added to the STORIES list from 📚 Story prompts (by story hash), put back on the next launch.
     public List<string> H3ExpressLibraryStories { get; set; } = new();
     // The run's own cast: a photo per character replaces the portrait the story would otherwise get. Outfit

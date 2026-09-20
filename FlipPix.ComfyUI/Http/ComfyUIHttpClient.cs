@@ -1489,6 +1489,30 @@ public class ComfyUIHttpClient : IDisposable
     }
 
     /// <summary>
+    /// Whether the connected ComfyUI has a node class installed, read from /object_info/&lt;class&gt;. Null
+    /// when the server could not be asked at all — a caller that cannot tell should not act as if it were
+    /// missing.
+    /// </summary>
+    public async Task<bool?> NodeClassExistsAsync(string nodeClass, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(15));
+            var response = await _httpClient.GetAsync($"/object_info/{nodeClass}", cts.Token);
+            if (!response.IsSuccessStatusCode) return null;
+
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cts.Token));
+            return doc.RootElement.ValueKind == JsonValueKind.Object && doc.RootElement.TryGetProperty(nodeClass, out _);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning($"NodeClassExistsAsync({nodeClass}) failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Returns every LoRA filename ComfyUI exposes (from /object_info/LoraLoader's lora_name enum).
     /// These are paths relative to the loras root, exactly as the server resolves them (so they work
     /// even when the loras live on a remote/mounted drive the client can't see on disk).

@@ -86,6 +86,7 @@ namespace FlipPix.UI.ViewModels.Video
 
             InitTaoMate();
             InitSteps();
+            InitChain();
             InitStoryPrompts();
             InitCast();
             InitJobs();
@@ -360,6 +361,7 @@ namespace FlipPix.UI.ViewModels.Video
             string prompt, double lengthSeconds)
         {
             base.ApplyCommonInputs(root, item, uploaded, prompt, lengthSeconds);
+            ApplyChain(root, item, lengthSeconds);
 
             var lora = _selectedLora;
             var strength = _loraStrength;
@@ -431,6 +433,7 @@ namespace FlipPix.UI.ViewModels.Video
 
             try
             {
+                await EnsureChainNodesAsync(token);
                 await FinishSweepAsync(token);
                 // Regenerates asked for while the story rendered, before the batch moves on and clears
                 // the board — after that there is no clip left to re-render.
@@ -827,6 +830,7 @@ namespace FlipPix.UI.ViewModels.Video
 
             try
             {
+                await EnsureChainNodesAsync(token);
                 await FinishAsync(row, 0, 100, token);
                 item.ItemStatus = QueueItemStatus.Completed;
                 item.CompletedAt = DateTime.Now;
