@@ -84,6 +84,7 @@ namespace FlipPix.UI.ViewModels
         private double _denoise = 1.0;
         private int _selectedStyleIndex = 0;
         private TextGeneratorWorkflow _selectedWorkflow = TextGeneratorWorkflow.Zimage;
+        private bool _usePromptEnhancer = false;
 
         // Unified style list from both workflows
         private List<StyleInfo> _allStyles = new List<StyleInfo>();
@@ -525,6 +526,7 @@ namespace FlipPix.UI.ViewModels
                 OnPropertyChanged(nameof(ShowKreaLoraOptions));
                 OnPropertyChanged(nameof(ShowStyleOptions));
                 OnPropertyChanged(nameof(ShowSamplerSettings));
+                OnPropertyChanged(nameof(ShowPromptEnhancerOption));
             }
         }
 
@@ -538,6 +540,27 @@ namespace FlipPix.UI.ViewModels
 
         public bool ShowSamplerSettings => SelectedWorkflow != TextGeneratorWorkflow.Anima
                                            && SelectedWorkflow != TextGeneratorWorkflow.Krea2;
+
+        // Only qwen21-prompt-enhancer.json carries the local rewriter, so only it shows the toggle.
+        public bool ShowPromptEnhancerOption => SelectedWorkflow == TextGeneratorWorkflow.Qwen21Enhancer;
+
+        /// <summary>
+        /// Drives the ORIGINAL / ENHANCED switch (node 473) in qwen21-prompt-enhancer.json. Off by
+        /// default here: the analysis text is already a finished prompt written from the source
+        /// image, so re-writing it through the 8B model tends to drift away from what was analysed.
+        /// </summary>
+        public bool UsePromptEnhancer
+        {
+            get => _usePromptEnhancer;
+            set
+            {
+                if (_usePromptEnhancer != value)
+                {
+                    _usePromptEnhancer = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         public int SelectedWorkflowIndex
         {
@@ -1817,6 +1840,7 @@ namespace FlipPix.UI.ViewModels
                 LoraEnabled = LoraEnabled,
                 SelectedLora = SelectedLora,
                 SelectedKreaLoras = SelectedKreaLoras.Select(l => l.ToDto()).ToList(),
+                UsePromptEnhancer = UsePromptEnhancer,
                 NegativePrompt = NegativePrompt,
                 Width = _width,
                 Height = _height,
@@ -2102,6 +2126,11 @@ namespace FlipPix.UI.ViewModels
                         _logger.LogInfo($"Using Krea2 workflow");
                         break;
 
+                    case TextGeneratorWorkflow.Qwen21Enhancer:
+                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "qwen", "qwen21-prompt-enhancer.json");
+                        _logger.LogInfo($"Using Qwen Image 2.1 workflow (local prompt enhancer)");
+                        break;
+
                     case TextGeneratorWorkflow.ZimageBase:
                         workflowPath = WorkflowLocator.Resolve("workflow", "image", "zimage", "base", "z-image-base.json");
                         _logger.LogInfo($"Using Zimage Base workflow");
@@ -2178,6 +2207,7 @@ namespace FlipPix.UI.ViewModels
                 _height = item.Height;
                 _negativePrompt = item.NegativePrompt;
                 _selectedStyleIndex = item.SelectedStyleIndex;
+                _usePromptEnhancer = item.UsePromptEnhancer;
 
                 // Only set LORA properties for the Z-Image workflows (they share the zimage LoRA folder)
                 if (item.SelectedWorkflow == TextGeneratorWorkflow.Zimage
@@ -2304,6 +2334,7 @@ namespace FlipPix.UI.ViewModels
                         TextGeneratorWorkflow.Anima => "anima",
                         TextGeneratorWorkflow.Krea2 => "krea2",
                         TextGeneratorWorkflow.ZimageBase => "z-image-base",
+                        TextGeneratorWorkflow.Qwen21Enhancer => "qwen21",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");
@@ -2779,11 +2810,15 @@ namespace FlipPix.UI.ViewModels
                     TextGeneratorWorkflow.Anima => "60:11",
                     TextGeneratorWorkflow.Krea2 => "6",
                     TextGeneratorWorkflow.ZimageBase => "76:67",
+                    // The USER PROMPT primitive, not the encoder: the enhancer reads through it.
+                    TextGeneratorWorkflow.Qwen21Enhancer => "468",
                     _ => ""  // Empty for Zimage (will use generic search)
                 };
 
                 // Determine the input key for the prompt (text vs value)
-                string promptInputKey = "text";
+                string promptInputKey = selectedWorkflow == TextGeneratorWorkflow.Qwen21Enhancer
+                    ? "value"   // PrimitiveStringMultiline
+                    : "text";   // CLIPTextEncode and friends
 
                 // Krea2's LoRAs only fire when their trigger words are in the prompt.
                 var promptText = selectedWorkflow == TextGeneratorWorkflow.Krea2
@@ -2839,6 +2874,31 @@ namespace FlipPix.UI.ViewModels
                                     }
                                 }
                             }
+                        }
+                        else if (selectedWorkflow == TextGeneratorWorkflow.Qwen21Enhancer)
+                        {
+                            // qwen21-prompt-enhancer.json node map (see the matching note in
+                            // ImageGeneratorViewModel.UpdateQwen21EnhancerWorkflow):
+                            //   468     = USER PROMPT primitive (handled above)
+                            //   473     = ORIGINAL / ENHANCED switch                [set here]
+                            //   459:452 = TextEncodeQwenImage21 -> negative_prompt   [set here]
+                            //   459:456 = EmptyLatentImage -> width / height         [set here]
+                            //   459:458 = KSampler -> seed / steps / cfg / denoise   [set below]
+                            var (qwenWidth, qwenHeight) = ImageGeneratorViewModel.Qwen21Resolution(AspectRatioIndex);
+                            UpdateNodeInputs(workflow, "459:456", nodeInputs =>
+                            {
+                                nodeInputs["width"] = qwenWidth;
+                                nodeInputs["height"] = qwenHeight;
+                            });
+
+                            UpdateNodeInputs(workflow, "473", nodeInputs => nodeInputs["value"] = UsePromptEnhancer);
+
+                            // Only override the workflow's own negative when the tab has one.
+                            if (!string.IsNullOrWhiteSpace(NegativePrompt))
+                                UpdateNodeInputs(workflow, "459:452", nodeInputs => nodeInputs["negative_prompt"] = NegativePrompt);
+
+                            _logger.LogInfo($"✓ Qwen 2.1: {qwenWidth}x{qwenHeight}, prompt enhancer " +
+                                            $"{(UsePromptEnhancer ? "ON (Qwen3-VL 8B rewrite)" : "OFF (analysis text used as written)")}");
                         }
                         else if (selectedWorkflow == TextGeneratorWorkflow.Klien)
                         {
@@ -3002,6 +3062,18 @@ namespace FlipPix.UI.ViewModels
                                 }
                             }
                         }
+                    }
+                    else if (selectedWorkflow == TextGeneratorWorkflow.Qwen21Enhancer)
+                    {
+                        // qwen21-prompt-enhancer.json: node 459:458 = KSampler, seed inline.
+                        UpdateNodeInputs(workflow, "459:458", nodeInputs =>
+                        {
+                            nodeInputs["seed"] = randomSeed;
+                            nodeInputs["steps"] = Steps;
+                            nodeInputs["cfg"] = Cfg;
+                            nodeInputs["denoise"] = Denoise;
+                        });
+                        _logger.LogInfo($"✓ Updated Qwen 2.1 sampler node 459:458 with seed: {randomSeed}, steps: {Steps}, cfg: {Cfg}, denoise: {Denoise}");
                     }
                     else if (selectedWorkflow == TextGeneratorWorkflow.Klien)
                     {
@@ -3803,6 +3875,7 @@ namespace FlipPix.UI.ViewModels
                     TextGeneratorWorkflow.Anima => "Anima_",
                     TextGeneratorWorkflow.Krea2 => "Krea2_",
                     TextGeneratorWorkflow.ZimageBase => "ZBase_",
+                    TextGeneratorWorkflow.Qwen21Enhancer => "Qwen21_",
                     _ => ""  // Empty for Zimage (will use ZI/z-image pattern)
                 };
 
@@ -4511,6 +4584,7 @@ namespace FlipPix.UI.ViewModels
                 LoraEnabled = LoraEnabled,
                 SelectedLora = SelectedLora,
                 SelectedKreaLoras = SelectedKreaLoras.Select(l => l.ToDto()).ToList(),
+                UsePromptEnhancer = UsePromptEnhancer,
                 NegativePrompt = NegativePrompt,
                 Width = _width,
                 Height = _height,

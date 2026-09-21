@@ -32,7 +32,11 @@ namespace FlipPix.UI.ViewModels
         Krea2,
         // Plain Z-Image base pass (z-image-base.json): no style preset, no Power Lora
         // Loader — one UNETLoader → LoraLoaderModelOnly → KSampler chain.
-        ZimageBase
+        ZimageBase,
+        // Qwen Image 2.1 (qwen21-prompt-enhancer.json) with the authored local prompt
+        // enhancer in front of it: a Qwen3-VL 8B TextGenerate pass rewrites the prompt
+        // before it reaches the encoder, behind an on/off switch (UsePromptEnhancer).
+        Qwen21Enhancer
     }
 
     public class ImageGeneratorViewModel : BasePromptViewModel, IDisposable
@@ -44,6 +48,7 @@ namespace FlipPix.UI.ViewModels
         private bool _disposed = false;
 
         private string _imagePrompt = string.Empty;
+        private bool _usePromptEnhancer = true;
         private int _aspectRatioIndex = 0;
         private int _steps = 9;
         private double _cfg = 1.5;
@@ -479,6 +484,7 @@ namespace FlipPix.UI.ViewModels
                     OnPropertyChanged(nameof(ShowKreaLoraOptions));
                     OnPropertyChanged(nameof(ShowStyleOptions));
                     OnPropertyChanged(nameof(ShowSamplerSettings));
+                    OnPropertyChanged(nameof(ShowPromptEnhancerOption));
                 }
             }
         }
@@ -518,6 +524,27 @@ namespace FlipPix.UI.ViewModels
         // baked into the JSON and changing them breaks the result, so hide the sampler panel.
         public bool ShowSamplerSettings => SelectedWorkflow != TextGeneratorWorkflow.Anima
                                            && SelectedWorkflow != TextGeneratorWorkflow.Krea2;
+
+        // Only qwen21-prompt-enhancer.json carries the local rewriter, so only it shows the toggle.
+        public bool ShowPromptEnhancerOption => SelectedWorkflow == TextGeneratorWorkflow.Qwen21Enhancer;
+
+        /// <summary>
+        /// Drives the ORIGINAL / ENHANCED switch (node 473) in qwen21-prompt-enhancer.json. With it
+        /// off the prompt reaches the encoder exactly as typed; ComfySwitchNode's branches are lazy,
+        /// so the 8B rewriter is never loaded. Ignored by every other workflow.
+        /// </summary>
+        public bool UsePromptEnhancer
+        {
+            get => _usePromptEnhancer;
+            set
+            {
+                if (_usePromptEnhancer != value)
+                {
+                    _usePromptEnhancer = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         public int SelectedStyleIndex
         {
@@ -802,6 +829,11 @@ namespace FlipPix.UI.ViewModels
                         AddLog("Using Zimage Base workflow");
                         break;
 
+                    case TextGeneratorWorkflow.Qwen21Enhancer:
+                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "qwen", "qwen21-prompt-enhancer.json");
+                        AddLog("Using Qwen Image 2.1 workflow (local prompt enhancer)");
+                        break;
+
                     case TextGeneratorWorkflow.Zimage:
                     default:
                         if (SelectedStyle != null)
@@ -905,6 +937,7 @@ namespace FlipPix.UI.ViewModels
                         TextGeneratorWorkflow.Anima => "anima",
                         TextGeneratorWorkflow.Krea2 => "krea2",
                         TextGeneratorWorkflow.ZimageBase => "z-image-base",
+                        TextGeneratorWorkflow.Qwen21Enhancer => "qwen21",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");
@@ -1442,6 +1475,8 @@ namespace FlipPix.UI.ViewModels
                     return UpdateKrea2Workflow(workflowDict);
                 case TextGeneratorWorkflow.ZimageBase:
                     return UpdateZimageBaseWorkflow(workflowDict);
+                case TextGeneratorWorkflow.Qwen21Enhancer:
+                    return UpdateQwen21EnhancerWorkflow(workflowDict);
                 default:
                     return workflow;
             }
@@ -2567,6 +2602,66 @@ namespace FlipPix.UI.ViewModels
             return JsonSerializer.SerializeToElement(workflowDict);
         }
 
+        /// <summary>
+        /// Landscape / portrait / square canvas for the Qwen Image 2.1 pass, matching the trio the
+        /// Qwen 2512 entry uses. Qwen 2.1 supports 2K directly, but the tab's aspect selector only
+        /// offers three shapes, so the same 1.7 MP sizes are used here.
+        /// </summary>
+        internal static (int Width, int Height) Qwen21Resolution(int aspectRatioIndex)
+        {
+            var resolutions = new[]
+            {
+                (1600, 1088), // Landscape
+                (1088, 1600), // Portrait
+                (1600, 1600), // Square
+            };
+            return resolutions[Math.Min(Math.Max(aspectRatioIndex, 0), resolutions.Length - 1)];
+        }
+
+        private JsonElement UpdateQwen21EnhancerWorkflow(Dictionary<string, JsonElement> workflowDict)
+        {
+            // qwen21-prompt-enhancer.json node map (see tools/convert_qwen21_enhancer.py):
+            //   468     = PrimitiveStringMultiline, USER PROMPT   → inputs.value   [set here]
+            //   473     = PrimitiveBoolean, ORIGINAL / ENHANCED   → inputs.value   [set here]
+            //   470     = the enhancer's system prompt                             [as authored]
+            //   472     = TextGenerate, Qwen3-VL 8B rewrite                        [as authored]
+            //   474     = ComfySwitchNode — picks 468 or 472 and feeds 459:452
+            //   459:452 = TextEncodeQwenImage21 → inputs.negative_prompt           [as authored]
+            //   459:456 = EmptyLatentImage → inputs.width / height                 [set here]
+            //   459:458 = KSampler → inputs.seed / steps / cfg / denoise           [set here]
+            //   461     = SaveImage, prefix "Qwen21"
+            //
+            // The prompt goes into 468 only. Writing it into 474 or 459:452 instead would cut the
+            // enhancer out of the graph, because both read their text through 468.
+
+            var (width, height) = Qwen21Resolution(AspectRatioIndex);
+
+            UpdateNodeInputs(workflowDict, "468", inputs => inputs["value"] = ImagePrompt);
+            UpdateNodeInputs(workflowDict, "473", inputs => inputs["value"] = UsePromptEnhancer);
+
+            UpdateNodeInputs(workflowDict, "459:456", inputs =>
+            {
+                inputs["width"] = width;
+                inputs["height"] = height;
+            });
+
+            // KSampler takes the seed inline and the widget is an unsigned INT, so 0 means
+            // "randomise", not "-1" — same convention as the Qwen 2512 entry.
+            var actualSeed = Seed == 0 ? new Random().NextInt64(0, 999999999999999) : Seed;
+            UpdateNodeInputs(workflowDict, "459:458", inputs =>
+            {
+                inputs["seed"] = actualSeed;
+                inputs["steps"] = Steps;
+                inputs["cfg"] = Cfg;
+                inputs["denoise"] = Denoise;
+            });
+
+            AddLog($"Qwen 2.1: {width}x{height}, seed={actualSeed}, steps={Steps}, cfg={Cfg}, " +
+                   $"prompt enhancer {(UsePromptEnhancer ? "ON (Qwen3-VL 8B rewrite)" : "OFF (prompt used as typed)")}");
+
+            return JsonSerializer.SerializeToElement(workflowDict);
+        }
+
         private JsonElement UpdateZimageBaseWorkflow(Dictionary<string, JsonElement> workflowDict)
         {
             // z-image-base.json is run AS AUTHORED. Only the prompt and the seed are injected;
@@ -3045,6 +3140,7 @@ namespace FlipPix.UI.ViewModels
                             TextGeneratorWorkflow.Anima => "Anima_",
                             TextGeneratorWorkflow.Krea2 => "Krea2_",
                             TextGeneratorWorkflow.ZimageBase => "ZBase_",
+                            TextGeneratorWorkflow.Qwen21Enhancer => "Qwen21_",
                             _ => "z-image_"
                         };
                         imageFiles = Directory.GetFiles(comfyUIOutputDir, $"{prefix}*.png")
@@ -3179,6 +3275,7 @@ namespace FlipPix.UI.ViewModels
                 TextGeneratorWorkflow.Anima => new[] { @"Anima_(\d+)_", @"Anima_(\d+)$" },
                 TextGeneratorWorkflow.Krea2 => new[] { @"Krea2_(\d+)_", @"Krea2_(\d+)$" },
                 TextGeneratorWorkflow.ZimageBase => new[] { @"ZBase_(\d+)_", @"ZBase_(\d+)$" },
+                TextGeneratorWorkflow.Qwen21Enhancer => new[] { @"Qwen21_(\d+)_", @"Qwen21_(\d+)$" },
                 _ => new[] { @"z-image_(\d+)_", @"z-image_(\d+)$" }
             };
 
@@ -3684,6 +3781,11 @@ namespace FlipPix.UI.ViewModels
                 {
                     SelectedLora = selectedLora;
                 }
+
+                if (additionalData.TryGetValue("UsePromptEnhancer", out var enhancerObj) && enhancerObj is bool usePromptEnhancer)
+                {
+                    UsePromptEnhancer = usePromptEnhancer;
+                }
             }
 
             AddLog($"Prompt loaded: {savedPrompt.Name}");
@@ -3702,7 +3804,8 @@ namespace FlipPix.UI.ViewModels
             {
                 { "SelectedWorkflow", (int)SelectedWorkflow },
                 { "LoraEnabled", LoraEnabled },
-                { "SelectedLora", SelectedLora }
+                { "SelectedLora", SelectedLora },
+                { "UsePromptEnhancer", UsePromptEnhancer }
             };
             return additionalData;
         }
@@ -3725,6 +3828,7 @@ namespace FlipPix.UI.ViewModels
                 SelectedLora = SelectedLora,
                 SelectedKreaLoras = SelectedKreaLoras.Select(l => l.ToDto()).ToList(),
                 SelectedWorkflow = SelectedWorkflow,
+                UsePromptEnhancer = UsePromptEnhancer,
                 // Style info capture
                 SelectedStyleIndex = SelectedStyleIndex,
                 StyleName = SelectedStyle?.Name ?? ""
@@ -3869,6 +3973,7 @@ namespace FlipPix.UI.ViewModels
                             LoraEnabled = queueItem.LoraEnabled;
                             SelectedLora = queueItem.SelectedLora;
                             SelectedWorkflow = queueItem.SelectedWorkflow;
+                            UsePromptEnhancer = queueItem.UsePromptEnhancer;
 
                             await ProcessQueueItemAsync(queueItem);
 
@@ -3991,6 +4096,11 @@ namespace FlipPix.UI.ViewModels
                         AddLog("Using Zimage Base workflow");
                         break;
 
+                    case TextGeneratorWorkflow.Qwen21Enhancer:
+                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "qwen", "qwen21-prompt-enhancer.json");
+                        AddLog("Using Qwen Image 2.1 workflow (local prompt enhancer)");
+                        break;
+
                     case TextGeneratorWorkflow.Zimage:
                     default:
                         // Use ZStyle workflow file if a style was selected
@@ -4045,6 +4155,7 @@ namespace FlipPix.UI.ViewModels
                 var originalSelectedLora = SelectedLora;
                 var originalSelectedKreaLoras = SelectedKreaLoras;
                 var originalSelectedWorkflow = SelectedWorkflow;
+                var originalUsePromptEnhancer = UsePromptEnhancer;
 
                 ImagePrompt = queueItem.Prompt;
                 AspectRatioIndex = queueItem.AspectRatioIndex;
@@ -4057,6 +4168,7 @@ namespace FlipPix.UI.ViewModels
                 SelectedKreaLoras = new ObservableCollection<KreaLoraSelection>(
                     (queueItem.SelectedKreaLoras ?? new List<KreaLoraDto>()).Select(d => d.ToSelection()));
                 SelectedWorkflow = queueItem.SelectedWorkflow;
+                UsePromptEnhancer = queueItem.UsePromptEnhancer;
 
                 var updatedWorkflow = UpdateWorkflowParameters(workflow);
                 _lastWorkflow = updatedWorkflow; // needed by GetOutputImagesFromComfyUI for workflow detection
@@ -4072,6 +4184,7 @@ namespace FlipPix.UI.ViewModels
                 SelectedLora = originalSelectedLora;
                 SelectedKreaLoras = originalSelectedKreaLoras;
                 SelectedWorkflow = originalSelectedWorkflow;
+                UsePromptEnhancer = originalUsePromptEnhancer;
 
                 // Execute workflow
                 ProcessingStatus = "Generating image...";
@@ -4141,6 +4254,7 @@ namespace FlipPix.UI.ViewModels
                         TextGeneratorWorkflow.Anima => "anima",
                         TextGeneratorWorkflow.Krea2 => "krea2",
                         TextGeneratorWorkflow.ZimageBase => "z-image-base",
+                        TextGeneratorWorkflow.Qwen21Enhancer => "qwen21",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");

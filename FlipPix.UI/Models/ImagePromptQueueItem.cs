@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using FlipPix.UI.ViewModels;
 
@@ -39,6 +39,12 @@ namespace FlipPix.UI.Models
 
         public TextGeneratorWorkflow SelectedWorkflow { get; set; } = TextGeneratorWorkflow.Zimage;
 
+        /// <summary>
+        /// ORIGINAL / ENHANCED switch for the Qwen 2.1 workflow (node 473). Ignored by every other
+        /// workflow. Defaults to true so items saved before the entry existed still enhance.
+        /// </summary>
+        public bool UsePromptEnhancer { get; set; } = true;
+
         // Style tracking (for Zimage ZStyle workflows)
         public int SelectedStyleIndex { get; set; } = 0;
         public string StyleName { get; set; } = string.Empty;
@@ -55,6 +61,7 @@ namespace FlipPix.UI.Models
             TextGeneratorWorkflow.Klien => "K",
             TextGeneratorWorkflow.Anima => "A",
             TextGeneratorWorkflow.ZimageBase => "ZB",
+            TextGeneratorWorkflow.Qwen21Enhancer => "Q21",
             _ => "?"
         };
 
@@ -66,6 +73,7 @@ namespace FlipPix.UI.Models
             TextGeneratorWorkflow.Klien => "#F59E0B",     // Orange
             TextGeneratorWorkflow.Anima => "#EC4899",     // Pink
             TextGeneratorWorkflow.ZimageBase => "#8B5CF6",  // Violet
+            TextGeneratorWorkflow.Qwen21Enhancer => "#0EA5E9", // Sky
             _ => "#6C757D"
         };
 

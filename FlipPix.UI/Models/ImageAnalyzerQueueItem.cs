@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using FlipPix.UI.ViewModels;
 
@@ -41,6 +41,12 @@ namespace FlipPix.UI.Models
             }
         }
 
+        /// <summary>
+        /// ORIGINAL / ENHANCED switch for the Qwen 2.1 workflow (node 473). Ignored by every other
+        /// workflow. Defaults to true so items saved before the entry existed still enhance.
+        /// </summary>
+        public bool UsePromptEnhancer { get; set; } = true;
+
         public string NegativePrompt { get; set; } = string.Empty;
         public int Width { get; set; } = 944;
         public int Height { get; set; } = 1408;
@@ -81,6 +87,7 @@ namespace FlipPix.UI.Models
             TextGeneratorWorkflow.Klien => "K",
             TextGeneratorWorkflow.Anima => "A",
             TextGeneratorWorkflow.ZimageBase => "ZB",
+            TextGeneratorWorkflow.Qwen21Enhancer => "Q21",
             _ => "?"
         };
 
@@ -92,6 +99,7 @@ namespace FlipPix.UI.Models
             TextGeneratorWorkflow.Klien => "#F59E0B",
             TextGeneratorWorkflow.Anima => "#EC4899",
             TextGeneratorWorkflow.ZimageBase => "#8B5CF6",
+            TextGeneratorWorkflow.Qwen21Enhancer => "#0EA5E9",
             _ => "#6C757D"
         };
 

@@ -419,7 +419,15 @@
                                                         <ComboBoxItem Content="Anima"/>
                                                         <ComboBoxItem Content="Krea2 (Turbo)"/>
                                                         <ComboBoxItem Content="Zimage Base (no style)"/>
+                                                        <ComboBoxItem Content="Qwen 2.1 (prompt enhancer)"/>
                                                     </ComboBox>
+                                                </StackPanel>
+
+                                                <!-- Prompt enhancer (Qwen 2.1 only) -->
+                                                <StackPanel Margin="0,0,0,12" Visibility="{Binding ShowPromptEnhancerOption, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <CheckBox Content="Rewrite prompt with Qwen3-VL 8B" IsChecked="{Binding UsePromptEnhancer, Mode=TwoWay}" FontWeight="SemiBold" FontSize="11"/>
+                                                    <TextBlock Text="Runs the workflow's own prompt-rewriting pass on the server before encoding. Off = the prompt is used exactly as written."
+                                                               FontSize="10" Foreground="#6B7280" TextWrapping="Wrap" Margin="22,2,0,0"/>
                                                 </StackPanel>
 
                                                 <!-- Style Preset (Zimage only) -->
