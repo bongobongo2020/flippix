@@ -161,6 +161,31 @@ namespace FlipPix.UI.Models
             : UseSingularity ? (SingularityErSde ? "✴️ Singularity · er_sde" : "✴️ Singularity")
             : "🌹 H3 Eros";
 
+        // ── Chained clips ───────────────────────────────────────────────────────────
+
+        /// <summary>Whether this job's stories are rendered as one continuous shot — each clip after the
+        /// first continuing from the tail of the one before it (H3 Motion Context). Kept per job, because the
+        /// render reads it live as each clip's graph is built and it is therefore frozen on the rail while
+        /// anything is rendering.</summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(RenderLine))]
+        [NotifyPropertyChangedFor(nameof(ChainLine))]
+        [NotifyPropertyChangedFor(nameof(Tooltip))]
+        private bool _chainClips = true;
+
+        /// <summary>Also pin this job's finish (upscale) pass to the previous clip's finished tail.</summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(ChainLine))]
+        [NotifyPropertyChangedFor(nameof(Tooltip))]
+        private bool _chainPinFinish = true;
+
+        public string ChainLine =>
+            !ChainClips
+                ? "clips rendered on their own"
+                : ChainPinFinish
+                    ? "🔗 chained · upscale pinned too"
+                    : "🔗 chained · draft pass only";
+
         // ── The canvas ──────────────────────────────────────────────────────────────────────────────
 
         /// <summary>The label, as the dropdown spells it. Only a placeholder: every job in the app is built
@@ -223,7 +248,8 @@ namespace FlipPix.UI.Models
         // ── The two lines under the name ────────────────────────────────────────────────────────────
 
         public string RenderLine =>
-            $"{StackLabel} · {Steps} steps · {Megapixels:0.##} MP";
+            $"{StackLabel} · {Steps} steps · {Megapixels:0.##} MP" +
+            (ChainClips ? " · 🔗 chained" : string.Empty);
 
         public string LengthLine =>
             $"{StoryDurationSeconds:0}s films · {ClipLengthSeconds:0}s clips";
@@ -231,7 +257,7 @@ namespace FlipPix.UI.Models
         /// <summary>Everything the job changes, in one line, for the row's tooltip.</summary>
         public string Tooltip =>
             $"{FolderLine}\n{StoriesLine}\n\nCast: {CastLine}\nStack: {StackLabel} at {Steps} steps\n" +
-            $"Canvas: {Megapixels:0.##} MP, {AspectRatio}\n{LengthLine}" +
+            $"Canvas: {Megapixels:0.##} MP, {AspectRatio}\n{LengthLine}\nClips: {ChainLine}" +
             (Lora.Length > 0 ? $"\nLoRA: {LabelOf(Lora)} at {LoraStrength:0.00}" : string.Empty);
 
         // ── The faces on the row ────────────────────────────────────────────────────────────────────
@@ -297,6 +323,8 @@ namespace FlipPix.UI.Models
                 UseTaoMate = UseTaoMate,
                 UseSingularity = UseSingularity,
                 SingularityErSde = SingularityErSde,
+                ChainClips = ChainClips,
+                ChainPinFinish = ChainPinFinish,
                 DiffusionModel = DiffusionModel,
                 Steps = Steps,
                 Lora = Lora,
@@ -342,6 +370,8 @@ namespace FlipPix.UI.Models
             UseTaoMate = other.UseTaoMate;
             UseSingularity = other.UseSingularity;
             SingularityErSde = other.SingularityErSde;
+            ChainClips = other.ChainClips;
+            ChainPinFinish = other.ChainPinFinish;
             DiffusionModel = other.DiffusionModel;
             Steps = other.Steps;
             Lora = other.Lora;

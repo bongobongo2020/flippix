@@ -177,6 +177,7 @@ namespace FlipPix.UI.ViewModels.Video
                     : "H3 Eros";
                 return $"{Stories.Count} stor{(Stories.Count == 1 ? "y" : "ies")} · {stack} at {Steps} steps · " +
                        $"{Megapixels:0.##} MP · {StoryDurationSeconds:0}s films of {ClipLengthSeconds:0}s clips · {who}" +
+                       (ChainClips ? " · 🔗 chained" : string.Empty) +
                        (HasLora ? $" · LoRA at {LoraStrength:0.00}" : string.Empty);
             }
         }
@@ -418,6 +419,47 @@ namespace FlipPix.UI.ViewModels.Video
         public int MinSteps => _stackDefaults(Job.UseTaoMate, Job.UseSingularity).MinSteps;
 
         public bool UsesDraftCanvas => !Job.UseTaoMate;
+
+        // ── Chained clips ────────────────────────────────────────────────────────
+
+        /// <summary>This job's own 🔗 setting. On the rail it is frozen while anything renders, which is the
+        /// whole reason it is here: a job queued mid-run can chain even though the running one does not, and
+        /// the other way round.</summary>
+        public bool ChainClips
+        {
+            get => Job.ChainClips;
+            set
+            {
+                if (Job.ChainClips == value) return;
+                Job.ChainClips = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(ChainSummary));
+                RaiseFooter();
+            }
+        }
+
+        public bool ChainPinFinish
+        {
+            get => Job.ChainPinFinish;
+            set
+            {
+                if (Job.ChainPinFinish == value) return;
+                Job.ChainPinFinish = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(ChainSummary));
+            }
+        }
+
+        public string ChainSummary =>
+            !ChainClips
+                ? "Off — every clip of a story is rendered on its own and the film is the clips butted together."
+                : "On — clip 2 onward continues from the last second of the clip before it, picture and sound, and " +
+                  "the pinned head is cut so the clips join with no seam. Each clip after the first is generated " +
+                  "0.9 s longer to make up for it. " +
+                  (ChainPinFinish
+                      ? "The upscale pass is pinned too."
+                      : "The upscale pass is not pinned — the seam is only as good as the draft's.") +
+                  " Needs ComfyUI-H3-Motion-Context on the server; without it this job renders every clip on its own.";
 
         public string StackSummary => Job.UseTaoMate
             ? $"🍥 TaoMate — a {Steps}-step schedule split across two samplers, the last leg on the TaoMate " +

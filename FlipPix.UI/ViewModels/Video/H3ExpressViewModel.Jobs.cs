@@ -318,6 +318,8 @@ namespace FlipPix.UI.ViewModels.Video
                 UseTaoMate = UseTaoMate,
                 UseSingularity = UseSingularity,
                 SingularityErSde = SingularityErSde,
+                ChainClips = ChainClips,
+                ChainPinFinish = ChainPinFinish,
                 DiffusionModel = SelectedDiffusionModel,
                 Steps = FirstPassStepCount,
                 Lora = SelectedLora,
@@ -360,6 +362,10 @@ namespace FlipPix.UI.ViewModels.Video
                     else if (job.UseSingularity) StackIsSingularity = true;
                     else StackIsEros = true;
                     SingularityErSde = job.SingularityErSde;
+
+                    // Chaining, before the clips are planned: it changes the length each clip is asked for.
+                    ChainClips = job.ChainClips;
+                    ChainPinFinish = job.ChainPinFinish;
 
                     if (job.DiffusionModel.Length > 0)
                     {
