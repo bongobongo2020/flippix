@@ -2909,6 +2909,12 @@
                                                              FontSize="11" Margin="0,2,0,2"
                                                              Foreground="{StaticResource TextPrimaryBrush}"
                                                              ToolTip="Sample every clip on h3-taomate.json — the author's TaoMate render. One ten-step linear/euler/beta57 schedule is split across two samplers: six steps on the fl2va checkpoint with comfy-kitchen attention and the 12/6 sigma shift, then the rest resampled on the TaoMate 3-step LoRA at 0.65. There is no draft canvas: the clip is painted at the Quality size and the finished frames are upscaled ×2 by RTX Video Super Resolution instead of the latent being lifted, so the file is twice the Quality canvas in each direction and the render costs more per clip. The cast, the sheets, the clip prompts and the join are unchanged. Locked while anything is rendering."/>
+                                                <RadioButton Content="🐰 BUNNY (action)" GroupName="ExpressStack"
+                                                             IsChecked="{Binding StackIsBunny, Mode=TwoWay}"
+                                                             IsEnabled="{Binding CanChangeWorkflow}"
+                                                             FontSize="11" Margin="0,2,0,2"
+                                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                                             ToolTip="Sample every clip on h3-bunny.json — the author's MiniMax H3 12GB Universal render, built around the H3 Combat LoRA. One 8-step res_multistep/simple schedule is extended with three more steps between sigma 0.65 and 0.28 (where the motion is decided) and then cut at 75%: the first three quarters are sampled with the clip's own seed and the Combat LoRA at full strength — that pass is the choreography — and the last quarter is run out by a second sampler that does not re-noise, on the same LoRA at 0.65, which takes the noise, ghosting and texture smear off the tail. One seed per clip either way. Composed at the draft canvas and lifted to the Quality one by the 3D latent upscaler, like H3 Eros and Singularity. Pick it for stories that are mostly physical action: the Combat LoRA is on the wire at full strength through the pass that decides the motion. Locked while anything is rendering."/>
                                                 <RadioButton Content="🌹 H3 Eros" GroupName="ExpressStack"
                                                              IsChecked="{Binding StackIsEros, Mode=TwoWay}"
                                                              IsEnabled="{Binding CanChangeWorkflow}"
@@ -4003,6 +4009,51 @@
                         <Grid DataContext="{Binding MiniMaxI2VVM}" Style="{StaticResource TabPageStyle}">
                             <Grid.Resources>
                                 <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource AccentAmberColor}"/>
+
+                                <!-- One LoRA on the render card: what to load, how hard, and ✕ to drop the
+                                     row. The strength only appears once something is chosen — an empty row
+                                     has nothing to weigh. -->
+                                <DataTemplate x:Key="I2VLoraRowTemplate">
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <ComboBox ItemsSource="{Binding DataContext.LoraOptions, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                      DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                      SelectedValue="{Binding Name, Mode=TwoWay}"
+                                                      Height="28" FontSize="11"
+                                                      ToolTip="A LoRA from loras/H3 on the server, applied on top of the checkpoint to every pass. Rows load in the order they are listed."/>
+                                            <StackPanel Visibility="{Binding HasLora, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <Grid Margin="0,3,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding Title}" FontSize="10" VerticalAlignment="Center"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="7,0">
+                                                        <TextBlock Text="{Binding Strength, StringFormat={}{0:0.00}}"
+                                                                   FontFamily="Consolas" FontSize="11" FontWeight="Bold"
+                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    </Border>
+                                                </Grid>
+                                                <Slider Value="{Binding Strength}" Minimum="0" Maximum="2"
+                                                        TickFrequency="0.05" IsSnapToTickEnabled="True" SmallChange="0.05" LargeChange="0.25"
+                                                        Foreground="{DynamicResource TabAccentBrush}"
+                                                        ToolTip="The LoRA's strength_model. 1.00 is the default; 0 leaves this row out of the graph."/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Content="&#x2715;" Width="22" Height="28" FontSize="10"
+                                                Margin="4,0,0,0" Padding="0" VerticalAlignment="Top" Cursor="Hand"
+                                                Command="{Binding DataContext.RemoveLoraCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}"
+                                                Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextMutedBrush}"
+                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                ToolTip="Drop this LoRA."/>
+                                    </Grid>
+                                </DataTemplate>
                             </Grid.Resources>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="360"/>
@@ -4220,6 +4271,165 @@
                                                               Height="30" FontSize="11"
                                                               ToolTip="Frames of the previous pass a continuation re-generates and blends over. The choices are H3's own valid clip lengths (17k + 5), because the overlap is handed to the model as a reference clip — more of it costs render time and buys a less visible join."/>
                                                 </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- ─── Render ──────────────────────────────────────────
+                                             The dials ⚡ H3 Express has, on this tab's graph. A stack here
+                                             is a patch rather than a second workflow file: every one of
+                                             them renders h3-minimax-i2v.json, and what changes is the
+                                             checkpoint, the sampler and scheduler, the sigma shift, the
+                                             LoRAs the stack is built around and — on 🍥 and 🐰 — the second
+                                             sampler. See MiniMaxI2VViewModel.Stacks.cs. -->
+                                        <Border Style="{StaticResource SectionCardStyle}">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="RENDER" Note="  · applies to every pass" Margin="0,0,0,10"/>
+
+                                                <TextBlock Text="Sampling stack" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,4"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                <RadioButton Content="🌀 Shipped" GroupName="I2VStack"
+                                                             IsChecked="{Binding StackIsShipped, Mode=TwoWay}"
+                                                             IsEnabled="{Binding CanChangeRender}"
+                                                             FontSize="11" Margin="0,0,0,2"
+                                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                                             ToolTip="The graph as authored: the ref2va checkpoint on the lightx2v 4-step turbo LoRA, euler/simple at 8 steps with the 12/3 sigma shift. This is what the tab rendered before the other four existed, and the only stack that keeps the turbo LoRA on the wire. Locked while anything is rendering, so a queue cannot drain half on one stack and half on another."/>
+                                                <RadioButton Content="🌹 H3 Eros" GroupName="I2VStack"
+                                                             IsChecked="{Binding StackIsEros, Mode=TwoWay}"
+                                                             IsEnabled="{Binding CanChangeRender}"
+                                                             FontSize="11" Margin="0,2,0,2"
+                                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                                             ToolTip="h3-eros.json's sampling: the 10Eros TURBO hybrid at er_sde/beta, 12 steps, with no sigma shift and the turbo LoRA taken off the wire — the three things that graph does differently. The references, the prompt and the continuation loop are this tab's, unchanged."/>
+                                                <RadioButton Content="✴️ Singularity" GroupName="I2VStack"
+                                                             IsChecked="{Binding StackIsSingularity, Mode=TwoWay}"
+                                                             IsEnabled="{Binding CanChangeRender}"
+                                                             FontSize="11" Margin="0,2,0,2"
+                                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                                             ToolTip="The Singularity ref2va checkpoint, euler/simple at 10 steps with the 12/3 sigma shift — h3-singularity.json's sampling, which is what its author measured."/>
+                                                <CheckBox Content="er_sde/beta sampler (keep the sigma shift)" IsChecked="{Binding SingularityErSde}"
+                                                          IsEnabled="{Binding CanChangeRender}"
+                                                          Visibility="{Binding StackIsSingularity, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                          FontSize="11" Margin="20,2,0,2"
+                                                          Foreground="{StaticResource TextPrimaryBrush}"
+                                                          ToolTip="Keep the Singularity checkpoint and its 12/3 shift, but sample it the H3 Eros way: er_sde/beta at 12 steps. Euler/simple at 10 is the author's setting and tends to come out softer; this is untested on that checkpoint."/>
+                                                <RadioButton Content="🍥 TaoMate relay" GroupName="I2VStack"
+                                                             IsChecked="{Binding StackIsTaoMate, Mode=TwoWay}"
+                                                             IsEnabled="{Binding CanChangeRender}"
+                                                             FontSize="11" Margin="0,2,0,2"
+                                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                                             ToolTip="h3-taomate.json's two-leg relay: one ten-step linear/euler beta57 schedule split across two ClownsharKSampler passes — six steps on the fl2va checkpoint with the 12/6 shift, then the rest resampled on the TaoMate 3-step LoRA at 0.65, which reads the checkpoint without the shift and without the attention backend, exactly as the authored graph wires it.&#x0a;&#x0a;There is no draft canvas on this stack: every pass is painted at the Quality size and the finished frames are doubled by RTX Video Super Resolution instead of the latent being lifted, so the file lands at twice Quality in each direction and the render costs more per second. The latent upscale is switched off and RTX on for you while it is chosen."/>
+                                                <RadioButton Content="🐰 BUNNY (action)" GroupName="I2VStack"
+                                                             IsChecked="{Binding StackIsBunny, Mode=TwoWay}"
+                                                             IsEnabled="{Binding CanChangeRender}"
+                                                             FontSize="11" Margin="0,2,0,2"
+                                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                                             ToolTip="h3-bunny.json's sigma split, on the fl2va/ref2va hybrid. One res_multistep/simple schedule is extended with three more steps between sigma 0.65 and 0.28 — where the motion is decided — and then cut at 75%: the first three quarters are sampled with the pass's own seed and the H3 Combat LoRA at full strength, and the last quarter is run out by a second sampler that does not re-noise, on the same LoRA at 0.65, which takes the noise and texture smear off the tail. The latent upscale then finishes it as usual.&#x0a;&#x0a;Pick it for takes that are mostly physical action: the Combat LoRA is on the wire at full strength through the pass that decides the motion."/>
+                                                <TextBlock Text="{Binding StackSummary}" FontSize="10" TextWrapping="Wrap"
+                                                           Foreground="{StaticResource TextMutedBrush}" Margin="20,2,0,10"/>
+
+                                                <!-- Sampling steps. Per checkpoint and remembered, so each
+                                                     stack keeps its own count; frozen with the stack above,
+                                                     since the count is read as each pass's graph is built. -->
+                                                <Grid Margin="0,0,0,2">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Sampling steps" FontSize="10" VerticalAlignment="Center"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="8,1">
+                                                        <TextBlock Text="{Binding FirstPassStepCount}"
+                                                                   FontFamily="Consolas" FontSize="12" FontWeight="Bold"
+                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    </Border>
+                                                    <Button Grid.Column="2" Content="&#x21BA;" Width="22" Height="20" FontSize="11"
+                                                            Margin="6,0,0,0" Padding="0"
+                                                            Command="{Binding ResetStepsCommand}"
+                                                            Visibility="{Binding HasStepsOverride, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            ToolTip="Forget the count saved for this checkpoint and go back to the one its stack is authored at."/>
+                                                </Grid>
+                                                <!-- Minimum and Maximum before Value on purpose: a Slider still
+                                                     holding its 0-10 defaults would coerce a 12-step count down
+                                                     to 10 and write that back through the two-way binding. -->
+                                                <Slider Minimum="{Binding MinStepsForStack}" Maximum="30"
+                                                        Value="{Binding FirstPassStepCount}"
+                                                        TickFrequency="1" IsSnapToTickEnabled="True" SmallChange="1" LargeChange="2"
+                                                        IsEnabled="{Binding CanChangeRender}"
+                                                        Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,2"
+                                                        ToolTip="Steps on the pass that paints the clip. Saved against the checkpoint in More options ▸ Model, so each one keeps its own — the shipped build is authored at 8, the 10Eros hybrid at 12, Singularity at 10 and BUNNY at 8 before it weaves three more in. Locked while anything is rendering."/>
+                                                <TextBlock Text="{Binding StepsSummary}" FontSize="10" TextWrapping="Wrap"
+                                                           Foreground="{StaticResource TextMutedBrush}" Margin="20,0,0,10"/>
+
+                                                <!-- The dials you set once and leave. Shut by default. -->
+                                                <Expander Header="More options" IsExpanded="False" FontSize="11">
+                                                    <StackPanel Margin="0,8,0,0">
+                                                        <TextBlock Text="Model" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                        <Grid Margin="0,0,0,4" IsEnabled="{Binding CanChangeRender}">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <ComboBox ItemsSource="{Binding DiffusionModelOptions}"
+                                                                      DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                                      SelectedValue="{Binding SelectedDiffusionModel}"
+                                                                      Height="30" FontSize="11" Margin="0,0,6,0"
+                                                                      ToolTip="The H3 checkpoint, from diffusion_models/h3-minimax on the server. Picking a stack above moves this to that stack's own checkpoint; change it afterwards and the choice sticks."/>
+                                                            <Button Grid.Column="1" Content="&#x27F3;" Width="30" Height="30" FontSize="13"
+                                                                    Command="{Binding RefreshDiffusionModelsCommand}"
+                                                                    Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                    ToolTip="Re-read the model list from ComfyUI."/>
+                                                        </Grid>
+                                                        <TextBlock Text="{Binding DiffusionModelSummary}" FontSize="10" TextWrapping="Wrap"
+                                                                   Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,10"/>
+
+                                                        <Grid Margin="0,0,0,4">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Text="LoRA stack" FontSize="10" VerticalAlignment="Center"
+                                                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                            <Button Grid.Column="1" Content="＋ Add" Height="22" Padding="8,0" FontSize="10"
+                                                                    Command="{Binding AddLoraCommand}"
+                                                                    Style="{StaticResource AccentOutlineButtonStyle}"
+                                                                    ToolTip="Add a LoRA row. The graph has five seats, so up to five stack on the checkpoint in the order they are listed."/>
+                                                            <Button Grid.Column="2" Content="&#x27F3;" Width="24" Height="22" FontSize="11"
+                                                                    Margin="4,0,0,0" Padding="0"
+                                                                    Command="{Binding RefreshLorasCommand}"
+                                                                    Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                    ToolTip="Re-read loras/H3 from ComfyUI."/>
+                                                        </Grid>
+                                                        <ItemsControl ItemsSource="{Binding Loras}"
+                                                                      ItemTemplate="{StaticResource I2VLoraRowTemplate}"
+                                                                      IsEnabled="{Binding CanChangeRender}"
+                                                                      Margin="0,2,0,0"/>
+                                                        <TextBlock Text="{Binding LoraSummary}" FontSize="10" TextWrapping="Wrap"
+                                                                   Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,10"/>
+
+                                                        <!-- Belongs to the latent-upscale finish. 🍥 TaoMate paints at the
+                                                             Quality canvas and upscales the frames, so it has no finishing
+                                                             schedule to pick — hidden rather than left to lie. -->
+                                                        <StackPanel Visibility="{Binding UsesDraftCanvas, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                            <TextBlock Text="Upscale steps" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                            <ComboBox ItemsSource="{Binding UpscaleStepOptions}"
+                                                                      SelectedItem="{Binding UpscaleSteps}"
+                                                                      Height="30" FontSize="11" Margin="0,0,0,10"
+                                                                      ToolTip="Fixed sigmas on the pass that finishes the upscaled latent. 3 is what this graph ships; 4 and 5 add detail and cost a little more. Only used with the latent upscale on."/>
+                                                        </StackPanel>
+
+                                                        <CheckBox Content="RIFE interpolation (24 → 48 fps)" IsChecked="{Binding UseRife}"
+                                                                  FontSize="11" Foreground="{StaticResource TextPrimaryBrush}"
+                                                                  ToolTip="Interpolate the finished frames to 48 fps before they are written. Unlike the Express graphs this one is not authored with RIFE, so the node is added in front of whichever sink the run saves — it never touches the frames a continuation is built from."/>
+                                                    </StackPanel>
+                                                </Expander>
+
+                                                <TextBlock Text="{Binding RenderSummary}" FontSize="10" TextWrapping="Wrap"
+                                                           Foreground="{StaticResource TextMutedBrush}" Margin="0,8,0,0"/>
                                             </StackPanel>
                                         </Border>
 
@@ -4503,7 +4713,7 @@
                                                 IsEnabled="{Binding CanGenerate}"
                                                 Style="{StaticResource AccentOutlineButtonStyle}"
                                                 FontSize="12" FontWeight="Bold"
-                                                ToolTip="Snapshots the references, prompt, continuations and every setting into the queue. Nothing renders until ▶ Generate is pressed. Each item is frozen at this moment — change the form afterwards and the queued job is unaffected.&#x0a;&#x0a;The tab stays free while jobs render: load the next picture and Analyze it, and add that too.&#x0a;&#x0a;Whichever half of the graph an item does not use — the continuation loop, or the base-only sink — is deleted before submitting rather than switched off, because a ComfyUI output node runs whether or not anything downstream wants it.">
+                                                ToolTip="Snapshots the references, prompt, continuations and every setting into the queue, and starts rendering it if nothing is on the GPU. If a take is already rendering the job waits its turn instead. Each item is frozen at this moment — change the form afterwards and the queued job is unaffected.&#x0a;&#x0a;The tab stays free while jobs render: load the next picture and Analyze it, and add that too.&#x0a;&#x0a;Whichever half of the graph an item does not use — the continuation loop, or the base-only sink — is deleted before submitting rather than switched off, because a ComfyUI output node runs whether or not anything downstream wants it.">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="⚡ " VerticalAlignment="Center"/>
                                                 <TextBlock Text="Add to Queue" VerticalAlignment="Center"/>
@@ -4519,7 +4729,7 @@
                                                 Command="{Binding StartQueueCommand}"
                                                 Style="{StaticResource AccentButtonStyle}"
                                                 FontSize="12" FontWeight="Bold"
-                                                ToolTip="Starts rendering everything pending in the queue. Add to Queue only stages a job — nothing reaches the GPU until this is pressed, so several prompts can be queued and then rendered in one run. Greyed out while the queue is already running, and when nothing is pending.">
+                                                ToolTip="Starts rendering everything pending in the queue. Add to Queue starts a job by itself when nothing is rendering, so this is for the two cases where it does not: a queue restored when the app opened, which deliberately waits to be told, and one that was stopped part way. Greyed out while the queue is already running, and when nothing is pending.">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="▶ " VerticalAlignment="Center"/>
                                                 <TextBlock Text="Generate" VerticalAlignment="Center"/>

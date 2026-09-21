@@ -1,7 +1,8 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using CommunityToolkit.Mvvm.Input;
 using FlipPix.Core.Models;
+using FlipPix.UI.Models;
 
 namespace FlipPix.UI.ViewModels.Video
 {
@@ -11,8 +12,9 @@ namespace FlipPix.UI.ViewModels.Video
     ///
     /// <para><b>Why per checkpoint and not per tab.</b> The number belongs to the weights, not to the tab:
     /// the Singularity ref2va build is what the author measured at ten steps, the 10Eros hybrid at twelve,
-    /// and the TaoMate relay splits a ten-step schedule across two samplers. One slider shared by all three
-    /// would mean every stack change silently re-tuned the other two. So a count is stored against the model
+    /// the TaoMate relay splits a ten-step schedule across two samplers, and BUNNY builds eight before
+    /// extending them. One slider shared by all four would mean every stack change silently re-tuned the
+    /// others. So a count is stored against the model
     /// it was set for — <see cref="ComfyUISettings.H3ExpressStepsByModel"/> — and moving the Model dropdown
     /// (or picking a stack, which moves it) brings that model's own count back.</para>
     ///
@@ -126,14 +128,19 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 var authored = AuthoredFirstPassSteps;
                 var steps = FirstPassStepCount;
-                var stack = UseTaoMate
-                    ? $"the relay's whole schedule — {TaoMateMinSteps - 1} steps on the base weights, the rest " +
-                      "resampled on the TaoMate LoRA"
-                    : UseSingularity
-                        ? SingularityErSde
-                            ? "er_sde/beta over the Singularity graph"
-                            : "euler/simple, as the Singularity graph is authored"
-                        : "er_sde/beta on the 10Eros hybrid";
+                var stack = Stack switch
+                {
+                    ExpressStack.TaoMate =>
+                        $"the relay's whole schedule — {TaoMateMinSteps - 1} steps on the base weights, the " +
+                        "rest resampled on the TaoMate LoRA",
+                    ExpressStack.Bunny =>
+                        "the schedule BUNNY extends and splits — three more steps are woven into the mid " +
+                        $"sigmas and the last {BunnySplit:0%} of what comes out is the cleanup pass",
+                    ExpressStack.Singularity => SingularityErSde
+                        ? "er_sde/beta over the Singularity graph"
+                        : "euler/simple, as the Singularity graph is authored",
+                    _ => "er_sde/beta on the 10Eros hybrid"
+                };
 
                 var where = steps == authored
                     ? $"the authored count for this stack ({stack})."

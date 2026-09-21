@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -32,7 +32,7 @@ namespace FlipPix.UI.ViewModels.Video
     public partial class ExpressJobViewModel : ObservableObject
     {
         private readonly IFileDialogService _files;
-        private readonly Func<bool, bool, ExpressStackDefaults> _stackDefaults;
+        private readonly Func<ExpressStack, ExpressStackDefaults> _stackDefaults;
         private readonly Action<string> _log;
         private readonly string _pictureFolder;
 
@@ -48,7 +48,7 @@ namespace FlipPix.UI.ViewModels.Video
             IReadOnlyList<DiffusionModelOption> castPhotoEngines,
             IReadOnlyList<H3VisualStyle> visualStyles,
             double maxStoryDurationSeconds,
-            Func<bool, bool, ExpressStackDefaults> stackDefaults,
+            Func<ExpressStack, ExpressStackDefaults> stackDefaults,
             IFileDialogService files,
             Action<string> log,
             string pictureFolder)
@@ -172,9 +172,13 @@ namespace FlipPix.UI.ViewModels.Video
                 var cast = new[] { Cast1, Cast2 }.Count(m => m.PhotoPath.Length > 0);
                 var who = cast == 0 ? "cast from each story"
                     : $"{cast} of your own, {(CastOwnClothes ? "their own clothes" : "the story's wardrobe")}";
-                var stack = Job.UseTaoMate ? "TaoMate"
-                    : Job.UseSingularity ? (SingularityErSde ? "Singularity er_sde" : "Singularity")
-                    : "H3 Eros";
+                var stack = Job.Stack switch
+                {
+                    ExpressStack.TaoMate => "TaoMate",
+                    ExpressStack.Bunny => "BUNNY",
+                    ExpressStack.Singularity => SingularityErSde ? "Singularity er_sde" : "Singularity",
+                    _ => "H3 Eros"
+                };
                 return $"{Stories.Count} stor{(Stories.Count == 1 ? "y" : "ies")} · {stack} at {Steps} steps · " +
                        $"{Megapixels:0.##} MP · {StoryDurationSeconds:0}s films of {ClipLengthSeconds:0}s clips · {who}" +
                        (ChainClips ? " · 🔗 chained" : string.Empty) +
@@ -327,37 +331,43 @@ namespace FlipPix.UI.ViewModels.Video
 
         public bool StackIsEros
         {
-            get => !Job.UseTaoMate && !Job.UseSingularity;
-            set { if (value) SelectStack(taoMate: false, singularity: false); }
+            get => Job.Stack == ExpressStack.Eros;
+            set { if (value) SelectStack(ExpressStack.Eros); }
         }
 
         public bool StackIsSingularity
         {
-            get => !Job.UseTaoMate && Job.UseSingularity;
-            set { if (value) SelectStack(taoMate: false, singularity: true); }
+            get => Job.Stack == ExpressStack.Singularity;
+            set { if (value) SelectStack(ExpressStack.Singularity); }
         }
 
         public bool StackIsTaoMate
         {
-            get => Job.UseTaoMate;
-            set { if (value) SelectStack(taoMate: true, singularity: false); }
+            get => Job.Stack == ExpressStack.TaoMate;
+            set { if (value) SelectStack(ExpressStack.TaoMate); }
         }
 
-        private void SelectStack(bool taoMate, bool singularity)
+        public bool StackIsBunny
         {
-            if (taoMate == Job.UseTaoMate && singularity == Job.UseSingularity) return;
-            Job.UseTaoMate = taoMate;
-            Job.UseSingularity = singularity;
+            get => Job.Stack == ExpressStack.Bunny;
+            set { if (value) SelectStack(ExpressStack.Bunny); }
+        }
+
+        private void SelectStack(ExpressStack stack)
+        {
+            if (Job.Stack == stack) return;
+            Job.Stack = stack;
 
             // The checkpoint is the stack, as it is on the rail — and the step count comes back with it,
             // this checkpoint's own if one has been saved for it.
-            var d = _stackDefaults(taoMate, singularity);
+            var d = _stackDefaults(stack);
             Job.DiffusionModel = d.Model;
             Job.Steps = Math.Clamp(d.Steps, d.MinSteps, MaxSteps);
 
             OnPropertyChanged(nameof(StackIsEros));
             OnPropertyChanged(nameof(StackIsSingularity));
             OnPropertyChanged(nameof(StackIsTaoMate));
+            OnPropertyChanged(nameof(StackIsBunny));
             OnPropertyChanged(nameof(SelectedDiffusionModel));
             OnPropertyChanged(nameof(Steps));
             OnPropertyChanged(nameof(MinSteps));
@@ -416,9 +426,9 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>Seven on 🍥 TaoMate, which spends six of the schedule before the LoRA leg starts.</summary>
-        public int MinSteps => _stackDefaults(Job.UseTaoMate, Job.UseSingularity).MinSteps;
+        public int MinSteps => _stackDefaults(Job.Stack).MinSteps;
 
-        public bool UsesDraftCanvas => !Job.UseTaoMate;
+        public bool UsesDraftCanvas => Job.Stack != ExpressStack.TaoMate;
 
         // ── Chained clips ────────────────────────────────────────────────────────
 
@@ -461,16 +471,26 @@ namespace FlipPix.UI.ViewModels.Video
                       : "The upscale pass is not pinned — the seam is only as good as the draft's.") +
                   " Needs ComfyUI-H3-Motion-Context on the server; without it this job renders every clip on its own.";
 
-        public string StackSummary => Job.UseTaoMate
-            ? $"🍥 TaoMate — a {Steps}-step schedule split across two samplers, the last leg on the TaoMate " +
-              "3-step LoRA, then an RTX ×2 frame upscale. No draft canvas: the Quality below is what the " +
-              "model paints, and the file lands at twice it in each direction."
-            : Job.UseSingularity
-                ? $"✴️ Singularity — the Singularity ref2va checkpoint with the author's patches, " +
-                  $"{(SingularityErSde ? "er_sde/beta" : "euler/simple")} at {Steps} steps, composed at the " +
-                  "draft canvas and lifted to the Quality one."
-                : $"🌹 H3 Eros — the 10Eros hybrid checkpoint, er_sde/beta at {Steps} steps, composed at the " +
-                  "draft canvas and lifted to the Quality one.";
+        public string StackSummary => Job.Stack switch
+        {
+            ExpressStack.TaoMate =>
+                $"🍥 TaoMate — a {Steps}-step schedule split across two samplers, the last leg on the TaoMate " +
+                "3-step LoRA, then an RTX ×2 frame upscale. No draft canvas: the Quality below is what the " +
+                "model paints, and the file lands at twice it in each direction.",
+            ExpressStack.Bunny =>
+                $"🐰 BUNNY — the fl2va/ref2va hybrid, a {Steps}-step res_multistep/simple schedule with three " +
+                "more steps woven into the mid sigmas and the last quarter run out as a cleanup that does not " +
+                "re-noise, on the Combat LoRA at 1.00 then 0.65. Composed at the draft canvas and lifted to " +
+                "the Quality one. Built for action.",
+            ExpressStack.Singularity =>
+                $"✴️ Singularity — the Singularity ref2va checkpoint with the author's patches, " +
+                $"{(SingularityErSde ? "er_sde/beta" : "euler/simple")} at {Steps} steps, composed at the " +
+                "draft canvas and lifted to the Quality one.",
+            _ =>
+                $"🌹 H3 Eros — the 10Eros hybrid checkpoint, er_sde/beta at {Steps} steps, composed at the " +
+                "draft canvas and lifted to the Quality one."
+        };
+
 
         // ── The canvas and the lengths ──────────────────────────────────────────────────────────────
 

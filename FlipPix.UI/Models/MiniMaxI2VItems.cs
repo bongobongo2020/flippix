@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -316,6 +316,103 @@ namespace FlipPix.UI.Models
         }
 
         /// <summary>Raised when the length changes, so the tab can retotal the running time.</summary>
+        public event EventHandler? Changed;
+    }
+
+    /// <summary>
+    /// Which way 🌀 MiniMax I2V samples. Unlike ⚡ H3 Express, where a stack <i>is</i> a workflow file, every
+    /// one of these renders <c>h3-minimax-i2v.json</c> — the tab's references, its continuation loop, its
+    /// canvas and its prune are the same on all five. What changes is the sampling: the checkpoint, the
+    /// sampler and scheduler, the sigma shift, the LoRAs the stack is built around and, on
+    /// <see cref="TaoMate"/> and <see cref="Bunny"/>, the two-stage relay. See MiniMaxI2VViewModel.Stacks.cs.
+    /// </summary>
+    public enum I2VStack
+    {
+        /// <summary>The graph as authored: the ref2va checkpoint on the lightx2v 4-step turbo LoRA,
+        /// euler/simple at 8 with the 12/3 shift. The only stack that keeps the turbo LoRA.</summary>
+        Shipped,
+
+        /// <summary>🌹 The 10Eros hybrid, er_sde/beta at 12, no sigma shift — h3-eros.json's sampling.</summary>
+        Eros,
+
+        /// <summary>✴️ The Singularity ref2va build, euler/simple at 10 with the 12/3 shift.</summary>
+        Singularity,
+
+        /// <summary>🍥 The TaoMate relay: one linear/euler beta57 schedule handed from the fl2va weights to
+        /// the TaoMate 3-step LoRA partway through, finished by an RTX frame upscale rather than a latent
+        /// one — the one stack with no draft canvas.</summary>
+        TaoMate,
+
+        /// <summary>🐰 The BUNNY sigma split: three extra steps woven into the mid sigmas, the schedule cut
+        /// at 75%, the action sampled on the Combat LoRA at full strength and the tail run out by a second
+        /// sampler that does not re-noise.</summary>
+        Bunny,
+    }
+
+    /// <summary>
+    /// One LoRA row on the 🌀 MiniMax I2V render card. The graph ships five switched
+    /// <c>LoraLoaderModelOnly</c> seats, so up to five of these stack onto the checkpoint in list order.
+    ///
+    /// <para>The row owns no commands of its own: ✕ is bound to the tab's remove command with the row as
+    /// its parameter, the way the continuation rows already are, so the list stays a plain model.</para>
+    /// </summary>
+    public partial class MiniMaxI2VLoraSlot : ObservableObject
+    {
+        private string _name = string.Empty;
+        private double _strength = 1.0;
+        private int _index;
+
+        public MiniMaxI2VLoraSlot(int index, string name = "", double strength = 1.0)
+        {
+            _index = index;
+            _name = (name ?? string.Empty).Trim().Replace('\\', '/');
+            _strength = Math.Clamp(strength, 0.0, 2.0);
+        }
+
+        /// <summary>1-based position in the stack; renumbered when an earlier row is removed.</summary>
+        public int Index
+        {
+            get => _index;
+            set { if (_index == value) return; _index = value; OnPropertyChanged(); OnPropertyChanged(nameof(Title)); }
+        }
+
+        public string Title => $"LoRA {Index}";
+
+        /// <summary>As ComfyUI names it — <c>H3/….safetensors</c> — or empty for a row that loads nothing.</summary>
+        public string Name
+        {
+            get => _name;
+            set
+            {
+                var name = (value ?? string.Empty).Trim().Replace('\\', '/');
+                if (_name == name) return;
+                _name = name;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(HasLora));
+                Changed?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        public bool HasLora => _name.Length > 0;
+
+        /// <summary><c>strength_model</c>. 0 leaves the row out of the submitted graph entirely.</summary>
+        public double Strength
+        {
+            get => _strength;
+            set
+            {
+                var v = Math.Clamp(Math.Round(value, 2), 0.0, 2.0);
+                if (Math.Abs(_strength - v) < 0.0001) return;
+                _strength = v;
+                OnPropertyChanged();
+                Changed?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        /// <summary>Whether this row actually reaches the graph: something chosen, at a strength above 0.</summary>
+        public bool IsActive => HasLora && _strength > 0.0;
+
+        /// <summary>Raised when the row changes, so the tab can re-summarise and persist.</summary>
         public event EventHandler? Changed;
     }
 }

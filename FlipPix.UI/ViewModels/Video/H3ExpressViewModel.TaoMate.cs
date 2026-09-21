@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text.Json.Nodes;
 using FlipPix.Core.Models;
 using FlipPix.UI.Models;
@@ -72,9 +72,10 @@ namespace FlipPix.UI.ViewModels.Video
             _useTaoMate = _settingsService.Settings?.H3ExpressUseTaoMate ?? false;
             if (!_useTaoMate) return;
 
-            // The two stacks are one choice. Settings holding both — an older file, or a hand edit — is
-            // resolved here rather than at every read.
+            // The stacks are one choice. Settings holding more than one — an older file, or a hand edit —
+            // is resolved here rather than at every read.
             ClearSingularity();
+            ClearBunny();
 
             var stored = (RecallDiffusionModel(_settingsService.Settings) ?? string.Empty)
                 .Trim().Replace('\\', '/');
@@ -92,8 +93,9 @@ namespace FlipPix.UI.ViewModels.Video
         /// <summary>
         /// Whether every clip is relayed on the TaoMate stack instead of the Singularity or H3 Eros one.
         ///
-        /// <para>Exclusive with <see cref="H3BatchViewModel.UseSingularity"/> — three stacks, one choice —
-        /// which is why the page binds the radio group below rather than this. Persisted, and refused
+        /// <para>Exclusive with <see cref="H3BatchViewModel.UseSingularity"/> and <see cref="UseBunny"/> —
+        /// four stacks, one choice — which is why the page binds the radio group in
+        /// H3ExpressViewModel.Stacks.cs rather than this. Persisted, and refused
         /// mid-run for the reason <see cref="H3BatchViewModel.CanChangeWorkflow"/> gives: the workflow file
         /// and the step count are read live by the render, so a folder switched halfway is a folder of films
         /// that do not match each other.</para>
@@ -104,7 +106,7 @@ namespace FlipPix.UI.ViewModels.Video
             set
             {
                 if (_useTaoMate == value) return;
-                if (value) ClearSingularity();
+                if (value) { ClearSingularity(); ClearBunny(); }
                 _useTaoMate = value;
                 OnPropertyChanged();
                 RaiseStackState();
@@ -139,81 +141,22 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        /// <summary>The three stacks as one radio group. A radio only ever asks to be turned <i>on</i>; the
-        /// group turns the others off, and the getters are computed, so there is no fourth state to keep in
-        /// step.</summary>
-        public bool StackIsEros
+        /// <summary>Turns 🍥 off <b>quietly</b> — no log line, and the model dropdown left where it is — for
+        /// another stack that is taking the render over and is about to say so itself. The counterpart of
+        /// <see cref="H3BatchViewModel.ClearSingularity"/>.</summary>
+        private void ClearTaoMate()
         {
-            get => !UseTaoMate && !UseSingularity;
-            set { if (value) SelectStack(taoMate: false, singularity: false); }
-        }
+            if (!_useTaoMate) return;
+            _useTaoMate = false;
+            OnPropertyChanged(nameof(UseTaoMate));
 
-        /// <inheritdoc cref="StackIsEros"/>
-        public bool StackIsSingularity
-        {
-            get => !UseTaoMate && UseSingularity;
-            set { if (value) SelectStack(taoMate: false, singularity: true); }
-        }
-
-        /// <inheritdoc cref="StackIsEros"/>
-        public bool StackIsTaoMate
-        {
-            get => UseTaoMate;
-            set { if (value) SelectStack(taoMate: true, singularity: false); }
-        }
-
-        private void SelectStack(bool taoMate, bool singularity)
-        {
-            if (taoMate == UseTaoMate && singularity == UseSingularity) return;
-
-            // Through the properties, so each one logs what it did, persists itself and moves the model
-            // dropdown onto the stack that ends up chosen. TaoMate goes first when it is being turned off,
-            // so ✴️ has the last word on the checkpoint.
-            if (taoMate)
+            var settings = _settingsService.Settings;
+            if (settings != null)
             {
-                UseTaoMate = true;
+                settings.H3ExpressUseTaoMate = false;
+                _settingsService.SaveSettings(settings);
             }
-            else
-            {
-                UseTaoMate = false;
-                UseSingularity = singularity;
-            }
-            RaiseStackState();
         }
-
-        private void RaiseStackState()
-        {
-            OnPropertyChanged(nameof(StackIsEros));
-            OnPropertyChanged(nameof(StackIsSingularity));
-            OnPropertyChanged(nameof(StackIsTaoMate));
-            OnPropertyChanged(nameof(StackSummary));
-            OnPropertyChanged(nameof(HuntSummary));
-            OnPropertyChanged(nameof(UsesDraftCanvas));
-            // The frame stack is four times the pixels on this stack, so the warning changes with it.
-            OnPropertyChanged(nameof(LoadSummary));
-            OnPropertyChanged(nameof(HasLoadWarning));
-        }
-
-        /// <summary>Whether the chosen stack composes at a draft canvas and lifts the latent to the finished
-        /// one. False on TaoMate, which paints at the quality canvas and upscales the decoded frames — so the
-        /// page hides the two dials (the composition canvas and the finishing sigmas) that would otherwise
-        /// sit there doing nothing.</summary>
-        public bool UsesDraftCanvas => !UseTaoMate;
-
-        // ── Identity: what the switch actually changes ───────────────────────────────────────────────
-
-        protected override string WorkflowFileName => UseTaoMate ? TaoMateWorkflow : base.WorkflowFileName;
-
-        protected override string ShippedModel => UseTaoMate ? TaoMateModel : base.ShippedModel;
-
-        /// <summary>Ten, both legs. The base's twelve is the Eros hybrid's and ✴️'s ten is the Singularity
-        /// checkpoint's; this one is the length of the schedule the relay splits.
-        ///
-        /// <para>The count each stack is <i>authored</i> at, rather than the one the render uses: the steps
-        /// slider stores a count per checkpoint over the top of this, and
-        /// <see cref="FirstPassSteps"/> — overridden in H3ExpressViewModel.Steps.cs — is what the graph is
-        /// actually written with.</para></summary>
-        protected int AuthoredFirstPassSteps => UseTaoMate ? TaoMateSteps : base.FirstPassSteps;
 
         /// <summary>
         /// On this stack the model paints at the Quality dropdown's canvas, not at the draft one: the finish

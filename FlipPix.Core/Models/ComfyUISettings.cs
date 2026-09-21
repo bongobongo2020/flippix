@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -60,6 +60,41 @@ public class ComfyUISettings
         "The video maintains the identity and appearance of <Subject 2> from <Picture 2>. "
         + "The visual style retains the wide-angle fisheye lens distortion and stereoscopic 3D "
         + "{LAYOUT} format of <Picture 1>, with <Subject 2> as the central figure.";
+    // ── 🌀 MiniMax I2V: the render stack ────────────────────────────────────────────────────────
+    // The tab drives one graph (h3-minimax-i2v.json), so a "stack" here is not a second file the way it is
+    // on ⚡ H3 Express — it is that graph sampled the way the Express stack it is named for samples: its
+    // checkpoint, its sampler and scheduler, its sigma shift, its own LoRAs and, on 🍥/🐰, its relay. See
+    // MiniMaxI2VViewModel.Stacks.cs for exactly what each one writes.
+    //
+    // Stored as the enum's name rather than a bool per stack: the Express flags predate the radio group and
+    // have to be reconciled at startup, which is a bug this tab does not need to inherit. An unknown or
+    // missing value falls back to Shipped — the graph as authored.
+    public string MiniMaxI2VStack { get; set; } = "Shipped";
+
+    // ✴️'s sub-option, as on Express: the Singularity checkpoint and its 12/3 shift, sampled er_sde/beta at
+    // 12 steps instead of euler/simple at 10.
+    public bool MiniMaxI2VSingularityErSde { get; set; }
+
+    // The checkpoint the tab loads, as ComfyUI names it under diffusion_models/. Empty = whatever the chosen
+    // stack ships. Picking a stack moves this onto that stack's checkpoint; changing it afterwards sticks.
+    public string MiniMaxI2VDiffusionModel { get; set; } = string.Empty;
+
+    // Sampling steps per checkpoint, keyed by model name (lowercased, forward slashes) — the same scheme as
+    // H3ExpressStepsByModel, and for the same reason: the count belongs to the weights, not to the tab. A
+    // checkpoint that has never been set is absent and renders at its stack's authored count.
+    public Dictionary<string, int> MiniMaxI2VStepsByModel { get; set; } = new();
+
+    // Up to five LoRAs from loras/H3, stacked onto the checkpoint in list order. The graph ships five
+    // switched LoraLoaderModelOnly seats, which is where these land; an empty list leaves all five off.
+    public List<MiniMaxI2VLora> MiniMaxI2VLoras { get; set; } = new();
+
+    // Fixed sigmas on the finishing pass of the latent upscale: 3, 4 or 5. Three is what the graph ships.
+    public int MiniMaxI2VUpscaleSteps { get; set; } = 3;
+
+    // RIFE on the finished frames, 24 → 48 fps. Off by default: unlike the Express graphs this one is not
+    // authored with it, so it is an addition rather than a setting.
+    public bool MiniMaxI2VUseRife { get; set; }
+
     public LMStudioSettings LMStudioSettings { get; set; } = new LMStudioSettings();
 
     /// <summary>
@@ -229,6 +264,11 @@ public class ComfyUISettings
     // instead of a latent one. Mutually exclusive with Singularity above; the Express tab's radio group
     // keeps the two in step, and this wins if both are somehow set.
     public bool H3ExpressUseTaoMate { get; set; }
+    // 🐰 The fourth stack: the author's BUNNY 12GB Universal render (h3-bunny.json) — one schedule extended
+    // through the mid sigmas and split at 75%, the action structure sampled on the Combat LoRA at full
+    // strength and the last quarter run out as a cleanup that does not re-noise, then the tab's own latent
+    // upscale. Mutually exclusive with the two above; the Express tab's radio group keeps them in step.
+    public bool H3ExpressUseBunny { get; set; }
     // Sampling steps per checkpoint: the first-pass step count the Express tab renders with, keyed by the
     // model name it was set for (lowercased, forward slashes). A checkpoint that has never been set is not
     // in here at all and renders at the step count its stack was authored at — Singularity's 10, the Eros
@@ -356,4 +396,14 @@ public class SavedCameraPrompt
     public string Name { get; set; } = string.Empty;
     public string Prompt { get; set; } = string.Empty;
     public string Icon { get; set; } = "💾";
+}
+
+/// <summary>One LoRA on 🌀 MiniMax I2V's stack: what to load, and at what model strength. Strength 0 leaves
+/// it out of the submitted graph altogether rather than loading it as a no-op.</summary>
+public class MiniMaxI2VLora
+{
+    /// <summary>As ComfyUI names it, relative to the loras root — e.g. <c>H3/H3_Combat_V2.safetensors</c>.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    public double Strength { get; set; } = 1.0;
 }

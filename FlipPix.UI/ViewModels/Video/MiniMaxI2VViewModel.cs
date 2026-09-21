@@ -247,6 +247,10 @@ namespace FlipPix.UI.ViewModels.Video
             SavePromptCommand = new RelayCommand(async () => await SaveCurrentPromptAsync(manual: true),
                 () => !string.IsNullOrWhiteSpace(Prompt));
 
+            // Before the queue is restored: InitRender builds the card's own commands, and a restored row
+            // is described in terms of what the card offers.
+            InitRender();
+
             // Only once every command exists: restoring a queue notifies all of them.
             _queue.CollectionChanged += (_, _) => UpdateQueueStatus();
             LoadQueueFromFile();
@@ -1395,6 +1399,18 @@ namespace FlipPix.UI.ViewModels.Video
                 UseRtxUpscale = UseRtxUpscale,
                 UseAudioEnhancement = UseAudioEnhancement,
                 MaxFidelityReferences = MaxFidelityReferences,
+
+                // The render card, frozen with everything else — see MiniMaxI2VQueueItem.
+                Stack = Stack,
+                SingularityErSde = SingularityErSde,
+                DiffusionModel = SelectedDiffusionModel,
+                FirstPassSteps = FirstPassStepCount,
+                Loras = Loras
+                    .Where(l => l.IsActive)
+                    .Select(l => new MiniMaxI2VLoraChoice { Name = l.Name, Strength = l.Strength })
+                    .ToList(),
+                UpscaleSteps = UpscaleSteps,
+                UseRife = UseRife,
             };
 
             _queue.Add(item);
@@ -1402,13 +1418,21 @@ namespace FlipPix.UI.ViewModels.Video
             UpdateQueueStatus();
             SaveQueueToFile();
 
-            // Queueing stages the job; it does not start it. Add to Queue and Generate are separate
-            // buttons so a run can be built up prompt by prompt and then rendered in one pass — the
-            // GPU is only claimed when ▶ Generate (StartQueueCommand) is pressed.
-            AddLog(IsProcessingQueue
+            // Read before starting: ProcessQueueAsync sets IsProcessingQueue on its first synchronous
+            // statement, so asking afterwards would always say "already running".
+            var wasRunning = IsProcessingQueue;
+
+            AddLog(wasRunning
                 ? "Added to the queue — the queue is already running, so this is picked up when the item " +
                   "on the GPU finishes."
-                : "Added to the queue — nothing is rendering yet. Press ▶ Generate to start.");
+                : "Added to the queue — nothing was rendering, so this starts now.");
+
+            // Queueing a job when nothing is on the GPU starts it. A queue that is already draining is
+            // left alone: the item joins the back of it and the loop picks it up on its own, which is
+            // what makes it safe to keep adding while a take renders. ▶ Generate stays on the page for
+            // the other two cases — a queue restored from disk at startup, which deliberately does not
+            // start itself, and one that was stopped part way.
+            if (!wasRunning) _ = ProcessQueueAsync();
         }
 
         private void RemoveQueueItem(MiniMaxI2VQueueItem? item)
@@ -2344,6 +2368,17 @@ namespace FlipPix.UI.ViewModels.Video
 
             var extending = item.ContinuationPrompts.Count > 0;
 
+            // 🍥 TaoMate paints at the Quality canvas and doubles the decoded frames; it has no draft to
+            // halve and no latent for the upscaler to lift. Corrected on the item rather than worked around
+            // here, so the canvas arithmetic below and the queue row agree about what is being rendered —
+            // and so a queue restored from a file written before the stack existed still lands somewhere
+            // coherent.
+            if (item.Stack == I2VStack.TaoMate)
+            {
+                item.UseLatentUpscale = false;
+                item.UseRtxUpscale = true;
+            }
+
             // ── References ────────────────────────────────────────────────────
             SetInput(root, NodeReference0, "image", uploaded[0]);
             var loaders = new List<string> { NodeReference0 };
@@ -2427,6 +2462,14 @@ namespace FlipPix.UI.ViewModels.Video
             }
             SetInput(root, NodeSparseAttention, "switch", item.UseSparseAttention);
 
+            // ── The render card ───────────────────────────────────────────────
+            // The checkpoint, the LoRA stack, the step count, the sampler and scheduler, and whichever
+            // relay the chosen stack is. Before the sampling scheme below on purpose: that section owns
+            // which sigmas each pass reads, and 🐰 has already moved its first sampler onto its own split
+            // schedule — the draft/finish wiring there must have the last word, or a stack could be left
+            // reading a schedule the run is not using.
+            ApplyRenderStack(root, item, sink, runSeed);
+
             // ── Sampling scheme ───────────────────────────────────────────────
             // The 2x has to be written into all three places that derive the finished canvas: the two
             // latent upscalers, and the loop's own width/height expressions for the conditioning latent
@@ -2441,10 +2484,16 @@ namespace FlipPix.UI.ViewModels.Video
             // With the upscale on, the first sampler is only a draft and stops half-denoised at sigma 0.5
             // — the finish sampler picks it up from there. With it off there is no finish sampler, so the
             // same node has to run the full shifted schedule down to zero instead.
-            Link(root, NodeBaseSampler, "sigmas",
-                 item.UseLatentUpscale ? NodeDraftSigmas : NodeBaseFullSigmas, 0);
-            Link(root, NodeLoopSampler, "sigmas",
-                 item.UseLatentUpscale ? NodeDraftSigmas : NodeLoopFullSigmas, 0);
+            // 🐰 is the exception: its first sampler runs the top three quarters of its own extended and
+            // split schedule and its second runs the tail out, so neither draft_split nor the plain
+            // scheduler is what it reads. ApplyRenderStack has already wired it.
+            if (item.Stack != I2VStack.Bunny)
+            {
+                Link(root, NodeBaseSampler, "sigmas",
+                     item.UseLatentUpscale ? NodeDraftSigmas : NodeBaseFullSigmas, 0);
+                Link(root, NodeLoopSampler, "sigmas",
+                     item.UseLatentUpscale ? NodeDraftSigmas : NodeLoopFullSigmas, 0);
+            }
 
             // Only the half that owns the saved sink finishes the frames and the audio: on the base pass
             // these would hand the loop 2x frames and already-enhanced audio to enhance a second time.
@@ -2484,11 +2533,11 @@ namespace FlipPix.UI.ViewModels.Video
         };
 
         /// <summary>
-        /// Repoints every link that reads <paramref name="slot"/> of <paramref name="sourceId"/> at slot 0
-        /// of <paramref name="newId"/> instead. Substitutes a node whose outputs several others consume
-        /// without having to know which those are.
+        /// Repoints every link that reads <paramref name="slot"/> of <paramref name="sourceId"/> at
+        /// <paramref name="newSlot"/> of <paramref name="newId"/> instead. Substitutes a node whose outputs
+        /// several others consume without having to know which those are.
         /// </summary>
-        private static void Retarget(JsonObject root, string sourceId, int slot, string newId)
+        private static void Retarget(JsonObject root, string sourceId, int slot, string newId, int newSlot = 0)
         {
             foreach (var node in root)
             {
@@ -2501,7 +2550,7 @@ namespace FlipPix.UI.ViewModels.Video
                     if (link[1] is not JsonValue index || !index.TryGetValue<int>(out var i) || i != slot)
                         continue;
 
-                    inputs[input.Key] = new JsonArray(newId, 0);
+                    inputs[input.Key] = new JsonArray(newId, newSlot);
                 }
             }
         }
@@ -2723,6 +2772,7 @@ namespace FlipPix.UI.ViewModels.Video
             StopQueueCommand.NotifyCanExecuteChanged();
             ReprocessAllFailedCommand.NotifyCanExecuteChanged();
             SavePromptCommand.NotifyCanExecuteChanged();
+            RaiseRenderGate();
         }
     }
 

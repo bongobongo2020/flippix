@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -55,6 +55,32 @@ namespace FlipPix.UI.Models
         public bool UseAudioEnhancement { get; set; } = true;
         public bool MaxFidelityReferences { get; set; }
 
+        // ── The render stack, frozen like everything else ───────────────────────────────────────────
+        // Read once when the item runs. The stack, the checkpoint and the step count are what the graph is
+        // built from, so a queue drained after the card was changed would otherwise render halves of two
+        // different settings — and the take a user queued would not be the take that came back.
+
+        /// <summary>Which way this item samples — see <see cref="I2VStack"/>.</summary>
+        public I2VStack Stack { get; set; } = I2VStack.Shipped;
+
+        /// <summary>✴️'s sub-option: er_sde/beta over the Singularity graph instead of euler/simple.</summary>
+        public bool SingularityErSde { get; set; }
+
+        /// <summary>The checkpoint, as ComfyUI names it. Empty = leave the graph's own.</summary>
+        public string DiffusionModel { get; set; } = string.Empty;
+
+        /// <summary>Sampling steps on the pass that paints the clip. 0 = the stack's authored count.</summary>
+        public int FirstPassSteps { get; set; }
+
+        /// <summary>The LoRA stack, in load order. Rows at strength 0 never reach the graph.</summary>
+        public List<MiniMaxI2VLoraChoice> Loras { get; set; } = new();
+
+        /// <summary>Fixed sigmas on the latent-upscale finish: 3, 4 or 5.</summary>
+        public int UpscaleSteps { get; set; } = 3;
+
+        /// <summary>RIFE on the finished frames, 24 → 48 fps.</summary>
+        public bool UseRife { get; set; }
+
         [JsonIgnore]
         public int PassCount => ContinuationPrompts.Count + 1;
 
@@ -74,7 +100,10 @@ namespace FlipPix.UI.Models
                 var detail = UseLatentUpscale ? " · latent ×2" : string.Empty;
                 var rtx = UseRtxUpscale ? " · RTX ×2" : string.Empty;
                 var sla = UseSla ? $" · SLA {SlaSparsity:0.00}" : string.Empty;
-                return $"{refs} → {AspectRatio} · {Megapixels:0.0} MP · {TotalSeconds}s{passes}{detail}{rtx}{sla}";
+                var stack = Stack == I2VStack.Shipped ? string.Empty : $" · {Stack}";
+                var loras = Loras.Count(l => l.IsActive);
+                var lora = loras == 0 ? string.Empty : $" · {loras} LoRA{(loras == 1 ? string.Empty : "s")}";
+                return $"{refs} → {AspectRatio} · {Megapixels:0.0} MP · {TotalSeconds}s{passes}{stack}{detail}{rtx}{sla}{lora}";
             }
         }
 
@@ -126,5 +155,16 @@ namespace FlipPix.UI.Models
                 return _thumbnail;
             }
         }
+    }
+
+    /// <summary>One LoRA frozen onto a queued 🌀 MiniMax I2V job: what it loads, and at what strength.</summary>
+    public class MiniMaxI2VLoraChoice
+    {
+        public string Name { get; set; } = string.Empty;
+
+        public double Strength { get; set; } = 1.0;
+
+        [JsonIgnore]
+        public bool IsActive => !string.IsNullOrWhiteSpace(Name) && Strength > 0.0;
     }
 }

@@ -1,4 +1,4 @@
-<Window x:Class="FlipPix.UI.ExpressJobWindow"
+﻿<Window x:Class="FlipPix.UI.ExpressJobWindow"
         Icon="flippix.ico"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -288,6 +288,9 @@
                                       Style="{StaticResource JobCheck}" Margin="20,2,0,2"/>
                             <RadioButton Content="🍥 TaoMate relay" GroupName="JobStack"
                                          IsChecked="{Binding StackIsTaoMate, Mode=TwoWay}"
+                                         Style="{StaticResource JobRadio}"/>
+                            <RadioButton Content="🐰 BUNNY (action)" GroupName="JobStack"
+                                         IsChecked="{Binding StackIsBunny, Mode=TwoWay}"
                                          Style="{StaticResource JobRadio}"/>
                             <RadioButton Content="🌹 H3 Eros" GroupName="JobStack"
                                          IsChecked="{Binding StackIsEros, Mode=TwoWay}"
