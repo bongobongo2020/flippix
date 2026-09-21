@@ -263,7 +263,7 @@
     "inputs": {
       "filename_prefix": "output",
       "format": "auto",
-      "codec": "auto",
+      "format.codec": "auto",
       "video-preview": "",
       "video": [
         "4849",

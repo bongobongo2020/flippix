@@ -22,7 +22,7 @@
   },
   "171:2": {
     "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
     },
     "class_type": "VAELoader",
     "_meta": {
@@ -577,7 +577,8 @@
       "model_name": "minimax_h3_latent_upscaler_3d_bf16.safetensors",
       "mode": "megapixels",
       "align": 32,
-      "keep_proportion": true,
+      "enable_temporal_chunking": true,
+      "force_unload": true,
       "device": "cuda",
       "precision": "fp16",
       "mode.megapixels": 1.0

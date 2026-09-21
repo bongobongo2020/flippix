@@ -423,10 +423,10 @@
     "inputs": {
       "filename_prefix": "h3_cast_hybrid/h3casthybrid",
       "format": "auto",
-      "codec": "h264",
-      "codec.encoding": "re-encode",
-      "codec.encoding.crf": 10,
-      "codec.encoding.color_space": "auto",
+      "format.codec": "h264",
+      "format.codec.encoding": "re-encode",
+      "format.codec.encoding.crf": 10,
+      "format.codec.encoding.color_space": "auto",
       "video-preview": "",
       "video": [
         "37",
@@ -567,7 +567,8 @@
       "mode": "scale by multiplier",
       "mode.scale": 2.0,
       "align": 32,
-      "keep_proportion": true,
+      "enable_temporal_chunking": true,
+      "force_unload": true,
       "device": "cuda",
       "precision": "fp16",
       "latent": [

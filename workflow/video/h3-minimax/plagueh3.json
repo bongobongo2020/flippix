@@ -44,10 +44,10 @@
     "inputs": {
       "filename_prefix": "video/ComfyUI",
       "format": "auto",
-      "codec": "h264",
-      "codec.encoding": "re-encode",
-      "codec.encoding.crf": 10,
-      "codec.encoding.color_space": "auto",
+      "format.codec": "h264",
+      "format.codec.encoding": "re-encode",
+      "format.codec.encoding.crf": 10,
+      "format.codec.encoding.color_space": "auto",
       "video": [
         "5479:5475",
         0

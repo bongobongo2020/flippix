@@ -390,7 +390,10 @@ def build(src):
     g["242"] = node("LTXVSeparateAVLatent", "LTXVSeparateAVLatent", av_latent=[take, 1])
     g["243"] = node("MinimaxH3LatentUpscaler3D", "MinimaxH3LatentUpscaler3D",
                     latent=["242", 0], model_name="minimax_h3_latent_upscaler_3d_bf16.safetensors",
-                    mode="megapixels", align=32, keep_proportion=True,
+                    mode="megapixels", align=32,
+                    # Both added by a Comfyui_Minimax_h3_latent_Upscaler update; the pack declares them
+                    # required, so a graph without them is dropped during validation.
+                    enable_temporal_chunking=True, force_unload=True,
                     device="cuda", precision="fp16", **{"mode.megapixels": 1.0})
     g["244"] = node("LTXVConcatAVLatent", "LTXVConcatAVLatent",
                     video_latent=["243", 0], audio_latent=["242", 1])

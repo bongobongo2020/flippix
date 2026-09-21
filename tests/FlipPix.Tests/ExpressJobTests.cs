@@ -38,6 +38,8 @@ public class ExpressJobTests
         CastPhotoEngine = "ideogram",
         Stack = ExpressStack.Bunny,
         SingularityErSde = true,
+        ChainClips = false,
+        ChainPinFinish = false,
         DiffusionModel = "h3-minimax/taomate.safetensors",
         Steps = 13,
         Lora = "H3/some-lora.safetensors",

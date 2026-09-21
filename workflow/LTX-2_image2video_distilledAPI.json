@@ -3,7 +3,7 @@
     "inputs": {
       "filename_prefix": "video/LTX-2",
       "format": "mp4",
-      "codec": "auto",
+      "format.codec": "auto",
       "video-preview": "",
       "video": [
         "122",

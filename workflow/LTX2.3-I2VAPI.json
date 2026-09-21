@@ -3,7 +3,7 @@
     "inputs": {
       "filename_prefix": "output",
       "format": "auto",
-      "codec": "auto",
+      "format.codec": "auto",
       "video": [
         "5027:4849",
         0

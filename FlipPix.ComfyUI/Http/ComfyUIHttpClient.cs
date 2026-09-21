@@ -466,6 +466,11 @@ public class ComfyUIHttpClient : IDisposable
                 }
             }
 
+            // Self-healing pass: give every required widget this ComfyUI declares but the saved
+            // graph doesn't set the server's own default, so a node pack that *gains* a widget
+            // between versions doesn't drop the node during validation.
+            workflow = await FillMissingRequiredInputsAsync(workflow, cancellationToken);
+
             // Self-healing pass: pull any numeric widget back inside the limits this ComfyUI
             // declares, so a node pack tightening its max (seeds, batch sizes, steps) doesn't
             // fail the run and force a manual edit.
@@ -1707,6 +1712,178 @@ public class ComfyUIHttpClient : IDisposable
         {
             _logger.LogDebug($"FindOutputFileFromHistoryAsync failed: {ex.Message}");
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Self-healing pre-submit pass: writes the server's own default into every <b>required widget</b>
+    /// input that the connected ComfyUI declares in /object_info and the graph does not set.
+    ///
+    /// <para>This is the shape a ComfyUI or node-pack update breaks a saved workflow in: a node gains a
+    /// widget, every graph exported before that update omits it, and validation answers
+    /// <c>required_input_missing</c> — which drops the node and its whole upstream chain, so the run dies
+    /// with no output. It hit <c>MinimaxH3LatentUpscaler3D</c> (new <c>enable_temporal_chunking</c> and
+    /// <c>force_unload</c>) across every H3 tab at once. The value the server declares as the default is
+    /// exactly what the ComfyUI front-end would have put in the widget, so filling it in reproduces the
+    /// graph the author would get by re-opening and re-saving the workflow.</para>
+    ///
+    /// <para>Only widget inputs are filled — BOOLEAN / INT / FLOAT / STRING / COMBO and the sub-inputs of
+    /// a chosen dynamic-combo option. A missing <i>link</i> input (MODEL, LATENT, IMAGE, …) is a wiring
+    /// bug, not a version skew, and is left for the server to report. So is a widget with no declared
+    /// default and no options to fall back on. Best-effort throughout: on any error the workflow is
+    /// returned untouched.</para>
+    /// </summary>
+    public async Task<object> FillMissingRequiredInputsAsync(object workflow, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var oiJson = await GetObjectInfoJsonAsync(cancellationToken);
+            if (oiJson == null) return workflow;
+
+            var json = workflow is JsonElement je ? je.GetRawText() : JsonSerializer.Serialize(workflow);
+            if (JsonNode.Parse(json) is not JsonObject nodes) return workflow;
+
+            var fills = FillMissingRequiredInputs(nodes, oiJson);
+            if (fills.Count == 0) return workflow;
+
+            _logger.LogWarning(
+                $"Filled {fills.Count} required input(s) this ComfyUI declares but the workflow omits " +
+                $"(a node pack gained them since the workflow was saved): {string.Join("; ", fills)}");
+            return nodes;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogWarning($"FillMissingRequiredInputsAsync failed (skipping): {ex.Message}");
+            return workflow;
+        }
+    }
+
+    /// <summary>
+    /// The pure half of <see cref="FillMissingRequiredInputsAsync"/>: repairs <paramref name="nodes"/>
+    /// in place against an /object_info document and returns one line per input it filled. Public so the
+    /// tests can run it over a real graph and a real schema dump without a server.
+    /// </summary>
+    public static IReadOnlyList<string> FillMissingRequiredInputs(JsonObject nodes, string objectInfoJson)
+    {
+        var fills = new List<string>();
+
+        using var oiDoc = JsonDocument.Parse(objectInfoJson);
+        var oiRoot = oiDoc.RootElement;
+        if (oiRoot.ValueKind != JsonValueKind.Object) return fills;
+
+        foreach (var node in nodes)
+        {
+            if (node.Value is not JsonObject obj) continue;
+            var classType = (obj["class_type"] as JsonValue)?.GetValue<string>();
+            if (string.IsNullOrEmpty(classType)) continue;
+            if (obj["inputs"] is not JsonObject inputs) continue;
+            if (!oiRoot.TryGetProperty(classType!, out var oiNode)) continue;
+            if (!oiNode.TryGetProperty("input", out var oiInput)) continue;
+            if (!oiInput.TryGetProperty("required", out var required) ||
+                required.ValueKind != JsonValueKind.Object) continue;
+
+            // Collect first, then assign — mutating a JsonObject mid-enumeration throws.
+            var additions = new List<KeyValuePair<string, JsonNode?>>();
+            foreach (var spec in required.EnumerateObject())
+            {
+                CollectMissingWidget(spec.Name, spec.Value, inputs, additions);
+
+                // A dynamic combo's sub-inputs are flat keys ("mode.scale"), and which ones are
+                // required depends on the option the graph picked — so they can only be read once
+                // that choice is known.
+                if (!IsDynamicCombo(spec.Value)) continue;
+                var chosen = (inputs[spec.Name] as JsonValue)?.GetValue<string>()
+                             ?? additions.FirstOrDefault(a => a.Key == spec.Name).Value?.GetValue<string>();
+                if (chosen == null) continue;
+                foreach (var sub in DynamicComboOptionInputs(spec.Value, chosen))
+                    CollectMissingWidget($"{spec.Name}.{sub.Name}", sub.Value, inputs, additions);
+            }
+
+            foreach (var a in additions)
+            {
+                inputs[a.Key] = a.Value;
+                fills.Add($"node {node.Key} ({classType}).{a.Key} = {a.Value?.ToJsonString() ?? "null"}");
+            }
+        }
+
+        return fills;
+    }
+
+    /// <summary>
+    /// Adds <paramref name="key"/> to <paramref name="additions"/> with the default
+    /// <paramref name="spec"/> declares, when it is a widget input the graph is missing.
+    /// </summary>
+    private static void CollectMissingWidget(
+        string key, JsonElement spec, JsonObject inputs, List<KeyValuePair<string, JsonNode?>> additions)
+    {
+        if (inputs.ContainsKey(key)) return;
+        if (additions.Any(a => a.Key == key)) return;
+        if (!TryGetWidgetDefault(spec, out var value)) return;
+        additions.Add(new(key, value));
+    }
+
+    /// <summary>
+    /// The default the server declares for the widget an /object_info input spec describes.
+    ///
+    /// <para>False for link inputs (MODEL, LATENT, "*", …) — those must be wired, never invented — and
+    /// deliberately also false for a widget with <i>no</i> declared default. The front-end would fall
+    /// back to a combo's first option there, but a combo without a default is usually a list of the
+    /// server's own files (<c>LoadImage.image</c>, a checkpoint name), and quietly picking the first one
+    /// would turn a loud validation failure into a render of the wrong thing. A new widget that a node
+    /// pack has just added always declares its default, which is the case this pass exists for.</para>
+    /// </summary>
+    private static bool TryGetWidgetDefault(JsonElement spec, out JsonNode? value)
+    {
+        value = null;
+        if (spec.ValueKind != JsonValueKind.Array || spec.GetArrayLength() < 2) return false;
+        if (spec[1].ValueKind != JsonValueKind.Object) return false;
+
+        var type = spec[0];
+        // An inline enum — ["euler", "heun", ...] — is the older shape of a combo widget.
+        var typeName = type.ValueKind switch
+        {
+            JsonValueKind.String => type.GetString(),
+            JsonValueKind.Array => "COMBO",
+            _ => null
+        };
+        if (typeName is not ("BOOLEAN" or "INT" or "FLOAT" or "STRING" or "COMBO" or DynamicComboType))
+            return false;
+
+        if (!spec[1].TryGetProperty("default", out var declared) || declared.ValueKind == JsonValueKind.Null)
+            return false;
+
+        value = JsonNode.Parse(declared.GetRawText());
+        return true;
+    }
+
+    private const string DynamicComboType = "COMFY_DYNAMICCOMBO_V3";
+
+    private static bool IsDynamicCombo(JsonElement spec) =>
+        spec.ValueKind == JsonValueKind.Array && spec.GetArrayLength() > 0 &&
+        spec[0].ValueKind == JsonValueKind.String && spec[0].GetString() == DynamicComboType;
+
+    /// <summary>
+    /// The required sub-inputs of the option a dynamic combo is currently set to — e.g. "scale" when
+    /// <c>MinimaxH3LatentUpscaler3D.mode</c> is "scale by multiplier". Empty when the option is unknown.
+    /// </summary>
+    private static IEnumerable<JsonProperty> DynamicComboOptionInputs(JsonElement spec, string chosen)
+    {
+        if (spec.GetArrayLength() < 2 || spec[1].ValueKind != JsonValueKind.Object) yield break;
+        if (!spec[1].TryGetProperty("options", out var options) || options.ValueKind != JsonValueKind.Array)
+            yield break;
+
+        foreach (var option in options.EnumerateArray())
+        {
+            if (option.ValueKind != JsonValueKind.Object) continue;
+            if (!option.TryGetProperty("key", out var key) || key.GetString() != chosen) continue;
+            if (!option.TryGetProperty("inputs", out var inputs) || inputs.ValueKind != JsonValueKind.Object)
+                yield break;
+            if (!inputs.TryGetProperty("required", out var required) ||
+                required.ValueKind != JsonValueKind.Object) yield break;
+
+            foreach (var sub in required.EnumerateObject()) yield return sub;
+            yield break;
         }
     }
 

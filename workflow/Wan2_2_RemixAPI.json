@@ -257,7 +257,7 @@
     "inputs": {
       "filename_prefix": "2026-04-01/20260401_203521_Wan2.2",
       "format": "auto",
-      "codec": "auto",
+      "format.codec": "auto",
       "video": [
         "3040",
         0

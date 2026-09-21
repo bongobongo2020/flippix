@@ -89,7 +89,7 @@
     "inputs": {
       "filename_prefix": "Wanimate",
       "format": "auto",
-      "codec": "auto",
+      "format.codec": "auto",
       "video": [
         "300",
         0
@@ -366,7 +366,7 @@
     "inputs": {
       "filename_prefix": "WanVideo2_1_T2V",
       "format": "auto",
-      "codec": "auto",
+      "format.codec": "auto",
       "video": [
         "750",
         0
@@ -590,7 +590,7 @@
     "inputs": {
       "filename_prefix": "vitpose",
       "format": "auto",
-      "codec": "auto",
+      "format.codec": "auto",
       "video": [
         "1740",
         0
@@ -641,7 +641,7 @@
     "inputs": {
       "filename_prefix": "WanVideo2_1_T2V",
       "format": "auto",
-      "codec": "auto",
+      "format.codec": "auto",
       "video": [
         "1810",
         0
@@ -693,7 +693,7 @@
     "inputs": {
       "filename_prefix": "Wanimate",
       "format": "auto",
-      "codec": "auto",
+      "format.codec": "auto",
       "video": [
         "1860",
         0

@@ -3,7 +3,7 @@
     "inputs": {
       "filename_prefix": "video/LTX_2.3_id_lora",
       "format": "auto",
-      "codec": "auto",
+      "format.codec": "auto",
       "video-preview": "",
       "video": [
         "358:312",

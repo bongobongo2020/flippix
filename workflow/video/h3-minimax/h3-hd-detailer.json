@@ -579,7 +579,8 @@
     "inputs": {
       "model_name": "minimax_h3_latent_upscaler_3d_fp16.safetensors",
       "align": 32,
-      "keep_proportion": true,
+      "enable_temporal_chunking": true,
+      "force_unload": true,
       "device": "cuda",
       "precision": "fp16",
       "mode": "megapixels",

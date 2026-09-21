@@ -3,7 +3,7 @@
     "inputs": {
       "filename_prefix": "video/MiniMax_H3_T2V",
       "format": "auto",
-      "codec": "auto",
+      "format.codec": "auto",
       "video": [
         "130",
         0

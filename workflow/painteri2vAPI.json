@@ -428,7 +428,7 @@
     "inputs": {
       "filename_prefix": "video/ComfyUI",
       "format": "auto",
-      "codec": "auto",
+      "format.codec": "auto",
       "video": [
         "139",
         0

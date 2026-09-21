@@ -651,7 +651,7 @@
     "inputs": {
       "filename_prefix": "ltx2.3/my/v",
       "format": "auto",
-      "codec": "auto",
+      "format.codec": "auto",
       "video-preview": "",
       "video": [
         "292",

@@ -333,7 +333,7 @@
     "inputs": {
       "filename_prefix": "video/LTX_2.3_ia2v",
       "format": "auto",
-      "codec": "auto",
+      "format.codec": "auto",
       "video": [
         "56",
         0

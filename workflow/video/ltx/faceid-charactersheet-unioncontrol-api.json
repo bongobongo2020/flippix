@@ -458,7 +458,7 @@
     "inputs": {
       "filename_prefix": "video/LTX_2.3_ia2v",
       "format": "auto",
-      "codec": "auto",
+      "format.codec": "auto",
       "video-preview": "",
       "video": [
         "56",
@@ -857,7 +857,7 @@
     "inputs": {
       "filename_prefix": "video/LTX_2.3_ia2v",
       "format": "auto",
-      "codec": "auto",
+      "format.codec": "auto",
       "video-preview": "",
       "video": [
         "166",
