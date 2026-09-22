@@ -33,13 +33,28 @@ The manifest allows cleartext http because LAN servers don't speak https.
 | Page  | State | What it runs |
 |-------|-------|--------------|
 | Image | done  | Three looks, each a desktop graph run as authored with only prompt, canvas and seed written. **Photo** = `krea2RealismV1` (the SaveImageKJ→SaveImage swap is the desktop's too), **Dream** = `qwen21-prompt-enhancer` (the prompt goes into node 468 *only*), **Detail** = `z-image-base`. |
-| Video | next  | MiniMax I2V: 1–4 reference pictures + an idea → LLM Ref2VA prompt → `h3-minimax-i2v.json`. |
+| Video | done  | MiniMax I2V (`h3-minimax-i2v.json`), the desktop's default render in one pass: 1–4 reference photos plus an idea, 5/10/15 s. The LLM (a **vision** model) writes the six-field Ref2VA scene from the photos using `prompts/prompt2json/h3-r2va.md`; without an LLM the idea is wrapped in that shape as written. It plays in the app through Android's VideoView, streamed from `/view`. |
 | Story | next  | H3 Express, simplified: story → LLM clip prompts, one call per clip → each clip rendered → played as a sequence. No auto-portraits or sheets. |
 
 Workflows are **embedded** (see `FlipPix.Mobile.csproj`), not copied, so a phone has no
 `workflow/` folder. If a desktop graph's node ids drift, `Workflows.Set` throws naming the
 missing node. The mobile look then fails loudly instead of silently rendering the authored
 prompt.
+
+## Video details
+
+- **Photos** are auto-rotated from EXIF, have their EXIF stripped, are shrunk to 1536 px and
+  encoded as JPEG 92 (ImageSharp, not Skia, which ignores the rotation tag). Each one is uploaded
+  once per session.
+- **The graph** is Shipped stack, 0.7 MP finished (0.175 MP draft, 2× latent upscale), SLA 0.85
+  with 64-row blocks, audio enhancement on, RTX off. Only sink `49` is kept; the continuation loop
+  is pruned. The aspect ratio is the nearest ResolutionSelector option to the first photo.
+- **Progress** comes as three runs: the draft sampler, the finish sampler, and a long post-process
+  run. The take card shows them as drafting, finishing and final touches.
+- **Playback**: `Controls/VideoSurface` is a `NativeControlHost`, and the Android head registers a
+  VideoView factory. Native views draw above Avalonia, so nothing may overlap the player.
+- **Measured on 10.0.0.10**: 5 s in 42 s (704×1024 with AAC audio). Qwen-VL via Ollama wrote the
+  scene in about 50 s.
 
 ## Design
 

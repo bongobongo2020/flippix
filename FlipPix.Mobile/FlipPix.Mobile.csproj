@@ -29,5 +29,7 @@
     <EmbeddedResource Include="..\workflow\image\krea\krea2RealismV1_krea2RealismV1WF.json" LogicalName="wf/krea2.json" />
     <EmbeddedResource Include="..\workflow\image\qwen\qwen21-prompt-enhancer.json" LogicalName="wf/qwen21.json" />
     <EmbeddedResource Include="..\workflow\image\zimage\base\z-image-base.json" LogicalName="wf/zimage-base.json" />
+    <EmbeddedResource Include="..\workflow\video\h3-minimax\h3-minimax-i2v.json" LogicalName="wf/h3-minimax-i2v.json" />
+    <EmbeddedResource Include="..\prompts\prompt2json\h3-r2va.md" LogicalName="wf/h3-r2va.md" />
   </ItemGroup>
 </Project>

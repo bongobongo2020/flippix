@@ -25,10 +25,7 @@
     <Panel Grid.Row="1">
       <Panel IsVisible="{Binding IsImage}"><v:ImageView DataContext="{Binding Image}" /></Panel>
 
-      <v:NextUpView IsVisible="{Binding IsVideo}"
-                    Heading="Video"
-                    Body="Bring pictures to life. Choose up to four reference photos, say what happens, and the MiniMax model films it with sound."
-                    Icon="{StaticResource IconVideo}" />
+      <Panel IsVisible="{Binding IsVideo}"><v:VideoView DataContext="{Binding Video}" /></Panel>
 
       <v:NextUpView IsVisible="{Binding IsStory}"
                     Heading="Story"

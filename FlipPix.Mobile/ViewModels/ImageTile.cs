@@ -16,7 +16,6 @@ public partial class ImageTile : ObservableObject
 
     /// <summary>Width over height, so a waiting tile already has the shape of the picture it will hold.</summary>
     public double Ratio => Shape switch { ImageShape.Portrait => 0.8, ImageShape.Landscape => 1.25, _ => 1.0 };
-    public double ShapeWidth => 100 * Ratio;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsDone), nameof(IsFailed), nameof(IsPending), nameof(IsDeveloping))]

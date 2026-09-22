@@ -1,7 +1,9 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Platform;
+using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 using FlipPix.Mobile.ViewModels;
 
 namespace FlipPix.Mobile.Views;
@@ -10,7 +12,19 @@ public partial class MainView : UserControl
 {
     private TopLevel? _top;
 
-    public MainView() => InitializeComponent();
+    public MainView()
+    {
+        InitializeComponent();
+        // A tap anywhere outside a text field puts the keyboard away, as phone users expect. Tunnel,
+        // so it runs before a button handles the tap; the tap itself still goes through.
+        AddHandler(PointerPressedEvent, OnAnyPointerPressed, RoutingStrategies.Tunnel);
+    }
+
+    private void OnAnyPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.Source is Visual v && v.FindAncestorOfType<TextBox>(includeSelf: true) != null) return;
+        if (_top?.FocusManager?.GetFocusedElement() is TextBox) _top.FocusManager.ClearFocus();
+    }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {

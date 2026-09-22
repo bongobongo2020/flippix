@@ -14,6 +14,15 @@ public static class Workflows
         return JsonNode.Parse(stream)!.AsObject();
     }
 
+    /// <summary>A bundled text file, such as an LLM system prompt.</summary>
+    public static string LoadText(string name)
+    {
+        using var stream = typeof(Workflows).Assembly.GetManifestResourceStream("wf/" + name)
+            ?? throw new FileNotFoundException("Not bundled: " + name);
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
+    }
+
     /// <summary>Sets one input on one node; a missing node is a drifted graph and fails loudly.</summary>
     public static void Set(JsonObject graph, string nodeId, string input, JsonNode? value)
     {

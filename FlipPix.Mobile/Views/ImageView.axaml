@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:FlipPix.Mobile.ViewModels"
              xmlns:svc="using:FlipPix.Mobile.Services"
+             xmlns:c="using:FlipPix.Mobile.Controls"
              x:Class="FlipPix.Mobile.Views.ImageView"
              x:DataType="vm:ImageViewModel">
   <Grid RowDefinitions="*,Auto">
@@ -117,12 +118,7 @@
                         HorizontalAlignment="Stretch" VerticalAlignment="Top" HorizontalContentAlignment="Stretch"
                         Command="{Binding $parent[ItemsControl].((vm:ImageViewModel)DataContext).OpenCommand}"
                         CommandParameter="{Binding}">
-                  <Grid Margin="4,0">
-                    <!-- Sizing only: a Viewbox fitted to the column width gives the tile its picture's shape
-                         before the picture exists. -->
-                    <Viewbox Stretch="Uniform">
-                      <Rectangle Width="{Binding ShapeWidth}" Height="100" />
-                    </Viewbox>
+                  <c:AspectPanel Ratio="{Binding Ratio}" Margin="4,0">
                     <Border CornerRadius="14" ClipToBounds="True" Background="{StaticResource SurfaceBrush}">
                       <Grid>
                         <Border Classes="breathing" Background="{StaticResource RaisedBrush}" IsVisible="{Binding IsPending}" />
@@ -136,7 +132,7 @@
                         </StackPanel>
                       </Grid>
                     </Border>
-                  </Grid>
+                  </c:AspectPanel>
                 </Button>
               </DataTemplate>
             </ItemsControl.ItemTemplate>

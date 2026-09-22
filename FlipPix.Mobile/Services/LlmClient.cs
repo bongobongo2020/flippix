@@ -44,8 +44,16 @@ public sealed class LlmClient
         }
     }
 
+    public static Task<string> ChatAsync(MobileSettings s, string system, string user,
+        int maxTokens = 1200, double temperature = 0.8, CancellationToken ct = default) =>
+        ChatAsync(s, system, user, Array.Empty<byte[]>(), maxTokens, temperature, ct);
+
+    /// <summary>
+    /// A chat turn with pictures attached as JPEG data URLs, in the OpenAI vision shape that LM Studio,
+    /// llama.cpp and Ollama all accept. The server's model has to be a vision model.
+    /// </summary>
     public static async Task<string> ChatAsync(MobileSettings s, string system, string user,
-        int maxTokens = 1200, double temperature = 0.8, CancellationToken ct = default)
+        IReadOnlyList<byte[]> jpegs, int maxTokens = 1200, double temperature = 0.8, CancellationToken ct = default)
     {
         var root = ApiRoot(s.LlmUrl);
         if (root.Length == 0) throw new InvalidOperationException("Add your LLM address in Settings first.");
@@ -54,7 +62,18 @@ public sealed class LlmClient
             ["messages"] = new object[]
             {
                 new { role = "system", content = system },
-                new { role = "user", content = user + " /no_think" },
+                new
+                {
+                    role = "user",
+                    content = jpegs.Count == 0 ? (object)(user + " /no_think")
+                        : jpegs.Select(p => (object)new
+                            {
+                                type = "image_url",
+                                image_url = new { url = "data:image/jpeg;base64," + Convert.ToBase64String(p) },
+                            })
+                          .Append(new { type = "text", text = user + " /no_think" })
+                          .ToArray(),
+                },
             },
             ["max_tokens"] = maxTokens,
             ["temperature"] = temperature,

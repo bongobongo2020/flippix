@@ -94,6 +94,17 @@ public sealed class ComfyGateway : IDisposable
         }
     }
 
+    /// <summary>Uploads JPEG bytes to ComfyUI's input folder and returns the name to load them by.</summary>
+    public async Task<string> UploadJpegAsync(byte[] jpeg, CancellationToken ct)
+    {
+        var service = _service ?? throw new InvalidOperationException("Add your ComfyUI address in Settings first.");
+        // The shared client uploads from a path; the file name becomes the server-side name.
+        var path = Path.Combine(Path.GetTempPath(), $"flippix_ref_{Guid.NewGuid():N}.jpg");
+        await File.WriteAllBytesAsync(path, jpeg, ct);
+        try { return await service.UploadImageAsync(path, ct); }
+        finally { try { File.Delete(path); } catch (IOException) { } }
+    }
+
     public async Task<byte[]> DownloadAsync(ComfyOutput output, CancellationToken ct)
     {
         var raw = _raw ?? throw new InvalidOperationException("Not connected.");
