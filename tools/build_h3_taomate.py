@@ -146,6 +146,11 @@ def load_source():
     vaes = [(n.get("widgets_values") or [""])[0] for n in nodes_of("VAELoader")]
     video_vae = next(v for v in vaes if "audio" not in v.lower())
     audio_vae = next(v for v in vaes if "audio" in v.lower())
+    # The fp16 video VAE, not the int8 one the author loads. Since ComfyUI 0.37 an int8 decoder runs its
+    # attention through an int8 kernel (comfy/ldm/minimax/vae.py: "an int8 decoder already accepts int8
+    # numerics; fp16 keeps exact flash"), and every frame of this stack goes on to a 2x RTX upscale that
+    # magnifies what the decode lost. The author's own model links name the fp16 file.
+    video_vae = video_vae.replace("_int8_convrot", "_fp16")
 
     # The checkpoint. The author loads it twice - a DiffusionModelLoaderKJ at every default on pass 1,
     # a plain UNETLoader in a subgraph on pass 2 - and both must name the same file, or "one

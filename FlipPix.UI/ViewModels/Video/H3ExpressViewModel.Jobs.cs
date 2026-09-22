@@ -142,7 +142,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// </summary>
         public override bool CanStartBatch => base.CanStartBatch ||
             (!IsBatchRunning && !IsFeelingLucky && !IsProcessingQueue && !IsBuildingSheets &&
-             _jobs.Any(j => j.IsQueued && j.Stories.Any(s => s.IsWaiting)));
+             !IsWritingPrompt && _jobs.Any(j => j.IsQueued && j.Stories.Any(s => s.IsWaiting)));
 
         /// <summary>"Job ② of ③ · " in front of the story line, and nothing at all when there is no queue —
         /// a single-folder run should not start calling itself job 1 of 1.</summary>

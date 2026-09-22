@@ -3155,7 +3155,17 @@ namespace FlipPix.UI.ViewModels.Video
         /// </summary>
         protected async Task FeelLuckyAsync()
         {
-            if (!CanFeelLucky) return;
+            if (!CanFeelLucky)
+            {
+                // The button is disabled in this state, so only a batch loop gets here. Say why, or its
+                // story fails as "nothing reached the queue" with no hint of the reason.
+                AddLog("🍀 did not start: " + (IsWritingPrompt ? "the clip writer is still busy (Analyze)."
+                    : IsBuildingSheets ? "character sheets are still being built."
+                    : IsProcessingQueue ? "the queue is still rendering."
+                    : IsFeelingLucky ? "a 🍀 run is already in progress."
+                    : "there is no story in the box."));
+                return;
+            }
 
             _luckyCts?.Dispose();
             _luckyCts = new CancellationTokenSource();

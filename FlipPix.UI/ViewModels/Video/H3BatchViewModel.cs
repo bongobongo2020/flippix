@@ -391,7 +391,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// have work to do — see ⚡ H3 Express, where the next job brings its own stories with it.</summary>
         public virtual bool CanStartBatch =>
             !IsBatchRunning && !IsFeelingLucky && !IsProcessingQueue && !IsBuildingSheets &&
-            _stories.Any(s => s.IsWaiting);
+            !IsWritingPrompt && _stories.Any(s => s.IsWaiting);
 
         // ── The VR switch ─────────────────────────────────────────────────────────────────────────────
 
