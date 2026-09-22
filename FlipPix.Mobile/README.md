@@ -63,8 +63,8 @@ paper text `#F2EEE6`, muted `#A3A6B8`. Brand orange `#FF6B35` is used for one ac
 with **dark** text on it (about 6.4:1; white would be 2.8:1). Glow `#FFC48A` marks work in
 progress. All of them live in `App.axaml`.
 
-A tile takes its picture's shape before the picture exists: a `Viewbox` around an invisible
-rectangle of the right ratio. While the sampler runs, a warm fill rises inside the tile.
+A tile takes its picture's shape before the picture exists: `Controls/AspectPanel` sizes itself
+from its width and a ratio, and its children can't change that. While the sampler runs, a warm fill rises inside the tile.
 
 ## Checking changes without a phone
 
