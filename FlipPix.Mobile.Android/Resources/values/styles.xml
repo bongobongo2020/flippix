@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!-- The booth colour from the first frame, so launch never flashes white. -->
+  <style name="FlipPixTheme" parent="Theme.AppCompat.NoActionBar">
+    <item name="android:windowBackground">@color/booth</item>
+    <item name="android:statusBarColor">@color/booth</item>
+    <item name="android:navigationBarColor">@color/surface</item>
+    <item name="android:windowLightStatusBar">false</item>
+  </style>
+  <color name="booth">#1B1D2A</color>
+  <color name="surface">#252838</color>
+</resources>

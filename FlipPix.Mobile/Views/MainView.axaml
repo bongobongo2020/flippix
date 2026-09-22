@@ -1,0 +1,66 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:FlipPix.Mobile.ViewModels"
+             xmlns:v="using:FlipPix.Mobile.Views"
+             x:Class="FlipPix.Mobile.Views.MainView"
+             x:DataType="vm:MainViewModel"
+             Background="{StaticResource BoothBrush}">
+  <Grid RowDefinitions="Auto,*,Auto">
+
+    <!-- Header: the wordmark, whether the server is there, and the way to Settings. -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Margin="20,14,8,6" IsVisible="{Binding ShowHeader}">
+      <TextBlock Text="FlipPix" FontSize="21" FontWeight="Bold" LetterSpacing="-0.4" VerticalAlignment="Center" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center" Margin="0,0,4,0">
+        <Ellipse Width="8" Height="8" Fill="{StaticResource OkBrush}" IsVisible="{Binding ServerOnline}" />
+        <Ellipse Width="8" Height="8" Fill="{StaticResource DangerBrush}" IsVisible="{Binding !ServerOnline}" />
+        <TextBlock Classes="hint" Text="{Binding ServerLabel}" VerticalAlignment="Center" />
+      </StackPanel>
+      <Button Grid.Column="2" Classes="bare" Command="{Binding OpenSettingsCommand}"
+              ToolTip.Tip="Settings" AutomationProperties.Name="Settings">
+        <PathIcon Data="{StaticResource IconSettings}" Width="22" Height="22" Foreground="{StaticResource PaperBrush}" />
+      </Button>
+    </Grid>
+
+    <!-- Pages. Each stays alive while hidden so a render keeps going when you look elsewhere. -->
+    <Panel Grid.Row="1">
+      <Panel IsVisible="{Binding IsImage}"><v:ImageView DataContext="{Binding Image}" /></Panel>
+
+      <v:NextUpView IsVisible="{Binding IsVideo}"
+                    Heading="Video"
+                    Body="Bring pictures to life. Choose up to four reference photos, say what happens, and the MiniMax model films it with sound."
+                    Icon="{StaticResource IconVideo}" />
+
+      <v:NextUpView IsVisible="{Binding IsStory}"
+                    Heading="Story"
+                    Body="Write a story and get a film. The LLM breaks it into shots, each shot is rendered in turn, and you watch them arrive."
+                    Icon="{StaticResource IconStory}" />
+
+      <Panel IsVisible="{Binding IsSettings}"><v:SettingsView DataContext="{Binding Settings}" /></Panel>
+    </Panel>
+
+    <!-- Bottom navigation. -->
+    <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}" IsVisible="{Binding ShowNav}"
+            BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0">
+      <UniformGrid Columns="3">
+        <Button Classes="nav" Classes.on="{Binding IsImage}" Command="{Binding GoCommand}" CommandParameter="{x:Static vm:Page.Image}">
+          <StackPanel Spacing="4">
+            <PathIcon Data="{StaticResource IconImage}" Width="22" Height="22" />
+            <TextBlock Text="Image" />
+          </StackPanel>
+        </Button>
+        <Button Classes="nav" Classes.on="{Binding IsVideo}" Command="{Binding GoCommand}" CommandParameter="{x:Static vm:Page.Video}">
+          <StackPanel Spacing="4">
+            <PathIcon Data="{StaticResource IconVideo}" Width="22" Height="22" />
+            <TextBlock Text="Video" />
+          </StackPanel>
+        </Button>
+        <Button Classes="nav" Classes.on="{Binding IsStory}" Command="{Binding GoCommand}" CommandParameter="{x:Static vm:Page.Story}">
+          <StackPanel Spacing="4">
+            <PathIcon Data="{StaticResource IconStory}" Width="22" Height="22" />
+            <TextBlock Text="Story" />
+          </StackPanel>
+        </Button>
+      </UniformGrid>
+    </Border>
+  </Grid>
+</UserControl>

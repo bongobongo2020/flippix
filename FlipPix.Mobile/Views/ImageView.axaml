@@ -1,0 +1,182 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:FlipPix.Mobile.ViewModels"
+             xmlns:svc="using:FlipPix.Mobile.Services"
+             x:Class="FlipPix.Mobile.Views.ImageView"
+             x:DataType="vm:ImageViewModel">
+  <Grid RowDefinitions="*,Auto">
+
+    <ScrollViewer Grid.Row="0" x:Name="Scroller">
+      <StackPanel Margin="20,10,20,24" Spacing="28">
+
+        <!-- Composer: the prompt is the page's reason to exist, so it gets the room. -->
+        <StackPanel Spacing="12">
+          <TextBlock Classes="title" Text="Make a picture" />
+          <TextBox Text="{Binding Prompt}" AcceptsReturn="True" TextWrapping="Wrap"
+                   MinHeight="128" MaxHeight="260" VerticalContentAlignment="Top"
+                   Watermark="A lighthouse keeper's cat asleep on the warm lamp, first light over a grey sea"
+                   AutomationProperties.Name="Describe the picture" />
+          <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding CanPolish}">
+            <Button Classes="bare" Command="{Binding PolishCommand}" Padding="8,6" Margin="-8,0,0,0">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <PathIcon Data="{StaticResource IconSparkle}" Width="16" Height="16" Foreground="{StaticResource GlowBrush}" />
+                <TextBlock Text="Polish with AI" FontWeight="SemiBold" Foreground="{StaticResource GlowBrush}" />
+              </StackPanel>
+            </Button>
+            <ProgressBar Grid.Column="1" IsIndeterminate="True" Width="60" HorizontalAlignment="Left"
+                         VerticalAlignment="Center" Margin="8,0,0,0" IsVisible="{Binding IsPolishing}" />
+          </Grid>
+          <TextBlock Classes="hint danger" Text="{Binding Notice}" IsVisible="{Binding Notice, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        </StackPanel>
+
+        <!-- Look: named for the result, not the model behind it. -->
+        <StackPanel>
+          <TextBlock Classes="section" Text="Look" />
+          <ListBox Classes="looks" ItemsSource="{Binding Looks}" SelectedItem="{Binding Look}"
+                   ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemsPanel>
+              <ItemsPanelTemplate><UniformGrid Columns="3" /></ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="svc:ImageLook">
+                <StackPanel Spacing="4" Margin="14,12">
+                  <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="16" />
+                  <TextBlock Classes="hint" Text="{Binding Blurb}" FontSize="12" LineHeight="16" />
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </StackPanel>
+
+        <!-- Shape and count share a row: both are "how it comes out". -->
+        <Grid ColumnDefinitions="3*,16,2*">
+          <StackPanel Grid.Column="0">
+            <TextBlock Classes="section" Text="Shape" />
+            <UniformGrid Columns="3" Height="76">
+              <Button Classes="cell" Classes.on="{Binding IsPortrait}" Margin="0,0,6,0"
+                      Command="{Binding PickShapeCommand}" CommandParameter="{x:Static svc:ImageShape.Portrait}"
+                      AutomationProperties.Name="Portrait">
+                <StackPanel Spacing="6">
+                  <Rectangle Width="20" Height="25" Stroke="{StaticResource PaperBrush}" StrokeThickness="1.5" RadiusX="3" RadiusY="3" />
+                  <TextBlock Text="Tall" FontSize="12" HorizontalAlignment="Center" />
+                </StackPanel>
+              </Button>
+              <Button Classes="cell" Classes.on="{Binding IsSquare}" Margin="3,0"
+                      Command="{Binding PickShapeCommand}" CommandParameter="{x:Static svc:ImageShape.Square}"
+                      AutomationProperties.Name="Square">
+                <StackPanel Spacing="6">
+                  <Rectangle Width="23" Height="23" Stroke="{StaticResource PaperBrush}" StrokeThickness="1.5" RadiusX="3" RadiusY="3" Margin="0,1" />
+                  <TextBlock Text="Square" FontSize="12" HorizontalAlignment="Center" />
+                </StackPanel>
+              </Button>
+              <Button Classes="cell" Classes.on="{Binding IsLandscape}" Margin="6,0,0,0"
+                      Command="{Binding PickShapeCommand}" CommandParameter="{x:Static svc:ImageShape.Landscape}"
+                      AutomationProperties.Name="Landscape">
+                <StackPanel Spacing="6">
+                  <Rectangle Width="28" Height="20" Stroke="{StaticResource PaperBrush}" StrokeThickness="1.5" RadiusX="3" RadiusY="3" Margin="0,2,0,3" />
+                  <TextBlock Text="Wide" FontSize="12" HorizontalAlignment="Center" />
+                </StackPanel>
+              </Button>
+            </UniformGrid>
+          </StackPanel>
+
+          <StackPanel Grid.Column="2">
+            <TextBlock Classes="section" Text="How many" />
+            <UniformGrid Columns="3" Height="76">
+              <Button Classes="cell" Classes.on="{Binding IsOne}" Margin="0,0,4,0"
+                      Command="{Binding PickCountCommand}" CommandParameter="1">
+                <TextBlock Text="1" FontSize="18" FontWeight="SemiBold" />
+              </Button>
+              <Button Classes="cell" Classes.on="{Binding IsTwo}" Margin="2,0"
+                      Command="{Binding PickCountCommand}" CommandParameter="2">
+                <TextBlock Text="2" FontSize="18" FontWeight="SemiBold" />
+              </Button>
+              <Button Classes="cell" Classes.on="{Binding IsFour}" Margin="4,0,0,0"
+                      Command="{Binding PickCountCommand}" CommandParameter="4">
+                <TextBlock Text="4" FontSize="18" FontWeight="SemiBold" />
+              </Button>
+            </UniformGrid>
+          </StackPanel>
+        </Grid>
+
+        <!-- The contact sheet: this session's pictures, newest first. -->
+        <StackPanel>
+          <TextBlock Classes="section" Text="Pictures" />
+          <Border IsVisible="{Binding NoTiles}" CornerRadius="16" Padding="18,22"
+                  BorderBrush="{StaticResource LineBrush}" BorderThickness="1.5" >
+            <TextBlock Classes="hint" FontSize="14" TextAlignment="Center"
+                       Text="Each picture develops here while the server works on it. Tap one to see it full screen." />
+          </Border>
+          <ItemsControl ItemsSource="{Binding Tiles}" x:Name="Sheet">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:ImageTile">
+                <Button Classes="bare" Padding="0" Margin="0,0,0,8" CornerRadius="14"
+                        HorizontalAlignment="Stretch" VerticalAlignment="Top" HorizontalContentAlignment="Stretch"
+                        Command="{Binding $parent[ItemsControl].((vm:ImageViewModel)DataContext).OpenCommand}"
+                        CommandParameter="{Binding}">
+                  <Grid Margin="4,0">
+                    <!-- Sizing only: a Viewbox fitted to the column width gives the tile its picture's shape
+                         before the picture exists. -->
+                    <Viewbox Stretch="Uniform">
+                      <Rectangle Width="{Binding ShapeWidth}" Height="100" />
+                    </Viewbox>
+                    <Border CornerRadius="14" ClipToBounds="True" Background="{StaticResource SurfaceBrush}">
+                      <Grid>
+                        <Border Classes="breathing" Background="{StaticResource RaisedBrush}" IsVisible="{Binding IsPending}" />
+                        <ProgressBar Classes="develop" Value="{Binding Progress}" IsVisible="{Binding IsDeveloping}"
+                                     HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                        <Image Source="{Binding Picture}" Stretch="UniformToFill" IsVisible="{Binding IsDone}" />
+                        <StackPanel VerticalAlignment="Bottom" Margin="12,10" Spacing="2" IsVisible="{Binding !IsDone}">
+                          <TextBlock Text="{Binding Look.Name}" FontWeight="SemiBold" FontSize="13" />
+                          <TextBlock Classes="hint" Text="{Binding Status}" FontSize="12" MaxLines="3" />
+                          <TextBlock Classes="hint" Text="Tap to dismiss" FontSize="12" IsVisible="{Binding IsFailed}" />
+                        </StackPanel>
+                      </Grid>
+                    </Border>
+                  </Grid>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- The pinned action. While busy it becomes the way to stop. -->
+    <Border Grid.Row="1" Padding="20,10,20,14" Background="{StaticResource BoothBrush}">
+      <Panel>
+        <Button Classes="primary" Content="{Binding MakeLabel}" Command="{Binding MakeCommand}"
+                IsVisible="{Binding IsIdle}" Click="OnMakeClicked" />
+        <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding IsBusy}" Height="56">
+          <StackPanel VerticalAlignment="Center" Spacing="2">
+            <TextBlock Text="{Binding BusyText}" FontWeight="SemiBold" FontSize="16" />
+            <TextBlock Classes="hint" Text="You can leave this page; it keeps going." />
+          </StackPanel>
+          <Button Grid.Column="1" Classes="quiet" Content="Stop" Command="{Binding StopCommand}" Height="48" Padding="26,0" />
+        </Grid>
+      </Panel>
+    </Border>
+
+    <!-- Viewer: the picture alone, then what made it. -->
+    <Grid Grid.RowSpan="2" IsVisible="{Binding IsViewerOpen}" Background="#101119" RowDefinitions="Auto,*,Auto">
+      <Button Grid.Row="0" Classes="bare" HorizontalAlignment="Right" Margin="8" Command="{Binding CloseViewerCommand}"
+              AutomationProperties.Name="Close">
+        <PathIcon Data="{StaticResource IconClose}" Width="24" Height="24" />
+      </Button>
+      <Image Grid.Row="1" Source="{Binding Viewing.Picture}" Stretch="Uniform" Margin="0,0,0,8" />
+      <StackPanel Grid.Row="2" Margin="20,8,20,20" Spacing="14">
+        <TextBlock Text="{Binding Viewing.Prompt}" TextWrapping="Wrap" MaxLines="4" TextTrimming="CharacterEllipsis"
+                   LineHeight="21" />
+        <TextBlock Classes="hint" Text="{Binding Viewing.Look.Name, StringFormat='{}{0} look'}" />
+        <Grid ColumnDefinitions="*,12,Auto">
+          <Button Classes="quiet" Content="Use this prompt" HorizontalAlignment="Stretch" Command="{Binding ReusePromptCommand}" Height="48" />
+          <Button Grid.Column="2" Classes="quiet" Content="Remove" Height="48"
+                  Command="{Binding RemoveCommand}" CommandParameter="{Binding Viewing}" />
+        </Grid>
+      </StackPanel>
+    </Grid>
+  </Grid>
+</UserControl>

@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The phone app's UI and logic, platform-neutral so it also runs as a desktop window for
+    quick iteration (see FlipPix.Mobile.Android for the Android head). Reuses the shared
+    ComfyUI client, so the phone submits through the same repair path the desktop does.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FlipPix.Core\FlipPix.Core.csproj" />
+    <ProjectReference Include="..\FlipPix.ComfyUI\FlipPix.ComfyUI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.2.7" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.7" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.2.7" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Only the graphs the phone drives are shipped, embedded so no file system is assumed. -->
+    <EmbeddedResource Include="..\workflow\image\krea\krea2RealismV1_krea2RealismV1WF.json" LogicalName="wf/krea2.json" />
+    <EmbeddedResource Include="..\workflow\image\qwen\qwen21-prompt-enhancer.json" LogicalName="wf/qwen21.json" />
+    <EmbeddedResource Include="..\workflow\image\zimage\base\z-image-base.json" LogicalName="wf/zimage-base.json" />
+  </ItemGroup>
+</Project>

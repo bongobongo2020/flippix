@@ -1,0 +1,58 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:FlipPix.Mobile.ViewModels"
+             x:Class="FlipPix.Mobile.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+  <Grid RowDefinitions="Auto,*,Auto">
+    <Grid Grid.Row="0" ColumnDefinitions="Auto,*" Margin="8,14,20,0">
+      <Button Classes="bare" Click="OnBack" AutomationProperties.Name="Back" x:Name="BackButton">
+        <PathIcon Data="{StaticResource IconBack}" Width="22" Height="22" />
+      </Button>
+      <TextBlock Grid.Column="1" Classes="title" Text="Settings" VerticalAlignment="Center" Margin="4,0,0,0" />
+    </Grid>
+
+    <ScrollViewer Grid.Row="1">
+      <StackPanel Margin="20,22,20,24" Spacing="34" MaxWidth="560">
+
+        <!-- ComfyUI -->
+        <StackPanel Spacing="10">
+          <TextBlock Classes="section" Text="Image and video server" Margin="0" />
+          <TextBlock Classes="hint" Text="{Binding ComfyMessage}"
+                     Classes.ok="{Binding ComfyOk}" Classes.danger="{Binding ComfyFailed}" />
+          <TextBox Text="{Binding ComfyUrl}" Watermark="10.0.0.10:8188"
+                   TextInputOptions.ContentType="Url" TextInputOptions.ReturnKeyType="Done"
+                   AutomationProperties.Name="ComfyUI address" />
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <Button Classes="quiet" Content="Test connection" Command="{Binding TestComfyCommand}" />
+            <ProgressBar IsIndeterminate="True" Width="60" IsVisible="{Binding ComfyChecking}" VerticalAlignment="Center" />
+          </StackPanel>
+        </StackPanel>
+
+        <!-- LLM -->
+        <StackPanel Spacing="10">
+          <TextBlock Classes="section" Text="Writing assistant" Margin="0" />
+          <TextBlock Classes="hint" Text="{Binding LlmMessage}"
+                     Classes.ok="{Binding LlmOk}" Classes.danger="{Binding LlmFailed}" />
+          <TextBox Text="{Binding LlmUrl}" Watermark="10.0.0.10:1234"
+                   TextInputOptions.ContentType="Url" TextInputOptions.ReturnKeyType="Done"
+                   AutomationProperties.Name="LLM address" />
+          <ComboBox ItemsSource="{Binding LlmModels}" SelectedItem="{Binding LlmModel}"
+                    HorizontalAlignment="Stretch" MinHeight="52" CornerRadius="16"
+                    PlaceholderText="Model (test the connection to list them)"
+                    AutomationProperties.Name="LLM model" />
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <Button Classes="quiet" Content="Test connection" Command="{Binding TestLlmCommand}" />
+            <ProgressBar IsIndeterminate="True" Width="60" IsVisible="{Binding LlmChecking}" VerticalAlignment="Center" />
+          </StackPanel>
+        </StackPanel>
+
+        <TextBlock Classes="hint"
+                   Text="Both servers need to be reachable from this phone: the same Wi-Fi, or a VPN such as Tailscale. Pictures and films stay on the server; the app streams them." />
+      </StackPanel>
+    </ScrollViewer>
+
+    <Border Grid.Row="2" Padding="20,10,20,18" Background="{StaticResource BoothBrush}">
+      <Button Classes="primary" Content="Save" Command="{Binding SaveCommand}" MaxWidth="560" />
+    </Border>
+  </Grid>
+</UserControl>
