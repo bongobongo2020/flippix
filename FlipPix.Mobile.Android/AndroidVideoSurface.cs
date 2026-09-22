@@ -9,8 +9,8 @@ using AUri = Android.Net.Uri;
 namespace FlipPix.Mobile.Android;
 
 /// <summary>
-/// VideoView with the system transport controls, streaming straight from ComfyUI's /view URL.
-/// Loops, because a take is short and is watched more than once.
+/// VideoView with the system transport controls, streaming straight from ComfyUI's /view URLs. A
+/// single video loops; a playlist (a story's clips) plays through and starts again.
 /// </summary>
 public sealed class AndroidVideoSurface : IVideoSurfaceFactory
 {
@@ -18,20 +18,23 @@ public sealed class AndroidVideoSurface : IVideoSurfaceFactory
 
     public AndroidVideoSurface(Context context) => _context = context;
 
-    public IPlatformHandle Create(IPlatformHandle parent, string? url)
+    public IPlatformHandle Create(IPlatformHandle parent, IReadOnlyList<string> urls)
     {
         var view = new VideoView(_context);
         var controls = new MediaController(_context);
         controls.SetAnchorView(view);
         view.SetMediaController(controls);
-        view.SetOnPreparedListener(new LoopOnPrepared(view));
-        Load(view, url);
+        var player = new Playlist(view);
+        view.Tag = player;
+        view.SetOnPreparedListener(player);
+        view.SetOnCompletionListener(player);
+        player.Load(urls);
         return new AndroidViewControlHandle(view);
     }
 
-    public void SetSource(IPlatformHandle handle, string? url)
+    public void SetSources(IPlatformHandle handle, IReadOnlyList<string> urls)
     {
-        if (handle is AndroidViewControlHandle { View: VideoView view }) Load(view, url);
+        if (handle is AndroidViewControlHandle { View: VideoView { Tag: Playlist player } }) player.Load(urls);
     }
 
     public void Destroy(IPlatformHandle handle)
@@ -43,22 +46,39 @@ public sealed class AndroidVideoSurface : IVideoSurfaceFactory
         }
     }
 
-    private static void Load(VideoView view, string? url)
+    private sealed class Playlist : Java.Lang.Object, MediaPlayer.IOnPreparedListener, MediaPlayer.IOnCompletionListener
     {
-        view.StopPlayback();
-        if (!string.IsNullOrEmpty(url)) view.SetVideoURI(AUri.Parse(url));
-    }
-}
+        private readonly VideoView _view;
+        private IReadOnlyList<string> _urls = Array.Empty<string>();
+        private int _index;
 
-/// <summary>Starts playback as soon as the stream is ready, looping.</summary>
-internal sealed class LoopOnPrepared : Java.Lang.Object, MediaPlayer.IOnPreparedListener
-{
-    private readonly VideoView _view;
-    public LoopOnPrepared(VideoView view) => _view = view;
+        public Playlist(VideoView view) => _view = view;
 
-    public void OnPrepared(MediaPlayer? mp)
-    {
-        if (mp != null) mp.Looping = true;
-        _view.Start();
+        public void Load(IReadOnlyList<string> urls)
+        {
+            _view.StopPlayback();
+            _urls = urls;
+            _index = 0;
+            PlayCurrent();
+        }
+
+        private void PlayCurrent()
+        {
+            if (_urls.Count == 0) return;
+            _view.SetVideoURI(AUri.Parse(_urls[_index]));
+        }
+
+        public void OnPrepared(MediaPlayer? mp)
+        {
+            if (mp != null) mp.Looping = _urls.Count == 1;
+            _view.Start();
+        }
+
+        public void OnCompletion(MediaPlayer? mp)
+        {
+            if (_urls.Count <= 1) return;
+            _index = (_index + 1) % _urls.Count;
+            PlayCurrent();
+        }
     }
 }

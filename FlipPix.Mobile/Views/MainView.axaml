@@ -27,10 +27,7 @@
 
       <Panel IsVisible="{Binding IsVideo}"><v:VideoView DataContext="{Binding Video}" /></Panel>
 
-      <v:NextUpView IsVisible="{Binding IsStory}"
-                    Heading="Story"
-                    Body="Write a story and get a film. The LLM breaks it into shots, each shot is rendered in turn, and you watch them arrive."
-                    Icon="{StaticResource IconStory}" />
+<Panel IsVisible="{Binding IsStory}"><v:StoryView DataContext="{Binding Story}" /></Panel>
 
       <Panel IsVisible="{Binding IsSettings}"><v:SettingsView DataContext="{Binding Settings}" /></Panel>
     </Panel>

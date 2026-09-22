@@ -53,7 +53,30 @@ public sealed class LlmClient
     /// llama.cpp and Ollama all accept. The server's model has to be a vision model.
     /// </summary>
     public static async Task<string> ChatAsync(MobileSettings s, string system, string user,
-        IReadOnlyList<byte[]> jpegs, int maxTokens = 1200, double temperature = 0.8, CancellationToken ct = default)
+        IReadOnlyList<byte[]> jpegs, int maxTokens = 1200, double temperature = 0.8, CancellationToken ct = default,
+        double repeatPenalty = 0)
+    {
+        try
+        {
+            return await ChatOnceAsync(s, system, user, jpegs, maxTokens, temperature, repeatPenalty, ct);
+        }
+        catch (InvalidOperationException ex) when (IsOutOfMemory(ex.Message))
+        {
+            // The LLM shares the GPU with ComfyUI, which keeps its last render's models in VRAM. Unload
+            // them and try once more; the next render reloads them from RAM in seconds.
+            if (!await AppServices.Comfy.FreeMemoryAsync(ct)) throw;
+            await Task.Delay(TimeSpan.FromSeconds(2), ct);
+            return await ChatOnceAsync(s, system, user, jpegs, maxTokens, temperature, repeatPenalty, ct);
+        }
+    }
+
+    private static bool IsOutOfMemory(string message) =>
+        message.Contains("out of memory", StringComparison.OrdinalIgnoreCase)
+        || message.Contains("OOM", StringComparison.Ordinal)
+        || message.Contains("failed to allocate", StringComparison.OrdinalIgnoreCase);
+
+    private static async Task<string> ChatOnceAsync(MobileSettings s, string system, string user,
+        IReadOnlyList<byte[]> jpegs, int maxTokens, double temperature, double repeatPenalty, CancellationToken ct)
     {
         var root = ApiRoot(s.LlmUrl);
         if (root.Length == 0) throw new InvalidOperationException("Add your LLM address in Settings first.");
@@ -81,6 +104,9 @@ public sealed class LlmClient
             ["chat_template_kwargs"] = new { enable_thinking = false },
         };
         if (!string.IsNullOrWhiteSpace(s.LlmModel)) body["model"] = s.LlmModel;
+        // llama.cpp's repeat_penalty; OpenAI-style servers that don't know it ignore it. Never presence or
+        // frequency penalties: on repetitive structured output they degenerate into word salad.
+        if (repeatPenalty > 0) body["repeat_penalty"] = repeatPenalty;
 
         using var content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
         using var resp = await Http.PostAsync(root + "/chat/completions", content, ct);

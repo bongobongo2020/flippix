@@ -159,6 +159,14 @@ public static class VideoRecipe
 
     public static string SystemPrompt() => Workflows.LoadText("h3-r2va.md");
 
+    /// <summary>
+    /// The spec forbids inventing sound, so a request that says nothing about it comes back "N/A" and
+    /// the clip is silent in intent. Asking for the place's own sound counts as the user stating it.
+    /// </summary>
+    public const string SoundRequest =
+        "Sound: the user wants the natural ambient sound of the setting in overall_soundscape, and any " +
+        "words a character says in the idea below spoken aloud as dialogue. Still no music unless asked.";
+
     /// <summary>The user message the desktop's Analyze sends, for a single segment.</summary>
     public static string Request(int pictureCount, int seconds, string idea)
     {
@@ -166,6 +174,7 @@ public static class VideoRecipe
         for (var i = 0; i < pictureCount; i++) lines.Add($"  <Picture {i + 1}>");
         lines.Add("");
         lines.Add($"Write ONE segment. Target duration: {seconds} seconds.");
+        lines.Add(SoundRequest);
         lines.Add("");
         lines.Add("Draft idea from the user:");
         lines.Add(string.IsNullOrWhiteSpace(idea)

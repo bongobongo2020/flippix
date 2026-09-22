@@ -1,4 +1,6 @@
 using System.Net.Http;
+using System.Net.Http.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json;
 using FlipPix.ComfyUI.Http;
 using FlipPix.ComfyUI.Models;
@@ -77,6 +79,15 @@ public sealed class ComfyGateway : IDisposable
     public async Task<IReadOnlyList<ComfyOutput>> RunAsync(object graph, Action<int, int>? onStep, CancellationToken ct)
     {
         var service = _service ?? throw new InvalidOperationException("Add your ComfyUI address in Settings first.");
+        // A marker only this job carries, so Stop can find it in the server's queue and cancel it
+        // without touching anyone else's job on a shared server. _meta is ignored by execution.
+        var marker = "flippix-mobile-" + Guid.NewGuid().ToString("N");
+        if (graph is JsonObject g && g.FirstOrDefault().Value is JsonObject first)
+        {
+            if (first["_meta"] is not JsonObject meta) first["_meta"] = meta = new JsonObject();
+            meta["flippix_run"] = marker;
+        }
+
         await _gate.WaitAsync(ct);
         try
         {
@@ -85,13 +96,61 @@ public sealed class ComfyGateway : IDisposable
             {
                 if (m.Data is { Max: > 0 } d) onStep?.Invoke(d.Value, d.Max);
             });
-            var promptId = await service.ExecuteWorkflowAsync(graph, progress, ct, TimeSpan.FromHours(2));
-            return await ReadOutputsAsync(promptId, ct);
+            try
+            {
+                var promptId = await service.ExecuteWorkflowAsync(graph, progress, ct, TimeSpan.FromHours(2));
+                return await ReadOutputsAsync(promptId, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                await CancelOnServerAsync(marker);
+                throw;
+            }
         }
         finally
         {
             _gate.Release();
         }
+    }
+
+    /// <summary>
+    /// Takes a stopped job off the server: deleted if still waiting, interrupted if running. Only
+    /// the job carrying <paramref name="marker"/> is touched; the interrupt is sent only when the
+    /// running job is that one, because /interrupt stops whatever is running.
+    /// </summary>
+    private async Task CancelOnServerAsync(string marker)
+    {
+        if (_raw == null) return;
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            using var doc = JsonDocument.Parse(await _raw.GetStringAsync("/queue", cts.Token));
+            string? Find(string key) => doc.RootElement.TryGetProperty(key, out var list)
+                ? list.EnumerateArray().Where(e => e.GetRawText().Contains(marker, StringComparison.Ordinal))
+                      .Select(e => e[1].GetString()).FirstOrDefault()
+                : null;
+
+            if (Find("queue_pending") is { } pending)
+                await _raw.PostAsync("/queue", JsonContent.Create(new { delete = new[] { pending } }), cts.Token);
+            if (Find("queue_running") is not null)
+                await _raw.PostAsync("/interrupt", JsonContent.Create(new { }), cts.Token);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            _logger.LogWarning("Couldn't take the stopped job off the server: " + ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Asks ComfyUI to unload its models and free VRAM. Used when an LLM on the same GPU can't load:
+    /// ComfyUI keeps a finished render's weights resident, which is right for the next render and
+    /// leaves nothing for a model that wants to start.
+    /// </summary>
+    public async Task<bool> FreeMemoryAsync(CancellationToken ct = default)
+    {
+        if (_service == null) return false;
+        try { return await _service.FreeMemoryAsync(unloadModels: true, freeMemory: true, ct); }
+        catch (Exception ex) when (ex is not OperationCanceledException) { return false; }
     }
 
     /// <summary>Uploads JPEG bytes to ComfyUI's input folder and returns the name to load them by.</summary>

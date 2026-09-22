@@ -4,12 +4,12 @@ using FlipPix.Mobile.ViewModels;
 
 namespace FlipPix.Mobile.Views;
 
-public partial class VideoView : UserControl
+public partial class StoryView : UserControl
 {
-    public VideoView() => InitializeComponent();
+    public StoryView() => InitializeComponent();
 
     private async void OnAddPhoto(object? sender, RoutedEventArgs e)
     {
-        if (DataContext is VideoViewModel vm) await vm.AddPicturesAsync(await PhotoPicker.PickAsync(this));
+        if (DataContext is StoryViewModel vm) await vm.AddPicturesAsync(await PhotoPicker.PickAsync(this));
     }
 }

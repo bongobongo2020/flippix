@@ -14,10 +14,12 @@ public partial class MainViewModel : ObservableObject
     {
         Image = new ImageViewModel();
         Video = new VideoViewModel();
+        Story = new StoryViewModel();
         // Viewers are full screen: header and nav step aside while one is open.
         Image.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(ImageViewModel.IsViewerOpen)) ChromeChanged(); };
         Video.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(VideoViewModel.IsPlayerOpen)) ChromeChanged(); };
-        Settings = new SettingsViewModel(onSaved: () => { Image.Refresh(); Video.Refresh(); Go(_lastWorkPage); });
+        Story.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(StoryViewModel.IsPlayerOpen)) ChromeChanged(); };
+        Settings = new SettingsViewModel(onSaved: () => { Image.Refresh(); Video.Refresh(); Story.Refresh(); Go(_lastWorkPage); });
         // First run lands in Settings: nothing else can work without a server address.
         _page = AppServices.Settings.IsComfyConfigured ? Page.Image : Page.Settings;
         if (AppServices.Settings.IsComfyConfigured) _ = CheckServerAsync();
@@ -25,6 +27,7 @@ public partial class MainViewModel : ObservableObject
 
     public ImageViewModel Image { get; }
     public VideoViewModel Video { get; }
+    public StoryViewModel Story { get; }
 
     private void ChromeChanged()
     {
@@ -41,7 +44,7 @@ public partial class MainViewModel : ObservableObject
     public bool IsVideo => Page == Page.Video;
     public bool IsStory => Page == Page.Story;
     public bool IsSettings => Page == Page.Settings;
-    public bool ShowHeader => Page != Page.Settings && !(IsImage && Image.IsViewerOpen) && !(IsVideo && Video.IsPlayerOpen);
+    public bool ShowHeader => Page != Page.Settings && !(IsImage && Image.IsViewerOpen) && !(IsVideo && Video.IsPlayerOpen) && !(IsStory && Story.IsPlayerOpen);
     public bool ShowNav => ShowHeader && !KeyboardOpen;
 
     /// <summary>Set by the view: while typing, the bottom nav would only cost screen height.</summary>
@@ -71,6 +74,7 @@ public partial class MainViewModel : ObservableObject
     {
         if (IsImage && Image.IsViewerOpen) { Image.CloseViewerCommand.Execute(null); return true; }
         if (IsVideo && Video.IsPlayerOpen) { Video.ClosePlayerCommand.Execute(null); return true; }
+        if (IsStory && Story.IsPlayerOpen) { Story.ClosePlayerCommand.Execute(null); return true; }
         if (Page == Page.Settings && AppServices.Settings.IsComfyConfigured) { CloseSettings(); return true; }
         if (Page != Page.Image && Page != Page.Settings) { Go(Page.Image); return true; }
         return false;

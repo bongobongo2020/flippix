@@ -24,6 +24,18 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
   </ItemGroup>
 
+  <!--
+    The desktop's story-chain logic, compiled in unchanged: the beat sheet (story -> exactly N beats),
+    the continuity plan (one place, hour and light per clip) and the one-call-per-clip writer. They talk
+    to an LLM only through LMStudioService and LlmSampling; Compat/LMStudioService.cs is the phone's.
+  -->
+  <ItemGroup>
+    <Compile Include="..\FlipPix.UI\Services\StoryBeatSheet.cs" Link="Shared\StoryBeatSheet.cs" />
+    <Compile Include="..\FlipPix.UI\Services\StoryContinuity.cs" Link="Shared\StoryContinuity.cs" />
+    <Compile Include="..\FlipPix.UI\Services\ClipChainWriter.cs" Link="Shared\ClipChainWriter.cs" />
+    <Compile Include="..\FlipPix.UI\Services\LlmSampling.cs" Link="Shared\LlmSampling.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <!-- Only the graphs the phone drives are shipped, embedded so no file system is assumed. -->
     <EmbeddedResource Include="..\workflow\image\krea\krea2RealismV1_krea2RealismV1WF.json" LogicalName="wf/krea2.json" />

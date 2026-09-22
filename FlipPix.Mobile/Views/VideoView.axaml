@@ -175,23 +175,23 @@
       </Panel>
     </Border>
 
-    <!-- Player. Nothing overlaps the native surface: it draws above everything Avalonia paints. -->
-    <Grid Grid.RowSpan="2" IsVisible="{Binding IsPlayerOpen}" Background="#101119" RowDefinitions="Auto,*,Auto">
-      <Button Grid.Row="0" Classes="bare" HorizontalAlignment="Right" Margin="8" Command="{Binding ClosePlayerCommand}"
-              AutomationProperties.Name="Close">
-        <PathIcon Data="{StaticResource IconClose}" Width="24" Height="24" />
-      </Button>
+    <!-- Player. The idea and its actions sit in the top bar: Android's transport controls take the
+         bottom edge, and nothing may overlap the native surface either way. -->
+    <Grid Grid.RowSpan="2" IsVisible="{Binding IsPlayerOpen}" Background="#101119" RowDefinitions="Auto,*">
+      <Grid ColumnDefinitions="*,Auto,Auto" Margin="20,8,8,8">
+        <TextBlock Text="{Binding Playing.Idea}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
+                   VerticalAlignment="Center" />
+        <Button Grid.Column="1" Classes="quiet" Content="Remove" Height="40" Margin="12,0,4,0"
+                Command="{Binding RemoveTakeCommand}" CommandParameter="{Binding Playing}" />
+        <Button Grid.Column="2" Classes="bare" Command="{Binding ClosePlayerCommand}" AutomationProperties.Name="Close">
+          <PathIcon Data="{StaticResource IconClose}" Width="24" Height="24" />
+        </Button>
+      </Grid>
       <c:VideoSurface Grid.Row="1" Source="{Binding Playing.Url}" IsVisible="{Binding PlayerSupported}" />
       <StackPanel Grid.Row="1" IsVisible="{Binding !PlayerSupported}" VerticalAlignment="Center" Margin="24" Spacing="8">
         <TextBlock Text="Playback needs the phone app." HorizontalAlignment="Center" />
         <SelectableTextBlock Text="{Binding Playing.Url}" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" FontSize="12" />
       </StackPanel>
-      <Grid Grid.Row="2" Margin="20,12,20,20" ColumnDefinitions="*,Auto">
-        <TextBlock Text="{Binding Playing.Idea}" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis"
-                   VerticalAlignment="Center" LineHeight="21" />
-        <Button Grid.Column="1" Classes="quiet" Content="Remove" Height="44" Margin="12,0,0,0"
-                Command="{Binding RemoveTakeCommand}" CommandParameter="{Binding Playing}" />
-      </Grid>
     </Grid>
   </Grid>
 </UserControl>
