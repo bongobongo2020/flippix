@@ -263,40 +263,12 @@
                                                          ToolTip="Instruction written into the Krea2 Edit grounded-encode node. 'image a' is the base scene frame (person to replace); 'image b' is Character 1. Edit for either sex or extra guidance."/>
                                             </StackPanel>
 
-                                            <!-- Klein Flux2 Control — the Image Generator ▸ Advanced ▸ Control flow:
-                                                 Step 1 Analyze (QwenVL subject + pose) → Step 2 edit prompt → Step 3 Generate (repeatable) -->
-                                            <StackPanel Margin="0,0,0,10"
-                                                        Visibility="{Binding IsKleinControlSelected, Converter={StaticResource BoolToVisibilityConverter}}">
-                                                <Grid Margin="0,0,0,4">
-                                                    <TextBlock Text="Step 1 — Analyze pose + subject" FontSize="10" Foreground="{StaticResource TextMutedBrush}"
-                                                               VerticalAlignment="Center"/>
-                                                    <Button Content="🔍 Analyze"
-                                                            Command="{Binding AnalyzeKleinPromptCommand}"
-                                                            HorizontalAlignment="Right" Height="24" Padding="14,0" FontSize="10"
-                                                            Style="{StaticResource SuccessButtonStyle}"
-                                                            ToolTip="Runs the Klein Flux2 Control workflow's QwenVL pass on Character 1 (appearance) and the pinned pose frame, then fills the box below with the combined prompt so you can edit it. The generated image is also adopted as the character image."/>
-                                                </Grid>
-                                                <TextBlock Text="Step 2 — Edit prompt" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,4"/>
-                                                <TextBox Text="{Binding KleinControlPrompt, UpdateSourceTrigger=PropertyChanged}"
-                                                         FontSize="10" MinHeight="80" MaxHeight="180" TextWrapping="Wrap" AcceptsReturn="True"
-                                                         VerticalScrollBarVisibility="Auto"
-                                                         Padding="6"
-                                                         ToolTip="Positive prompt for the Klein Flux2 Control generation. Leave empty to let the workflow write it from QwenVL (subject appearance + pose frame); anything here is used instead."/>
-                                                <TextBlock Text="Leave empty to let QwenVL write the prompt during Generate."
-                                                           FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3,0,6"/>
-                                                <Grid>
-                                                    <TextBlock Text="Step 3 — Generate (press again for another take)"
-                                                               FontSize="10" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
-                                                    <Button Content="🚀 Generate image"
-                                                            Command="{Binding GenerateKleinImageCommand}"
-                                                            HorizontalAlignment="Right" Height="24" Padding="14,0" FontSize="10"
-                                                            Style="{StaticResource AccentButtonStyle}"
-                                                            ToolTip="Sends the edited prompt to ComfyUI with Character 1 and the pinned pose frame, reseeding each run. Press it again if the first image isn't good enough — the result becomes the character image."/>
-                                                </Grid>
-                                                <ProgressBar Value="{Binding KleinProgress, Mode=OneWay}" Maximum="100" Height="4"
-                                                             Margin="0,6,0,0" Foreground="{DynamicResource TabAccentBrush}"
-                                                             BorderThickness="0"/>
-                                            </StackPanel>
+                                            <!-- Step 1 of the Klein Flux2 Control flow is the upload below: Analyze reads the
+                                                 outfit and likeness off Character 1, so it stays disabled until one is picked. -->
+                                            <TextBlock Text="Step 1 — Pick Character 1 (its face and outfit are what gets generated)"
+                                                       FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"
+                                                       TextWrapping="Wrap"
+                                                       Visibility="{Binding IsKleinControlSelected, Converter={StaticResource BoolToVisibilityConverter}}"/>
 
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
@@ -330,7 +302,7 @@
                                                             Command="{Binding SwapChar1OnlyCommand}"
                                                             Height="26" FontSize="10" Margin="0,4,0,0"
                                                             Style="{StaticResource AccentButtonStyle}"
-                                                            ToolTip="Replace just one person in the pose frame with Character 1 (works for a man or a woman), then use the result as the character image. In Klein Flux2 Control mode this is the same as Step 3 — Generate image."/>
+                                                            ToolTip="Replace just one person in the pose frame with Character 1 (works for a man or a woman), then use the result as the character image. In Klein Flux2 Control mode this is the same as Step 4 — Generate image."/>
                                                 </StackPanel>
 
                                                 <!-- Character 2 -->
@@ -388,6 +360,44 @@
                                                                Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic" Margin="0,5,0,0" TextWrapping="Wrap"/>
                                                 </StackPanel>
                                             </Grid>
+
+                                            <!-- Klein Flux2 Control — the Image Generator ▸ Advanced ▸ Control flow, one step later
+                                                 than that tab's numbering because Character 1 is picked above first:
+                                                 Step 2 Analyze (QwenVL outfit+likeness from Character 1, pose from the video frame)
+                                                 → Step 3 edit prompt → Step 4 Generate (repeatable) -->
+                                            <StackPanel Margin="0,12,0,0"
+                                                        Visibility="{Binding IsKleinControlSelected, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                <Grid Margin="0,0,0,4">
+                                                    <TextBlock Text="Step 2 — Analyze (press again to reword)"
+                                                               FontSize="10" Foreground="{StaticResource TextMutedBrush}"
+                                                               VerticalAlignment="Center"/>
+                                                    <Button Content="🔍 Analyze"
+                                                            Command="{Binding AnalyzeKleinPromptCommand}"
+                                                            HorizontalAlignment="Right" Height="24" Padding="14,0" FontSize="10"
+                                                            Style="{StaticResource SuccessButtonStyle}"
+                                                            ToolTip="Runs the Klein Flux2 Control workflow's QwenVL pass twice: Character 1 supplies the face AND the clothing, the pinned pose frame supplies only the body position. The combined text lands in the box below so you can edit it, and the generated image is adopted as the character image.&#x0a;&#x0a;Press it again for a differently worded description of the same character and pose."/>
+                                                </Grid>
+                                                <TextBlock Text="Step 3 — Edit prompt" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,4"/>
+                                                <TextBox Text="{Binding KleinControlPrompt, UpdateSourceTrigger=PropertyChanged}"
+                                                         FontSize="10" MinHeight="80" MaxHeight="180" TextWrapping="Wrap" AcceptsReturn="True"
+                                                         VerticalScrollBarVisibility="Auto"
+                                                         Padding="6"
+                                                         ToolTip="Positive prompt for the Klein Flux2 Control generation. Leave empty to let the workflow write it from QwenVL (Character 1's appearance and outfit + the pose frame's body position); anything here is used instead."/>
+                                                <TextBlock Text="Leave empty to let QwenVL write the prompt during Generate."
+                                                           FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3,0,6"/>
+                                                <Grid>
+                                                    <TextBlock Text="Step 4 — Generate (press again for another take)"
+                                                               FontSize="10" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
+                                                    <Button Content="🚀 Generate image"
+                                                            Command="{Binding GenerateKleinImageCommand}"
+                                                            HorizontalAlignment="Right" Height="24" Padding="14,0" FontSize="10"
+                                                            Style="{StaticResource AccentButtonStyle}"
+                                                            ToolTip="Sends the edited prompt to ComfyUI with Character 1 and the pinned pose frame, reseeding each run. Press it again if the first image isn't good enough — the result becomes the character image."/>
+                                                </Grid>
+                                                <ProgressBar Value="{Binding KleinProgress, Mode=OneWay}" Maximum="100" Height="4"
+                                                             Margin="0,6,0,0" Foreground="{DynamicResource TabAccentBrush}"
+                                                             BorderThickness="0"/>
+                                            </StackPanel>
 
                                             <TextBlock Text="{Binding CharSwapStatus}" FontSize="11" Foreground="{DynamicResource TabAccentBrush}"
                                                        TextWrapping="Wrap" Margin="0,10,0,0"/>

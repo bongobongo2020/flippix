@@ -66,6 +66,40 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         private const int MaxBaseAxis = MaxPidAxis / PidScale;
         private const int BaseTargetPixels = 1024 * 1024;
 
+        // The one place Scail 2 deliberately diverges from the Control tab's authored graph. As authored,
+        // QwenVL node 57 reads Character 1 but is told NOT to describe clothing, and node 62 reads the
+        // pose frame and describes the clothing there — so the generated character wore whatever the
+        // person in the driving video wore. Scail 2 wants the opposite split: everything about who the
+        // character IS (face and outfit) comes from Character 1, and the pose frame contributes nothing
+        // but the body position it is there to supply. Overridden per-run rather than edited into the
+        // shared JSON, which the Image Generator ▸ Advanced ▸ Control tab loads unchanged.
+        private const string KleinAppearanceNode = "57";
+        private const string KleinPoseNode = "62";
+
+        private const string KleinAppearancePrompt =
+            "/no_think\n" +
+            "Describe ONLY this character's appearance and what they are wearing — NOT the pose or body " +
+            "position. Output ONE paragraph, nothing else. Structure: face (skin tone, exact eye color and " +
+            "shape, nose, lips, expression, hair color/style/length, accessories); then each clothing item " +
+            "this character is wearing, rendered more sexy and revealing (e.g. tight shorts showing skin), " +
+            "with exact specific color adjectives like 'deep matte black' or 'vivid crimson red', garment " +
+            "type, material texture, fit, and any logos or patterns; then lighting and camera shot type. " +
+            "Do NOT describe standing pose, arms, legs, or body orientation. One paragraph only.";
+
+        private const string KleinPosePrompt =
+            "/no_think\n" +
+            "Describe ONLY the body pose and position of the person in this image — NOT their clothing, " +
+            "face, hair or appearance. Output exactly ONE sentence. Include: overall stance " +
+            "(standing/sitting/crouching/lying), which direction the body faces, exact arm positions " +
+            "(raised/lowered/bent/extended/crossed), leg positions, and head/gaze direction. Example: " +
+            "'A person stands facing the camera at a slight angle, right arm raised with elbow bent beside " +
+            "the head, left arm hanging at the side, legs shoulder-width apart, looking directly forward.' " +
+            "Do NOT mention any garment, color, material, accessory or facial feature.";
+
+        // The QwenVL seed widgets are authored below 2^32, so stay in that range rather than reusing the
+        // sampler's 15-digit spread.
+        private static long NextQwenSeed() => Random.Shared.NextInt64(0, uint.MaxValue);
+
         // Third single-character path: the "Krea2 Edit (two ref)" workflow. Node 72 = image A (the base
         // scene frame containing the person to replace), node 86 = image B (Character 1, the replacement
         // likeness). The grounded-encode prompt on node 84 replaces the person in image A with the subject
@@ -1115,7 +1149,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 CharSwapStatus = isAnalyze
                     ? (string.IsNullOrWhiteSpace(KleinControlPrompt)
                         ? "Analyze finished but no prompt came back — check ComfyUI logs"
-                        : "Prompt ready — edit it, then press “Generate image” for another take")
+                        : "Prompt ready — edit it, press “Analyze” again to reword it, or “Generate image” to render it")
                     : "Character image ready — press “Generate image” again for another take, or set the In/Out markers";
                 AddLog($"=== Klein Control {(isAnalyze ? "analyze" : "generate")} complete ===");
             }
@@ -1293,6 +1327,22 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             UpdateNode(dict, "1", inputs => inputs["image"] = uploadedSubject); // reference = Character 1
             UpdateNode(dict, "19", inputs => inputs["image"] = uploadedPose);    // pose = base scene frame
             UpdateNode(dict, "7", inputs => inputs["noise_seed"] = new Random().NextInt64(0, 999_999_999_999_999L));
+
+            // Appearance AND outfit off Character 1; pose only off the video frame. See the constants.
+            // Both seeds are rerolled every pass — the authored graph pins them, which made a second
+            // press of Analyze on the same Character 1 and pose frame return word-for-word the same
+            // prompt. Rerolling makes Analyze a reroll button, and also varies node 201 (the PiD
+            // positive encode, which keeps reading QwenVL even when Generate overrides node 6).
+            UpdateNode(dict, KleinAppearanceNode, inputs =>
+            {
+                inputs["custom_prompt"] = KleinAppearancePrompt;
+                inputs["seed"] = NextQwenSeed();
+            });
+            UpdateNode(dict, KleinPoseNode, inputs =>
+            {
+                inputs["custom_prompt"] = KleinPosePrompt;
+                inputs["seed"] = NextQwenSeed();
+            });
 
             // Size both stages from one base size instead of letting the graph derive them from two
             // independent rescales (1 MP via nodes 17/45/46, 16 MP via nodes 205/206). That mismatch
