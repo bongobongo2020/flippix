@@ -331,8 +331,6 @@ namespace FlipPix.UI.ViewModels.Video
                 ChainPinFinish = ChainPinFinish,
                 DiffusionModel = SelectedDiffusionModel,
                 Steps = FirstPassStepCount,
-                Lora = SelectedLora,
-                LoraStrength = LoraStrength,
                 AspectRatio = SelectedAspectRatio,
                 Megapixels = Megapixels,
                 PreviewMegapixels = PreviewMegapixels,
@@ -345,6 +343,7 @@ namespace FlipPix.UI.ViewModels.Video
                 ReuseSavedPrompts = ReuseSavedPrompts,
                 VisualStyle = VisualStyle?.Name ?? string.Empty,
             };
+            job.SetLoras(Loras);
             foreach (var s in Stories) job.Stories.Add(s);
             return job;
         }
@@ -381,9 +380,10 @@ namespace FlipPix.UI.ViewModels.Video
                     }
                     FirstPassStepCount = job.Steps;
 
-                    OfferOption(LoraOptions, job.Lora);
-                    SelectedLora = job.Lora;
-                    LoraStrength = job.LoraStrength;
+                    // The rows go on as copies — the job keeps its own, so a later edit on the rail does not
+                    // rewrite the queued snapshot it came from.
+                    foreach (var l in job.Loras) OfferOption(LoraOptions, l.Name);
+                    ApplyLoras(job.Loras);
 
                     // The canvas and the lengths.
                     if (AspectRatioOptions.Contains(job.AspectRatio)) SelectedAspectRatio = job.AspectRatio;

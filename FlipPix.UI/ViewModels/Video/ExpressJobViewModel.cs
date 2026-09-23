@@ -75,6 +75,11 @@ namespace FlipPix.UI.ViewModels.Video
             Cast1 = Member(1, job.Cast1Photo, job.Cast1Sex, job.Cast1Outfit, job.Cast1OutfitSource);
             Cast2 = Member(2, job.Cast2Photo, job.Cast2Sex, job.Cast2Outfit, job.Cast2OutfitSource);
 
+            // The rows came with the job copy; subscribing is what makes a strength drag re-summarise.
+            AddLoraCommand = new RelayCommand(AddLoraSlot, () => CanAddLora);
+            RemoveLoraCommand = new RelayCommand<H3ExpressLoraSlot>(RemoveLoraSlot);
+            foreach (var row in Loras) row.Changed += (_, _) => RaiseLoraState();
+
             PickFolderCommand = new RelayCommand(async () => await PickFolderAsync());
             RescanCommand = new RelayCommand(() => Rescan(report: true), () => Job.Folder.Length > 0);
             RemoveStoryCommand = new RelayCommand<BatchStory>(s => { if (s != null) Job.Stories.Remove(s); });
@@ -182,7 +187,7 @@ namespace FlipPix.UI.ViewModels.Video
                 return $"{Stories.Count} stor{(Stories.Count == 1 ? "y" : "ies")} · {stack} at {Steps} steps · " +
                        $"{Megapixels:0.##} MP · {StoryDurationSeconds:0}s films of {ClipLengthSeconds:0}s clips · {who}" +
                        (ChainClips ? " · 🔗 chained" : string.Empty) +
-                       (HasLora ? $" · LoRA at {LoraStrength:0.00}" : string.Empty);
+                       (HasLora ? $" · {Job.ActiveLoras.Count} LoRA" : string.Empty);
             }
         }
 
@@ -391,24 +396,54 @@ namespace FlipPix.UI.ViewModels.Video
             set { if (value == null) return; Job.DiffusionModel = value; OnPropertyChanged(); }
         }
 
-        public string SelectedLora
+        // ── The LoRA stack ──────────────────────────────────────────────────────────────────────────
+
+        /// <summary>This job's rows, edited in place. The sheet opens on a copy of the job, so these are
+        /// this copy's own rows and Cancel drops them with it.</summary>
+        public ObservableCollection<H3ExpressLoraSlot> Loras => Job.Loras;
+
+        public RelayCommand AddLoraCommand { get; private set; } = new(() => { });
+
+        public RelayCommand<H3ExpressLoraSlot> RemoveLoraCommand { get; private set; } = new(_ => { });
+
+        public bool CanAddLora => Loras.Count < H3ExpressViewModel.MaxLoraSlots;
+
+        public bool HasLora => Loras.Any(l => l.IsActive);
+
+        public string LoraSummary => Loras.Count == 0
+            ? "No LoRA — this job's clips render on the bare checkpoint."
+            : HasLora
+                ? $"{Job.LoraLine} — stacked on the checkpoint in that order."
+                : "Every row is unset or at 0, so none of them reach the graph.";
+
+        private void AddLoraSlot()
         {
-            get => Job.Lora;
-            set
-            {
-                Job.Lora = (value ?? string.Empty).Trim().Replace('\\', '/');
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(HasLora));
-                RaiseFooter();
-            }
+            if (!CanAddLora) return;
+            AttachLoraSlot(new H3ExpressLoraSlot(Loras.Count + 1));
+            RaiseLoraState();
         }
 
-        public bool HasLora => Job.Lora.Length > 0;
-
-        public double LoraStrength
+        private void AttachLoraSlot(H3ExpressLoraSlot slot)
         {
-            get => Job.LoraStrength;
-            set { Job.LoraStrength = Math.Clamp(Math.Round(value, 2), 0, 2); OnPropertyChanged(); }
+            slot.Changed += (_, _) => RaiseLoraState();
+            Loras.Add(slot);
+        }
+
+        private void RemoveLoraSlot(H3ExpressLoraSlot? slot)
+        {
+            if (slot == null) return;
+            Loras.Remove(slot);
+            for (var i = 0; i < Loras.Count; i++) Loras[i].Index = i + 1;
+            RaiseLoraState();
+        }
+
+        private void RaiseLoraState()
+        {
+            OnPropertyChanged(nameof(CanAddLora));
+            OnPropertyChanged(nameof(HasLora));
+            OnPropertyChanged(nameof(LoraSummary));
+            AddLoraCommand.NotifyCanExecuteChanged();
+            RaiseFooter();
         }
 
         public int Steps

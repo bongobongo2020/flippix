@@ -516,8 +516,8 @@ namespace FlipPix.UI.ViewModels.Video
 
         // ── The LoRA stack ──────────────────────────────────────────────────────────────────────────
 
-        /// <summary>Up to five LoRAs, applied to the checkpoint in list order. Express offers one; this
-        /// graph ships five switched seats, so all five are on the card.</summary>
+        /// <summary>Up to five LoRAs, applied to the checkpoint in list order — the same five ⚡ H3 Express
+        /// offers, which chains them onto its own Power Lora Loader seat.</summary>
         public ObservableCollection<MiniMaxI2VLoraSlot> Loras { get; } = new();
 
         /// <summary>None, then every LoRA the server reports under loras/H3. Shared by every row.</summary>

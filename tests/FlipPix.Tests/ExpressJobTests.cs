@@ -22,40 +22,51 @@ public class ExpressJobTests
         nameof(ExpressJob.Position), nameof(ExpressJob.Cast1Preview), nameof(ExpressJob.Cast2Preview),
     };
 
-    /// <summary>One job with nothing left at its default, so a field that is not copied shows up.</summary>
-    private static ExpressJob Filled() => new()
+    /// <summary>The LoRA stack a filled job carries. Get-only, so the reflection walk above cannot reach
+    /// it — <see cref="TheLoraStackIsCopiedDeeply"/> covers it instead.</summary>
+    private static readonly H3ExpressLoraSlot[] SomeLoras =
     {
-        Folder = @"D:\stories\noir",
-        Cast1Photo = @"D:\faces\ada.png",
-        Cast1Sex = ExpressCastMember.Female,
-        Cast1Outfit = "a charcoal wool coat",
-        Cast1OutfitSource = @"D:\faces\ada.png",
-        Cast2Photo = @"D:\faces\ray.png",
-        Cast2Sex = ExpressCastMember.Male,
-        Cast2Outfit = "a grey flannel suit",
-        Cast2OutfitSource = @"D:\faces\ray.png",
-        CastOwnClothes = true,
-        CastPhotoEngine = "ideogram",
-        Stack = ExpressStack.Bunny,
-        SingularityErSde = true,
-        ChainClips = false,
-        ChainPinFinish = false,
-        DiffusionModel = "h3-minimax/taomate.safetensors",
-        Steps = 13,
-        Lora = "H3/some-lora.safetensors",
-        LoraStrength = 0.65,
-        AspectRatio = "21:9 (Ultrawide)",
-        Megapixels = 1.5,
-        PreviewMegapixels = 0.3,
-        UpscaleSteps = 5,
-        UseRife = false,
-        StoryDurationSeconds = 120,
-        ClipLengthSeconds = 7,
-        ResearchPrompts = false,
-        SpecPrompts = true,
-        ReuseSavedPrompts = false,
-        VisualStyle = "Live action — 35mm cinematic",
+        new(1, "H3/some-lora.safetensors", 0.65),
+        new(2, "H3/another-lora.safetensors", 1.20),
     };
+
+    /// <summary>One job with nothing left at its default, so a field that is not copied shows up.</summary>
+    private static ExpressJob Filled()
+    {
+        var job = new ExpressJob
+        {
+            Folder = @"D:\stories\noir",
+            Cast1Photo = @"D:\faces\ada.png",
+            Cast1Sex = ExpressCastMember.Female,
+            Cast1Outfit = "a charcoal wool coat",
+            Cast1OutfitSource = @"D:\faces\ada.png",
+            Cast2Photo = @"D:\faces\ray.png",
+            Cast2Sex = ExpressCastMember.Male,
+            Cast2Outfit = "a grey flannel suit",
+            Cast2OutfitSource = @"D:\faces\ray.png",
+            CastOwnClothes = true,
+            CastPhotoEngine = "ideogram",
+            Stack = ExpressStack.Bunny,
+            SingularityErSde = true,
+            ChainClips = false,
+            ChainPinFinish = false,
+            DiffusionModel = "h3-minimax/taomate.safetensors",
+            Steps = 13,
+            AspectRatio = "21:9 (Ultrawide)",
+            Megapixels = 1.5,
+            PreviewMegapixels = 0.3,
+            UpscaleSteps = 5,
+            UseRife = false,
+            StoryDurationSeconds = 120,
+            ClipLengthSeconds = 7,
+            ResearchPrompts = false,
+            SpecPrompts = true,
+            ReuseSavedPrompts = false,
+            VisualStyle = "Live action — 35mm cinematic",
+        };
+        job.SetLoras(SomeLoras);
+        return job;
+    }
 
     /// <summary>
     /// Every public settable property that is a setting survives both routes a job's settings travel:
@@ -115,6 +126,50 @@ public class ExpressJobTests
         Assert.Empty(clone.Stories);
         Assert.Equal(ExpressJobState.Queued, clone.State);
         Assert.NotEqual(source.Id, clone.Id);
+    }
+
+    /// <summary>
+    /// The LoRA stack travels both copy routes, and travels as <b>copies</b>. The stories are shared rows
+    /// on purpose; these must not be, because the composer edits them in place — a shared row would write a
+    /// cancelled edit straight back onto the queued job, and a row moved on the rail would silently change
+    /// what a job already waiting in the queue renders on.
+    /// </summary>
+    [Fact]
+    public void TheLoraStackIsCopiedDeeply()
+    {
+        var source = Filled();
+        var clone = source.CloneSettings();
+        var written = new ExpressJob();
+        written.TakeSettingsFrom(source);
+
+        foreach (var copy in new[] { clone, written })
+        {
+            Assert.Equal(SomeLoras.Select(l => l.Name), copy.Loras.Select(l => l.Name));
+            Assert.Equal(SomeLoras.Select(l => l.Strength), copy.Loras.Select(l => l.Strength));
+            Assert.Equal(new[] { 1, 2 }, copy.Loras.Select(l => l.Index));
+            foreach (var row in copy.Loras) Assert.DoesNotContain(row, source.Loras);
+        }
+
+        clone.Loras[0].Strength = 0.10;
+        Assert.Equal(0.65, source.Loras[0].Strength);
+    }
+
+    /// <summary>Only the rows that reach the graph are the ones the card names — a row left unset, or
+    /// dragged to 0, is left out rather than loaded as a no-op.</summary>
+    [Fact]
+    public void ARowAtZeroOrUnsetIsNotOnTheWire()
+    {
+        var job = Filled();
+        job.SetLoras(new[]
+        {
+            new H3ExpressLoraSlot(1, "H3/on.safetensors", 0.80),
+            new H3ExpressLoraSlot(2, "H3/off.safetensors", 0.0),
+            new H3ExpressLoraSlot(3),
+        });
+
+        Assert.Equal(new[] { "H3/on.safetensors" }, job.ActiveLoras.Select(l => l.Name));
+        Assert.Equal("on at 0.80", job.LoraLine);
+        Assert.Contains("LoRA: on at 0.80", job.Tooltip);
     }
 
     /// <summary>A full clone shares the story rows, so a job re-queued from another one reports on the

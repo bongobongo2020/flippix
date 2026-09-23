@@ -197,8 +197,16 @@ namespace FlipPix.UI.Models
         [NotifyPropertyChangedFor(nameof(RenderLine))]
         private int _steps = 10;
 
-        [ObservableProperty] private string _lora = string.Empty;
-        [ObservableProperty] private double _loraStrength = 1.0;
+        /// <summary>This job's LoRA stack, chained onto its checkpoint in list order. The rows are this
+        /// job's own — the composer edits a copy, so changing them here never touches the running job.</summary>
+        public ObservableCollection<H3ExpressLoraSlot> Loras { get; } = new();
+
+        /// <summary>The rows that actually reach the graph, in order.</summary>
+        public IReadOnlyList<H3ExpressLoraSlot> ActiveLoras => Loras.Where(l => l.IsActive).ToList();
+
+        public string LoraLine => ActiveLoras.Count == 0
+            ? string.Empty
+            : string.Join(" → ", ActiveLoras.Select(l => $"{LabelOf(l.Name)} at {l.Strength:0.00}"));
 
         public string StackLabel => Stack switch
         {
@@ -305,7 +313,7 @@ namespace FlipPix.UI.Models
         public string Tooltip =>
             $"{FolderLine}\n{StoriesLine}\n\nCast: {CastLine}\nStack: {StackLabel} at {Steps} steps\n" +
             $"Canvas: {Megapixels:0.##} MP, {AspectRatio}\n{LengthLine}\nClips: {ChainLine}" +
-            (Lora.Length > 0 ? $"\nLoRA: {LabelOf(Lora)} at {LoraStrength:0.00}" : string.Empty);
+            (LoraLine.Length > 0 ? $"\nLoRA: {LoraLine}" : string.Empty);
 
         // ── The faces on the row ────────────────────────────────────────────────────────────────────
 
@@ -373,8 +381,6 @@ namespace FlipPix.UI.Models
                 ChainPinFinish = ChainPinFinish,
                 DiffusionModel = DiffusionModel,
                 Steps = Steps,
-                Lora = Lora,
-                LoraStrength = LoraStrength,
                 AspectRatio = AspectRatio,
                 Megapixels = Megapixels,
                 PreviewMegapixels = PreviewMegapixels,
@@ -387,7 +393,20 @@ namespace FlipPix.UI.Models
                 ReuseSavedPrompts = ReuseSavedPrompts,
                 VisualStyle = VisualStyle,
             };
+            // Deep, unlike the stories: the composer edits these rows, and a shared row would write the
+            // change straight back onto the job the sheet was opened from, Cancel or no Cancel.
+            c.SetLoras(Loras);
             return c;
+        }
+
+        /// <summary>Replaces this job's rows with fresh copies of the ones given, renumbered from 1.</summary>
+        public void SetLoras(IEnumerable<H3ExpressLoraSlot> loras)
+        {
+            Loras.Clear();
+            foreach (var l in loras) Loras.Add(new H3ExpressLoraSlot(Loras.Count + 1, l.Name, l.Strength));
+            OnPropertyChanged(nameof(ActiveLoras));
+            OnPropertyChanged(nameof(LoraLine));
+            OnPropertyChanged(nameof(Tooltip));
         }
 
         /// <summary>A full copy, stories included — the rows themselves, so a re-queued job shares them.</summary>
@@ -419,8 +438,7 @@ namespace FlipPix.UI.Models
             ChainPinFinish = other.ChainPinFinish;
             DiffusionModel = other.DiffusionModel;
             Steps = other.Steps;
-            Lora = other.Lora;
-            LoraStrength = other.LoraStrength;
+            SetLoras(other.Loras);
             AspectRatio = other.AspectRatio;
             Megapixels = other.Megapixels;
             PreviewMegapixels = other.PreviewMegapixels;

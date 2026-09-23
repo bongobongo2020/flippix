@@ -275,7 +275,11 @@ public class ComfyUISettings
     // hybrid's 12, the TaoMate relay's 10 — so this only ever holds the counts that were chosen on purpose.
     public Dictionary<string, int> H3ExpressStepsByModel { get; set; } = new();
 
-    // An optional LoRA from loras/H3, spliced onto whichever checkpoint the tab samples. Empty is none.
+    // Optional LoRAs from loras/H3, chained onto whichever checkpoint the tab samples, in list order. A row
+    // at strength 0, or with no name, is left out of the submitted graph rather than loaded as a no-op.
+    public List<H3ExpressLoraChoice> H3ExpressLoras { get; set; } = new();
+    // The single LoRA this tab offered before the stack: read once on launch to seed the list above when it
+    // is empty, then written back as slot 1 so an older build opened after this one still finds its choice.
     public string H3ExpressLora { get; set; } = string.Empty;
     public double H3ExpressLoraStrength { get; set; } = 1.0;
     // A story whose clip prompts were saved on an earlier run renders from them instead of the clip writer.
@@ -396,6 +400,16 @@ public class SavedCameraPrompt
     public string Name { get; set; } = string.Empty;
     public string Prompt { get; set; } = string.Empty;
     public string Icon { get; set; } = "💾";
+}
+
+/// <summary>One LoRA on ⚡ H3 Express's stack — the sibling of <see cref="MiniMaxI2VLora"/>, kept separate
+/// because the two tabs persist their stacks under their own keys and neither should move the other's.</summary>
+public class H3ExpressLoraChoice
+{
+    /// <summary>As ComfyUI names it, relative to the loras root — e.g. <c>H3/H3_Combat_V2.safetensors</c>.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    public double Strength { get; set; } = 1.0;
 }
 
 /// <summary>One LoRA on 🌀 MiniMax I2V's stack: what to load, and at what model strength. Strength 0 leaves

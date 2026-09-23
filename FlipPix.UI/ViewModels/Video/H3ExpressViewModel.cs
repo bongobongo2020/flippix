@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
@@ -63,14 +64,28 @@ namespace FlipPix.UI.ViewModels.Video
             ResearchPrompts = true;
             _specPrompts = _settingsService.Settings?.H3ExpressSpecPrompts ?? false;
 
-            // The LoRA dropdown starts with None and whatever was chosen last run, so it is usable before —
-            // and if — the server answers; the folder listing is a network round trip, off this thread.
-            _selectedLora = NormalizeLora(_settingsService.Settings?.H3ExpressLora);
-            _loraStrength = Math.Clamp(_settingsService.Settings?.H3ExpressLoraStrength ?? 1.0,
-                                       MinLoraStrength, MaxLoraStrength);
+            // The LoRA rows start on whatever was chosen last run, and the dropdown on None plus those
+            // names, so the list is usable before — and if — the server answers; reading loras/H3 is a
+            // network round trip, off this thread.
             LoraOptions.Add(NoLora);
-            if (_selectedLora.Length > 0) LoraOptions.Add(new DiffusionModelOption(_selectedLora, LabelFor(_selectedLora)));
+            _suspendLoraSave = true;
+            try
+            {
+                foreach (var saved in RecallLoras(_settingsService.Settings).Take(MaxLoraSlots))
+                {
+                    var name = NormalizeLora(saved?.Name);
+                    if (name.Length == 0) continue;
+                    if (LoraOptions.All(o => !string.Equals(o.Value, name, StringComparison.OrdinalIgnoreCase)))
+                        LoraOptions.Add(new DiffusionModelOption(name, LabelFor(name)));
+                    AttachLoraSlot(new H3ExpressLoraSlot(Loras.Count + 1, name, saved!.Strength));
+                }
+            }
+            finally { _suspendLoraSave = false; }
+
             RefreshLorasCommand = new RelayCommand(() => _ = LoadLorasAsync(), () => !_isLoadingLoras);
+            AddLoraCommand = new RelayCommand(AddLoraSlot, () => CanAddLora);
+            RemoveLoraCommand = new RelayCommand<H3ExpressLoraSlot>(RemoveLoraSlot);
+            Loras.CollectionChanged += OnLorasCollectionChanged;
             _ = LoadLorasAsync();
 
             PlayStoryCommand = new RelayCommand<BatchStory>(PlayStory);
@@ -127,6 +142,10 @@ namespace FlipPix.UI.ViewModels.Video
                         break;
                     case nameof(CanChangeWorkflow):
                         ResetStepsCommand.NotifyCanExecuteChanged();
+                        // ＋ Add is off while anything renders, for the same reason the rows are: the stack
+                        // is read live as each clip's graph is built.
+                        OnPropertyChanged(nameof(CanAddLora));
+                        AddLoraCommand.NotifyCanExecuteChanged();
                         break;
                     case nameof(ResearchPrompts):
                         OnPropertyChanged(nameof(PromptBuildSummary));
@@ -206,93 +225,175 @@ namespace FlipPix.UI.ViewModels.Video
         /// <summary>Where the dropdown looks, as ComfyUI names it: relative to the loras root.</summary>
         private const string LoraFolder = "H3/";
 
-        /// <summary>The node the LoRA is spliced in as. Node 21 is the rgthree Power Lora Loader both stacks
-        /// ship empty — the same seat 🥽 H3 VR splices its LoRA onto.</summary>
-        private const string NodeLora = "h3express_lora";
+        /// <summary>The id the stack's rows are spliced in under, numbered from 1. Node 21 is the rgthree
+        /// Power Lora Loader all four stacks ship empty — the same seat 🥽 H3 VR splices its LoRA onto.</summary>
+        private const string NodeLoraPrefix = "h3express_lora_";
         private const string NodePowerLora = "21";
 
-        public const double MinLoraStrength = 0.0;
-        public const double MaxLoraStrength = 2.0;
+        /// <summary>How many rows the card offers. Nothing in the graph caps this — the chain is built out of
+        /// added nodes, not the file's seats — so it is a limit on the card, matching 🌀 MiniMax I2V's five.</summary>
+        public const int MaxLoraSlots = 5;
+
+        public const double MinLoraStrength = H3ExpressLoraSlot.MinStrength;
+        public const double MaxLoraStrength = H3ExpressLoraSlot.MaxStrength;
 
         private static readonly DiffusionModelOption NoLora = new(string.Empty, "None");
 
-        private string _selectedLora = string.Empty;
-        private double _loraStrength = 1.0;
         private bool _isLoadingLoras;
         private bool _rebuildingLoras;
+        private bool _suspendLoraSave;
 
-        /// <summary>None, then every LoRA the server reports under loras/H3.</summary>
+        /// <summary>
+        /// The LoRAs every clip is rendered through, chained onto the checkpoint in list order. Read live at
+        /// submit, like the stack switch, so a clip regenerated after a change picks the change up; the list
+        /// is locked while anything renders, so one story cannot come out half on a different stack.
+        /// </summary>
+        public ObservableCollection<H3ExpressLoraSlot> Loras { get; } = new();
+
+        /// <summary>None, then every LoRA the server reports under loras/H3. Shared by every row.</summary>
         public ObservableCollection<DiffusionModelOption> LoraOptions { get; } = new();
 
         public RelayCommand RefreshLorasCommand { get; }
 
+        public RelayCommand AddLoraCommand { get; }
+
+        public RelayCommand<H3ExpressLoraSlot> RemoveLoraCommand { get; }
+
+        public bool CanAddLora => Loras.Count < MaxLoraSlots && CanChangeWorkflow;
+
+        public bool HasLora => Loras.Any(l => l.IsActive);
+
+        /// <summary>The line under the list: what is on the wire, on top of what.</summary>
+        public string LoraSummary
+        {
+            get
+            {
+                if (_isLoadingLoras) return "Reading loras/H3 from ComfyUI…";
+
+                var active = Loras.Where(l => l.IsActive).ToList();
+                if (active.Count == 0)
+                    return $"No LoRA. {Math.Max(0, LoraOptions.Count - 1)} available in loras/H3.";
+
+                var named = string.Join(", ", active.Select(l => $"{LabelFor(l.Name)} at {l.Strength:0.00}"));
+                var dropped = Loras.Count - active.Count;
+                var skipped = dropped == 0 ? string.Empty
+                    : $" {dropped} row(s) at 0 or unset are left out of the graph.";
+                return $"{named} — stacked on the checkpoint above in that order.{skipped}";
+            }
+        }
+
+        private void AddLoraSlot()
+        {
+            if (!CanAddLora) return;
+            AttachLoraSlot(new H3ExpressLoraSlot(Loras.Count + 1));
+        }
+
         /// <summary>
-        /// The LoRA every clip is rendered with, as ComfyUI names it (<c>H3/…safetensors</c>), or empty for
-        /// none. Read live at submit, like the stack switch, so a clip regenerated after a change picks the
-        /// change up; the dropdown is locked while anything renders, so one story cannot come out on two.
+        /// Puts a whole stack on the rail at once — a queued job taking the page over. Copies, not the job's
+        /// own rows, so editing the rail afterwards does not rewrite the snapshot it came from. One save at
+        /// the end rather than one per row.
         /// </summary>
-        public string SelectedLora
+        private void ApplyLoras(IEnumerable<H3ExpressLoraSlot> loras)
         {
-            get => _selectedLora;
-            set
+            _suspendLoraSave = true;
+            try
             {
-                // A rebuild's Clear() pushes null back through the two-way binding; that is not a choice.
-                if (_rebuildingLoras) return;
-                var name = NormalizeLora(value);
-                if (_selectedLora == name) return;
-                _selectedLora = name;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(HasLora));
-                OnPropertyChanged(nameof(LoraSummary));
-
-                var settings = _settingsService.Settings;
-                if (settings != null)
-                {
-                    settings.H3ExpressLora = name;
-                    _settingsService.SaveSettings(settings);
-                }
-                AddLog(name.Length == 0
-                    ? "LoRA: none — clips are rendered on the bare checkpoint."
-                    : $"LoRA: {LabelFor(name)} at {LoraStrength:0.00} — every clip rendered from now on uses it.");
+                foreach (var row in Loras.ToList()) RemoveLoraSlotInternal(row);
+                foreach (var l in loras.Take(MaxLoraSlots))
+                    AttachLoraSlot(new H3ExpressLoraSlot(Loras.Count + 1, l.Name, l.Strength));
             }
+            finally { _suspendLoraSave = false; }
+            SaveLoras();
+            OnPropertyChanged(nameof(HasLora));
+            OnPropertyChanged(nameof(LoraSummary));
         }
 
-        public bool HasLora => _selectedLora.Length > 0;
-
-        /// <summary>The LoRA's <c>strength_model</c>. 0 leaves it out of the graph altogether.</summary>
-        public double LoraStrength
+        private void AttachLoraSlot(H3ExpressLoraSlot slot)
         {
-            get => _loraStrength;
-            set
-            {
-                var v = Math.Clamp(Math.Round(value, 2), MinLoraStrength, MaxLoraStrength);
-                if (Math.Abs(_loraStrength - v) < 0.0001) return;
-                _loraStrength = v;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(LoraSummary));
-
-                var settings = _settingsService.Settings;
-                if (settings != null)
-                {
-                    settings.H3ExpressLoraStrength = v;
-                    _settingsService.SaveSettings(settings);
-                }
-            }
+            slot.Changed += OnLoraSlotChanged;
+            Loras.Add(slot);
         }
 
-        public string LoraSummary =>
-            _isLoadingLoras ? "Reading loras/H3 from ComfyUI…"
-            : !HasLora ? $"No LoRA. {Math.Max(0, LoraOptions.Count - 1)} available in loras/H3."
-            : LoraStrength <= 0.0 ? $"{LabelFor(_selectedLora)} at 0 — left out of the graph."
-            : $"{LabelFor(_selectedLora)} at {LoraStrength:0.00}, on top of the checkpoint above.";
+        private void RemoveLoraSlot(H3ExpressLoraSlot? slot)
+        {
+            // ✕ is off while anything renders for the same reason the rows are locked; a job taking the page
+            // over goes through RemoveLoraSlotInternal, which is not a user edit.
+            if (slot == null || !CanChangeWorkflow) return;
+            RemoveLoraSlotInternal(slot);
+        }
+
+        private void RemoveLoraSlotInternal(H3ExpressLoraSlot slot)
+        {
+            slot.Changed -= OnLoraSlotChanged;
+            Loras.Remove(slot);
+            for (var i = 0; i < Loras.Count; i++) Loras[i].Index = i + 1;
+        }
+
+        private void OnLoraSlotChanged(object? sender, EventArgs e)
+        {
+            OnPropertyChanged(nameof(LoraSummary));
+            OnPropertyChanged(nameof(HasLora));
+            SaveLoras();
+        }
+
+        private void OnLorasCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            OnPropertyChanged(nameof(CanAddLora));
+            OnPropertyChanged(nameof(HasLora));
+            OnPropertyChanged(nameof(LoraSummary));
+            AddLoraCommand?.NotifyCanExecuteChanged();
+            SaveLoras();
+        }
+
+        /// <summary>
+        /// Writes the stack out, and keeps the pre-stack single-LoRA keys in step with row 1 — so this
+        /// build and an older one can be opened in either order without a choice disappearing.
+        /// </summary>
+        private void SaveLoras()
+        {
+            // A rebuild's Clear() pushes null back through every row's two-way binding before the new list
+            // lands; persisting in the middle of that would write the blanks out.
+            if (_suspendLoraSave || _rebuildingLoras) return;
+
+            var settings = _settingsService.Settings;
+            if (settings == null) return;
+            settings.H3ExpressLoras = Loras
+                .Where(l => l.HasLora)
+                .Select(l => new H3ExpressLoraChoice { Name = l.Name, Strength = l.Strength })
+                .ToList();
+            var first = settings.H3ExpressLoras.FirstOrDefault();
+            settings.H3ExpressLora = first?.Name ?? string.Empty;
+            settings.H3ExpressLoraStrength = first?.Strength ?? 1.0;
+            _settingsService.SaveSettings(settings);
+        }
+
+        /// <summary>
+        /// The rows to start on: the saved stack, or — for a settings file written before the stack existed —
+        /// the one LoRA the tab used to hold, lifted into row 1 so nothing is lost on upgrade.
+        /// </summary>
+        private static IEnumerable<H3ExpressLoraChoice> RecallLoras(ComfyUISettings? settings)
+        {
+            if (settings == null) yield break;
+            if (settings.H3ExpressLoras.Count > 0)
+            {
+                foreach (var l in settings.H3ExpressLoras) yield return l;
+                yield break;
+            }
+            if (!string.IsNullOrWhiteSpace(settings.H3ExpressLora))
+                yield return new H3ExpressLoraChoice
+                {
+                    Name = settings.H3ExpressLora,
+                    Strength = settings.H3ExpressLoraStrength,
+                };
+        }
 
         private static string NormalizeLora(string? name) => (name ?? string.Empty).Trim().Replace('\\', '/');
 
         /// <summary>
         /// Fills <see cref="LoraOptions"/> from /object_info/LoraLoader, keeping only what lives in
         /// <see cref="LoraFolder"/>. A server that cannot be reached leaves the list as the constructor seeded
-        /// it; a chosen LoRA the server no longer has stays in the list, labelled, rather than silently
-        /// dropping to none.
+        /// it; a LoRA a row is already set to that the server no longer has stays in the list, labelled,
+        /// rather than silently dropping that row to none.
         /// </summary>
         private async Task LoadLorasAsync()
         {
@@ -313,30 +414,43 @@ namespace FlipPix.UI.ViewModels.Video
                     .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
                     .ToList();
 
-                var keep = _selectedLora;
+                var chosen = Loras.Where(l => l.HasLora).Select(l => l.Name).ToList();
                 Application.Current.Dispatcher.Invoke(() =>
                 {
                     _rebuildingLoras = true;
                     try
                     {
+                        // Each row's SelectedValue is re-resolved against the rebuilt list, and the Clear()
+                        // pushes null back through it — so the names are captured here, immediately before
+                        // the Clear(), and written back by index after it. Reading the rows afterwards would
+                        // read the blanks and drop the whole stack to None.
+                        var held = Loras.Select(l => l.Name).ToList();
+
                         LoraOptions.Clear();
                         LoraOptions.Add(NoLora);
                         foreach (var n in found) LoraOptions.Add(new DiffusionModelOption(n, LabelFor(n)));
 
-                        // The server's own spelling wins where it differs only in case, so lora_name is
-                        // byte-for-byte what ComfyUI offered.
-                        var match = found.FirstOrDefault(n => string.Equals(n, keep, StringComparison.OrdinalIgnoreCase));
-                        if (match == null && keep.Length > 0)
-                            LoraOptions.Add(new DiffusionModelOption(keep, LabelFor(keep) + " (not on server)"));
-                        _selectedLora = match ?? keep;
+                        // A row set to something the server no longer has keeps it, labelled, rather than
+                        // silently dropping that row to none.
+                        foreach (var name in chosen.Where(c =>
+                                     !found.Any(n => string.Equals(n, c, StringComparison.OrdinalIgnoreCase))))
+                            LoraOptions.Add(new DiffusionModelOption(name, LabelFor(name) + " (not on server)"));
+
+                        for (var i = 0; i < Loras.Count; i++)
+                        {
+                            // The server's own spelling wins where it differs only in case, so lora_name is
+                            // byte-for-byte what ComfyUI offered.
+                            var match = found.FirstOrDefault(n =>
+                                string.Equals(n, held[i], StringComparison.OrdinalIgnoreCase));
+                            Loras[i].Name = match ?? held[i];
+                        }
                     }
                     finally
                     {
                         _rebuildingLoras = false;
                     }
-                    // The notification is what puts the selection back on screen after Clear() blanked it.
-                    OnPropertyChanged(nameof(SelectedLora));
                     OnPropertyChanged(nameof(HasLora));
+                    OnPropertyChanged(nameof(LoraSummary));
                 });
                 AddLog($"LoRA list: {found.Count} in loras/H3.");
             }
@@ -356,8 +470,9 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>
-        /// The stock inputs, then the chosen LoRA spliced in after node 21 — so every reader of the model
-        /// (the guiders and scheduler on Eros, the sigma shift on Singularity) samples through it.
+        /// The stock inputs, then the chosen LoRAs spliced in after node 21 — so every reader of the model
+        /// (the guiders and scheduler on Eros, the sigma shift on Singularity, both legs of the TaoMate
+        /// relay and both stages of BUNNY's split) samples through the whole chain.
         /// </summary>
         protected override void ApplyCommonInputs(
             JsonObject root, H3CastQueueItem item, IReadOnlyList<string> uploaded,
@@ -365,29 +480,57 @@ namespace FlipPix.UI.ViewModels.Video
         {
             base.ApplyCommonInputs(root, item, uploaded, prompt, lengthSeconds);
             ApplyChain(root, item, lengthSeconds);
+            ApplyLoraStack(root);
+        }
 
-            var lora = _selectedLora;
-            var strength = _loraStrength;
-            if (lora.Length == 0 || strength <= 0.0) return;
+        /// <summary>
+        /// Chains the card's rows onto node 21, in list order, and points everything that read node 21 at
+        /// the end of the chain. A row with nothing chosen, or at strength 0, is skipped rather than loaded
+        /// as a no-op — the same rule the summary line states.
+        /// </summary>
+        private void ApplyLoraStack(JsonObject root)
+        {
+            var stack = Loras.Where(l => l.IsActive).Select(l => (l.Name, l.Strength)).ToList();
+            if (stack.Count == 0) return;
+
+            SpliceLoraStack(root, stack);
+            AddLog("  LoRA " + string.Join(" → ", stack.Select(l => $"{LabelFor(l.Name)} at {l.Strength:0.00}")) + ".");
+        }
+
+        /// <summary>
+        /// The splice itself, with nothing of the tab in it, so the chain can be built over each of the four
+        /// authored graphs at build time rather than discovered at submit on an unattended overnight run.
+        /// </summary>
+        internal static void SpliceLoraStack(JsonObject root, IReadOnlyList<(string Name, double Strength)> stack)
+        {
+            if (stack.Count == 0) return;
 
             RequireClass(root, NodePowerLora, "Power Lora Loader (rgthree)");
 
-            // Retarget first, while the LoRA node does not exist yet: it rewrites every reader of node 21,
-            // and a node added before the call would have its own input pointed at itself.
-            Retarget(root, NodePowerLora, 0, NodeLora);
-            root[NodeLora] = new JsonObject
-            {
-                ["inputs"] = new JsonObject
-                {
-                    ["lora_name"] = lora,
-                    ["strength_model"] = strength,
-                    ["model"] = new JsonArray(NodePowerLora, 0)
-                },
-                ["class_type"] = "LoraLoaderModelOnly",
-                ["_meta"] = new JsonObject { ["title"] = "H3 Express LoRA" }
-            };
+            // Retarget first, while no chain node exists yet: it rewrites every reader of node 21, and a
+            // node added before the call would have its own model input pointed at itself. The last node in
+            // the chain is the one the readers end up on, so it is named before it is built.
+            var last = $"{NodeLoraPrefix}{stack.Count}";
+            Retarget(root, NodePowerLora, 0, last);
 
-            AddLog($"  LoRA {LabelFor(lora)} at {strength:0.00}.");
+            var wire = NodePowerLora;
+            for (var i = 0; i < stack.Count; i++)
+            {
+                var (name, strength) = stack[i];
+                var id = $"{NodeLoraPrefix}{i + 1}";
+                root[id] = new JsonObject
+                {
+                    ["inputs"] = new JsonObject
+                    {
+                        ["lora_name"] = name,
+                        ["strength_model"] = strength,
+                        ["model"] = new JsonArray(wire, 0)
+                    },
+                    ["class_type"] = "LoraLoaderModelOnly",
+                    ["_meta"] = new JsonObject { ["title"] = $"H3 Express LoRA {i + 1}" }
+                };
+                wire = id;
+            }
         }
 
         // ── The render: no hunt ─────────────────────────────────────────────────────────────────────
