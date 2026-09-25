@@ -186,10 +186,11 @@
                                            VerticalAlignment="Center" Margin="0,0,6,0"/>
                                 <ComboBox SelectedIndex="{Binding CharReplaceMethodIndex, Mode=TwoWay}"
                                           Width="190" Height="26" FontSize="10" VerticalContentAlignment="Center"
-                                          ToolTip.Tip="Which workflow the single-character 'Replace this one only' button runs. Klein Flux2 Control (default) holds the subject's likeness more accurately; Character Replacer is the legacy path; Krea2 Edit (two ref) keeps the base scene composition while swapping the subject in. 'Replace Both' always uses the 2-character replacer.">
+                                          ToolTip.Tip="Which workflow the single-character 'Replace this one only' button runs. Klein Flux2 Control holds the subject's likeness more accurately; Character Replacer is the legacy path; Krea2 Edit (two ref) keeps the base scene composition while swapping the subject in; Qwen Image 2.1 Edit (default) edits the frame itself, putting Character 1 into the pose with the background and lighting kept. 'Replace Both' always uses the 2-character replacer.">
                                     <ComboBoxItem Content="🟢 Klein Flux2 Control"/>
                                     <ComboBoxItem Content="⚪ Character Replacer (legacy)"/>
                                     <ComboBoxItem Content="🔵 Krea2 Edit (two ref)"/>
+                                    <ComboBoxItem Content="🟣 Qwen Image 2.1 Edit"/>
                                 </ComboBox>
                             </StackPanel>
                         </Grid>
@@ -203,6 +204,17 @@
                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
                                      Padding="6"
                                      ToolTip.Tip="Instruction written into the Krea2 Edit grounded-encode node. 'image a' is the base scene frame (person to replace); 'image b' is Character 1. Edit for either sex or extra guidance."/>
+                        </StackPanel>
+
+                        <!-- Qwen Image 2.1 Edit instruction prompt — only for that method -->
+                        <StackPanel Margin="0,0,0,10"
+                                    IsVisible="{Binding IsQwen21EditSelected}">
+                            <TextBlock Text="Edit instruction (Qwen Image 2.1 Edit)" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                            <TextBox Text="{Binding Qwen21EditPrompt}"
+                                     FontSize="10" MinHeight="46" TextWrapping="Wrap" AcceptsReturn="True"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     Padding="6"
+                                     ToolTip.Tip="Instruction for Qwen Image 2.1 Edit. &lt;image1&gt; is the base scene frame being edited (its pose, background and lighting are the canvas); &lt;image2&gt; is Character 1."/>
                         </StackPanel>
 
                         <!-- Step 1 of the Klein Flux2 Control flow is the upload below: Analyze reads the
