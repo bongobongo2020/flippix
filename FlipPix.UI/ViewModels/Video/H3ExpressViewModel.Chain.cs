@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -267,14 +267,14 @@ namespace FlipPix.UI.ViewModels.Video
                 // finished tail of the previous clip has, and what the pin is laid against.
                 if (plan.FinishPinned)
                 {
-                    var finishGuider = GuiderOf(root, NodeUpscaleSampler);
-                    var finishLatent = LinkFrom(root, NodeUpscaleSampler, "latent_image");
+                    var pin = FinishPinPoints(root);
+                    var finishLatent = FinishPinLatent(root, item);
                     root[NodeChainFinishLoad] = LoadNode(plan.FinishFolder, plan.LoadIndex,
                                                          "H3 Motion Context — previous clip (finish)");
                     root[NodeChainFinishCtx] = ContextNode(
                         conditioning: new JsonArray(NodeRef2V, 0), vae, audioVae,
                         latent: finishLatent, load: NodeChainFinishLoad, "H3 Motion Context (finish pass)");
-                    SetLink(root, finishGuider, "conditioning", NodeChainFinishCtx, 0);
+                    SetLink(root, pin.ConditioningNode, pin.ConditioningInput, NodeChainFinishCtx, 0);
                 }
 
                 SetInput(root, NodeSeconds, "value", ChainedSeconds(lengthSeconds));
@@ -284,8 +284,8 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 root[NodeChainSave] = SaveNode(firstPass, plan.Folder, plan.SaveIndex, "H3 Motion Context — save (draft)");
                 if (plan.FinishPinned)
-                    root[NodeChainFinishSave] = SaveNode(NodeUpscaleSampler, plan.FinishFolder, plan.SaveIndex,
-                                                         "H3 Motion Context — save (finish)");
+                    root[NodeChainFinishSave] = SaveNode(FinishPinPoints(root).SaveNode, plan.FinishFolder,
+                                                         plan.SaveIndex, "H3 Motion Context — save (finish)");
             }
 
             var later = Queue.Any(q => q.StoryId == item.StoryId && q.ClipIndex > item.ClipIndex &&
@@ -337,6 +337,44 @@ namespace FlipPix.UI.ViewModels.Video
             }
             return outputs;
         }
+
+        /// <summary>
+        /// The two places 🔗 touches the <b>finish</b> pass when the pin reaches it: where the Motion
+        /// Context's conditioning is written, and whose output 0 is the finished latent to save for the next
+        /// clip.
+        ///
+        /// <para>Per stack because the finish is the <b>stack's</b>. The three stacks that split it into an
+        /// upscaler and a second <c>SamplerCustomAdvanced</c> pin the sampler's <c>BasicGuider</c>;
+        /// 🦠 Parasyte's finish is one <c>MMH3UltimateUpscale</c> that takes its conditioning directly —
+        /// there is no guider to intercept. 🍥 TaoMate has no finish pass at all and never gets here
+        /// (<see cref="ChainPlan.FinishPinned"/> is false for it).</para>
+        /// </summary>
+        protected readonly record struct ChainFinishPin(
+            string ConditioningNode, string ConditioningInput, string SaveNode);
+
+        /// <inheritdoc cref="ChainFinishPin"/>
+        /// <remarks>A dispatch rather than a virtual, for the reason
+        /// <c>H3ExpressViewModel.Stacks.cs</c>'s <c>BuildFinish</c> gives: the stacks are partials of this
+        /// one class, so a stack cannot override its siblings.</remarks>
+        private ChainFinishPin FinishPinPoints(JsonObject root) => Stack switch
+        {
+            ExpressStack.Parasyte => ParasyteFinishPin,
+            _ => new ChainFinishPin(GuiderOf(root, NodeUpscaleSampler), "conditioning", NodeUpscaleSampler),
+        };
+
+        /// <summary>
+        /// The latent the finish's Motion Context is laid against. The node reads only its <i>shape</i> —
+        /// width, height, frame count — and refuses a previous-clip latent of any other size, so it has to
+        /// be the size the finish actually <b>samples</b> at. On the split stacks that is the upscaler's
+        /// output, already on the sampler's <c>latent_image</c>. 🦠's <c>MMH3UltimateUpscale</c> upscales
+        /// inside itself, so its <c>latent</c> input is still the draft canvas — laying the pin against it
+        /// failed every chained clip ("context_latent is 1376x768 but this clip is 544x288").
+        /// </summary>
+        private JsonArray FinishPinLatent(JsonObject root, H3CastQueueItem item) => Stack switch
+        {
+            ExpressStack.Parasyte => ParasyteFinishShape(root, item),
+            _ => LinkFrom(root, NodeUpscaleSampler, "latent_image"),
+        };
 
         // ── Node builders ───────────────────────────────────────────────────────────────────────────
 

@@ -221,11 +221,12 @@ namespace FlipPix.UI.ViewModels.Video
         /// the RTX upscale confirmed at its authored factor, RIFE in or out, and the graph pruned to the
         /// sink. No latent split, no latent upscaler, no sigma schedule — this stack has none of them.
         /// </summary>
-        protected override FinishSubmission BuildFinish(
+        /// <remarks>Not an <c>override</c>: 🍥 and 🦠 both replace the finish, and they are partials of the
+        /// same class, so the one <see cref="H3ErosViewModel.BuildFinish"/> override lives in
+        /// H3ExpressViewModel.Stacks.cs and dispatches here.</remarks>
+        private FinishSubmission BuildTaoMateFinish(
             JsonObject root, ErosHuntClip row, H3CastQueueItem item, int chosen, long seed, string runToken)
         {
-            if (!UseTaoMate) return base.BuildFinish(root, row, item, chosen, seed, runToken);
-
             RequireClass(root, NodeTaoPass1, "ClownsharKSampler_Beta");
             RequireClass(root, NodeTaoPass2, "ClownsharKSampler_Beta");
             RequireClass(root, NodeTaoRtx, "RTXVideoSuperResolution");

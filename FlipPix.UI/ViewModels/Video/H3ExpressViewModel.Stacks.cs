@@ -1,9 +1,10 @@
+﻿using System.Text.Json.Nodes;
 using FlipPix.UI.Models;
 
 namespace FlipPix.UI.ViewModels.Video
 {
     /// <summary>
-    /// ⚡ H3 Express's <b>sampling stack</b> — which of the four graphs every clip is rendered on, and the
+    /// ⚡ H3 Express's <b>sampling stack</b> — which of the five graphs every clip is rendered on, and the
     /// three things that choice changes.
     ///
     /// <para><b>Four graphs, one contract.</b> Every one of them is written on <c>h3-eros.json</c>'s node
@@ -11,7 +12,9 @@ namespace FlipPix.UI.ViewModels.Video
     /// length, <c>22:8</c> the steps, <c>22:9</c> the draft canvas, <c>5</c> the reference node,
     /// <c>171:4</c> the UNet, <c>21</c> the Power Lora Loader seat, <c>34</c> the sink. So a stack is a
     /// change of <see cref="H3ErosViewModel.WorkflowFileName"/>, <see cref="H3ErosViewModel.ShippedModel"/>
-    /// and <see cref="AuthoredFirstPassSteps"/> and nothing else — one render path, four stacks:</para>
+    /// and <see cref="AuthoredFirstPassSteps"/> and nothing else — one render path, five stacks (🍥 and 🦠
+    /// each add a <see cref="H3ErosViewModel.BuildFinish"/> override, because their finishes are not the
+    /// latent-split-and-upscale the other three share):</para>
     /// <list type="bullet">
     /// <item>🌹 <b>H3 Eros</b> — <c>h3-eros.json</c>, the 10Eros hybrid at er_sde/beta.</item>
     /// <item>✴️ <b>Singularity</b> — <c>h3-singularity.json</c>; see <see cref="H3BatchViewModel"/>.</item>
@@ -19,6 +22,8 @@ namespace FlipPix.UI.ViewModels.Video
     /// finish; the one stack with no draft canvas. See H3ExpressViewModel.TaoMate.cs.</item>
     /// <item>🐰 <b>BUNNY</b> — <c>h3-bunny.json</c>, the sigma split on the Combat LoRA. See
     /// H3ExpressViewModel.Bunny.cs.</item>
+    /// <item>🦠 <b>Parasyte</b> — <c>h3-parasyte.json</c>, PlagueKind's sparse-attention build; the one
+    /// stack whose upscale and second pass are a single node. See H3ExpressViewModel.Parasyte.cs.</item>
     /// </list>
     ///
     /// <para><b>Why the radio group binds computed properties.</b> The choice is stored as one flag per
@@ -38,6 +43,7 @@ namespace FlipPix.UI.ViewModels.Video
         {
             get => UseTaoMate ? ExpressStack.TaoMate
                  : UseBunny ? ExpressStack.Bunny
+                 : UseParasyte ? ExpressStack.Parasyte
                  : UseSingularity ? ExpressStack.Singularity
                  : ExpressStack.Eros;
             set
@@ -55,14 +61,19 @@ namespace FlipPix.UI.ViewModels.Video
                     case ExpressStack.Bunny:
                         UseBunny = true;
                         break;
+                    case ExpressStack.Parasyte:
+                        UseParasyte = true;
+                        break;
                     case ExpressStack.Singularity:
                         UseTaoMate = false;
                         UseBunny = false;
+                        UseParasyte = false;
                         UseSingularity = true;
                         break;
                     default:
                         UseTaoMate = false;
                         UseBunny = false;
+                        UseParasyte = false;
                         UseSingularity = false;
                         break;
                 }
@@ -70,7 +81,7 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        /// <summary>The four stacks as one radio group. The getters are computed off <see cref="Stack"/>, so
+        /// <summary>The five stacks as one radio group. The getters are computed off <see cref="Stack"/>, so
         /// there is no fifth state to keep in step; a radio asking to be turned off is ignored, because the
         /// one that was turned on has already said so.</summary>
         public bool StackIsEros
@@ -100,6 +111,13 @@ namespace FlipPix.UI.ViewModels.Video
             set { if (value) Stack = ExpressStack.Bunny; }
         }
 
+        /// <inheritdoc cref="StackIsEros"/>
+        public bool StackIsParasyte
+        {
+            get => Stack == ExpressStack.Parasyte;
+            set { if (value) Stack = ExpressStack.Parasyte; }
+        }
+
         private void RaiseStackState()
         {
             OnPropertyChanged(nameof(Stack));
@@ -107,6 +125,7 @@ namespace FlipPix.UI.ViewModels.Video
             OnPropertyChanged(nameof(StackIsSingularity));
             OnPropertyChanged(nameof(StackIsTaoMate));
             OnPropertyChanged(nameof(StackIsBunny));
+            OnPropertyChanged(nameof(StackIsParasyte));
             OnPropertyChanged(nameof(StackSummary));
             OnPropertyChanged(nameof(HuntSummary));
             OnPropertyChanged(nameof(UsesDraftCanvas));
@@ -127,6 +146,7 @@ namespace FlipPix.UI.ViewModels.Video
         {
             ExpressStack.TaoMate => TaoMateWorkflow,
             ExpressStack.Bunny => BunnyWorkflow,
+            ExpressStack.Parasyte => ParasyteWorkflow,
             _ => base.WorkflowFileName          // Singularity's own file, or Eros's, from H3BatchViewModel
         };
 
@@ -134,8 +154,24 @@ namespace FlipPix.UI.ViewModels.Video
         {
             ExpressStack.TaoMate => TaoMateModel,
             ExpressStack.Bunny => BunnyModel,
+            ExpressStack.Parasyte => ParasyteModel,
             _ => base.ShippedModel
         };
+
+        /// <summary>
+        /// The one <see cref="H3ErosViewModel.BuildFinish"/> override, dispatching to whichever stack owns
+        /// the finish. Two of the five replace it outright — 🍥 finishes in frame space off a two-leg relay,
+        /// 🦠 does the upscale and the second pass in a single node — and both are partials of this class,
+        /// so the choice is made here rather than by two overrides that cannot coexist.
+        /// </summary>
+        protected override FinishSubmission BuildFinish(
+            JsonObject root, ErosHuntClip row, H3CastQueueItem item, int chosen, long seed, string runToken) =>
+            Stack switch
+            {
+                ExpressStack.TaoMate => BuildTaoMateFinish(root, row, item, chosen, seed, runToken),
+                ExpressStack.Parasyte => BuildParasyteFinish(root, row, item, chosen, seed, runToken),
+                _ => base.BuildFinish(root, row, item, chosen, seed, runToken),
+            };
 
         /// <summary>
         /// The step count each stack is <i>authored</i> at: the base's twelve is the Eros hybrid's, ✴️'s ten
@@ -150,6 +186,7 @@ namespace FlipPix.UI.ViewModels.Video
         {
             ExpressStack.TaoMate => TaoMateSteps,
             ExpressStack.Bunny => BunnySteps,
+            ExpressStack.Parasyte => ParasyteSteps,
             _ => base.FirstPassSteps
         };
     }

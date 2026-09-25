@@ -292,6 +292,7 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 ExpressStack.TaoMate => TaoMateModel,
                 ExpressStack.Bunny => BunnyModel,
+                ExpressStack.Parasyte => ParasyteModel,
                 ExpressStack.Singularity => SingularityModel,
                 _ => "h3-minimax/10Eros_Max_h3_TURBO-hybrid_beta4_int8_convrot.safetensors"
             };
@@ -299,6 +300,7 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 ExpressStack.TaoMate => 10,
                 ExpressStack.Bunny => BunnySteps,
+                ExpressStack.Parasyte => ParasyteSteps,
                 ExpressStack.Singularity when !SingularityErSde => 10,
                 _ => 12
             };

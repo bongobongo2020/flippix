@@ -176,6 +176,7 @@ namespace FlipPix.UI.ViewModels.Video
                 {
                     ExpressStack.TaoMate => "TaoMate",
                     ExpressStack.Bunny => "BUNNY",
+                    ExpressStack.Parasyte => "Parasyte",
                     ExpressStack.Singularity => SingularityErSde ? "Singularity er_sde" : "Singularity",
                     _ => "H3 Eros"
                 };
@@ -353,6 +354,12 @@ namespace FlipPix.UI.ViewModels.Video
             set { if (value) SelectStack(ExpressStack.Bunny); }
         }
 
+        public bool StackIsParasyte
+        {
+            get => Job.Stack == ExpressStack.Parasyte;
+            set { if (value) SelectStack(ExpressStack.Parasyte); }
+        }
+
         private void SelectStack(ExpressStack stack)
         {
             if (Job.Stack == stack) return;
@@ -368,6 +375,7 @@ namespace FlipPix.UI.ViewModels.Video
             OnPropertyChanged(nameof(StackIsSingularity));
             OnPropertyChanged(nameof(StackIsTaoMate));
             OnPropertyChanged(nameof(StackIsBunny));
+            OnPropertyChanged(nameof(StackIsParasyte));
             OnPropertyChanged(nameof(SelectedDiffusionModel));
             OnPropertyChanged(nameof(Steps));
             OnPropertyChanged(nameof(MinSteps));
@@ -477,6 +485,12 @@ namespace FlipPix.UI.ViewModels.Video
                 $"🍥 TaoMate — a {Steps}-step schedule split across two samplers, the last leg on the TaoMate " +
                 "3-step LoRA, then an RTX ×2 frame upscale. No draft canvas: the Quality below is what the " +
                 "model paints, and the file lands at twice it in each direction.",
+            ExpressStack.Parasyte =>
+                $"🦠 Parasyte — PlagueKind's sparse-attention build: the fl2va/ref2va hybrid on the Parasyte " +
+                $"turbo LoRA, res_multistep/simple at {Steps} steps, with H3SLAAttention last on the model " +
+                "wire. Composed at the draft canvas and lifted to the Quality one by MMH3UltimateUpscale, " +
+                "which does the upscale and the second pass in one node. The fps checkbox doubles frames " +
+                "with FILM rather than RIFE.",
             ExpressStack.Bunny =>
                 $"🐰 BUNNY — the fl2va/ref2va hybrid, a {Steps}-step res_multistep/simple schedule with three " +
                 "more steps woven into the mid sigmas and the last quarter run out as a cleanup that does not " +

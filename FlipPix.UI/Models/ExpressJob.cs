@@ -41,7 +41,12 @@ namespace FlipPix.UI.Models
         /// <summary>h3-bunny.json — the BUNNY sigma split: the action structure sampled on the Combat LoRA,
         /// the last quarter of the schedule run out as a no-re-noise cleanup, then the tab's latent
         /// upscale.</summary>
-        Bunny
+        Bunny,
+
+        /// <summary>h3-parasyte.json — PlagueKind's sparse-attention build: the Parasyte turbo LoRA on the
+        /// fl2va/ref2va hybrid with H3SLAAttention last on the model wire, finished by MMH3UltimateUpscale
+        /// (the upscale and the second pass in one node) and FILM rather than RIFE.</summary>
+        Parasyte
     }
 
     /// <summary>

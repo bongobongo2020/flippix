@@ -292,6 +292,9 @@
                             <RadioButton Content="🐰 BUNNY (action)" GroupName="JobStack"
                                          IsChecked="{Binding StackIsBunny, Mode=TwoWay}"
                                          Style="{StaticResource JobRadio}"/>
+                            <RadioButton Content="🦠 Parasyte (sparse)" GroupName="JobStack"
+                                         IsChecked="{Binding StackIsParasyte, Mode=TwoWay}"
+                                         Style="{StaticResource JobRadio}"/>
                             <RadioButton Content="🌹 H3 Eros" GroupName="JobStack"
                                          IsChecked="{Binding StackIsEros, Mode=TwoWay}"
                                          Style="{StaticResource JobRadio}"/>

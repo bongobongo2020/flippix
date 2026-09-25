@@ -86,6 +86,7 @@ namespace FlipPix.UI.ViewModels.Video
 
             InitTaoMate();
             InitBunny();
+            InitParasyte();
             InitSteps();
             InitChain();
             InitStoryPrompts();
@@ -388,7 +389,32 @@ namespace FlipPix.UI.ViewModels.Video
             };
 
             AddLog($"  LoRA {LabelFor(lora)} at {strength:0.00}.");
+
+            // A stack that is built around a LoRA already carries it in its own graph, so picking the same
+            // one here puts it on the wire twice and the strengths add. Said rather than silently corrected:
+            // stacking a turbo LoRA harder is a legitimate thing to do on purpose, and picking it by
+            // accident is not — but only the user knows which this is.
+            var stackLora = StackOwnLora;
+            if (stackLora.Length > 0 &&
+                string.Equals(lora.Trim().Replace('\\', '/'), stackLora,
+                              StringComparison.OrdinalIgnoreCase))
+                AddLog($"  ⚠ {LabelFor(stackLora)} is already in this stack's graph at " +
+                       $"{StackOwnLoraStrength:0.00} — picking it here puts it on the wire a second time, so " +
+                       $"it runs at about {StackOwnLoraStrength + strength:0.00} in total. Clear the LoRA " +
+                       "dropdown to sample the stack as authored.");
         }
+
+        /// <summary>The LoRA the chosen stack's own graph already loads, or empty for a stack built around
+        /// none. Only 🐰 (the Combat LoRA) and 🦠 (the Parasyte turbo) have one.</summary>
+        private string StackOwnLora => Stack switch
+        {
+            ExpressStack.Parasyte => "H3/H3-PK-Parasyte-Turbo.safetensors",
+            ExpressStack.Bunny => "H3/H3_Combat_V2.safetensors",
+            _ => string.Empty
+        };
+
+        /// <inheritdoc cref="StackOwnLora"/>
+        private double StackOwnLoraStrength => 1.00;
 
         // ── The render: no hunt ─────────────────────────────────────────────────────────────────────
 
@@ -988,6 +1014,9 @@ namespace FlipPix.UI.ViewModels.Video
             ExpressStack.Bunny =>
                 $"BUNNY sigma split · fl2va/ref2va hybrid · res_multistep/simple · {FirstPassSteps} steps " +
                 $"+3 mid sigmas, last {BunnySplit:0%} as cleanup · Combat LoRA 1.00 → 0.65",
+            ExpressStack.Parasyte =>
+                $"Parasyte sparse attention · fl2va/ref2va hybrid · res_multistep/simple · " +
+                $"{FirstPassSteps} steps · Parasyte turbo LoRA · MMH3 upscale + FILM",
             ExpressStack.Singularity => SingularityErSde
                 ? $"Singularity ref2va checkpoint · er_sde/beta + sigma shift · {FirstPassSteps} steps"
                 : $"Singularity ref2va checkpoint · euler/simple · {FirstPassSteps} steps",

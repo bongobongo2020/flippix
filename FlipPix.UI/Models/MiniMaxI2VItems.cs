@@ -347,6 +347,12 @@ namespace FlipPix.UI.Models
         /// at 75%, the action sampled on the Combat LoRA at full strength and the tail run out by a second
         /// sampler that does not re-noise.</summary>
         Bunny,
+
+        /// <summary>🦠 PlagueKind's sparse-attention build: the fl2va/ref2va hybrid on the Parasyte turbo
+        /// LoRA, res_multistep/simple at 13 with no sigma shift. The graph's own H3SLAAttention nodes are
+        /// already last on each branch's wire, so this stack is the LoRA and the sampling and nothing
+        /// else.</summary>
+        Parasyte,
     }
 
     /// <summary>

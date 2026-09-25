@@ -66,6 +66,10 @@ namespace FlipPix.UI.ViewModels.Video
         /// all-reference mode this tab is always in.</summary>
         public const string BunnyModel = "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors";
 
+        /// <summary>🦠 Parasyte samples the same fl2va/ref2va hybrid 🐰 does — it is the LoRA and the
+        /// sampling that make the stack, not the checkpoint.</summary>
+        public const string ParasyteModel = "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors";
+
         /// <summary>The checkpoint a stack is authored on. Picking a stack moves the dropdown here; moving
         /// the dropdown afterwards sticks, so a stack can be sampled on another checkpoint on purpose.</summary>
         public static string ShippedModelFor(I2VStack stack) => stack switch
@@ -74,6 +78,7 @@ namespace FlipPix.UI.ViewModels.Video
             I2VStack.Singularity => SingularityModel,
             I2VStack.TaoMate => TaoMateModel,
             I2VStack.Bunny => BunnyModel,
+            I2VStack.Parasyte => ParasyteModel,
             _ => ShippedI2VModel,
         };
 
@@ -98,6 +103,7 @@ namespace FlipPix.UI.ViewModels.Video
             I2VStack.Singularity => erSde ? 12 : 10,
             I2VStack.TaoMate => 10,
             I2VStack.Bunny => 8,
+            I2VStack.Parasyte => 13,
             _ => 8,           // the graph's own BasicScheduler
         };
 
@@ -277,6 +283,13 @@ namespace FlipPix.UI.ViewModels.Video
             set { if (value) Stack = I2VStack.Bunny; }
         }
 
+        /// <inheritdoc cref="StackIsShipped"/>
+        public bool StackIsParasyte
+        {
+            get => _stack == I2VStack.Parasyte;
+            set { if (value) Stack = I2VStack.Parasyte; }
+        }
+
         /// <summary>✴️'s sub-option: keep the Singularity graph's checkpoint and its 12/3 shift, but sample
         /// it the H3 Eros way — er_sde/beta at 12 instead of euler/simple at 10.</summary>
         public bool SingularityErSde
@@ -336,6 +349,7 @@ namespace FlipPix.UI.ViewModels.Video
             I2VStack.Singularity => "✴️ Singularity",
             I2VStack.TaoMate => "🍥 TaoMate relay",
             I2VStack.Bunny => "🐰 BUNNY (action)",
+            I2VStack.Parasyte => "🦠 Parasyte (sparse)",
             _ => "🌀 Shipped",
         };
 
@@ -354,6 +368,11 @@ namespace FlipPix.UI.ViewModels.Video
                 "every pass is painted at the Quality size and the frames are doubled by RTX Video Super " +
                 "Resolution instead of the latent being lifted, so the file lands at twice Quality in each " +
                 "direction and costs more per second.",
+            I2VStack.Parasyte =>
+                $"res_multistep/simple at {AuthoredStepsFor(stack, false)} on the fl2va/ref2va hybrid with the " +
+                "Parasyte turbo LoRA at 1.00 and no sigma shift — PlagueKind's sparse-attention sampling. This " +
+                "graph already patches H3SLAAttention last on both branches' wires, so the speed is whatever " +
+                "the SLA dial below is set to; the stack itself is the LoRA and the schedule.",
             I2VStack.Bunny =>
                 "res_multistep/simple on the fl2va/ref2va hybrid: three extra steps woven between sigma 0.65 and " +
                 "0.28 where the motion is decided, the schedule cut at 75%, the first three quarters sampled on " +
@@ -793,6 +812,7 @@ namespace FlipPix.UI.ViewModels.Video
                         ? "er_sde/beta over the Singularity graph"
                         : "euler/simple, as the Singularity graph is authored",
                     I2VStack.Eros => "er_sde/beta on the 10Eros hybrid",
+                    I2VStack.Parasyte => "res_multistep/simple on the Parasyte turbo LoRA",
                     _ => "euler/simple on the turbo LoRA, as this graph is authored",
                 };
 

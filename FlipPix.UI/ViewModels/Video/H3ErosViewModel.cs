@@ -1949,9 +1949,7 @@ namespace FlipPix.UI.ViewModels.Video
 
             if (item.UseRife)
             {
-                SetInput(root, NodeRife, "source_fps", (double)DraftFrameRate);
-                SetInput(root, NodeRife, "target_fps", (double)(DraftFrameRate * 2));
-                Link(root, NodeRife, "images", pictureFrom, 0);
+                WireInterpolation(root, pictureFrom);
                 Link(root, NodeFinalSave, "images", NodeRife, 0);
                 SetInput(root, NodeFinalSave, "frame_rate", DraftFrameRate * 2);
             }
@@ -1963,6 +1961,23 @@ namespace FlipPix.UI.ViewModels.Video
             Link(root, NodeFinalSave, "audio", soundFrom, soundSlot);
             SetInput(root, NodeFinalSave, "save_output", true);
             SetInput(root, NodeFinalSave, "filename_prefix", $"{OutputSubfolder}/{runToken}_final");
+        }
+
+        /// <summary>
+        /// Writes the frame doubler at <see cref="NodeRife"/> and points it at the frames it interpolates.
+        /// The caller has already decided it is wanted and links the mux to it afterwards, so this only
+        /// has to settle the node's own inputs.
+        ///
+        /// <para>Virtual because the doubler is the <b>stack's</b>, not the tab's. Every stack written on
+        /// h3-eros.json's ids ships <c>RIFEInterpolation</c> there and takes a source and target rate;
+        /// 🦠 Parasyte ships <c>FrameInterpolate</c> (FILM) instead, which takes a model and a multiplier.
+        /// The id is shared so the sink wiring, the trim and the frame rate below it are written once.</para>
+        /// </summary>
+        protected virtual void WireInterpolation(JsonObject root, string pictureFrom)
+        {
+            SetInput(root, NodeRife, "source_fps", (double)DraftFrameRate);
+            SetInput(root, NodeRife, "target_fps", (double)(DraftFrameRate * 2));
+            Link(root, NodeRife, "images", pictureFrom, 0);
         }
 
         /// <summary>
