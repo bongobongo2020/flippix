@@ -4418,7 +4418,7 @@
                                                             <Button Grid.Column="1" Content="＋ Add" Height="22" Padding="8,0" FontSize="10"
                                                                     Command="{Binding AddLoraCommand}"
                                                                     Style="{StaticResource AccentOutlineButtonStyle}"
-                                                                    ToolTip="Add a LoRA row. The graph has five seats, so up to five stack on the checkpoint in the order they are listed."/>
+                                                                    ToolTip="Add a LoRA row. The graph has five seats, so up to five stack on the checkpoint in the order they are listed. Stays live while a queue is draining: the stack is frozen onto each item as you add it, so an edit here reaches the next item you queue and leaves the ones already waiting alone."/>
                                                             <Button Grid.Column="2" Content="&#x27F3;" Width="24" Height="22" FontSize="11"
                                                                     Margin="4,0,0,0" Padding="0"
                                                                     Command="{Binding RefreshLorasCommand}"
@@ -4426,9 +4426,13 @@
                                                                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                                                                     ToolTip="Re-read loras/H3 from ComfyUI."/>
                                                         </Grid>
+                                                        <!-- No IsEnabled gate, unlike the rest of the card: nothing
+                                                             reads this collection during a render. Add to Queue copies
+                                                             the active slots onto the item and the graph is built from
+                                                             that copy, so the stack can be rewritten for the next item
+                                                             while the queue drains. See CanAddLora. -->
                                                         <ItemsControl ItemsSource="{Binding Loras}"
                                                                       ItemTemplate="{StaticResource I2VLoraRowTemplate}"
-                                                                      IsEnabled="{Binding CanChangeRender}"
                                                                       Margin="0,2,0,0"/>
                                                         <TextBlock Text="{Binding LoraSummary}" FontSize="10" TextWrapping="Wrap"
                                                                    Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,10"/>

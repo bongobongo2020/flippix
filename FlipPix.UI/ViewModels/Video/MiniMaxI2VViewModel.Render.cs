@@ -313,6 +313,23 @@ namespace FlipPix.UI.ViewModels.Video
         /// halfway is a queue of takes that do not match each other.</summary>
         public bool CanChangeRender => !IsProcessing && !IsProcessingQueue;
 
+        /// <summary>
+        /// <para>The LoRA rows are deliberately <b>not</b> behind <see cref="CanChangeRender"/>. They are the
+        /// one part of the card no render reads live: Add to Queue copies the active slots onto the item
+        /// (<c>MiniMaxI2VQueueItem.Loras</c>) and MiniMaxI2VViewModel.Stacks.cs builds every chain from
+        /// <c>item.Loras</c>, never from this collection. The only live reader left is
+        /// <see cref="LoraSummary"/>, which is a label.</para>
+        ///
+        /// <para>So the stack can be rewritten while a queue drains and the next item added carries it,
+        /// which is the whole point — a queue is a list of takes you meant, not one setting repeated. Takes
+        /// already queued are untouched, and each queue row shows its own LoRA count, so a mixed queue reads
+        /// as mixed rather than silently disagreeing with the card.</para>
+        ///
+        /// <para>The stack, the checkpoint and the step count stay locked, because those are what make two
+        /// takes comparable.</para>
+        /// </summary>
+        public bool CanAddLora => Loras.Count < MaxLoraSlots;
+
         private static string StackName(I2VStack stack) => stack switch
         {
             I2VStack.Eros => "🌹 H3 Eros",
@@ -374,13 +391,13 @@ namespace FlipPix.UI.ViewModels.Video
             RaiseStepsState();
         }
 
-        /// <summary>Raised from <see cref="OnCanExecuteChanged"/>: the whole card greys out while the GPU
-        /// is busy, and comes back when it is not.</summary>
+        /// <summary>Raised from <see cref="OnCanExecuteChanged"/>: the card greys out while the GPU is busy
+        /// and comes back when it is not. The LoRA rows are not part of it — see <see cref="CanAddLora"/> —
+        /// but the line under them names the queue, so it is re-read here.</summary>
         private void RaiseRenderGate()
         {
             OnPropertyChanged(nameof(CanChangeRender));
-            OnPropertyChanged(nameof(CanAddLora));
-            AddLoraCommand?.NotifyCanExecuteChanged();
+            OnPropertyChanged(nameof(LoraSummary));
             ResetStepsCommand?.NotifyCanExecuteChanged();
         }
 
@@ -529,7 +546,13 @@ namespace FlipPix.UI.ViewModels.Video
 
         public RelayCommand<MiniMaxI2VLoraSlot> RemoveLoraCommand { get; private set; } = new(_ => { });
 
-        public bool CanAddLora => Loras.Count < MaxLoraSlots && CanChangeRender;
+        /// <summary>Tacked onto <see cref="LoraSummary"/> while the queue is draining, because that is the
+        /// one time the rows on screen are not what is rendering — the stack reaches the next item added,
+        /// not the ones already waiting.</summary>
+        private string QueuedNote =>
+            IsProcessing || IsProcessingQueue
+                ? " Editable mid-queue: this stack is frozen onto each item as you add it, so it reaches the next one you queue and leaves the takes already waiting as they were."
+                : string.Empty;
 
         /// <summary>The line under the list: what is on the wire, on top of what.</summary>
         public string LoraSummary
@@ -546,13 +569,13 @@ namespace FlipPix.UI.ViewModels.Video
                       "of its own, ahead of these.";
 
                 if (active.Count == 0)
-                    return $"No LoRA of yours. {Math.Max(0, LoraOptions.Count - 1)} available in loras/H3.{theirs}";
+                    return $"No LoRA of yours. {Math.Max(0, LoraOptions.Count - 1)} available in loras/H3.{theirs}{QueuedNote}";
 
                 var named = string.Join(", ", active.Select(l => $"{LabelFor(l.Name)} at {l.Strength:0.00}"));
                 var dropped = Loras.Count - active.Count;
                 var skipped = dropped == 0 ? string.Empty
                     : $" {dropped} row(s) at 0 or unset are left out of the graph.";
-                return $"{named} — stacked on the checkpoint in that order.{skipped}{theirs}";
+                return $"{named} — stacked on the checkpoint in that order.{skipped}{theirs}{QueuedNote}";
             }
         }
 
@@ -570,7 +593,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         private void RemoveLoraSlot(MiniMaxI2VLoraSlot? slot)
         {
-            if (slot == null || !CanChangeRender) return;
+            if (slot == null) return;
             slot.Changed -= OnLoraSlotChanged;
             Loras.Remove(slot);
             for (var i = 0; i < Loras.Count; i++) Loras[i].Index = i + 1;
