@@ -10,6 +10,6 @@ public partial class VideoView : UserControl
 
     private async void OnAddPhoto(object? sender, RoutedEventArgs e)
     {
-        if (DataContext is VideoViewModel vm) await vm.AddPicturesAsync(await PhotoPicker.PickAsync(this));
+        if (DataContext is VideoViewModel vm) await vm.AddPhotosAsync(await PhotoPicker.PickAsync(this));
     }
 }

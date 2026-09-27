@@ -1,14 +1,13 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:FlipPix.Mobile.ViewModels"
-             xmlns:svc="using:FlipPix.Mobile.Services"
              xmlns:c="using:FlipPix.Mobile.Controls"
              x:Class="FlipPix.Mobile.Views.VideoView"
              x:DataType="vm:VideoViewModel">
   <Grid RowDefinitions="*,Auto">
 
     <ScrollViewer Grid.Row="0">
-      <StackPanel Margin="20,10,20,24" Spacing="28">
+      <StackPanel Margin="20,6,20,24" Spacing="28">
 
         <TextBlock Classes="title" Text="Bring it to life" />
 
@@ -16,18 +15,18 @@
         <StackPanel Spacing="10">
           <TextBlock Classes="section" Text="Photos" Margin="0" />
           <TextBlock Classes="hint" Text="{Binding PictureHint}" />
-          <StackPanel Orientation="Horizontal" Spacing="8">
+          <WrapPanel Orientation="Horizontal">
             <ItemsControl ItemsSource="{Binding Pictures}">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="8" /></ItemsPanelTemplate>
               </ItemsControl.ItemsPanel>
               <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="svc:ReferencePicture">
+                <DataTemplate x:DataType="vm:PictureSlot">
                   <Button Classes="bare" Padding="0" CornerRadius="14" AutomationProperties.Name="Remove photo"
                           Command="{Binding $parent[ItemsControl].((vm:VideoViewModel)DataContext).RemovePictureCommand}"
                           CommandParameter="{Binding}">
                     <Panel Width="68" Height="68">
-                      <Border CornerRadius="14" ClipToBounds="True">
+                      <Border CornerRadius="14" ClipToBounds="True" Background="{StaticResource RaisedBrush}">
                         <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
                       </Border>
                       <Border Width="22" Height="22" CornerRadius="11" Background="#CC1B1D2A"
@@ -40,10 +39,10 @@
               </ItemsControl.ItemTemplate>
             </ItemsControl>
             <Border Classes="breathing" Width="68" Height="68" CornerRadius="14" Background="{StaticResource RaisedBrush}"
-                    IsVisible="{Binding IsPreparing}" ToolTip.Tip="Preparing the photo">
+                    IsVisible="{Binding IsPreparing}" Margin="8,0,0,0" ToolTip.Tip="Preparing the photo">
               <TextBlock Classes="hint" Text="Preparing" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center" />
             </Border>
-            <Button Classes="cell" Width="68" Height="68" IsVisible="{Binding CanAddPicture}"
+            <Button Classes="cell" Width="68" Height="68" IsVisible="{Binding CanAddPicture}" Margin="8,0,0,0"
                     Click="OnAddPhoto" AutomationProperties.Name="Add photo"
                     BorderBrush="{StaticResource LineBrush}">
               <StackPanel Spacing="2">
@@ -51,7 +50,7 @@
                 <TextBlock Text="Add" FontSize="12" HorizontalAlignment="Center" />
               </StackPanel>
             </Button>
-          </StackPanel>
+          </WrapPanel>
         </StackPanel>
 
         <!-- What happens: the one sentence that matters. -->
@@ -61,10 +60,18 @@
                    MinHeight="104" MaxHeight="220" VerticalContentAlignment="Top"
                    Watermark="She looks up from her book, smiles, and says: &quot;You're late.&quot;"
                    AutomationProperties.Name="What happens" />
-          <TextBlock Classes="hint" IsVisible="{Binding HasLlm}"
-                     Text="Your writing assistant turns this into a full scene with sound, using the photos." />
-          <TextBlock Classes="hint" IsVisible="{Binding !HasLlm}"
-                     Text="Used as written. Add a writing assistant in Settings for richer scenes." />
+          <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding HasPictures}">
+            <Button Classes="bare" Command="{Binding SuggestCommand}" Padding="8,6" Margin="-8,0,0,0"
+                    ToolTip.Tip="The computer looks at the first photo and suggests what could happen">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <PathIcon Data="{StaticResource IconSparkle}" Width="16" Height="16" Foreground="{StaticResource GlowBrush}" />
+                <TextBlock Text="Suggest what happens" FontWeight="SemiBold" Foreground="{StaticResource GlowBrush}" />
+              </StackPanel>
+            </Button>
+            <ProgressBar Grid.Column="1" IsIndeterminate="True" Width="50" HorizontalAlignment="Right"
+                         VerticalAlignment="Center" IsVisible="{Binding IsSuggesting}" />
+          </Grid>
+          <TextBlock Classes="hint" Text="Your computer's writing assistant turns this into a full scene with sound, looking at the photos." />
           <TextBlock Classes="hint danger" Text="{Binding Notice}"
                      IsVisible="{Binding Notice, Converter={x:Static ObjectConverters.IsNotNull}}" />
         </StackPanel>
@@ -93,14 +100,14 @@
           <Border IsVisible="{Binding NoTakes}" CornerRadius="16" Padding="18,22"
                   BorderBrush="{StaticResource LineBrush}" BorderThickness="1.5">
             <TextBlock Classes="hint" FontSize="14" TextAlignment="Center"
-                       Text="Each video is filmed here while you watch its progress. A 10 second clip takes about a minute." />
+                       Text="Each video is filmed on your computer while you watch its progress here. A 10 second clip takes about a minute." />
           </Border>
           <ItemsControl ItemsSource="{Binding Takes}">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate><StackPanel Spacing="22" /></ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="vm:VideoTake">
+              <DataTemplate x:DataType="vm:JobVm">
                 <StackPanel Spacing="10">
                   <Button Classes="bare" Padding="0" CornerRadius="16" HorizontalAlignment="Stretch"
                           HorizontalContentAlignment="Center"
@@ -110,7 +117,7 @@
                       <Border CornerRadius="16" ClipToBounds="True" Background="{StaticResource SurfaceBrush}">
                         <Grid>
                           <Image Source="{Binding Poster}" Stretch="UniformToFill" Opacity="0.45" />
-                          <Border Classes="breathing" Background="#661B1D2A" IsVisible="{Binding IsWorking}" />
+                          <Border Classes="breathing" Background="#661B1D2A" IsVisible="{Binding IsActive}" />
                           <!-- Play mark on a finished take. -->
                           <Border IsVisible="{Binding IsDone}" Width="68" Height="68" CornerRadius="34"
                                   Background="{StaticResource BrandBrush}" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -120,34 +127,38 @@
                           <StackPanel VerticalAlignment="Bottom" Margin="14,12" Spacing="8" IsVisible="{Binding !IsDone}">
                             <Grid ColumnDefinitions="*,Auto">
                               <TextBlock Text="{Binding Status}" FontWeight="SemiBold" TextWrapping="Wrap" MaxLines="3"
-                                         Classes.danger="{Binding IsFailed}" />
+                                         Classes.danger="{Binding IsProblem}" />
                               <TextBlock Grid.Column="1" Classes="hint" Text="{Binding Elapsed}" Margin="12,0,0,0" />
                             </Grid>
                             <ProgressBar Value="{Binding Progress}" Minimum="0" Maximum="1" Height="4" MinHeight="4"
                                          CornerRadius="2" Foreground="{StaticResource GlowBrush}" Background="#33F2EEE6"
-                                         IsVisible="{Binding IsWorking}" />
-                            <TextBlock Classes="hint" Text="Tap to dismiss" IsVisible="{Binding IsFailed}" />
+                                         IsVisible="{Binding IsRunning}" />
+                            <TextBlock Classes="hint" Text="Tap to try again" IsVisible="{Binding ShowRetry}" />
                           </StackPanel>
                         </Grid>
                       </Border>
                     </c:AspectPanel>
                   </Button>
 
-                  <Grid ColumnDefinitions="*,Auto">
-                    <StackPanel Spacing="2" VerticalAlignment="Center">
-                      <TextBlock Text="{Binding Idea}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
-                      <TextBlock Classes="hint" Text="{Binding LengthLabel}" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="10,0,0,0">
-                      <Button Classes="quiet" Content="Script" Height="38" Padding="14,0"
-                              IsVisible="{Binding Script, Converter={x:Static ObjectConverters.IsNotNull}}"
-                              Command="{Binding $parent[ItemsControl].((vm:VideoViewModel)DataContext).ToggleScriptCommand}"
-                              CommandParameter="{Binding}" />
-                      <Button Classes="quiet" Content="New take" Height="38" Padding="14,0" IsVisible="{Binding IsDone}"
-                              Command="{Binding $parent[ItemsControl].((vm:VideoViewModel)DataContext).RetakeCommand}"
-                              CommandParameter="{Binding}" />
-                    </StackPanel>
-                  </Grid>
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="{Binding Title}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Classes="hint" Text="{Binding LengthLabel}" />
+                  </StackPanel>
+                  <WrapPanel Orientation="Horizontal" Margin="0,0,0,-6">
+                    <Button Classes="quiet" Content="Scene" Height="38" Margin="0,0,6,6" Padding="14,0"
+                            IsVisible="{Binding Script, Converter={x:Static ObjectConverters.IsNotNull}}"
+                            Command="{Binding $parent[ItemsControl].((vm:VideoViewModel)DataContext).ToggleScriptCommand}"
+                            CommandParameter="{Binding}" />
+                    <Button Classes="quiet" Content="New take" Height="38" Margin="0,0,6,6" Padding="14,0" IsVisible="{Binding IsDone}"
+                            Command="{Binding $parent[ItemsControl].((vm:VideoViewModel)DataContext).RetakeCommand}"
+                            CommandParameter="{Binding}" />
+                    <Button Classes="quiet" Content="Stop" Height="38" Margin="0,0,6,6" Padding="14,0" IsVisible="{Binding IsActive}"
+                            Command="{Binding $parent[ItemsControl].((vm:VideoViewModel)DataContext).StopCommand}"
+                            CommandParameter="{Binding}" />
+                    <Button Classes="quiet" Content="Remove" Height="38" Margin="0,0,6,6" Padding="14,0" IsVisible="{Binding CanRemove}"
+                            Command="{Binding $parent[ItemsControl].((vm:VideoViewModel)DataContext).RemoveCommand}"
+                            CommandParameter="{Binding}" ToolTip.Tip="Takes it off this page; the video stays in the Library" />
+                  </WrapPanel>
 
                   <Border IsVisible="{Binding ShowScript}" Background="{StaticResource SurfaceBrush}"
                           CornerRadius="14" Padding="14,12">
@@ -164,34 +175,9 @@
 
     <Border Grid.Row="1" Padding="20,10,20,14" Background="{StaticResource BoothBrush}">
       <Panel>
-        <Button Classes="primary" Content="Make video" Command="{Binding MakeCommand}" IsVisible="{Binding IsIdle}" />
-        <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding IsBusy}" Height="56">
-          <StackPanel VerticalAlignment="Center" Spacing="2">
-            <TextBlock Text="{Binding BusyText}" FontWeight="SemiBold" FontSize="16" />
-            <TextBlock Classes="hint" Text="You can leave this page; it keeps going." />
-          </StackPanel>
-          <Button Grid.Column="1" Classes="quiet" Content="Stop" Command="{Binding StopCommand}" Height="48" Padding="26,0" />
-        </Grid>
+        <Button Classes="primary" Content="Make video" Command="{Binding MakeCommand}" IsVisible="{Binding !IsSending}" />
+        <Button Classes="primary" Content="{Binding SendingText}" IsEnabled="False" IsVisible="{Binding IsSending}" />
       </Panel>
     </Border>
-
-    <!-- Player. The idea and its actions sit in the top bar: Android's transport controls take the
-         bottom edge, and nothing may overlap the native surface either way. -->
-    <Grid Grid.RowSpan="2" IsVisible="{Binding IsPlayerOpen}" Background="#101119" RowDefinitions="Auto,*">
-      <Grid ColumnDefinitions="*,Auto,Auto" Margin="20,8,8,8">
-        <TextBlock Text="{Binding Playing.Idea}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
-                   VerticalAlignment="Center" />
-        <Button Grid.Column="1" Classes="quiet" Content="Remove" Height="40" Margin="12,0,4,0"
-                Command="{Binding RemoveTakeCommand}" CommandParameter="{Binding Playing}" />
-        <Button Grid.Column="2" Classes="bare" Command="{Binding ClosePlayerCommand}" AutomationProperties.Name="Close">
-          <PathIcon Data="{StaticResource IconClose}" Width="24" Height="24" />
-        </Button>
-      </Grid>
-      <c:VideoSurface Grid.Row="1" Source="{Binding Playing.Url}" IsVisible="{Binding PlayerSupported}" />
-      <StackPanel Grid.Row="1" IsVisible="{Binding !PlayerSupported}" VerticalAlignment="Center" Margin="24" Spacing="8">
-        <TextBlock Text="Playback needs the phone app." HorizontalAlignment="Center" />
-        <SelectableTextBlock Text="{Binding Playing.Url}" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" FontSize="12" />
-      </StackPanel>
-    </Grid>
   </Grid>
 </UserControl>

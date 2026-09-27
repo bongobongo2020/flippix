@@ -3,6 +3,9 @@
   <ItemGroup>
     <ProjectReference Include="..\FlipPix.Core\FlipPix.Core.csproj" />
     <ProjectReference Include="..\FlipPix.ComfyUI\FlipPix.ComfyUI.csproj" />
+    <!-- Aliased: FlipPix.Remote compiles copies of this project's story-chain sources, whose types
+         would otherwise clash with the originals here. Only Services/PhoneRemote.cs names it. -->
+    <ProjectReference Include="..\FlipPix.Remote\FlipPix.Remote.csproj" Aliases="remote" />
   </ItemGroup>
 
   <ItemGroup>

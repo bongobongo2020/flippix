@@ -7,7 +7,7 @@ namespace FlipPix.Mobile.Services;
 /// <summary>
 /// A photo picked on the phone, shrunk once to what anything downstream can use. A phone camera
 /// frame is 12–50 MP; the video model encodes references at its draft canvas and the LLM looks at
-/// them at ~1 MP, so sending the original would only cost upload time on mobile data.
+/// them at ~1 MP, so sending the original would only cost upload time over Wi-Fi.
 ///
 /// <para>ImageSharp, not Skia, because a phone photo's rotation lives in its EXIF tag: decoded
 /// without <c>AutoOrient</c>, every portrait shot reaches the model lying on its side.</para>
@@ -20,7 +20,6 @@ public sealed class ReferencePicture : IDisposable
     public required byte[] Jpeg { get; init; }
     public required int Width { get; init; }
     public required int Height { get; init; }
-    public string? UploadedName { get; set; }
 
     public static ReferencePicture FromStream(Stream source)
     {

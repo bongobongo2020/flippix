@@ -1,0 +1,123 @@
+<Window x:Class="FlipPix.UI.PhoneRemoteWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Phone remote" Width="520" Height="720" MinWidth="440" MinHeight="520"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource AppBackgroundBrush}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header: a flat brand bar, like every FlipPix window. -->
+        <Border Grid.Row="0" Background="{StaticResource BrandBrush}" Padding="24,18">
+            <StackPanel>
+                <TextBlock Text="📱  Phone remote" FontSize="24" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Text="Make pictures, videos and stories from your phone, and see everything you've made."
+                           FontSize="13" Foreground="#E6FFFFFF" Margin="0,4,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="20,18,20,20">
+
+                <!-- The switch -->
+                <Border Style="{StaticResource SectionCardStyle}" Padding="18">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Let my phone connect" FontSize="16" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBlock Text="{Binding StatusText}" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                        </StackPanel>
+                        <CheckBox Grid.Column="1" IsChecked="{Binding IsEnabled, Mode=TwoWay}" VerticalAlignment="Center"
+                                  Margin="16,0,0,0" AutomationProperties.Name="Let my phone connect">
+                            <CheckBox.LayoutTransform>
+                                <ScaleTransform ScaleX="1.6" ScaleY="1.6"/>
+                            </CheckBox.LayoutTransform>
+                        </CheckBox>
+                    </Grid>
+                </Border>
+
+                <!-- Pairing: only while listening -->
+                <Border Style="{StaticResource SectionCardStyle}" Padding="18"
+                        Visibility="{Binding IsRunning, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel>
+                        <TextBlock Text="PAIRING CODE" FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock Text="{Binding PairingCode}" FontSize="44" FontWeight="Bold" Margin="0,6,0,0"
+                                   FontFamily="Consolas" Foreground="{StaticResource TextPrimaryBrush}"/>
+                        <TextBlock Text="Type this in FlipPix on your phone. Each code pairs one phone, then a new one appears."
+                                   FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0" Foreground="{StaticResource TextMutedBrush}"/>
+                        <Button Content="New code" Command="{Binding NewCodeCommand}" HorizontalAlignment="Left"
+                                Style="{StaticResource SecondaryButtonStyle}" Margin="0,12,0,0"/>
+
+                        <TextBlock Text="THIS COMPUTER" FontSize="11" FontWeight="SemiBold" Margin="0,20,0,0"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock Text="{Binding AddressText}" FontSize="15" FontFamily="Consolas" Margin="0,4,0,0"
+                                   Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap"/>
+                        <TextBlock FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0" Foreground="{StaticResource TextMutedBrush}"
+                                   Text="Your phone finds this computer by itself on the same Wi-Fi. If it doesn't, type this address on the phone."/>
+                    </StackPanel>
+                </Border>
+
+                <!-- How to -->
+                <Border Style="{StaticResource SectionCardStyle}" Padding="18">
+                    <StackPanel>
+                        <TextBlock Text="HOW TO CONNECT" FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock Margin="0,8,0,0" TextWrapping="Wrap" FontSize="13" LineHeight="21"
+                                   Foreground="{StaticResource TextPrimaryBrush}">
+                            1. Turn on "Let my phone connect" above.<LineBreak/>
+                            2. Put your phone on the same Wi-Fi as this computer.<LineBreak/>
+                            3. Open FlipPix on the phone and tap this computer's name.<LineBreak/>
+                            4. Type the pairing code.
+                        </TextBlock>
+                        <TextBlock Margin="0,10,0,0" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TextMutedBrush}"
+                                   Text="The first time, Windows may ask whether FlipPix can use the network. Allow it on private networks. Jobs from the phone use this computer's ComfyUI and writing assistant settings."/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Paired phones -->
+                <Border Style="{StaticResource SectionCardStyle}" Padding="18">
+                    <StackPanel>
+                        <TextBlock Text="PAIRED PHONES" FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock Text="None yet." FontSize="13" Margin="0,8,0,0" Foreground="{StaticResource TextMutedBrush}"
+                                   Visibility="{Binding NoDevices, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        <ItemsControl ItemsSource="{Binding Devices}" Margin="0,4,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold"
+                                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                                            <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}"
+                                                       Text="{Binding PairedAt, StringFormat='Paired {0:d MMM yyyy}'}"/>
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Content="Remove" Style="{StaticResource SecondaryButtonStyle}"
+                                                ToolTip="This phone will have to pair again"
+                                                Command="{Binding DataContext.RemoveDeviceCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="{Binding ActivityText}" FontSize="12" Margin="4,2,0,0"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Window>

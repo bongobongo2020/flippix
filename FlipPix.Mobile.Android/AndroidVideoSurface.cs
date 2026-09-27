@@ -9,8 +9,9 @@ using AUri = Android.Net.Uri;
 namespace FlipPix.Mobile.Android;
 
 /// <summary>
-/// VideoView with the system transport controls, streaming straight from ComfyUI's /view URLs. A
-/// single video loops; a playlist (a story's clips) plays through and starts again.
+/// VideoView with the system transport controls, streaming from the paired computer (the token rides
+/// in the URL, since VideoView sends no headers). A single video loops; a playlist (a story's shots)
+/// plays through and starts again.
 /// </summary>
 public sealed class AndroidVideoSurface : IVideoSurfaceFactory
 {

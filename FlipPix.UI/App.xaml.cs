@@ -168,6 +168,9 @@ namespace FlipPix.UI
 
                 imageGeneratorWindow.Show();
                 logger.LogInfo("Main Image Generator window shown successfully");
+
+                // The phone remote comes up after the window, and only listens if it was left on.
+                PhoneRemote.Start(settingsService, logger);
             }
             catch (Exception ex)
             {
@@ -465,6 +468,7 @@ namespace FlipPix.UI
 
         protected override void OnExit(ExitEventArgs e)
         {
+            PhoneRemote.Stop();
             _shutdownCts.Cancel();
             _shutdownCts.Dispose();
             _serviceProvider?.Dispose();

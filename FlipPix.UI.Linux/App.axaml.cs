@@ -74,6 +74,10 @@ public partial class App : Application
         logger.LogInfo("FlipPix Linux starting up");
         ConfigureMediaTooling(logger);
 
+        // The phone remote: listens only if it was left on; its config loads off the UI thread.
+        PhoneRemote.Start(settingsService, logger);
+        desktop.Exit += (_, _) => PhoneRemote.Stop();
+
         var splash = new SplashWindow();
         desktop.MainWindow = splash;
         splash.Show();

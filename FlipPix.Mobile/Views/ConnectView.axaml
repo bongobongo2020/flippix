@@ -1,0 +1,166 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:FlipPix.Mobile.ViewModels"
+             xmlns:svc="using:FlipPix.Mobile.Services"
+             x:Class="FlipPix.Mobile.Views.ConnectView"
+             x:DataType="vm:ConnectViewModel">
+  <Panel>
+
+    <!-- 1. Find the computer. -->
+    <ScrollViewer IsVisible="{Binding IsFind}">
+      <StackPanel Margin="24,12,24,28" Spacing="26" MaxWidth="560">
+        <StackPanel Spacing="10">
+          <TextBlock Classes="title" Text="Connect to your computer" TextWrapping="Wrap" />
+          <TextBlock Classes="hint" FontSize="14" LineHeight="21"
+                     Text="Open FlipPix on your computer, click the phone button at the top (Phone remote) and turn on &quot;Let my phone connect&quot;. Keep this phone on the same Wi-Fi." />
+        </StackPanel>
+
+        <StackPanel Spacing="10">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Classes="section" Text="On this Wi-Fi" Margin="0" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Classes="bare" Command="{Binding SearchCommand}" AutomationProperties.Name="Look again"
+                    ToolTip.Tip="Look again" Padding="8">
+              <PathIcon Data="{StaticResource IconRefresh}" Width="20" Height="20" />
+            </Button>
+          </Grid>
+
+          <Border Classes="breathing" IsVisible="{Binding IsSearching}" Background="{StaticResource SurfaceBrush}"
+                  CornerRadius="16" Padding="18,20">
+            <TextBlock Classes="hint" FontSize="14" Text="Looking for FlipPix…" HorizontalAlignment="Center" />
+          </Border>
+
+          <ItemsControl ItemsSource="{Binding Found}" IsVisible="{Binding !IsSearching}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><StackPanel Spacing="8" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="svc:FoundComputer">
+                <Button Classes="cell" Height="72" HorizontalContentAlignment="Stretch" Padding="16,0"
+                        Command="{Binding $parent[ItemsControl].((vm:ConnectViewModel)DataContext).PickCommand}"
+                        CommandParameter="{Binding}">
+                  <Grid ColumnDefinitions="Auto,*,Auto">
+                    <PathIcon Data="{StaticResource IconComputer}" Width="26" Height="26" Foreground="{StaticResource GlowBrush}" />
+                    <StackPanel Grid.Column="1" Margin="14,0" VerticalAlignment="Center" Spacing="2">
+                      <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="16" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Classes="hint" Text="{Binding Address}" />
+                    </StackPanel>
+                    <PathIcon Grid.Column="2" Data="{StaticResource IconChevronRight}" Width="22" Height="22" />
+                  </Grid>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <Border IsVisible="{Binding NothingFound}" CornerRadius="16" Padding="18,18"
+                  BorderBrush="{StaticResource LineBrush}" BorderThickness="1.5">
+            <TextBlock Classes="hint" FontSize="14" TextAlignment="Center" LineHeight="21"
+                       Text="Nothing answered. Check that the phone remote is on in FlipPix, or type the address it shows." />
+          </Border>
+        </StackPanel>
+
+        <StackPanel Spacing="10">
+          <TextBlock Classes="section" Text="Or type its address" Margin="0" />
+          <Grid ColumnDefinitions="*,10,Auto">
+            <TextBox Text="{Binding Address}" Watermark="192.168.1.20" AutomationProperties.Name="Computer address"
+                     TextInputOptions.ContentType="Url" />
+            <Button Grid.Column="2" Classes="quiet" Content="Connect" Height="52" CornerRadius="26" Padding="22,0"
+                    Command="{Binding UseAddressCommand}" />
+          </Grid>
+          <TextBlock Classes="hint" Text="FlipPix shows it under &quot;This computer&quot;. The port can be left off." />
+        </StackPanel>
+
+        <TextBlock Classes="hint danger" FontSize="14" Text="{Binding Notice}"
+                   IsVisible="{Binding Notice, Converter={x:Static ObjectConverters.IsNotNull}}" />
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- 2. Type the code. -->
+    <Grid IsVisible="{Binding IsCode}" RowDefinitions="*,Auto">
+      <ScrollViewer>
+        <StackPanel Margin="24,0,24,24" Spacing="22" MaxWidth="560">
+          <Button Classes="bare" Command="{Binding BackCommand}" HorizontalAlignment="Left" Margin="-10,0,0,0"
+                  AutomationProperties.Name="Back">
+            <PathIcon Data="{StaticResource IconBack}" Width="22" Height="22" />
+          </Button>
+          <StackPanel Spacing="10">
+            <TextBlock Classes="title" Text="{Binding ComputerName, StringFormat='Pair with {0}'}" TextWrapping="Wrap" />
+            <TextBlock Classes="hint" FontSize="14" LineHeight="21"
+                       Text="Type the 6-digit pairing code shown in FlipPix on that computer, in the Phone remote window." />
+          </StackPanel>
+          <TextBox Text="{Binding Code}" x:Name="CodeBox" FontSize="34" FontWeight="SemiBold" LetterSpacing="6"
+                   HorizontalContentAlignment="Center" MaxLength="7" Watermark="000 000" MinHeight="76"
+                   TextInputOptions.ContentType="Digits" AutomationProperties.Name="Pairing code" />
+          <TextBlock Classes="hint danger" FontSize="14" Text="{Binding Notice}"
+                     IsVisible="{Binding Notice, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          <TextBlock Classes="hint" Text="{Binding ComputerAddress}" HorizontalAlignment="Center" />
+        </StackPanel>
+      </ScrollViewer>
+      <Border Grid.Row="1" Padding="24,10,24,16">
+        <Button Classes="primary" Content="Pair" Command="{Binding PairCommand}" />
+      </Border>
+    </Grid>
+
+    <!-- 3. Connected: what the computer can do right now. -->
+    <Grid IsVisible="{Binding IsConnected}" RowDefinitions="*,Auto">
+      <ScrollViewer>
+        <StackPanel Margin="24,0,24,24" Spacing="24" MaxWidth="560">
+          <StackPanel Spacing="12">
+            <Border Width="56" Height="56" CornerRadius="28" Background="{StaticResource RaisedBrush}" HorizontalAlignment="Left">
+              <PathIcon Data="{StaticResource IconCheck}" Width="28" Height="28" Foreground="{StaticResource OkBrush}" />
+            </Border>
+            <TextBlock Classes="title" Text="{Binding ComputerName, StringFormat='Connected to {0}'}" TextWrapping="Wrap" />
+            <TextBlock Classes="hint" FontSize="14" Text="{Binding ComputerAddress}" />
+          </StackPanel>
+
+          <Border Background="{StaticResource SurfaceBrush}" CornerRadius="16" Padding="18,6" IsVisible="{Binding StatusKnown}">
+            <StackPanel>
+              <Grid ColumnDefinitions="Auto,*" Margin="0,12">
+                <Ellipse Width="9" Height="9" Margin="0,6,14,0" VerticalAlignment="Top"
+                         Fill="{StaticResource OkBrush}" IsVisible="{Binding ComfyOnline}" />
+                <Ellipse Width="9" Height="9" Margin="0,6,14,0" VerticalAlignment="Top"
+                         Fill="{StaticResource DangerBrush}" IsVisible="{Binding !ComfyOnline}" />
+                <StackPanel Grid.Column="1" Spacing="2">
+                  <TextBlock Text="ComfyUI" FontWeight="SemiBold" />
+                  <TextBlock Classes="hint" Text="{Binding ComfyText}" />
+                </StackPanel>
+              </Grid>
+              <Border Height="1" Background="{StaticResource LineBrush}" />
+              <Grid ColumnDefinitions="Auto,*" Margin="0,12">
+                <Ellipse Width="9" Height="9" Margin="0,6,14,0" VerticalAlignment="Top"
+                         Fill="{StaticResource OkBrush}" IsVisible="{Binding HasLlm}" />
+                <Ellipse Width="9" Height="9" Margin="0,6,14,0" VerticalAlignment="Top"
+                         Fill="{StaticResource GlowBrush}" IsVisible="{Binding !HasLlm}" />
+                <StackPanel Grid.Column="1" Spacing="2">
+                  <TextBlock Text="Writing assistant" FontWeight="SemiBold" />
+                  <TextBlock Classes="hint" Text="{Binding LlmText}" />
+                </StackPanel>
+              </Grid>
+              <Border Height="1" Background="{StaticResource LineBrush}" />
+              <Grid ColumnDefinitions="Auto,*" Margin="0,12">
+                <Ellipse Width="9" Height="9" Margin="0,6,14,0" VerticalAlignment="Top"
+                         Fill="{StaticResource OkBrush}" IsVisible="{Binding LibraryReachable}" />
+                <Ellipse Width="9" Height="9" Margin="0,6,14,0" VerticalAlignment="Top"
+                         Fill="{StaticResource DangerBrush}" IsVisible="{Binding !LibraryReachable}" />
+                <StackPanel Grid.Column="1" Spacing="2">
+                  <TextBlock Text="Library" FontWeight="SemiBold" />
+                  <TextBlock Classes="hint" Text="{Binding LibraryText}" />
+                </StackPanel>
+              </Grid>
+              <Border Height="1" Background="{StaticResource LineBrush}" />
+              <TextBlock Classes="hint" Text="{Binding QueueText}" Margin="23,12,0,12" />
+            </StackPanel>
+          </Border>
+
+          <TextBlock Classes="hint danger" FontSize="14" Text="{Binding Notice}"
+                     IsVisible="{Binding Notice, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+          <Button Classes="quiet" Content="Check again" HorizontalAlignment="Left" Command="{Binding RefreshStatusCommand}" />
+        </StackPanel>
+      </ScrollViewer>
+      <Border Grid.Row="1" Padding="24,10,24,16">
+        <Button Classes="quiet" Content="Disconnect this phone" HorizontalAlignment="Stretch" Height="52" CornerRadius="26"
+                Command="{Binding ForgetCommand}" />
+      </Border>
+    </Grid>
+  </Panel>
+</UserControl>

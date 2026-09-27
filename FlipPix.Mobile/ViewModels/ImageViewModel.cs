@@ -1,30 +1,49 @@
 using System.Collections.ObjectModel;
-using Avalonia.Media.Imaging;
-using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FlipPix.Mobile.Services;
+using FlipPix.Remote.Contracts;
 
 namespace FlipPix.Mobile.ViewModels;
 
+/// <summary>A way of making a picture, named for what it looks like rather than the model behind it.</summary>
+public sealed record LookOption(string Key, string Name, string Blurb);
+
+public static class Looks
+{
+    /// <summary>The same keys the computer's ImageLook table uses.</summary>
+    public static IReadOnlyList<LookOption> All { get; } = new[]
+    {
+        new LookOption("photo", "Photo", "Real camera look. Fast, upscaled 2×."),
+        new LookOption("dream", "Dream", "Rewrites a short idea into a rich scene first."),
+        new LookOption("portrait", "Detail", "Slow and careful. Skin, fabric, texture."),
+    };
+
+    public static string NameOf(string? key) => All.FirstOrDefault(l => l.Key == key)?.Name ?? "Photo";
+}
+
+public enum ImageShape { Portrait, Square, Landscape }
+
 public partial class ImageViewModel : ObservableObject
 {
-    private const string PolishSystem =
-        "You turn a short picture idea into one vivid image prompt for a photorealistic image model. " +
-        "Describe the subject, what they are doing, the setting, the light, the lens and the mood in " +
-        "plain concrete language, 60 to 110 words, one paragraph. Keep every detail the user gave and " +
-        "invent nothing that contradicts it. Reply with the prompt only: no title, no quotes, no preamble.";
+    private readonly Action<IReadOnlyList<ViewerEntry>, int> _openViewer;
 
-    private CancellationTokenSource? _cts;
+    public ImageViewModel(Action<IReadOnlyList<ViewerEntry>, int> openViewer)
+    {
+        _openViewer = openViewer;
+        AppServices.Jobs.Changed += Sync;
+    }
 
-    public IReadOnlyList<ImageLook> Looks => ImageLook.All;
-    public ObservableCollection<ImageTile> Tiles { get; } = new();
+    public IReadOnlyList<LookOption> LookOptions => Looks.All;
+
+    /// <summary>Every picture this phone asked for, newest first: waiting, developing and done.</summary>
+    public ObservableCollection<JobItemVm> Tiles { get; } = new();
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(MakeCommand), nameof(PolishCommand))]
     private string _prompt = "";
 
-    [ObservableProperty] private ImageLook _look = ImageLook.All[0];
+    [ObservableProperty] private LookOption _look = Looks.All[0];
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsPortrait), nameof(IsSquare), nameof(IsLandscape))]
@@ -35,26 +54,30 @@ public partial class ImageViewModel : ObservableObject
     private int _count = 1;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsIdle))]
     [NotifyCanExecuteChangedFor(nameof(MakeCommand), nameof(PolishCommand))]
-    private bool _isBusy;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(MakeCommand), nameof(PolishCommand))]
+    [NotifyPropertyChangedFor(nameof(IsHelping))]
     private bool _isPolishing;
 
-    [ObservableProperty] private string? _notice;
-    [ObservableProperty] private string _busyText = "";
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(MakeCommand), nameof(PolishCommand))]
+    [NotifyPropertyChangedFor(nameof(IsHelping))]
+    private bool _isReadingPhoto;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsViewerOpen))]
-    private ImageTile? _viewing;
+    [NotifyCanExecuteChangedFor(nameof(MakeCommand))]
+    private bool _isSending;
 
-    public bool IsViewerOpen => Viewing != null;
-    public bool IsIdle => !IsBusy;
-    public bool HasTiles => Tiles.Count > 0;
-    public bool NoTiles => Tiles.Count == 0;
-    public bool CanPolish => AppServices.Settings.LlmUrl.Length > 0;
+    [ObservableProperty] private string? _notice;
+    [ObservableProperty] private string _activeText = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NoTiles))]
+    private bool _hasTiles;
+
+    [ObservableProperty] private bool _hasActive;
+
+    public bool NoTiles => !HasTiles;
+    public bool IsHelping => IsPolishing || IsReadingPhoto;
     public bool IsPortrait => Shape == ImageShape.Portrait;
     public bool IsSquare => Shape == ImageShape.Square;
     public bool IsLandscape => Shape == ImageShape.Landscape;
@@ -63,92 +86,45 @@ public partial class ImageViewModel : ObservableObject
     public bool IsFour => Count == 4;
     public string MakeLabel => Count == 1 ? "Make image" : $"Make {Count} images";
 
-    public ImageViewModel() => Tiles.CollectionChanged += (_, _) =>
-    {
-        OnPropertyChanged(nameof(HasTiles));
-        OnPropertyChanged(nameof(NoTiles));
-    };
-
-    /// <summary>Settings may have gained or lost an LLM since this page was built.</summary>
-    public void Refresh() => OnPropertyChanged(nameof(CanPolish));
-
-    [RelayCommand] private void PickLook(ImageLook look) => Look = look;
     [RelayCommand] private void PickShape(ImageShape shape) => Shape = shape;
     [RelayCommand] private void PickCount(string n) => Count = int.Parse(n);
 
-    private bool CanMake() => !IsBusy && !IsPolishing && !string.IsNullOrWhiteSpace(Prompt);
+    /// <summary>From the viewer: a prompt (and the look and shape it was made with) back in the composer.</summary>
+    public void UsePrompt(string prompt, string? look, string? shape)
+    {
+        Prompt = prompt;
+        if (look != null) Look = Looks.All.FirstOrDefault(l => l.Key == look) ?? Look;
+        if (shape != null) Shape = ShapeOf(shape);
+        Notice = null;
+    }
+
+    private bool CanMake() => !IsSending && !IsHelping && !string.IsNullOrWhiteSpace(Prompt);
 
     [RelayCommand(CanExecute = nameof(CanMake))]
     private async Task MakeAsync()
     {
         Notice = null;
-        if (!AppServices.Settings.IsComfyConfigured)
-        {
-            Notice = "Add your ComfyUI address in Settings, then try again.";
-            return;
-        }
-
-        // Every tile goes on the sheet at once, newest first, so the whole order is visible.
-        var batch = Enumerable.Range(0, Count).Select(_ => new ImageTile
-        {
-            Prompt = Prompt.Trim(), Look = Look, Shape = Shape, Seed = Workflows.RandomSeed(),
-        }).ToList();
-        for (var i = batch.Count - 1; i >= 0; i--) Tiles.Insert(0, batch[i]);
-
-        IsBusy = true;
-        _cts = new CancellationTokenSource();
+        IsSending = true;
         try
         {
-            for (var i = 0; i < batch.Count; i++)
+            await AppServices.Jobs.CreateAsync(new JobRequest
             {
-                BusyText = batch.Count == 1 ? "Developing" : $"Developing {i + 1} of {batch.Count}";
-                await DevelopAsync(batch[i], _cts.Token);
-            }
+                Kind = JobKinds.Image,
+                Prompt = Prompt.Trim(),
+                Look = Look.Key,
+                Shape = ShapeKey(Shape),
+                Count = Count,
+            });
         }
-        catch (OperationCanceledException)
+        catch (RemoteException ex)
         {
-            foreach (var t in batch.Where(t => t.IsPending)) { t.State = TileState.Failed; t.Status = "Stopped"; }
+            Notice = ex.Message;
         }
         finally
         {
-            IsBusy = false;
-            _cts.Dispose();
-            _cts = null;
+            IsSending = false;
         }
     }
-
-    private static async Task DevelopAsync(ImageTile tile, CancellationToken ct)
-    {
-        tile.State = TileState.Developing;
-        tile.Status = "Sending to the server";
-        try
-        {
-            var graph = tile.Look.Build(tile.Prompt, tile.Shape, tile.Seed);
-            var outputs = await AppServices.Comfy.RunAsync(graph, (v, max) => Dispatcher.UIThread.Post(() =>
-            {
-                tile.Progress = (double)v / max;
-                tile.Status = $"Step {v} of {max}";
-            }), ct);
-
-            var image = outputs.FirstOrDefault(o => !o.IsVideo)
-                ?? throw new InvalidOperationException("The server finished but saved no picture.");
-            tile.Status = "Fetching";
-            var bytes = await AppServices.Comfy.DownloadAsync(image, ct);
-            using var ms = new MemoryStream(bytes);
-            // Decoded to screen size: a 2560px PNG at full size is 26 MB of bitmap per tile.
-            tile.Picture = Bitmap.DecodeToWidth(ms, 1440);
-            tile.Progress = 1;
-            tile.State = TileState.Done;
-        }
-        catch (OperationCanceledException) { throw; }
-        catch (Exception ex)
-        {
-            tile.State = TileState.Failed;
-            tile.Status = FirstLine(ex.Message);
-        }
-    }
-
-    [RelayCommand] private void Stop() => _cts?.Cancel();
 
     [RelayCommand(CanExecute = nameof(CanMake))]
     private async Task PolishAsync()
@@ -157,11 +133,11 @@ public partial class ImageViewModel : ObservableObject
         Notice = null;
         try
         {
-            Prompt = await LlmClient.ChatAsync(AppServices.Settings, PolishSystem, Prompt.Trim(), maxTokens: 400);
+            Prompt = await AppServices.Remote.AssistAsync(new AssistRequest { Task = AssistTasks.Polish, Text = Prompt.Trim() });
         }
-        catch (Exception ex)
+        catch (RemoteException ex)
         {
-            Notice = FirstLine(ex.Message);
+            Notice = ex.Message;
         }
         finally
         {
@@ -169,38 +145,122 @@ public partial class ImageViewModel : ObservableObject
         }
     }
 
-    /// <summary>A finished tile opens full screen; a failed one is dismissed by the same tap.</summary>
-    [RelayCommand]
-    private void Open(ImageTile tile)
+    /// <summary>A phone photo in, a prompt for a picture like it out, written by the computer's vision model.</summary>
+    public async Task PromptFromPhotoAsync(Func<Task<Stream>> open)
     {
-        if (tile.IsDone) Viewing = tile;
-        else if (tile.IsFailed) Remove(tile);
+        IsReadingPhoto = true;
+        Notice = null;
+        try
+        {
+            ReferencePicture photo;
+            await using (var stream = await open())
+                photo = await Task.Run(() => ReferencePicture.FromStream(stream));
+            using (photo)
+            {
+                var slot = PictureSlot.FromPhone(photo);
+                var reference = await slot.ReferenceAsync();
+                Prompt = await AppServices.Remote.AssistAsync(new AssistRequest { Task = AssistTasks.ImagePrompt, Picture = reference });
+            }
+        }
+        catch (RemoteException ex)
+        {
+            Notice = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Notice = "That photo couldn't be opened: " + FirstLine(ex.Message);
+        }
+        finally
+        {
+            IsReadingPhoto = false;
+        }
     }
-    [RelayCommand] private void CloseViewer() => Viewing = null;
 
-    /// <summary>Puts the viewed picture's prompt, look and shape back in the composer.</summary>
     [RelayCommand]
-    private void ReusePrompt()
+    private async Task StopAsync()
     {
-        if (Viewing == null) return;
-        Prompt = Viewing.Prompt;
-        Look = Viewing.Look;
-        Shape = Viewing.Shape;
-        Viewing = null;
+        foreach (var job in AppServices.Jobs.Jobs.Where(j => j.Kind == JobKinds.Image && j.IsActive).ToList())
+        {
+            try { await AppServices.Jobs.CancelAsync(job); }
+            catch (RemoteException ex) { Notice = ex.Message; }
+        }
     }
 
+    /// <summary>A finished tile opens full screen; a failed one is tried again.</summary>
     [RelayCommand]
-    private void Remove(ImageTile tile)
+    private async Task OpenAsync(JobItemVm tile)
     {
-        if (tile.IsPending) return;
-        if (Viewing == tile) Viewing = null;
-        Tiles.Remove(tile);
-        tile.Picture?.Dispose();
+        if (tile.IsDone)
+        {
+            var done = Tiles.Where(t => t.IsDone).ToList();
+            _openViewer(done.Select(ViewerEntry.FromJobItem).ToList(), done.IndexOf(tile));
+        }
+        else if (tile.IsFailed && tile.Job.ShowRetry)
+        {
+            try { await AppServices.Jobs.RetryAsync(tile.Job); }
+            catch (RemoteException ex) { Notice = ex.Message; }
+        }
     }
+
+    /// <summary>Takes a finished set of pictures off this page. They stay in the Library.</summary>
+    [RelayCommand]
+    private async Task ClearFinishedAsync()
+    {
+        foreach (var job in AppServices.Jobs.Jobs.Where(j => j.Kind == JobKinds.Image && !j.IsActive).ToList())
+        {
+            try { await AppServices.Jobs.RemoveAsync(job); }
+            catch (RemoteException ex) { Notice = ex.Message; return; }
+        }
+    }
+
+    private void Sync()
+    {
+        var jobs = AppServices.Jobs.Jobs.Where(j => j.Kind == JobKinds.Image).ToList();
+        CollectionSync.Apply(Tiles, jobs.SelectMany(j => j.Items).ToList());
+        HasTiles = Tiles.Count > 0;
+
+        var active = jobs.Where(j => j.IsActive).ToList();
+        HasActive = active.Count > 0;
+        var running = active.FirstOrDefault(j => j.IsRunning);
+        var waiting = active.Count(j => j.IsQueued);
+        ActiveText = running != null
+            ? running.Status + (waiting > 0 ? $" · {waiting} more waiting" : "")
+            : waiting > 0 ? (waiting == 1 ? "Waiting for the computer" : $"{waiting} waiting for the computer") : "";
+    }
+
+    public static string ShapeKey(ImageShape s) => s switch
+    {
+        ImageShape.Square => "square",
+        ImageShape.Landscape => "landscape",
+        _ => "portrait",
+    };
+
+    public static ImageShape ShapeOf(string? key) => key switch
+    {
+        "square" => ImageShape.Square,
+        "landscape" => ImageShape.Landscape,
+        _ => ImageShape.Portrait,
+    };
 
     internal static string FirstLine(string s)
     {
         var line = s.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault() ?? s;
         return line.Length > 160 ? line[..160] + "…" : line;
+    }
+}
+
+/// <summary>Brings an observable list in line with a wanted order, touching only what changed.</summary>
+public static class CollectionSync
+{
+    public static void Apply<T>(ObservableCollection<T> target, IReadOnlyList<T> wanted) where T : class
+    {
+        for (var i = 0; i < wanted.Count; i++)
+        {
+            var item = wanted[i];
+            var at = target.IndexOf(item);
+            if (at < 0) target.Insert(i, item);
+            else if (at != i) target.Move(at, i);
+        }
+        while (target.Count > wanted.Count) target.RemoveAt(target.Count - 1);
     }
 }

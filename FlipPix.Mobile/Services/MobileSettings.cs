@@ -1,24 +1,23 @@
 using System.Text.Json;
+using FlipPix.Remote.Contracts;
 
 namespace FlipPix.Mobile.Services;
 
 /// <summary>
-/// The phone's whole configuration: where ComfyUI and the LLM live. Kept deliberately small —
-/// everything else is a sensible default chosen per page, not a setting.
+/// The phone's whole configuration: which computer it is paired with. Everything else (ComfyUI,
+/// the writing assistant, the output folder) is the computer's business.
 /// </summary>
 public sealed class MobileSettings
 {
-    public string ComfyUrl { get; set; } = "";
-    /// <summary>An OpenAI-compatible endpoint (LM Studio, llama.cpp, vLLM), with or without /v1.</summary>
-    public string LlmUrl { get; set; } = "";
-    /// <summary>Empty means "whatever the server has loaded".</summary>
-    public string LlmModel { get; set; } = "";
+    public string ServerUrl { get; set; } = "";
+    public string ServerName { get; set; } = "";
+    public string Token { get; set; } = "";
 
-    public bool IsComfyConfigured => Uri.TryCreate(NormalizeUrl(ComfyUrl), UriKind.Absolute, out _);
+    public bool IsPaired => ServerUrl.Length > 0 && Token.Length > 0;
 
     private static string FilePath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "FlipPixMobile", "settings.json");
+            "FlipPixMobile", "remote.json");
 
     public static MobileSettings Load()
     {
@@ -27,7 +26,7 @@ public sealed class MobileSettings
             if (File.Exists(FilePath))
                 return JsonSerializer.Deserialize<MobileSettings>(File.ReadAllText(FilePath)) ?? new();
         }
-        catch { /* a corrupt file is the same as no file: the user re-enters two addresses */ }
+        catch { /* a corrupt file is the same as no file: the phone pairs again */ }
         return new();
     }
 
@@ -38,15 +37,25 @@ public sealed class MobileSettings
     }
 
     /// <summary>
-    /// Accepts what people actually type on a phone keyboard — "10.0.0.10:8188", a trailing
-    /// slash, stray spaces — and returns an absolute http URL, or "" when it cannot be one.
+    /// Accepts what people type on a phone keyboard ("10.0.0.5", "10.0.0.5:47800", a trailing slash,
+    /// stray spaces) and returns "http://host:port", or "" when it cannot be one. No port means the
+    /// remote's own.
     /// </summary>
     public static string NormalizeUrl(string? raw)
     {
         var s = (raw ?? "").Trim().TrimEnd('/');
         if (s.Length == 0) return "";
         if (!s.Contains("://")) s = "http://" + s;
-        return Uri.TryCreate(s, UriKind.Absolute, out var u) && (u.Scheme == "http" || u.Scheme == "https")
-            ? s : "";
+        if (!Uri.TryCreate(s, UriKind.Absolute, out var u) || (u.Scheme != "http" && u.Scheme != "https") || u.Host.Length == 0)
+            return "";
+        var port = u.IsDefaultPort && !HasExplicitPort(s) ? RemoteApi.DefaultPort : u.Port;
+        return $"{u.Scheme}://{u.Host}:{port}";
+    }
+
+    private static bool HasExplicitPort(string url)
+    {
+        var afterScheme = url[(url.IndexOf("://", StringComparison.Ordinal) + 3)..];
+        var host = afterScheme.Split('/')[0];
+        return host.Contains(':') && !host.StartsWith('[');
     }
 }

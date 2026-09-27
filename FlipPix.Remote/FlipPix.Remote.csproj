@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The phone remote, hosted inside the FlipPix desktop (WPF and Linux builds alike): a small LAN
+    web server, the jobs it runs, and the library of what the output folder holds. It talks to
+    ComfyUI and the LLM with the desktop's own settings, so the phone needs only this address.
+
+    The desktop projects reference this with Aliases="remote": it compiles the desktop's story-chain
+    sources (namespace FlipPix.UI.Services) plus a stand-in LMStudioService, and those would clash
+    with FlipPix.UI's own types if they were visible there.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FlipPix.Core\FlipPix.Core.csproj" />
+    <ProjectReference Include="..\FlipPix.ComfyUI\FlipPix.ComfyUI.csproj" />
+    <ProjectReference Include="..\FlipPix.Remote.Contracts\FlipPix.Remote.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
+  </ItemGroup>
+
+  <!--
+    The desktop's story-chain logic, compiled in unchanged: the beat sheet (story -> exactly N beats),
+    the continuity plan (one place, hour and light per clip) and the one-call-per-clip writer. They talk
+    to an LLM only through LMStudioService and LlmSampling; Engine/LMStudioService.cs is the remote's.
+  -->
+  <ItemGroup>
+    <Compile Include="..\FlipPix.UI\Services\StoryBeatSheet.cs" Link="Shared\StoryBeatSheet.cs" />
+    <Compile Include="..\FlipPix.UI\Services\StoryContinuity.cs" Link="Shared\StoryContinuity.cs" />
+    <Compile Include="..\FlipPix.UI\Services\ClipChainWriter.cs" Link="Shared\ClipChainWriter.cs" />
+    <Compile Include="..\FlipPix.UI\Services\LlmSampling.cs" Link="Shared\LlmSampling.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Only the graphs the remote drives, embedded so a stray edit in workflow/ can't break a phone job silently. -->
+    <EmbeddedResource Include="..\workflow\image\krea\krea2RealismV1_krea2RealismV1WF.json" LogicalName="wf/krea2.json" />
+    <EmbeddedResource Include="..\workflow\image\qwen\qwen21-prompt-enhancer.json" LogicalName="wf/qwen21.json" />
+    <EmbeddedResource Include="..\workflow\image\zimage\base\z-image-base.json" LogicalName="wf/zimage-base.json" />
+    <EmbeddedResource Include="..\workflow\video\h3-minimax\h3-minimax-i2v.json" LogicalName="wf/h3-minimax-i2v.json" />
+    <EmbeddedResource Include="..\prompts\prompt2json\h3-r2va.md" LogicalName="wf/h3-r2va.md" />
+  </ItemGroup>
+</Project>

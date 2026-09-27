@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" android:installLocation="auto">
   <uses-permission android:name="android.permission.INTERNET" />
   <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-  <!-- ComfyUI and local LLM servers speak plain http on the LAN. -->
+  <!-- The FlipPix desktop's phone remote speaks plain http on the home network. -->
   <application android:label="FlipPix" android:icon="@drawable/icon" android:usesCleartextTraffic="true"
                android:theme="@style/FlipPixTheme" />
 </manifest>

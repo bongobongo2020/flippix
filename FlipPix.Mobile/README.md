@@ -1,11 +1,14 @@
 # FlipPix Mobile
 
-A phone-sized FlipPix for Android: type an idea, tap once, and watch it develop. It drives the
-same ComfyUI server as the desktop app, and optionally an OpenAI-style LLM server.
+A remote for the FlipPix desktop, on an Android phone. The phone asks for pictures, videos and
+stories and shows what they look like as they're made. The computer makes them, with its own
+ComfyUI and writing assistant settings. The Library shows everything in the computer's output
+folder, not only what the phone asked for.
 
-- `FlipPix.Mobile/`: all UI and logic (Avalonia 11, `net8.0`). It reuses `FlipPix.Core` and
-  `FlipPix.ComfyUI`, so every graph goes through the desktop's pre-submit repairs.
+- `FlipPix.Mobile/`: all UI and logic (Avalonia 11, `net8.0`). It references only
+  `FlipPix.Remote.Contracts`, the wire format. It has no workflows, ComfyUI client or LLM client.
 - `FlipPix.Mobile.Android/`: the Android head (`net9.0-android`, min API 26). It holds no logic.
+- The desktop side is `FlipPix.Remote` (see its README). Both desktop builds host it.
 
 ## Build and install
 
@@ -18,66 +21,61 @@ dotnet publish FlipPix.Mobile.Android -c Release
 #   -> FlipPix.Mobile.Android/bin/Release/net9.0-android/publish/com.flippix.mobile-Signed.apk
 ```
 
-The release APK is signed with the SDK's debug keystore. That's fine for sideloading, but a
-Play Store upload needs a real keystore (`AndroidSigningKeyStore` and friends).
+The release APK is signed with the SDK's debug keystore. That works for sideloading. A Play
+Store upload needs a real keystore (`AndroidSigningKeyStore` and friends).
 
-## First run
+## First run: pairing
 
-The app opens in Settings. Enter the ComfyUI address (for example `10.0.0.10:8188`) and,
-optionally, the LLM address (`10.0.0.10:11434` for Ollama, `:1234` for LM Studio). Save tests
-both. The phone must be able to reach the server: the same Wi-Fi, or a VPN such as Tailscale.
-The manifest allows cleartext http because LAN servers don't speak https.
+1. On the computer, click 📱 in the Image Generator header and turn on **Let my phone connect**.
+   The window shows a 6-digit code and the computer's address.
+2. On the phone, FlipPix opens on **Connect to your computer**. It broadcasts on the Wi-Fi
+   (UDP 47801) and lists every FlipPix that answers. Tap yours, or type the address.
+3. Type the code. The phone gets a token; the computer keeps only its hash. A code pairs one phone
+   and is then replaced, and five wrong tries replace it too.
+
+Tap the computer's name in the header to see what it can do right now (ComfyUI, writing assistant,
+output folder, queue) or to disconnect. Removing the phone on the computer signs it out at once.
 
 ## Pages
 
-| Page  | State | What it runs |
-|-------|-------|--------------|
-| Image | done  | Three looks, each a desktop graph run as authored with only prompt, canvas and seed written. **Photo** = `krea2RealismV1` (the SaveImageKJ→SaveImage swap is the desktop's too), **Dream** = `qwen21-prompt-enhancer` (the prompt goes into node 468 *only*), **Detail** = `z-image-base`. |
-| Video | done  | MiniMax I2V (`h3-minimax-i2v.json`), the desktop's default render in one pass: 1–4 reference photos plus an idea, 5/10/15 s. The LLM (a **vision** model) writes the six-field Ref2VA scene from the photos using `prompts/prompt2json/h3-r2va.md`; without an LLM the idea is wrapped in that shape as written. It plays in the app through Android's VideoView, streamed from `/view`. |
-| Story | done  | H3 Express, simplified: a story, an optional cast (1–3 photos) and 30 s / 1 min / 2 min give 3/6/12 shots of 10 s. The desktop's story chain is linked in as source, unchanged (`StoryBeatSheet`, `StoryContinuity`, `ClipChainWriter`, `LlmSampling`; the phone's `Compat/LMStudioService.cs` stands in for the desktop client). Each shot is rendered by the Video page's graph with the same cast pictures, and the finished shots play back to back. |
+| Page    | What it does |
+|---------|--------------|
+| Library | The output folder, newest first, grouped by day, 3 per row, virtualised. All / Pictures / Videos, and one chip per top-level folder. Tap for the viewer. |
+| Image   | Prompt, look (Photo, Dream, Detail), shape and count. **Polish with AI** rewrites a few words into a prompt. **From a photo** writes a prompt from a phone photo. More can be queued while one develops. |
+| Video   | 1–4 photos plus a sentence give a 5/10/15 s MiniMax I2V video. **Suggest what happens** asks the writing assistant. **New take** re-renders the same scene on a new seed. |
+| Story   | A story plus an optional cast gives 3/6/12 shots of 10 s. The strip shows each shot; the card plays the finished ones back to back. **Film the rest** retries unfinished shots from their written scenes. |
 
-Workflows are **embedded** (see `FlipPix.Mobile.csproj`), not copied, so a phone has no
-`workflow/` folder. If a desktop graph's node ids drift, `Workflows.Set` throws naming the
-missing node. The mobile look then fails loudly instead of silently rendering the authored
-prompt.
+**The viewer** swipes between items. For a picture on the computer it offers **Describe**
+(the vision model says what's in it), **Similar** (a prompt for a picture like it, into the
+Image page), **Animate** (into the Video page as a reference), **Prompt** (when the phone made
+it: the prompt, look and shape it was made with) and **Save** (the full file, through the system
+save sheet).
 
-## Video details
+## How it stays in step
 
-- **Photos** are auto-rotated from EXIF, have their EXIF stripped, are shrunk to 1536 px and
-  encoded as JPEG 92 (ImageSharp, not Skia, which ignores the rotation tag). Each one is uploaded
-  once per session.
-- **The graph** is Shipped stack, 0.7 MP finished (0.175 MP draft, 2× latent upscale), SLA 0.85
-  with 64-row blocks, audio enhancement on, RTX off. Only sink `49` is kept; the continuation loop
-  is pruned. The aspect ratio is the nearest ResolutionSelector option to the first photo.
-- **Progress** comes as three runs: the draft sampler, the finish sampler, and a long post-process
-  run. The take card shows them as drafting, finishing and final touches.
-- **Playback**: `Controls/VideoSurface` is a `NativeControlHost`, and the Android head registers a
-  VideoView factory. Native views draw above Avalonia, so nothing may overlap the player.
-- **Measured on 10.0.0.10**: 5 s in 42 s (704×1024 with AAC audio). Qwen-VL via Ollama wrote the
-  scene in about 50 s.
+- Jobs run on the computer one at a time, in order; the phone shows "2nd in line".
+- The phone long-polls `GET /jobs?since=N`. The computer holds the request until something
+  changes, so progress arrives live. The phone can lock, sleep or lose Wi-Fi; the job carries on,
+  and the phone catches up when it asks again. Coming back to the foreground retries at once.
+- Pictures come as JPEG thumbnails (360 px) and previews (1600 px), cached on disk in the app's
+  cache folder and in memory (the newest 160). Videos stream straight into Android's VideoView
+  with the token in the URL, since VideoView sends no headers. The computer answers ranges, so seeking works.
 
-## Story details
+## Traps
 
-- **Cast.** Each photo is described once by the vision LLM, and that line is handed to every call
-  as text. With no photos, the LLM writes a portrait of the lead in the story's setting and the
-  Photo look renders it; that picture becomes the cast.
-- **Shots.** The beat sheet is asked to name people `PICTURE N`. `StoryRecipe.Retag` turns a
-  pictured one into `<Subject N>` and an unpictured number into plain words, so a dangling tag never
-  reaches the renderer. Each shot is written in the six-field Ref2VA shape against `h3-r2va.md`,
-  with the beat before and after it and the continuity block. `StampScene` writes the planned
-  place, hour and light into `detailed_description` in code.
-- **Sound.** The Ref2VA spec forbids inventing sound, so every request states that the user wants
-  the setting's natural sound (`VideoRecipe.SoundRequest`). Without that, `overall_soundscape`
-  came back "N/A".
-- **Failures.** One shot failing doesn't stop the film. "Film the rest" re-renders unfinished
-  shots from their written scenes.
-- **Stop** cancels the phone's job on the server too. Every submitted graph carries a
-  `_meta.flippix_run` marker; a pending job with that marker is deleted, and `/interrupt` is sent
-  only when the running job is the phone's own.
-- **Shared GPU.** When the LLM reports out of memory (ComfyUI holds the last render's weights),
-  `LlmClient` asks ComfyUI to `/free` and retries once.
-- **Measured on 10.0.0.10, 2026-09-21:** 3 shots with one photo, 6:32 end to end (writing about 1:40,
-  then about 78 s per shot). Place, light and wardrobe held across the shots.
+- **Never touch `AppServices` (or create a `DispatcherTimer`) before Avalonia starts**, e.g. from
+  `MainActivity.CustomizeAppBuilder`. `AppServices` builds `JobsHub` in a static constructor; a
+  `DispatcherTimer` made that early binds Avalonia's dispatcher before the Android one exists, and
+  from then on **no posted job ever runs**: no `await` continuation, no `Dispatcher.UIThread.Post`.
+  The app looks alive (touch still works) but every async result is lost. That is why the device
+  name lives in `Services/DeviceInfo`, and `JobsHub` makes its timer on `Start`.
+- A string `Content` on a Button treats `_` as an access key: `minimax_i2v` showed as
+  `minimaxi2v`. Put names in a `TextBlock`.
+- Inter has no emoji; keep them out of phone text.
+- API 35+ is edge to edge: `InsetsManager.DisplayEdgeToEdge = true` or the safe-area padding reads 0.
+  The activity theme must derive from `Theme.AppCompat`.
+- On the emulator, adb taps can start Gboard's stylus-handwriting tutorial, which eats typed text:
+  `adb shell settings put secure stylus_handwriting_enabled 0`.
 
 ## Design
 
@@ -92,5 +90,9 @@ from its width and a ratio, and its children can't change that. While the sample
 ## Checking changes without a phone
 
 The views can be rendered headlessly (`Avalonia.Headless` + `Avalonia.Skia`,
-`UseHeadlessDrawing = false`, then `window.CaptureRenderedFrame()`) at 412×915. Do this after
-any XAML change: a bad resource key compiles clean and only fails at load.
+`UseHeadlessDrawing = false`, then `window.CaptureRenderedFrame()`) at 412×915. Call
+`AvaloniaSynchronizationContext.InstallIfNeeded()` after setup, then pump
+`Dispatcher.UIThread.RunJobs()` while waiting for the server. Point the phone settings file
+(`%LOCALAPPDATA%\FlipPixMobile\remote.json`) at a desktop host to render real data. Do this after
+any XAML change: a bad resource key compiles clean and only fails at load. Then check on the
+emulator anyway: the dispatcher trap above never shows up headless.

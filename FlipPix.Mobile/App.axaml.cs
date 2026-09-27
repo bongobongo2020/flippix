@@ -14,6 +14,9 @@ public partial class App : Application
     public override void OnFrameworkInitializationCompleted()
     {
         var vm = new MainViewModel();
+        // Back from the background: catch up with the computer now rather than after a back-off.
+        if (TryGetFeature(typeof(IActivatableLifetime)) is IActivatableLifetime activatable)
+            activatable.Activated += (_, _) => FlipPix.Mobile.Services.AppServices.Jobs.Nudge();
         switch (ApplicationLifetime)
         {
             case ISingleViewApplicationLifetime single: // Android

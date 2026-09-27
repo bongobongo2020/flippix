@@ -1,6 +1,6 @@
 using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Interactivity;
+using FlipPix.Mobile.ViewModels;
 
 namespace FlipPix.Mobile.Views;
 
@@ -14,5 +14,12 @@ public partial class ImageView : UserControl
         TopLevel.GetTopLevel(this)?.FocusManager?.ClearFocus();
         if (this.FindControl<ItemsControl>("Sheet") is { } sheet)
             sheet.BringIntoView();
+    }
+
+    private async void OnFromPhoto(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ImageViewModel vm) return;
+        var photos = await PhotoPicker.PickAsync(this, allowMany: false);
+        if (photos.Count > 0) await vm.PromptFromPhotoAsync(photos[0]);
     }
 }
