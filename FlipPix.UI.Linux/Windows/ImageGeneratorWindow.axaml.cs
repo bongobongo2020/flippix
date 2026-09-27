@@ -49,6 +49,19 @@ public partial class ImageGeneratorWindow : Window
             BeginMoveDrag(e);
     }
 
+    private PhoneRemoteWindow? _phoneRemoteWindow;
+
+    private void PhoneRemoteButton_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_phoneRemoteWindow is { IsVisible: true })
+        {
+            _phoneRemoteWindow.Activate();
+            return;
+        }
+        _phoneRemoteWindow = new PhoneRemoteWindow();
+        _phoneRemoteWindow.Show(this);
+    }
+
     private void SettingsButton_Click(object? sender, RoutedEventArgs e)
     {
         try { new SettingsWindow(_settingsService).ShowDialog(this); }

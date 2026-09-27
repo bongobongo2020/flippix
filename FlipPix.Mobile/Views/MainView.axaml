@@ -1,0 +1,74 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:FlipPix.Mobile.ViewModels"
+             xmlns:v="using:FlipPix.Mobile.Views"
+             x:Class="FlipPix.Mobile.Views.MainView"
+             x:DataType="vm:MainViewModel"
+             Background="{StaticResource BoothBrush}">
+  <Grid RowDefinitions="Auto,*,Auto">
+
+    <!-- Header: the wordmark, and which computer this phone is driving. Tap it to see or change that. -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="20,12,10,4" IsVisible="{Binding ShowHeader}">
+      <TextBlock Text="FlipPix" FontSize="21" FontWeight="Bold" LetterSpacing="-0.4" VerticalAlignment="Center" />
+      <Button Grid.Column="1" Classes="chip" Command="{Binding OpenConnectCommand}"
+              AutomationProperties.Name="Connection" ToolTip.Tip="Your computer">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Ellipse Width="8" Height="8" Fill="{StaticResource OkBrush}" IsVisible="{Binding ServerOnline}" VerticalAlignment="Center" />
+          <Ellipse Width="8" Height="8" Fill="{StaticResource DangerBrush}" IsVisible="{Binding !ServerOnline}" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding ServerLabel}" FontSize="13" MaxWidth="170" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
+    </Grid>
+
+    <!-- Pages. Each stays alive while hidden, so what was typed survives a trip to another page. -->
+    <Panel Grid.Row="1">
+      <Panel IsVisible="{Binding IsLibrary}"><v:LibraryView DataContext="{Binding Library}" /></Panel>
+      <Panel IsVisible="{Binding IsImage}"><v:ImageView DataContext="{Binding Image}" /></Panel>
+      <Panel IsVisible="{Binding IsVideo}"><v:VideoView DataContext="{Binding Video}" /></Panel>
+      <Panel IsVisible="{Binding IsStory}"><v:StoryView DataContext="{Binding Story}" /></Panel>
+    </Panel>
+
+    <!-- Bottom navigation. -->
+    <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}" IsVisible="{Binding ShowNav}"
+            BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0">
+      <UniformGrid Columns="4">
+        <Button Classes="nav" Classes.on="{Binding IsLibrary}" Command="{Binding GoCommand}" CommandParameter="{x:Static vm:Page.Library}">
+          <StackPanel Spacing="4">
+            <PathIcon Data="{StaticResource IconLibrary}" Width="22" Height="22" />
+            <TextBlock Text="Library" />
+          </StackPanel>
+        </Button>
+        <Button Classes="nav" Classes.on="{Binding IsImage}" Command="{Binding GoCommand}" CommandParameter="{x:Static vm:Page.Image}">
+          <StackPanel Spacing="4">
+            <PathIcon Data="{StaticResource IconImage}" Width="22" Height="22" />
+            <TextBlock Text="Image" />
+          </StackPanel>
+        </Button>
+        <Button Classes="nav" Classes.on="{Binding IsVideo}" Command="{Binding GoCommand}" CommandParameter="{x:Static vm:Page.Video}">
+          <StackPanel Spacing="4">
+            <PathIcon Data="{StaticResource IconVideo}" Width="22" Height="22" />
+            <TextBlock Text="Video" />
+          </StackPanel>
+        </Button>
+        <Button Classes="nav" Classes.on="{Binding IsStory}" Command="{Binding GoCommand}" CommandParameter="{x:Static vm:Page.Story}">
+          <StackPanel Spacing="4">
+            <PathIcon Data="{StaticResource IconStory}" Width="22" Height="22" />
+            <TextBlock Text="Story" />
+          </StackPanel>
+        </Button>
+      </UniformGrid>
+    </Border>
+
+    <!-- The viewer, over everything. -->
+    <v:ViewerView Grid.RowSpan="3" DataContext="{Binding Viewer}" IsVisible="{Binding IsOpen}" />
+
+    <!-- Connecting to a computer: the first thing an unpaired phone sees. -->
+    <Grid Grid.RowSpan="3" IsVisible="{Binding IsConnectOpen}" Background="{StaticResource BoothBrush}" RowDefinitions="Auto,*">
+      <Button Grid.Row="0" Classes="bare" HorizontalAlignment="Right" Margin="8,8,8,0"
+              IsVisible="{Binding CanCloseConnect}" Command="{Binding CloseConnectCommand}" AutomationProperties.Name="Close">
+        <PathIcon Data="{StaticResource IconClose}" Width="24" Height="24" />
+      </Button>
+      <v:ConnectView Grid.Row="1" DataContext="{Binding Connect}" />
+    </Grid>
+  </Grid>
+</UserControl>

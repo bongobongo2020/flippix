@@ -131,6 +131,19 @@ namespace FlipPix.UI
             }
         }
 
+        private PhoneRemoteWindow? _phoneRemoteWindow;
+
+        private void PhoneRemoteButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_phoneRemoteWindow is { IsLoaded: true })
+            {
+                _phoneRemoteWindow.Activate();
+                return;
+            }
+            _phoneRemoteWindow = new PhoneRemoteWindow { Owner = this };
+            _phoneRemoteWindow.Show();
+        }
+
         private void OpenOutputImage_Click(object sender, RoutedEventArgs e)
         {
             try

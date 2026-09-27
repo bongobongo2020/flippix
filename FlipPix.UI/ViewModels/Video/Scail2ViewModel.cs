@@ -66,6 +66,40 @@ namespace FlipPix.UI.ViewModels.Video
         private const int MaxBaseAxis = MaxPidAxis / PidScale;
         private const int BaseTargetPixels = 1024 * 1024;
 
+        // The one place Scail 2 deliberately diverges from the Control tab's authored graph. As authored,
+        // QwenVL node 57 reads Character 1 but is told NOT to describe clothing, and node 62 reads the
+        // pose frame and describes the clothing there — so the generated character wore whatever the
+        // person in the driving video wore. Scail 2 wants the opposite split: everything about who the
+        // character IS (face and outfit) comes from Character 1, and the pose frame contributes nothing
+        // but the body position it is there to supply. Overridden per-run rather than edited into the
+        // shared JSON, which the Image Generator ▸ Advanced ▸ Control tab loads unchanged.
+        private const string KleinAppearanceNode = "57";
+        private const string KleinPoseNode = "62";
+
+        private const string KleinAppearancePrompt =
+            "/no_think\n" +
+            "Describe ONLY this character's appearance and what they are wearing — NOT the pose or body " +
+            "position. Output ONE paragraph, nothing else. Structure: face (skin tone, exact eye color and " +
+            "shape, nose, lips, expression, hair color/style/length, accessories); then each clothing item " +
+            "this character is wearing, rendered more sexy and revealing (e.g. tight shorts showing skin), " +
+            "with exact specific color adjectives like 'deep matte black' or 'vivid crimson red', garment " +
+            "type, material texture, fit, and any logos or patterns; then lighting and camera shot type. " +
+            "Do NOT describe standing pose, arms, legs, or body orientation. One paragraph only.";
+
+        private const string KleinPosePrompt =
+            "/no_think\n" +
+            "Describe ONLY the body pose and position of the person in this image — NOT their clothing, " +
+            "face, hair or appearance. Output exactly ONE sentence. Include: overall stance " +
+            "(standing/sitting/crouching/lying), which direction the body faces, exact arm positions " +
+            "(raised/lowered/bent/extended/crossed), leg positions, and head/gaze direction. Example: " +
+            "'A person stands facing the camera at a slight angle, right arm raised with elbow bent beside " +
+            "the head, left arm hanging at the side, legs shoulder-width apart, looking directly forward.' " +
+            "Do NOT mention any garment, color, material, accessory or facial feature.";
+
+        // The QwenVL seed widgets are authored below 2^32, so stay in that range rather than reusing the
+        // sampler's 15-digit spread.
+        private static long NextQwenSeed() => Random.Shared.NextInt64(0, uint.MaxValue);
+
         // Third single-character path: the "Krea2 Edit (two ref)" workflow. Node 72 = image A (the base
         // scene frame containing the person to replace), node 86 = image B (Character 1, the replacement
         // likeness). The grounded-encode prompt on node 84 replaces the person in image A with the subject
@@ -73,6 +107,20 @@ namespace FlipPix.UI.ViewModels.Video
         // prefix. Unlike the Klein paths it keeps the base scene composition while swapping the subject in.
         private const string Krea2EditWorkflowFile = "workflow/image/krea/krea2_edit_two_ref.json";
         private const string Krea2EditSavePrefix = "krea2_edit";
+
+        // Fourth single-character path: Qwen Image 2.1 Edit, flattened from the ComfyUI template
+        // image_qwen_image_2_1_image_edit.json (its one subgraph, minus the unused custom-size switch).
+        // Node 470 = <image1>, the edit target and the canvas (the base scene frame); node 475 = <image2>,
+        // the reference (Character 1). Node 474 (TextEncodeQwenImage21) takes the instruction and both
+        // images and also emits the latent, so the output keeps the pose frame's size and composition.
+        // 458 = KSampler (reseeded), 461 saves with the "qwen21_edit" prefix.
+        private const string Qwen21EditWorkflowFile = "workflow/image/qwen-edit/qwen21-edit-charswapAPI.json";
+        private const string Qwen21EditSavePrefix = "qwen21_edit";
+
+        // TextEncodeQwenImage21's resolution: 0 keeps every image at its own size (rounded to /32), which is
+        // how the template ships and what a video frame wants. A reference past this pixel budget (a phone
+        // photo, a 4K frame) would cost a huge sequence, so both images are scaled to it instead.
+        private const int Qwen21MaxResolution = 2048;
 
         // Own references — the base keeps these private, so Scail 2 stores its own copies from DI.
         private readonly IFileDialogService _fileDialogService;
@@ -421,10 +469,11 @@ namespace FlipPix.UI.ViewModels.Video
 
         // Which workflow the single-character "Replace this one only" button runs:
         //   0 = Klein Flux2 Control (default — more accurate likeness), 1 = Character Replacer (legacy),
-        //   2 = Krea2 Edit (two ref — keeps the base scene composition while swapping the subject in).
+        //   2 = Krea2 Edit (two ref — keeps the base scene composition while swapping the subject in),
+        //   3 = Qwen Image 2.1 Edit (default — the frame is edited in place: pose, background and light kept).
         // The two-character "Replace Both" path always uses the 2-character replacer (Klein Control is
         // single-subject only), so this selector only affects the single-character swap.
-        private int _charReplaceMethodIndex;
+        private int _charReplaceMethodIndex = 3;
         public int CharReplaceMethodIndex
         {
             get => _charReplaceMethodIndex;
@@ -435,6 +484,7 @@ namespace FlipPix.UI.ViewModels.Video
                     _charReplaceMethodIndex = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(IsKrea2EditSelected));
+                    OnPropertyChanged(nameof(IsQwen21EditSelected));
                     OnPropertyChanged(nameof(IsKleinControlSelected));
                     OnPropertyChanged(nameof(CanAnalyzeKleinPrompt));
                     OnPropertyChanged(nameof(CanGenerateKleinImage));
@@ -448,10 +498,12 @@ namespace FlipPix.UI.ViewModels.Video
 
         private bool UseKleinControl => CharReplaceMethodIndex == 0;
         private bool UseKrea2Edit => CharReplaceMethodIndex == 2;
+        private bool UseQwen21Edit => CharReplaceMethodIndex == 3;
 
         // Only the Krea2 Edit path exposes an editable instruction prompt (the Klein/Character Replacer
         // paths bake their prompt into the workflow), so the prompt field is shown only for that method.
         public bool IsKrea2EditSelected => CharReplaceMethodIndex == 2;
+        public bool IsQwen21EditSelected => CharReplaceMethodIndex == 3;
 
         // The Klein Flux2 Control path mirrors the Image Generator ▸ Advanced ▸ Control tab: an Analyze
         // pass runs the workflow's two QwenVL nodes (subject appearance + base-frame pose), shows the
@@ -469,6 +521,20 @@ namespace FlipPix.UI.ViewModels.Video
         {
             get => _krea2EditPrompt;
             set { if (_krea2EditPrompt != value) { _krea2EditPrompt = value; OnPropertyChanged(); } }
+        }
+
+        // Instruction for Qwen Image 2.1 Edit (node 474). The model addresses its inputs as <image1>, <image2>…
+        // in the order they are wired: <image1> is the base frame being edited, <image2> is Character 1.
+        // Based on the template's own prompt, with its "replace  character and <image 2>" typo made explicit.
+        private const string DefaultQwen21EditPrompt =
+            "Keep the pose in <image1> unchanged, replace the character in <image1> with the character from " +
+            "<image2>, keep the original background and original lighting, high fashion editorial photography, " +
+            "sharp details";
+        private string _qwen21EditPrompt = DefaultQwen21EditPrompt;
+        public string Qwen21EditPrompt
+        {
+            get => _qwen21EditPrompt;
+            set { if (_qwen21EditPrompt != value) { _qwen21EditPrompt = value; OnPropertyChanged(); } }
         }
 
         // Positive prompt for the Klein Flux2 Control path. Empty means "let the workflow write it" —
@@ -916,7 +982,9 @@ namespace FlipPix.UI.ViewModels.Video
                 IsCharSwapping = true;
                 HasCharSwapResult = false;
                 bool useKrea2 = UseKrea2Edit;
-                string methodName = useKrea2 ? "Krea2 Edit (two ref)" : "Character Replacer v2.4";
+                bool useQwen21 = UseQwen21Edit;
+                string methodName = useQwen21 ? "Qwen Image 2.1 Edit"
+                    : useKrea2 ? "Krea2 Edit (two ref)" : "Character Replacer v2.4";
                 AddLog($"=== Scail 2: single-character swap (Character 1, {methodName}) ===");
 
                 CharSwapStatus = "Grabbing base frame…";
@@ -936,7 +1004,12 @@ namespace FlipPix.UI.ViewModels.Video
                 var uploadedPose = await _comfyUIService.UploadImageAsync(baseStill, token);
                 AddLog($"Uploaded subject(char1)={uploadedSubject} pose(base)={uploadedPose}");
 
-                if (useKrea2)
+                if (useQwen21)
+                {
+                    var workflow = BuildQwen21EditWorkflow(uploadedSubject, uploadedPose, baseStill, Char1ImagePath);
+                    await ExecuteKleinAndAdoptAsync(workflow, Qwen21EditSavePrefix, token);
+                }
+                else if (useKrea2)
                 {
                     // Match the output aspect ratio to the base scene frame (landscape stays landscape,
                     // portrait stays portrait) instead of the workflow's authored 1:1 default.
@@ -1115,7 +1188,7 @@ namespace FlipPix.UI.ViewModels.Video
                 CharSwapStatus = isAnalyze
                     ? (string.IsNullOrWhiteSpace(KleinControlPrompt)
                         ? "Analyze finished but no prompt came back — check ComfyUI logs"
-                        : "Prompt ready — edit it, then press “Generate image” for another take")
+                        : "Prompt ready — edit it, press “Analyze” again to reword it, or “Generate image” to render it")
                     : "Character image ready — press “Generate image” again for another take, or set the In/Out markers";
                 AddLog($"=== Klein Control {(isAnalyze ? "analyze" : "generate")} complete ===");
             }
@@ -1294,6 +1367,22 @@ namespace FlipPix.UI.ViewModels.Video
             UpdateNode(dict, "19", inputs => inputs["image"] = uploadedPose);    // pose = base scene frame
             UpdateNode(dict, "7", inputs => inputs["noise_seed"] = new Random().NextInt64(0, 999_999_999_999_999L));
 
+            // Appearance AND outfit off Character 1; pose only off the video frame. See the constants.
+            // Both seeds are rerolled every pass — the authored graph pins them, which made a second
+            // press of Analyze on the same Character 1 and pose frame return word-for-word the same
+            // prompt. Rerolling makes Analyze a reroll button, and also varies node 201 (the PiD
+            // positive encode, which keeps reading QwenVL even when Generate overrides node 6).
+            UpdateNode(dict, KleinAppearanceNode, inputs =>
+            {
+                inputs["custom_prompt"] = KleinAppearancePrompt;
+                inputs["seed"] = NextQwenSeed();
+            });
+            UpdateNode(dict, KleinPoseNode, inputs =>
+            {
+                inputs["custom_prompt"] = KleinPosePrompt;
+                inputs["seed"] = NextQwenSeed();
+            });
+
             // Size both stages from one base size instead of letting the graph derive them from two
             // independent rescales (1 MP via nodes 17/45/46, 16 MP via nodes 205/206). That mismatch
             // put the long axis at ~5461 px on a 9:16 frame and tinted the bottom quarter. Keeping the
@@ -1393,6 +1482,56 @@ namespace FlipPix.UI.ViewModels.Video
             UpdateNode(dict, "53", inputs => inputs["seed"] = new Random().NextInt64(0, 999_999_999_999_999L));
 
             return JsonSerializer.SerializeToElement(dict);
+        }
+
+        // Qwen Image 2.1 Edit: LoadImage 470 = <image1> (base scene frame — edited in place, and its latent is
+        // the canvas), LoadImage 475 = <image2> (Character 1). 474 gets the instruction and the resolution
+        // budget, 458 is reseeded. Everything else runs as the template authored it (25 steps, cfg 1, euler).
+        private JsonElement BuildQwen21EditWorkflow(string uploadedSubject, string uploadedPose, string posePath, string subjectPath)
+        {
+            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Qwen21EditWorkflowFile);
+            if (!File.Exists(workflowPath))
+                throw new FileNotFoundException($"Qwen Image 2.1 Edit workflow not found: {workflowPath}");
+
+            var dict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(File.ReadAllText(workflowPath))
+                ?? throw new InvalidOperationException("Failed to parse Qwen Image 2.1 Edit workflow JSON");
+
+            UpdateNode(dict, "470", inputs => inputs["image"] = uploadedPose);    // <image1> = base scene frame
+            UpdateNode(dict, "475", inputs => inputs["image"] = uploadedSubject); // <image2> = Character 1
+
+            var editPrompt = string.IsNullOrWhiteSpace(Qwen21EditPrompt) ? DefaultQwen21EditPrompt : Qwen21EditPrompt.Trim();
+            long budget = (long)Qwen21MaxResolution * Qwen21MaxResolution;
+            bool oversized = ReadPixelCount(posePath) > budget || ReadPixelCount(subjectPath) > budget;
+            int resolution = oversized ? Qwen21MaxResolution : 0;
+            UpdateNode(dict, "474", inputs =>
+            {
+                inputs["prompt"] = editPrompt;
+                inputs["resolution"] = resolution;
+            });
+            AddLog($"Qwen 2.1 Edit prompt: {editPrompt}");
+            AddLog(oversized
+                ? $"Qwen 2.1 Edit: an input is over {Qwen21MaxResolution}² px — both scaled to that budget"
+                : "Qwen 2.1 Edit: images kept at native size (output matches the base frame)");
+
+            UpdateNode(dict, "458", inputs => inputs["seed"] = Random.Shared.NextInt64(0, 999_999_999_999_999L));
+
+            return JsonSerializer.SerializeToElement(dict);
+        }
+
+        // Width × height of an image file, or 0 if it can't be read (treated as "within budget").
+        private static long ReadPixelCount(string? path)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(path) || !File.Exists(path)) return 0;
+                using var stream = File.OpenRead(path);
+                var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.IgnoreColorProfile, BitmapCacheOption.None);
+                return (long)decoder.Frames[0].PixelWidth * decoder.Frames[0].PixelHeight;
+            }
+            catch
+            {
+                return 0;
+            }
         }
 
         // Derives an output width/height that matches the base frame's aspect ratio, at ~1 megapixel

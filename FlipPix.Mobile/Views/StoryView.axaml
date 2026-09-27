@@ -1,0 +1,226 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:FlipPix.Mobile.ViewModels"
+             xmlns:c="using:FlipPix.Mobile.Controls"
+             x:Class="FlipPix.Mobile.Views.StoryView"
+             x:DataType="vm:StoryViewModel">
+  <UserControl.Styles>
+    <!-- A shot on the strip: its first frame once filmed, its state in the colour of its edge. -->
+    <Style Selector="Border.clip">
+      <Setter Property="Width" Value="64" />
+      <Setter Property="Height" Value="48" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="ClipToBounds" Value="True" />
+      <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource SurfaceBrush}" />
+      <Setter Property="BorderThickness" Value="1.5" />
+    </Style>
+    <Style Selector="Border.clip.working">
+      <Setter Property="BorderBrush" Value="{StaticResource GlowBrush}" />
+    </Style>
+    <Style Selector="Border.clip.failed">
+      <Setter Property="BorderBrush" Value="{StaticResource DangerBrush}" />
+    </Style>
+    <Style Selector="Border.clip.selected">
+      <Setter Property="BorderBrush" Value="{StaticResource BrandBrush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="*,Auto">
+    <ScrollViewer Grid.Row="0">
+      <StackPanel Margin="20,6,20,24" Spacing="28">
+
+        <TextBlock Classes="title" Text="Tell a story" />
+
+        <StackPanel Spacing="10">
+          <TextBox Text="{Binding Story}" AcceptsReturn="True" TextWrapping="Wrap"
+                   MinHeight="170" MaxHeight="320" VerticalContentAlignment="Top"
+                   Watermark="An old fisherman mends his nets at dawn. A horn sounds through the fog: his son, home after ten years. He stands, waves, and they meet on the dock."
+                   AutomationProperties.Name="Your story" />
+          <TextBlock Classes="hint"
+                     Text="Your computer's writing assistant divides it into shots, keeps the place and the light steady, and films each shot in turn." />
+          <TextBlock Classes="hint danger" Text="{Binding Notice}"
+                     IsVisible="{Binding Notice, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        </StackPanel>
+
+        <!-- Cast: the same people in every shot. -->
+        <StackPanel Spacing="10">
+          <TextBlock Classes="section" Text="Cast" Margin="0" />
+          <TextBlock Classes="hint" Text="{Binding CastHint}" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <ItemsControl ItemsSource="{Binding Pictures}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="8" /></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:PictureSlot">
+                  <Button Classes="bare" Padding="0" CornerRadius="14" AutomationProperties.Name="Remove photo"
+                          Command="{Binding $parent[ItemsControl].((vm:StoryViewModel)DataContext).RemovePictureCommand}"
+                          CommandParameter="{Binding}">
+                    <Panel Width="68" Height="68">
+                      <Border CornerRadius="14" ClipToBounds="True" Background="{StaticResource RaisedBrush}">
+                        <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                      </Border>
+                      <Border Width="22" Height="22" CornerRadius="11" Background="#CC1B1D2A"
+                              HorizontalAlignment="Right" VerticalAlignment="Top" Margin="4">
+                        <PathIcon Data="{StaticResource IconClose}" Width="12" Height="12" />
+                      </Border>
+                    </Panel>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Border Classes="breathing" Width="68" Height="68" CornerRadius="14" Background="{StaticResource RaisedBrush}"
+                    IsVisible="{Binding IsPreparing}">
+              <TextBlock Classes="hint" Text="Preparing" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <Button Classes="cell" Width="68" Height="68" IsVisible="{Binding CanAddPicture}"
+                    Click="OnAddPhoto" AutomationProperties.Name="Add a cast photo"
+                    BorderBrush="{StaticResource LineBrush}">
+              <StackPanel Spacing="2">
+                <TextBlock Text="+" FontSize="24" HorizontalAlignment="Center" Margin="0,-4,0,0" />
+                <TextBlock Text="Add" FontSize="12" HorizontalAlignment="Center" />
+              </StackPanel>
+            </Button>
+          </StackPanel>
+        </StackPanel>
+
+        <StackPanel>
+          <TextBlock Classes="section" Text="Length" />
+          <UniformGrid Columns="3" Height="52">
+            <Button Classes="cell" Classes.on="{Binding IsShort}" Margin="0,0,6,0"
+                    Command="{Binding PickLengthCommand}" CommandParameter="3">
+              <TextBlock Text="30 seconds" FontWeight="SemiBold" />
+            </Button>
+            <Button Classes="cell" Classes.on="{Binding IsMinute}" Margin="3,0"
+                    Command="{Binding PickLengthCommand}" CommandParameter="6">
+              <TextBlock Text="1 minute" FontWeight="SemiBold" />
+            </Button>
+            <Button Classes="cell" Classes.on="{Binding IsLong}" Margin="6,0,0,0"
+                    Command="{Binding PickLengthCommand}" CommandParameter="12">
+              <TextBlock Text="2 minutes" FontWeight="SemiBold" />
+            </Button>
+          </UniformGrid>
+        </StackPanel>
+
+        <!-- Films, newest first. -->
+        <StackPanel Spacing="14">
+          <TextBlock Classes="section" Text="Films" Margin="0" />
+          <Border IsVisible="{Binding NoFilms}" CornerRadius="16" Padding="18,22"
+                  BorderBrush="{StaticResource LineBrush}" BorderThickness="1.5">
+            <TextBlock Classes="hint" FontSize="14" TextAlignment="Center"
+                       Text="Your film is made on your computer, shot by shot. Each 10 second shot takes about a minute, and you can watch the finished ones while the rest are made." />
+          </Border>
+          <ItemsControl ItemsSource="{Binding Films}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><StackPanel Spacing="30" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:JobVm">
+                <StackPanel Spacing="12">
+                  <Button Classes="bare" Padding="0" CornerRadius="16" HorizontalAlignment="Stretch"
+                          HorizontalContentAlignment="Center"
+                          Command="{Binding $parent[ItemsControl].((vm:StoryViewModel)DataContext).PlayFilmCommand}"
+                          CommandParameter="{Binding}">
+                    <c:AspectPanel Ratio="{Binding Ratio}" MaxHeight="400">
+                      <Border CornerRadius="16" ClipToBounds="True" Background="{StaticResource SurfaceBrush}">
+                        <Grid>
+                          <Image Source="{Binding Poster}" Stretch="UniformToFill" Opacity="0.45" />
+                          <Border Classes="breathing" Background="#661B1D2A" IsVisible="{Binding IsActive}" />
+                          <Border IsVisible="{Binding ShowPlay}" Width="68" Height="68" CornerRadius="34"
+                                  Background="{StaticResource BrandBrush}" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path Data="M0,0 L22,13 L0,26 Z" Fill="{StaticResource BoothBrush}" Margin="6,0,0,0"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                          </Border>
+                          <StackPanel VerticalAlignment="Bottom" Margin="14,12" Spacing="8">
+                            <Grid ColumnDefinitions="*,Auto">
+                              <TextBlock Text="{Binding Status}" FontWeight="SemiBold" TextWrapping="Wrap" MaxLines="3"
+                                         Classes.danger="{Binding IsProblem}" />
+                              <TextBlock Grid.Column="1" Classes="hint" Text="{Binding Elapsed}" Margin="12,0,0,0" />
+                            </Grid>
+                            <ProgressBar Value="{Binding Progress}" Minimum="0" Maximum="1" Height="4" MinHeight="4"
+                                         CornerRadius="2" Foreground="{StaticResource GlowBrush}" Background="#33F2EEE6"
+                                         IsVisible="{Binding IsRunning}" />
+                          </StackPanel>
+                        </Grid>
+                      </Border>
+                    </c:AspectPanel>
+                  </Button>
+
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" MaxLines="2"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock Classes="hint" Text="{Binding LengthLabel}" />
+                  </StackPanel>
+                  <WrapPanel Orientation="Horizontal" Margin="0,0,0,-6">
+                    <Button Classes="quiet" Content="Film the rest" Height="38" Margin="0,0,6,6" Padding="14,0" IsVisible="{Binding ShowRetry}"
+                            Command="{Binding $parent[ItemsControl].((vm:StoryViewModel)DataContext).RetryCommand}"
+                            CommandParameter="{Binding}" />
+                    <Button Classes="quiet" Content="Stop" Height="38" Margin="0,0,6,6" Padding="14,0" IsVisible="{Binding IsActive}"
+                            Command="{Binding $parent[ItemsControl].((vm:StoryViewModel)DataContext).StopCommand}"
+                            CommandParameter="{Binding}" />
+                    <Button Classes="quiet" Content="Remove" Height="38" Margin="0,0,6,6" Padding="14,0" IsVisible="{Binding CanRemove}"
+                            Command="{Binding $parent[ItemsControl].((vm:StoryViewModel)DataContext).RemoveCommand}"
+                            CommandParameter="{Binding}" ToolTip.Tip="Takes it off this page; the shots stay in the Library" />
+                  </WrapPanel>
+
+                  <!-- The strip: one tile per shot. Tap one to read it or watch it alone. -->
+                  <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled"
+                                IsVisible="{Binding HasItems}">
+                    <ItemsControl ItemsSource="{Binding Items}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="8" /></ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:JobItemVm">
+                          <Button Classes="bare" Padding="0" CornerRadius="10"
+                                  Command="{Binding $parent[UserControl].((vm:StoryViewModel)DataContext).SelectClipCommand}"
+                                  CommandParameter="{Binding}" AutomationProperties.Name="Shot">
+                            <Border Classes="clip" Classes.working="{Binding IsWorking}"
+                                    Classes.failed="{Binding IsFailed}" Classes.selected="{Binding IsSelected}">
+                              <Grid>
+                                <Image Source="{Binding Picture}" Stretch="UniformToFill" IsVisible="{Binding IsDone}" />
+                                <Border Classes="breathing" Background="#33FFC48A" IsVisible="{Binding IsWorking}" />
+                                <Border Background="#991B1D2A" CornerRadius="6" Padding="5,1" Margin="4"
+                                        HorizontalAlignment="Left" VerticalAlignment="Bottom">
+                                  <TextBlock Text="{Binding Number}" FontWeight="SemiBold" FontSize="12"
+                                             Classes.danger="{Binding IsFailed}" />
+                                </Border>
+                              </Grid>
+                            </Border>
+                          </Button>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+
+                  <Border IsVisible="{Binding HasSelection}" Background="{StaticResource SurfaceBrush}" CornerRadius="14" Padding="14,12">
+                    <StackPanel Spacing="8">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="{Binding Selected.Number, StringFormat='Shot {0}'}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Classes="quiet" Content="Play shot" Height="36" Padding="14,0"
+                                IsVisible="{Binding Selected.IsDone}"
+                                Command="{Binding $parent[UserControl].((vm:StoryViewModel)DataContext).PlayClipCommand}"
+                                CommandParameter="{Binding Selected}" />
+                      </Grid>
+                      <TextBlock Text="{Binding Selected.Label}" TextWrapping="Wrap" LineHeight="21" />
+                      <TextBlock Classes="hint" Text="{Binding Selected.Status}" IsVisible="{Binding !Selected.IsDone}"
+                                 Classes.danger="{Binding Selected.IsFailed}" />
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+
+    <Border Grid.Row="1" Padding="20,10,20,14" Background="{StaticResource BoothBrush}">
+      <Panel>
+        <Button Classes="primary" Content="Make film" Command="{Binding MakeCommand}" IsVisible="{Binding !IsSending}" />
+        <Button Classes="primary" Content="Sending the story" IsEnabled="False" IsVisible="{Binding IsSending}" />
+      </Panel>
+    </Border>
+  </Grid>
+</UserControl>

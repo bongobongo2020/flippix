@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The wire format between the FlipPix desktop (FlipPix.Remote hosts it) and FlipPix Mobile.
+    Plain records and no dependencies, so the phone can reference it without pulling in the server.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+</Project>

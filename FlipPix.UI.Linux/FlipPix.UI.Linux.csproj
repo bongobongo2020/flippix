@@ -29,6 +29,9 @@
   <ItemGroup>
     <ProjectReference Include="..\FlipPix.Core\FlipPix.Core.csproj" />
     <ProjectReference Include="..\FlipPix.ComfyUI\FlipPix.ComfyUI.csproj" />
+    <!-- Aliased: FlipPix.Remote compiles its own copies of the story-chain sources (namespace
+         FlipPix.UI.Services); only Services/PhoneRemote.cs names its types. -->
+    <ProjectReference Include="..\FlipPix.Remote\FlipPix.Remote.csproj" Aliases="remote" />
   </ItemGroup>
 
   <ItemGroup>

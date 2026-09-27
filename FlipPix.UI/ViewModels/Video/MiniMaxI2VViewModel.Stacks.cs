@@ -106,6 +106,11 @@ namespace FlipPix.UI.ViewModels.Video
             // h3-bunny.json: res_multistep/simple on the hybrid, and no sigma shift.
             I2VStack.Bunny => new StackSpec("res_multistep", "simple", false, 0, 0),
 
+            // h3-parasyte.json: res_multistep/simple on the hybrid, no sigma shift, and the Parasyte
+            // turbo LoRA in place of the shipped lightx2v one. The graph's own H3SLAAttention nodes are
+            // already last on each branch's wire, so this stack adds no patch of its own.
+            I2VStack.Parasyte => new StackSpec("res_multistep", "simple", false, 0, 0),
+
             // The graph as authored.
             _ => new StackSpec("euler", "simple", true, 12, 3),
         };
@@ -113,10 +118,17 @@ namespace FlipPix.UI.ViewModels.Video
         /// <summary>The LoRAs a stack puts on the <i>shared</i> wire — the one every sampler reads. 🍥's
         /// belongs to its second leg alone and 🐰's cleanup strength to its second sampler alone, so those
         /// are grafted by the relays rather than listed here.</summary>
-        private static IEnumerable<(string Name, double Strength)> MainWireLoras(I2VStack stack) =>
-            stack == I2VStack.Bunny
-                ? new[] { ("H3/H3_Combat_V2.safetensors", 1.0) }
-                : Array.Empty<(string, double)>();
+        private static IEnumerable<(string Name, double Strength)> MainWireLoras(I2VStack stack) => stack switch
+        {
+            I2VStack.Bunny => new[] { (BunnyCombatLora, 1.0) },
+            I2VStack.Parasyte => new[] { (ParasyteTurboLora, 1.0) },
+            _ => Array.Empty<(string, double)>(),
+        };
+
+        /// <summary>The LoRA 🦠 is built around, at the strength the authored graph leaves it on. It goes on
+        /// the shared wire above the SLA patch, so both the base pass and the continuation loop sample
+        /// against it.</summary>
+        private const string ParasyteTurboLora = "H3/H3-PK-Parasyte-Turbo.safetensors";
 
         private const string BunnyCombatLora = "H3/H3_Combat_V2.safetensors";
         private const double BunnyCleanupStrength = 0.65;

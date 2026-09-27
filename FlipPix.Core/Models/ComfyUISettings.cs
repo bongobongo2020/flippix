@@ -269,6 +269,11 @@ public class ComfyUISettings
     // strength and the last quarter run out as a cleanup that does not re-noise, then the tab's own latent
     // upscale. Mutually exclusive with the two above; the Express tab's radio group keeps them in step.
     public bool H3ExpressUseBunny { get; set; }
+    // 🦠 The fifth stack: PlagueKind's sparse-attention render (h3-parasyte.json) — the Parasyte turbo LoRA
+    // on the fl2va/ref2va hybrid at res_multistep/simple, H3SLAAttention last on the model wire, and a
+    // finish that does the upscale and the second pass in one MMH3UltimateUpscale node. Mutually exclusive
+    // with the three above; the Express tab's radio group keeps them in step.
+    public bool H3ExpressUseParasyte { get; set; }
     // Sampling steps per checkpoint: the first-pass step count the Express tab renders with, keyed by the
     // model name it was set for (lowercased, forward slashes). A checkpoint that has never been set is not
     // in here at all and renders at the step count its stack was authored at — Singularity's 10, the Eros

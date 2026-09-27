@@ -30,6 +30,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\FlipPix.UI\FlipPix.UI.csproj" />
+    <!-- Named here only to alias it: FlipPix.UI brings it in transitively, and its linked copies of
+         the story-chain types (StoryContinuity, StoryBeatSheet…) would clash with FlipPix.UI's own. -->
+    <ProjectReference Include="..\..\FlipPix.Remote\FlipPix.Remote.csproj" Aliases="remote" />
   </ItemGroup>
 
   <ItemGroup>

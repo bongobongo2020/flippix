@@ -66,6 +66,10 @@ namespace FlipPix.UI.ViewModels.Video
         /// all-reference mode this tab is always in.</summary>
         public const string BunnyModel = "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors";
 
+        /// <summary>🦠 Parasyte samples the same fl2va/ref2va hybrid 🐰 does — it is the LoRA and the
+        /// sampling that make the stack, not the checkpoint.</summary>
+        public const string ParasyteModel = "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors";
+
         /// <summary>The checkpoint a stack is authored on. Picking a stack moves the dropdown here; moving
         /// the dropdown afterwards sticks, so a stack can be sampled on another checkpoint on purpose.</summary>
         public static string ShippedModelFor(I2VStack stack) => stack switch
@@ -74,6 +78,7 @@ namespace FlipPix.UI.ViewModels.Video
             I2VStack.Singularity => SingularityModel,
             I2VStack.TaoMate => TaoMateModel,
             I2VStack.Bunny => BunnyModel,
+            I2VStack.Parasyte => ParasyteModel,
             _ => ShippedI2VModel,
         };
 
@@ -98,6 +103,7 @@ namespace FlipPix.UI.ViewModels.Video
             I2VStack.Singularity => erSde ? 12 : 10,
             I2VStack.TaoMate => 10,
             I2VStack.Bunny => 8,
+            I2VStack.Parasyte => 13,
             _ => 8,           // the graph's own BasicScheduler
         };
 
@@ -277,6 +283,13 @@ namespace FlipPix.UI.ViewModels.Video
             set { if (value) Stack = I2VStack.Bunny; }
         }
 
+        /// <inheritdoc cref="StackIsShipped"/>
+        public bool StackIsParasyte
+        {
+            get => _stack == I2VStack.Parasyte;
+            set { if (value) Stack = I2VStack.Parasyte; }
+        }
+
         /// <summary>✴️'s sub-option: keep the Singularity graph's checkpoint and its 12/3 shift, but sample
         /// it the H3 Eros way — er_sde/beta at 12 instead of euler/simple at 10.</summary>
         public bool SingularityErSde
@@ -313,12 +326,30 @@ namespace FlipPix.UI.ViewModels.Video
         /// halfway is a queue of takes that do not match each other.</summary>
         public bool CanChangeRender => !IsProcessing && !IsProcessingQueue;
 
+        /// <summary>
+        /// <para>The LoRA rows are deliberately <b>not</b> behind <see cref="CanChangeRender"/>. They are the
+        /// one part of the card no render reads live: Add to Queue copies the active slots onto the item
+        /// (<c>MiniMaxI2VQueueItem.Loras</c>) and MiniMaxI2VViewModel.Stacks.cs builds every chain from
+        /// <c>item.Loras</c>, never from this collection. The only live reader left is
+        /// <see cref="LoraSummary"/>, which is a label.</para>
+        ///
+        /// <para>So the stack can be rewritten while a queue drains and the next item added carries it,
+        /// which is the whole point — a queue is a list of takes you meant, not one setting repeated. Takes
+        /// already queued are untouched, and each queue row shows its own LoRA count, so a mixed queue reads
+        /// as mixed rather than silently disagreeing with the card.</para>
+        ///
+        /// <para>The stack, the checkpoint and the step count stay locked, because those are what make two
+        /// takes comparable.</para>
+        /// </summary>
+        public bool CanAddLora => Loras.Count < MaxLoraSlots;
+
         private static string StackName(I2VStack stack) => stack switch
         {
             I2VStack.Eros => "🌹 H3 Eros",
             I2VStack.Singularity => "✴️ Singularity",
             I2VStack.TaoMate => "🍥 TaoMate relay",
             I2VStack.Bunny => "🐰 BUNNY (action)",
+            I2VStack.Parasyte => "🦠 Parasyte (sparse)",
             _ => "🌀 Shipped",
         };
 
@@ -337,6 +368,11 @@ namespace FlipPix.UI.ViewModels.Video
                 "every pass is painted at the Quality size and the frames are doubled by RTX Video Super " +
                 "Resolution instead of the latent being lifted, so the file lands at twice Quality in each " +
                 "direction and costs more per second.",
+            I2VStack.Parasyte =>
+                $"res_multistep/simple at {AuthoredStepsFor(stack, false)} on the fl2va/ref2va hybrid with the " +
+                "Parasyte turbo LoRA at 1.00 and no sigma shift — PlagueKind's sparse-attention sampling. This " +
+                "graph already patches H3SLAAttention last on both branches' wires, so the speed is whatever " +
+                "the SLA dial below is set to; the stack itself is the LoRA and the schedule.",
             I2VStack.Bunny =>
                 "res_multistep/simple on the fl2va/ref2va hybrid: three extra steps woven between sigma 0.65 and " +
                 "0.28 where the motion is decided, the schedule cut at 75%, the first three quarters sampled on " +
@@ -374,13 +410,13 @@ namespace FlipPix.UI.ViewModels.Video
             RaiseStepsState();
         }
 
-        /// <summary>Raised from <see cref="OnCanExecuteChanged"/>: the whole card greys out while the GPU
-        /// is busy, and comes back when it is not.</summary>
+        /// <summary>Raised from <see cref="OnCanExecuteChanged"/>: the card greys out while the GPU is busy
+        /// and comes back when it is not. The LoRA rows are not part of it — see <see cref="CanAddLora"/> —
+        /// but the line under them names the queue, so it is re-read here.</summary>
         private void RaiseRenderGate()
         {
             OnPropertyChanged(nameof(CanChangeRender));
-            OnPropertyChanged(nameof(CanAddLora));
-            AddLoraCommand?.NotifyCanExecuteChanged();
+            OnPropertyChanged(nameof(LoraSummary));
             ResetStepsCommand?.NotifyCanExecuteChanged();
         }
 
@@ -529,7 +565,13 @@ namespace FlipPix.UI.ViewModels.Video
 
         public RelayCommand<MiniMaxI2VLoraSlot> RemoveLoraCommand { get; private set; } = new(_ => { });
 
-        public bool CanAddLora => Loras.Count < MaxLoraSlots && CanChangeRender;
+        /// <summary>Tacked onto <see cref="LoraSummary"/> while the queue is draining, because that is the
+        /// one time the rows on screen are not what is rendering — the stack reaches the next item added,
+        /// not the ones already waiting.</summary>
+        private string QueuedNote =>
+            IsProcessing || IsProcessingQueue
+                ? " Editable mid-queue: this stack is frozen onto each item as you add it, so it reaches the next one you queue and leaves the takes already waiting as they were."
+                : string.Empty;
 
         /// <summary>The line under the list: what is on the wire, on top of what.</summary>
         public string LoraSummary
@@ -546,13 +588,13 @@ namespace FlipPix.UI.ViewModels.Video
                       "of its own, ahead of these.";
 
                 if (active.Count == 0)
-                    return $"No LoRA of yours. {Math.Max(0, LoraOptions.Count - 1)} available in loras/H3.{theirs}";
+                    return $"No LoRA of yours. {Math.Max(0, LoraOptions.Count - 1)} available in loras/H3.{theirs}{QueuedNote}";
 
                 var named = string.Join(", ", active.Select(l => $"{LabelFor(l.Name)} at {l.Strength:0.00}"));
                 var dropped = Loras.Count - active.Count;
                 var skipped = dropped == 0 ? string.Empty
                     : $" {dropped} row(s) at 0 or unset are left out of the graph.";
-                return $"{named} — stacked on the checkpoint in that order.{skipped}{theirs}";
+                return $"{named} — stacked on the checkpoint in that order.{skipped}{theirs}{QueuedNote}";
             }
         }
 
@@ -570,7 +612,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         private void RemoveLoraSlot(MiniMaxI2VLoraSlot? slot)
         {
-            if (slot == null || !CanChangeRender) return;
+            if (slot == null) return;
             slot.Changed -= OnLoraSlotChanged;
             Loras.Remove(slot);
             for (var i = 0; i < Loras.Count; i++) Loras[i].Index = i + 1;
@@ -770,6 +812,7 @@ namespace FlipPix.UI.ViewModels.Video
                         ? "er_sde/beta over the Singularity graph"
                         : "euler/simple, as the Singularity graph is authored",
                     I2VStack.Eros => "er_sde/beta on the 10Eros hybrid",
+                    I2VStack.Parasyte => "res_multistep/simple on the Parasyte turbo LoRA",
                     _ => "euler/simple on the turbo LoRA, as this graph is authored",
                 };
 

@@ -107,6 +107,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
                 <!-- Title Section -->
@@ -119,8 +120,41 @@
                               Margin="0,5,0,0"/>
                 </StackPanel>
 
-                <!-- Settings Button -->
+                <!-- Phone remote -->
                 <Button Grid.Column="1"
+                        Name="PhoneRemoteButton"
+                        Click="PhoneRemoteButton_Click"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Padding="10"
+                        Cursor="Hand"
+                        ToolTip="Phone remote: use FlipPix from your phone"
+                        Margin="20,0,0,0">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}"
+                                    CornerRadius="5"
+                                    Padding="{TemplateBinding Padding}">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="0" ShadowDepth="0"/>
+                                </Border.Effect>
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#33FFFFFF"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter Property="Background" Value="#22FFFFFF"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                    <TextBlock Text="📱" FontSize="24" Foreground="White" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                </Button>
+
+                <!-- Settings Button -->
+                <Button Grid.Column="2"
                         Name="SettingsButton"
                         Click="SettingsButton_Click"
                         Background="Transparent"
@@ -128,7 +162,7 @@
                         Padding="10"
                         Cursor="Hand"
                         ToolTip="Open Settings"
-                        Margin="20,0,0,0">
+                        Margin="8,0,0,0">
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
                             <Border Background="{TemplateBinding Background}"
