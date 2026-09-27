@@ -82,7 +82,7 @@ public sealed partial class FolderChip : ObservableObject
 public sealed partial class LibraryViewModel : ObservableObject
 {
     private const int PageSize = 90;
-    private const int Columns = 3;
+    private int _columns = 3;
 
     private readonly List<LibraryItemVm> _items = new();
     private readonly Action<IReadOnlyList<ViewerEntry>, int> _openViewer;
@@ -103,6 +103,23 @@ public sealed partial class LibraryViewModel : ObservableObject
     }
 
     public ObservableCollection<LibraryRow> Rows { get; } = new();
+
+    /// <summary>
+    /// Tiles per row: 3 on a phone; the iPad sets it from the grid's width, so a rotation or a Split
+    /// View resize regroups the rows it already has instead of fetching again.
+    /// </summary>
+    public int Columns
+    {
+        get => _columns;
+        set
+        {
+            value = Math.Clamp(value, 2, 12);
+            if (value == _columns) return;
+            _columns = value;
+            OnPropertyChanged();
+            if (_items.Count > 0) RebuildRows(0);
+        }
+    }
     public ObservableCollection<FolderChip> Folders { get; } = new();
 
     [ObservableProperty]
@@ -311,8 +328,8 @@ public sealed partial class LibraryViewModel : ObservableObject
             var first = true;
             while (i < _items.Count && _items[i].LocalDay == day)
             {
-                var cells = new List<LibraryItemVm>(Columns);
-                while (cells.Count < Columns && i < _items.Count && _items[i].LocalDay == day) cells.Add(_items[i++]);
+                var cells = new List<LibraryItemVm>(_columns);
+                while (cells.Count < _columns && i < _items.Count && _items[i].LocalDay == day) cells.Add(_items[i++]);
                 Rows.Add(new LibraryRow(first ? DayLabel(day) : null, cells));
                 first = false;
             }

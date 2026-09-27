@@ -1,0 +1,347 @@
+<!--
+  The iPad's studio layout. Same tokens as the phone (App.axaml); what changes is the room: a sidebar in
+  place of the bottom bar, a composer panel beside its results instead of above them, and hover states,
+  since an iPad is as often driven by a trackpad as by a finger. ".compact" is set on the shell below
+  1100 wide (portrait, Split View) and trades the sidebar for a rail and the composer for a narrower one.
+-->
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- Type. -->
+  <Style Selector="TextBlock.eyebrow">
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="LetterSpacing" Value="1.4" />
+    <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+  </Style>
+  <Style Selector="TextBlock.display">
+    <Setter Property="FontSize" Value="34" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="LetterSpacing" Value="-0.9" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+  <Style Selector="TextBlock.pane-title">
+    <Setter Property="FontSize" Value="22" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="LetterSpacing" Value="-0.4" />
+  </Style>
+  <Style Selector="TextBlock.day">
+    <Setter Property="FontSize" Value="17" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="LetterSpacing" Value="-0.2" />
+  </Style>
+
+  <!-- The sidebar: a shade deeper than the booth, so the work area reads as the lit stage. -->
+  <Style Selector="Border.sidebar">
+    <Setter Property="Background" Value="{StaticResource DeepBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,1,0" />
+  </Style>
+  <Style Selector="Border.sidebar-rail">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+  <Style Selector=".compact Border.sidebar-rail">
+    <Setter Property="IsVisible" Value="True" />
+  </Style>
+  <Style Selector=".compact Border.sidebar-wide">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+
+  <!-- A sidebar row: icon and word; the page you're on gets the raised fill and the orange icon. -->
+  <Style Selector="Button.side">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="Height" Value="46" />
+    <Setter Property="Padding" Value="14,0" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+  </Style>
+  <Style Selector="Button.side:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource HoverBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource PaperBrush}" />
+  </Style>
+  <Style Selector="Button.side:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+  </Style>
+  <Style Selector="Button.side.on /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource RaisedBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource PaperBrush}" />
+  </Style>
+  <Style Selector="Button.side TextBlock">
+    <Setter Property="Foreground" Value="{Binding $parent[Button].Foreground}" />
+    <Setter Property="FontSize" Value="15" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.side.on TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource PaperBrush}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="Button.side PathIcon">
+    <Setter Property="Foreground" Value="{Binding $parent[Button].Foreground}" />
+    <Setter Property="Width" Value="20" />
+    <Setter Property="Height" Value="20" />
+  </Style>
+  <Style Selector="Button.side.on PathIcon">
+    <Setter Property="Foreground" Value="{StaticResource BrandBrush}" />
+  </Style>
+  <Style Selector="Button.side TextBlock.key">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontWeight" Value="Normal" />
+    <Setter Property="Foreground" Value="{StaticResource FaintBrush}" />
+  </Style>
+
+  <!-- The rail (compact): the same rows, stacked icon over word. -->
+  <Style Selector="Button.side.rail">
+    <Setter Property="Height" Value="62" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.side.rail TextBlock">
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+  </Style>
+
+  <!-- A card on the sidebar floor: "now making" and the computer. Tappable, so it lifts on hover. -->
+  <Style Selector="Button.floor">
+    <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="16" />
+    <Setter Property="Padding" Value="14,12" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="Foreground" Value="{StaticResource PaperBrush}" />
+  </Style>
+  <Style Selector="Button.floor:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource RaisedBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource PaperBrush}" />
+  </Style>
+
+  <!-- The composer: a panel of its own, beside the results. -->
+  <Style Selector="Border.composer">
+    <Setter Property="Width" Value="440" />
+    <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="28" />
+    <Setter Property="Margin" Value="16,16,0,16" />
+    <Setter Property="ClipToBounds" Value="True" />
+  </Style>
+  <Style Selector=".compact Border.composer">
+    <Setter Property="Width" Value="360" />
+    <Setter Property="Margin" Value="12,12,0,12" />
+  </Style>
+  <!-- Inside the panel the fields sit one step darker, so they read as wells, not as more panel. -->
+  <Style Selector="Border.composer TextBox">
+    <Setter Property="Background" Value="{StaticResource BoothBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}" />
+  </Style>
+  <Style Selector="Border.composer TextBox:pointerover /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="{StaticResource BoothBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
+  </Style>
+  <Style Selector="Border.composer TextBox:focus /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="{StaticResource BoothBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BrandBrush}" />
+  </Style>
+  <Style Selector="Border.composer Button.cell">
+    <Setter Property="Background" Value="{StaticResource BoothBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BoothBrush}" />
+  </Style>
+  <Style Selector="Border.composer Button.cell:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource HoverBrush}" />
+  </Style>
+  <Style Selector="Border.composer Button.cell.on /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource RaisedBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BrandBrush}" />
+  </Style>
+
+  <!-- Looks, stacked: a row per look with a radio dot, so the blurb has room to be read. -->
+  <Style Selector="ListBox.look-list">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+  <Style Selector="ListBox.look-list ListBoxItem">
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Margin" Value="0,0,0,8" />
+    <Setter Property="CornerRadius" Value="16" />
+    <Setter Property="Background" Value="{StaticResource BoothBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BoothBrush}" />
+    <Setter Property="BorderThickness" Value="1.5" />
+  </Style>
+  <Style Selector="ListBox.look-list ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="CornerRadius" Value="16" />
+  </Style>
+  <Style Selector="ListBox.look-list ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource HoverBrush}" />
+  </Style>
+  <Style Selector="ListBox.look-list ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource RaisedBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BrandBrush}" />
+  </Style>
+  <Style Selector="ListBox.look-list ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource RaisedBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BrandBrush}" />
+  </Style>
+  <Style Selector="ListBox.look-list Ellipse.dot">
+    <Setter Property="Width" Value="18" />
+    <Setter Property="Height" Value="18" />
+    <Setter Property="Stroke" Value="{StaticResource LineBrush}" />
+    <Setter Property="StrokeThickness" Value="2" />
+  </Style>
+  <Style Selector="ListBox.look-list ListBoxItem:selected Ellipse.dot">
+    <Setter Property="Stroke" Value="{StaticResource BrandBrush}" />
+    <Setter Property="StrokeThickness" Value="5.5" />
+  </Style>
+
+  <!-- A segmented control: one pill holding the choices, the chosen one lifted inside it. -->
+  <Style Selector="Border.segmented">
+    <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+    <Setter Property="CornerRadius" Value="20" />
+    <Setter Property="Padding" Value="3" />
+    <Setter Property="Height" Value="40" />
+  </Style>
+  <Style Selector="Border.segmented Button">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="17" />
+    <Setter Property="Padding" Value="18,0" />
+    <Setter Property="VerticalAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="Border.segmented Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{StaticResource PaperBrush}" />
+  </Style>
+  <Style Selector="Border.segmented Button.on /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource LineBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource PaperBrush}" />
+  </Style>
+
+  <!-- A library tile: rounded, with a hairline that brightens under the pointer. -->
+  <Style Selector="Button.tile">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Stretch" />
+  </Style>
+  <Style Selector="Button.tile:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="Button.tile Border.frame">
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="ClipToBounds" Value="True" />
+    <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+  </Style>
+  <Style Selector="Button.tile Border.edge">
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+  <Style Selector="Button.tile:pointerover Border.edge">
+    <Setter Property="BorderBrush" Value="{StaticResource GlowBrush}" />
+    <Setter Property="BorderThickness" Value="2" />
+  </Style>
+  <Style Selector="Button.tile:pressed">
+    <Setter Property="Opacity" Value="0.8" />
+  </Style>
+
+  <!-- A small round icon button on a dark surface: viewer chrome, refresh, close. -->
+  <Style Selector="Button.round">
+    <Setter Property="Width" Value="44" />
+    <Setter Property="Height" Value="44" />
+    <Setter Property="CornerRadius" Value="22" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource PaperBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.round:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource RaisedBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource PaperBrush}" />
+  </Style>
+  <Style Selector="Button.round:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource FaintBrush}" />
+  </Style>
+  <Style Selector="Button.round PathIcon">
+    <Setter Property="Width" Value="20" />
+    <Setter Property="Height" Value="20" />
+  </Style>
+
+  <!-- The viewer inspector's action rows: an icon in a tinted square, a word, and what it does. -->
+  <Style Selector="Button.inspect">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="14" />
+    <Setter Property="Padding" Value="10,10" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="Foreground" Value="{StaticResource PaperBrush}" />
+  </Style>
+  <Style Selector="Button.inspect:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource HoverBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource PaperBrush}" />
+  </Style>
+  <Style Selector="Button.inspect Border.glyph">
+    <Setter Property="Width" Value="40" />
+    <Setter Property="Height" Value="40" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="Background" Value="{StaticResource RaisedBrush}" />
+  </Style>
+  <Style Selector="Button.inspect PathIcon">
+    <Setter Property="Width" Value="20" />
+    <Setter Property="Height" Value="20" />
+  </Style>
+
+  <!-- The empty-state card on a results pane. -->
+  <Style Selector="Border.empty">
+    <Setter Property="CornerRadius" Value="24" />
+    <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
+    <Setter Property="BorderThickness" Value="1.5" />
+    <Setter Property="Padding" Value="36,40" />
+    <Setter Property="MaxWidth" Value="520" />
+    <Setter Property="Margin" Value="28" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.empty TextBlock">
+    <Setter Property="TextWrapping" Value="Wrap" />
+    <Setter Property="TextAlignment" Value="Center" />
+  </Style>
+  <Style Selector=".compact Border.empty">
+    <Setter Property="Padding" Value="24,30" />
+  </Style>
+
+  <!-- A ghost tile in an empty state: the shape of what will come, drawn in the line colour. -->
+  <Style Selector="Border.ghost">
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <!-- Keyboard hint chips: "⌘ ↩". -->
+  <Style Selector="Border.kbd">
+    <Setter Property="Background" Value="#26000000" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="6,2" />
+  </Style>
+  <Style Selector="Border.kbd TextBlock">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+</Styles>

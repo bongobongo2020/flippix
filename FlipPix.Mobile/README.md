@@ -1,6 +1,6 @@
 # FlipPix Mobile
 
-A remote for the FlipPix desktop, on an Android phone. The phone asks for pictures, videos and
+A remote for the FlipPix desktop, on an Android phone or an iPad. The phone asks for pictures, videos and
 stories and shows what they look like as they're made. The computer makes them, with its own
 ComfyUI and writing assistant settings. The Library shows everything in the computer's output
 folder, not only what the phone asked for.
@@ -8,6 +8,9 @@ folder, not only what the phone asked for.
 - `FlipPix.Mobile/`: all UI and logic (Avalonia 11, `net8.0`). It references only
   `FlipPix.Remote.Contracts`, the wire format. It has no workflows, ComfyUI client or LLM client.
 - `FlipPix.Mobile.Android/`: the Android head (`net9.0-android`, min API 26). It holds no logic.
+- `FlipPix.Mobile.iOS/`: the iPad (and iPhone) head (`net9.0-ios`, iOS 15+): the app delegate, the
+  device name and an AVPlayer for videos. It is not in `FlipPix.sln`, since iOS builds only on a Mac
+  and the solution has to keep building on Windows.
 - The desktop side is `FlipPix.Remote` (see its README). Both desktop builds host it.
 
 ## Build and install
@@ -23,6 +26,42 @@ dotnet publish FlipPix.Mobile.Android -c Release
 
 The release APK is signed with the SDK's debug keystore. That works for sideloading. A Play
 Store upload needs a real keystore (`AndroidSigningKeyStore` and friends).
+
+### iPad
+
+Needs a Mac with Xcode. Each .NET iOS workload is tied to one Xcode: 18.5 wants Xcode 16.4, 26.x
+wants Xcode 26. Pin the workload set to match (`dotnet workload update --version 9.0.304` gives iOS
+18.5), or the build stops with "requires Xcode 26.5".
+
+```sh
+# Simulator
+dotnet build FlipPix.Mobile.iOS -c Debug -r iossimulator-arm64
+xcrun simctl install booted FlipPix.Mobile.iOS/bin/Debug/net9.0-ios/iossimulator-arm64/FlipPix.Mobile.iOS.app
+xcrun simctl launch booted com.flippix.mobile
+
+# A device needs a signing identity and provisioning profile (CodesignKey, CodesignProvision)
+dotnet build FlipPix.Mobile.iOS -c Release -r ios-arm64
+```
+
+## The iPad studio layout
+
+`Views/AppShell` picks the layout by width: under 700 points the phone layout (`MainView`), from
+700 up the studio (`Views/Studio/`). That is every iPad in either orientation and most Split View
+sizes. Both read the same view models, so a resize across the line keeps what was typed and queued.
+
+- A sidebar in place of the bottom bar: the pages, **Now making** (whatever the computer is
+  working on, from any page; tap to go there), and the computer with its connection state.
+- Each making page is a composer panel beside its results: the prompt, look and shape on the left
+  with the orange button at its foot; the contact sheet, takes or films on the right.
+- The Library grid fits as many ~210 pt columns as the width allows (`LibraryViewModel.Columns`).
+- The viewer is full screen, with an inspector beside the picture (below it when narrower than
+  1000 pt) that spells out what each action does.
+- Below 1100 pt the shell wears the `compact` class: the sidebar folds to a rail and the composer
+  narrows. Styles are in `Styles/Studio.axaml`; the phone's stay in `App.axaml`.
+- With a keyboard: ⌘1–⌘4 switch pages, ⌘Return makes, Esc backs out, ← → walk the viewer.
+- Hover states everywhere, since an iPad is often driven by a trackpad.
+- The studio takes the safe area itself (`StudioShell.ApplyInsets`), so the sidebar and viewer run
+  under the status bar and home indicator; the phone layout is padded by `AppShell`.
 
 ## First run: pairing
 
@@ -74,6 +113,13 @@ save sheet).
 - Inter has no emoji; keep them out of phone text.
 - API 35+ is edge to edge: `InsetsManager.DisplayEdgeToEdge = true` or the safe-area padding reads 0.
   The activity theme must derive from `Theme.AppCompat`.
+- **iPad discovery**: iOS asks for Local Network permission the first time, and on a real device a
+  UDP broadcast also needs Apple's multicast entitlement (`com.apple.developer.networking.multicast`),
+  which has to be requested. Without it the "On this Wi-Fi" list stays empty; typing the address
+  always works. The simulator found nothing either in testing.
+- iOS reaches the computer over plain HTTP: `Info.plist` allows local networking and arbitrary loads.
+- `*.png` is git-ignored repo-wide: the iOS icon (`Assets.xcassets/AppIcon.appiconset/icon-1024.png`,
+  rendered from `Views/Studio/BrandMark`) must be added with `git add -f`, as the Android one was.
 - On the emulator, adb taps can start Gboard's stylus-handwriting tutorial, which eats typed text:
   `adb shell settings put secure stylus_handwriting_enabled 0`.
 
@@ -90,7 +136,8 @@ from its width and a ratio, and its children can't change that. While the sample
 ## Checking changes without a phone
 
 The views can be rendered headlessly (`Avalonia.Headless` + `Avalonia.Skia`,
-`UseHeadlessDrawing = false`, then `window.CaptureRenderedFrame()`) at 412×915. Call
+`UseHeadlessDrawing = false`, then `window.CaptureRenderedFrame()`) at 412×915, and host
+`AppShell` rather than `MainView` at iPad sizes (1376×1032, 1032×1376, 744×1133) to see the studio. Call
 `AvaloniaSynchronizationContext.InstallIfNeeded()` after setup, then pump
 `Dispatcher.UIThread.RunJobs()` while waiting for the server. Point the phone settings file
 (`%LOCALAPPDATA%\FlipPixMobile\remote.json`) at a desktop host to render real data. Do this after

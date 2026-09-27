@@ -1,0 +1,136 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:FlipPix.Mobile.ViewModels"
+             xmlns:c="using:FlipPix.Mobile.Controls"
+             x:Class="FlipPix.Mobile.Views.Studio.StudioViewerView"
+             x:DataType="vm:ViewerViewModel"
+             Background="{StaticResource DeepBrush}">
+  <!-- The stage and the inspector side by side, never overlapping: a video is a native surface drawn
+       above everything, so nothing may sit on top of it. -->
+  <Grid ColumnDefinitions="*,Auto" RowDefinitions="*,Auto">
+
+    <Grid x:Name="StageArea" RowDefinitions="Auto,*,Auto" Grid.RowSpan="2">
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="20,18,20,8">
+        <Button Classes="round" Command="{Binding CloseCommand}" AutomationProperties.Name="Close" ToolTip.Tip="Close (Esc)">
+          <PathIcon Data="{StaticResource IconClose}" />
+        </Button>
+        <TextBlock Grid.Column="1" Classes="hint" Text="{Binding Counter}" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center" />
+        <Button Grid.Column="2" Classes="round" Command="{Binding PreviousCommand}" IsVisible="{Binding HasMany}" Margin="0,0,8,0"
+                AutomationProperties.Name="Previous" ToolTip.Tip="Previous (←)">
+          <PathIcon Data="{StaticResource IconChevronLeft}" Width="24" Height="24" />
+        </Button>
+        <Button Grid.Column="3" Classes="round" Command="{Binding NextCommand}" IsVisible="{Binding HasMany}"
+                AutomationProperties.Name="Next" ToolTip.Tip="Next (→)">
+          <PathIcon Data="{StaticResource IconChevronRight}" Width="24" Height="24" />
+        </Button>
+      </Grid>
+
+      <Panel Grid.Row="1" x:Name="Stage" Background="Transparent" Margin="28,8,28,28">
+        <Image Source="{Binding Picture}" Stretch="Uniform" IsVisible="{Binding IsImage}" />
+        <Border Classes="breathing" Width="56" Height="56" CornerRadius="28" Background="{StaticResource RaisedBrush}"
+                IsVisible="{Binding IsImage}" x:Name="PictureWait" />
+        <c:VideoSurface Sources="{Binding VideoSources}" IsVisible="{Binding IsVideo}" x:Name="Player" />
+        <TextBlock x:Name="NoPlayer" Text="Videos play in the app on the iPad." HorizontalAlignment="Center" VerticalAlignment="Center"
+                   Foreground="{StaticResource MutedBrush}" />
+      </Panel>
+    </Grid>
+
+    <!-- The inspector: what this is, and what can be done with it. -->
+    <Border x:Name="Inspector" Grid.Column="1" Grid.RowSpan="2" Width="360" Background="{StaticResource BoothBrush}"
+            BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1,0,0,0">
+      <ScrollViewer>
+        <StackPanel Margin="24,30,24,28" Spacing="24">
+          <StackPanel Spacing="8">
+            <TextBlock Classes="eyebrow" Text="PICTURE" IsVisible="{Binding IsImage}" Foreground="{StaticResource GlowBrush}" />
+            <TextBlock Classes="eyebrow" Text="VIDEO" IsVisible="{Binding IsVideo}" Foreground="{StaticResource GlowBrush}" />
+            <TextBlock Text="{Binding Current.Title, FallbackValue=''}" FontSize="20" FontWeight="Bold" LetterSpacing="-0.3"
+                       TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" />
+            <TextBlock Classes="hint" FontSize="13" Text="{Binding Current.Subtitle, FallbackValue=''}" />
+          </StackPanel>
+
+          <TextBlock Classes="hint" Text="{Binding Notice}" TextWrapping="Wrap"
+                     IsVisible="{Binding Notice, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+          <!-- Waiting on the computer. -->
+          <Border IsVisible="{Binding IsWorking}" Background="{StaticResource SurfaceBrush}" CornerRadius="16" Padding="16,14">
+            <StackPanel Spacing="10">
+              <TextBlock Text="{Binding WorkingText}" FontWeight="SemiBold" TextWrapping="Wrap" />
+              <ProgressBar IsIndeterminate="True" Height="3" MinHeight="3" Foreground="{StaticResource GlowBrush}" Background="#22F2EEE6" />
+            </StackPanel>
+          </Border>
+
+          <!-- What the writing assistant saw. -->
+          <Border IsVisible="{Binding HasDescription}" Background="{StaticResource SurfaceBrush}" CornerRadius="18" Padding="18,16">
+            <StackPanel Spacing="14">
+              <TextBlock Classes="eyebrow" Text="WHAT YOUR COMPUTER SEES" />
+              <SelectableTextBlock Text="{Binding Description}" TextWrapping="Wrap" LineHeight="22" Foreground="{StaticResource PaperBrush}" />
+              <Button Classes="quiet" Content="Make a picture from this" HorizontalAlignment="Stretch" Command="{Binding UseDescriptionCommand}" />
+              <Button Classes="bare" HorizontalAlignment="Center" Command="{Binding HideDescriptionCommand}">
+                <TextBlock Text="Done" Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" />
+              </Button>
+            </StackPanel>
+          </Border>
+
+          <!-- What can be done with it. -->
+          <StackPanel Spacing="4" IsVisible="{Binding ShowActions}" Margin="-10,0">
+            <Button Classes="inspect" Command="{Binding DescribeCommand}" IsVisible="{Binding CanRead}">
+              <Grid ColumnDefinitions="Auto,*">
+                <Border Classes="glyph"><PathIcon Data="{StaticResource IconText}" /></Border>
+                <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="1">
+                  <TextBlock Text="Describe" FontWeight="SemiBold" />
+                  <TextBlock Classes="hint" Text="Your computer says what it sees" FontSize="12" />
+                </StackPanel>
+              </Grid>
+            </Button>
+            <Button Classes="inspect" Command="{Binding MakeSimilarCommand}" IsVisible="{Binding CanRead}">
+              <Grid ColumnDefinitions="Auto,*">
+                <Border Classes="glyph"><PathIcon Data="{StaticResource IconSparkle}" Foreground="{StaticResource GlowBrush}" /></Border>
+                <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="1">
+                  <TextBlock Text="Make similar" FontWeight="SemiBold" />
+                  <TextBlock Classes="hint" Text="A prompt for pictures like this one" FontSize="12" />
+                </StackPanel>
+              </Grid>
+            </Button>
+            <Button Classes="inspect" Command="{Binding AnimateCommand}" IsVisible="{Binding CanAnimate}">
+              <Grid ColumnDefinitions="Auto,*">
+                <Border Classes="glyph"><PathIcon Data="{StaticResource IconVideo}" /></Border>
+                <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="1">
+                  <TextBlock Text="Animate" FontWeight="SemiBold" />
+                  <TextBlock Classes="hint" Text="Start a video from it" FontSize="12" />
+                </StackPanel>
+              </Grid>
+            </Button>
+            <Button Classes="inspect" Command="{Binding UsePromptCommand}" IsVisible="{Binding HasKnownPrompt}">
+              <Grid ColumnDefinitions="Auto,*">
+                <Border Classes="glyph"><PathIcon Data="{StaticResource IconPencil}" /></Border>
+                <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="1">
+                  <TextBlock Text="Use its prompt" FontWeight="SemiBold" />
+                  <TextBlock Classes="hint" Text="With the look and shape it was made with" FontSize="12" />
+                </StackPanel>
+              </Grid>
+            </Button>
+            <Button Classes="inspect" Click="OnSave" IsVisible="{Binding CanSave}">
+              <Grid ColumnDefinitions="Auto,*">
+                <Border Classes="glyph"><PathIcon Data="{StaticResource IconDownload}" /></Border>
+                <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="1">
+                  <TextBlock Text="Save" FontWeight="SemiBold" />
+                  <TextBlock Classes="hint" Text="Keep the full file on this iPad" FontSize="12" />
+                </StackPanel>
+              </Grid>
+            </Button>
+          </StackPanel>
+
+          <!-- The prompt it was made with, when this iPad made it: worth reading, not just reusing. -->
+          <Border IsVisible="{Binding HasKnownPrompt}" CornerRadius="16" Padding="16,14"
+                  BorderBrush="{StaticResource LineBrush}" BorderThickness="1">
+            <StackPanel Spacing="8">
+              <TextBlock Classes="eyebrow" Text="PROMPT" />
+              <SelectableTextBlock Text="{Binding KnownPrompt}" TextWrapping="Wrap" FontSize="13" LineHeight="20"
+                                   Foreground="{StaticResource MutedBrush}" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+  </Grid>
+</UserControl>

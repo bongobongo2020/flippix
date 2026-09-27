@@ -2,6 +2,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FlipPix.Mobile.Services;
+using FlipPix.Remote.Contracts;
 
 namespace FlipPix.Mobile.ViewModels;
 
@@ -34,6 +35,7 @@ public partial class MainViewModel : ObservableObject
         };
         Viewer.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(ViewerViewModel.IsOpen)) ChromeChanged(); };
         AppServices.Jobs.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(JobsHub.IsOnline)) UpdateServerLabel(); };
+        AppServices.Jobs.Changed += UpdateNowMaking;
         AppServices.Remote.Unpaired += () => Dispatcher.UIThread.Post(OnUnpaired);
 
         if (AppServices.Settings.IsPaired)
@@ -71,6 +73,19 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private bool _serverOnline;
     [ObservableProperty] private string _serverLabel = "Not connected";
+    /// <summary>The paired computer's name even while it can't be reached, and how it is: the iPad sidebar shows both.</summary>
+    [ObservableProperty] private string _computerName = "No computer";
+    [ObservableProperty] private string _connectionText = "Tap to connect";
+
+    /// <summary>What the computer is making right now, whichever page asked for it (the iPad sidebar shows it).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsMaking))]
+    private JobVm? _nowMaking;
+
+    /// <summary>"2 more waiting", or "" when nothing else is in line.</summary>
+    [ObservableProperty] private string _waitingText = "";
+
+    public bool IsMaking => NowMaking != null;
 
     public bool IsLibrary => Page == Page.Library;
     public bool IsImage => Page == Page.Image;
@@ -148,6 +163,23 @@ public partial class MainViewModel : ObservableObject
         Connect.ShowUnpaired();
     }
 
+    private void UpdateNowMaking()
+    {
+        var active = AppServices.Jobs.Jobs.Where(j => j.IsActive).ToList();
+        // The list is newest first, so the one being made is the running one, or else the oldest waiting.
+        NowMaking = active.FirstOrDefault(j => j.IsRunning) ?? active.LastOrDefault();
+        var waiting = active.Count - (NowMaking == null ? 0 : 1);
+        WaitingText = waiting == 0 ? "" : $"{waiting} more waiting";
+    }
+
+    /// <summary>The sidebar's "now making" card: to the page that asked for it.</summary>
+    [RelayCommand]
+    private void ShowNowMaking()
+    {
+        if (NowMaking is not { } job) return;
+        Go(job.Kind switch { JobKinds.Video => Page.Video, JobKinds.Story => Page.Story, _ => Page.Image });
+    }
+
     private void UpdateServerLabel()
     {
         var paired = AppServices.Settings.IsPaired;
@@ -155,6 +187,8 @@ public partial class MainViewModel : ObservableObject
         ServerLabel = !paired ? "Not connected"
             : ServerOnline ? AppServices.Settings.ServerName
             : "Offline";
+        ComputerName = paired ? AppServices.Settings.ServerName : "No computer";
+        ConnectionText = !paired ? "Tap to connect" : ServerOnline ? "Connected" : "Can't reach it right now";
     }
 
     /// <summary>

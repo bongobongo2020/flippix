@@ -9,4 +9,7 @@ namespace FlipPix.Mobile.Services;
 public static class DeviceInfo
 {
     public static string Name { get; set; } = Environment.MachineName;
+
+    /// <summary>What this device is called in running text: "Disconnect this iPad".</summary>
+    public static string Noun { get; set; } = "phone";
 }

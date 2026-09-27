@@ -1,0 +1,169 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:FlipPix.Mobile.ViewModels"
+             xmlns:s="using:FlipPix.Mobile.Views.Studio"
+             x:Class="FlipPix.Mobile.Views.Studio.StudioShell"
+             x:DataType="vm:MainViewModel"
+             Background="{StaticResource BoothBrush}">
+  <Grid>
+    <Grid ColumnDefinitions="Auto,*">
+
+      <!-- The sidebar: where you are, what the computer is making, and which computer it is. -->
+      <Border x:Name="SideWide" Classes="sidebar sidebar-wide" Width="256">
+        <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" Margin="14,20,14,16">
+          <StackPanel Orientation="Horizontal" Spacing="11" Margin="10,0,0,28">
+            <s:BrandMark Width="30" Height="30" />
+            <TextBlock Text="FlipPix" FontSize="21" FontWeight="Bold" LetterSpacing="-0.5" VerticalAlignment="Center" />
+          </StackPanel>
+
+          <StackPanel Grid.Row="1" Spacing="4">
+            <Button Classes="side" Classes.on="{Binding IsLibrary}" Command="{Binding GoCommand}" CommandParameter="{x:Static vm:Page.Library}">
+              <StackPanel Orientation="Horizontal" Spacing="14">
+                <PathIcon Data="{StaticResource IconLibrary}" />
+                <TextBlock Text="Library" />
+              </StackPanel>
+            </Button>
+            <TextBlock Classes="eyebrow" Text="MAKE" Margin="14,20,0,8" />
+            <Button Classes="side" Classes.on="{Binding IsImage}" Command="{Binding GoCommand}" CommandParameter="{x:Static vm:Page.Image}">
+              <StackPanel Orientation="Horizontal" Spacing="14">
+                <PathIcon Data="{StaticResource IconImage}" />
+                <TextBlock Text="Picture" />
+              </StackPanel>
+            </Button>
+            <Button Classes="side" Classes.on="{Binding IsVideo}" Command="{Binding GoCommand}" CommandParameter="{x:Static vm:Page.Video}">
+              <StackPanel Orientation="Horizontal" Spacing="14">
+                <PathIcon Data="{StaticResource IconVideo}" />
+                <TextBlock Text="Video" />
+              </StackPanel>
+            </Button>
+            <Button Classes="side" Classes.on="{Binding IsStory}" Command="{Binding GoCommand}" CommandParameter="{x:Static vm:Page.Story}">
+              <StackPanel Orientation="Horizontal" Spacing="14">
+                <PathIcon Data="{StaticResource IconStory}" />
+                <TextBlock Text="Story" />
+              </StackPanel>
+            </Button>
+          </StackPanel>
+
+          <!-- Now making: whatever page asked for it. Tap to go there. -->
+          <Button Grid.Row="3" Classes="floor" Margin="0,0,0,10" IsVisible="{Binding IsMaking}"
+                  Command="{Binding ShowNowMakingCommand}" AutomationProperties.Name="Now making">
+            <StackPanel Spacing="8">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Border Classes="breathing" Width="8" Height="8" CornerRadius="4" Background="{StaticResource GlowBrush}" VerticalAlignment="Center" />
+                <TextBlock Classes="eyebrow" Text="NOW MAKING" Foreground="{StaticResource GlowBrush}" />
+              </StackPanel>
+              <TextBlock Text="{Binding NowMaking.Title, FallbackValue=''}" FontWeight="SemiBold" FontSize="14"
+                         TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+              <TextBlock Classes="hint" Text="{Binding NowMaking.Status, FallbackValue=''}" FontSize="12" LineHeight="17" MaxLines="2"
+                         TextTrimming="CharacterEllipsis" />
+              <ProgressBar Value="{Binding NowMaking.Progress, FallbackValue=0}" Minimum="0" Maximum="1" Height="4" MinHeight="4"
+                           CornerRadius="2" Foreground="{StaticResource GlowBrush}" Background="{StaticResource RaisedBrush}"
+                           IsVisible="{Binding NowMaking.IsRunning, FallbackValue=False}" />
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Classes="hint" Text="{Binding WaitingText}" FontSize="12" />
+                <TextBlock Grid.Column="1" Classes="hint" Text="{Binding NowMaking.Elapsed, FallbackValue=''}" FontSize="12" />
+              </Grid>
+            </StackPanel>
+          </Button>
+
+          <!-- The computer this iPad drives. Tap for what it can do right now, or to change it. -->
+          <Button Grid.Row="4" Classes="floor" Command="{Binding OpenConnectCommand}" AutomationProperties.Name="Your computer">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <Panel Width="38" Height="38">
+                <Border CornerRadius="11" Background="{StaticResource RaisedBrush}">
+                  <PathIcon Data="{StaticResource IconComputer}" Width="18" Height="18" Foreground="{StaticResource PaperBrush}" />
+                </Border>
+                <Border Width="12" Height="12" CornerRadius="6" BorderBrush="{StaticResource SurfaceBrush}" BorderThickness="2"
+                        Background="{StaticResource OkBrush}" IsVisible="{Binding ServerOnline}"
+                        HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-3,-3" />
+                <Border Width="12" Height="12" CornerRadius="6" BorderBrush="{StaticResource SurfaceBrush}" BorderThickness="2"
+                        Background="{StaticResource DangerBrush}" IsVisible="{Binding !ServerOnline}"
+                        HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-3,-3" />
+              </Panel>
+              <StackPanel Grid.Column="1" Margin="12,0,6,0" VerticalAlignment="Center" Spacing="1">
+                <TextBlock Text="{Binding ComputerName}" FontWeight="SemiBold" FontSize="14" TextTrimming="CharacterEllipsis" />
+                <TextBlock Classes="hint" Text="{Binding ConnectionText}" FontSize="12" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+              </StackPanel>
+              <PathIcon Grid.Column="2" Data="{StaticResource IconChevronRight}" Width="18" Height="18" Foreground="{StaticResource MutedBrush}" />
+            </Grid>
+          </Button>
+        </Grid>
+      </Border>
+
+      <!-- The rail: the same, folded to icons for portrait and Split View. -->
+      <Border x:Name="SideRail" Classes="sidebar sidebar-rail" Width="84">
+        <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" Margin="8,20,8,16">
+          <s:BrandMark Width="30" Height="30" HorizontalAlignment="Center" Margin="0,0,0,26" />
+          <StackPanel Grid.Row="1" Spacing="6">
+            <Button Classes="side rail" Classes.on="{Binding IsLibrary}" Command="{Binding GoCommand}" CommandParameter="{x:Static vm:Page.Library}">
+              <StackPanel Spacing="5">
+                <PathIcon Data="{StaticResource IconLibrary}" HorizontalAlignment="Center" />
+                <TextBlock Text="Library" />
+              </StackPanel>
+            </Button>
+            <Border Height="1" Background="{StaticResource HairlineBrush}" Margin="14,6" />
+            <Button Classes="side rail" Classes.on="{Binding IsImage}" Command="{Binding GoCommand}" CommandParameter="{x:Static vm:Page.Image}">
+              <StackPanel Spacing="5">
+                <PathIcon Data="{StaticResource IconImage}" HorizontalAlignment="Center" />
+                <TextBlock Text="Picture" />
+              </StackPanel>
+            </Button>
+            <Button Classes="side rail" Classes.on="{Binding IsVideo}" Command="{Binding GoCommand}" CommandParameter="{x:Static vm:Page.Video}">
+              <StackPanel Spacing="5">
+                <PathIcon Data="{StaticResource IconVideo}" HorizontalAlignment="Center" />
+                <TextBlock Text="Video" />
+              </StackPanel>
+            </Button>
+            <Button Classes="side rail" Classes.on="{Binding IsStory}" Command="{Binding GoCommand}" CommandParameter="{x:Static vm:Page.Story}">
+              <StackPanel Spacing="5">
+                <PathIcon Data="{StaticResource IconStory}" HorizontalAlignment="Center" />
+                <TextBlock Text="Story" />
+              </StackPanel>
+            </Button>
+          </StackPanel>
+
+          <Button Grid.Row="3" Classes="floor" Height="56" Padding="0" Margin="0,0,0,8" IsVisible="{Binding IsMaking}"
+                  HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                  Command="{Binding ShowNowMakingCommand}" ToolTip.Tip="{Binding NowMaking.Status, FallbackValue=''}"
+                  AutomationProperties.Name="Now making">
+            <Grid RowDefinitions="Auto,Auto" Width="44">
+              <Border Classes="breathing" HorizontalAlignment="Center">
+                <PathIcon Data="{StaticResource IconSparkle}" Width="18" Height="18" Foreground="{StaticResource GlowBrush}" />
+              </Border>
+              <ProgressBar Grid.Row="1" Value="{Binding NowMaking.Progress, FallbackValue=0}" Minimum="0" Maximum="1"
+                           Height="3" MinHeight="3" MinWidth="0" Margin="0,8,0,0" CornerRadius="2"
+                           Foreground="{StaticResource GlowBrush}" Background="{StaticResource RaisedBrush}" />
+            </Grid>
+          </Button>
+
+          <Button Grid.Row="4" Classes="floor" Height="56" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                  Command="{Binding OpenConnectCommand}" ToolTip.Tip="{Binding ComputerName}" AutomationProperties.Name="Your computer">
+            <Panel Width="24" Height="24">
+              <PathIcon Data="{StaticResource IconComputer}" Width="20" Height="20" />
+              <Border Width="10" Height="10" CornerRadius="5" BorderBrush="{StaticResource SurfaceBrush}" BorderThickness="2"
+                      Background="{StaticResource OkBrush}" IsVisible="{Binding ServerOnline}"
+                      HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-4,-2" />
+              <Border Width="10" Height="10" CornerRadius="5" BorderBrush="{StaticResource SurfaceBrush}" BorderThickness="2"
+                      Background="{StaticResource DangerBrush}" IsVisible="{Binding !ServerOnline}"
+                      HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-4,-2" />
+            </Panel>
+          </Button>
+        </Grid>
+      </Border>
+
+      <!-- Pages. Each stays alive while hidden, so what was typed survives a trip to another page. -->
+      <Panel Grid.Column="1" x:Name="Pages">
+        <Panel IsVisible="{Binding IsLibrary}"><s:StudioLibraryView DataContext="{Binding Library}" /></Panel>
+        <Panel IsVisible="{Binding IsImage}"><s:StudioImageView DataContext="{Binding Image}" /></Panel>
+        <Panel IsVisible="{Binding IsVideo}"><s:StudioVideoView DataContext="{Binding Video}" /></Panel>
+        <Panel IsVisible="{Binding IsStory}"><s:StudioStoryView DataContext="{Binding Story}" /></Panel>
+      </Panel>
+    </Grid>
+
+    <!-- The viewer, over everything, sidebar included: a picture deserves the whole screen. -->
+    <s:StudioViewerView x:Name="Viewer" DataContext="{Binding Viewer}" IsVisible="{Binding IsOpen}" />
+
+    <!-- Connecting to a computer: the first thing an unpaired iPad sees. -->
+    <s:StudioConnectView x:Name="Welcome" IsVisible="{Binding IsConnectOpen}" />
+  </Grid>
+</UserControl>

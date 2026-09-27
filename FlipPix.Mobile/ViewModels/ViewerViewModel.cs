@@ -277,7 +277,7 @@ public sealed partial class ViewerViewModel : ObservableObject
         if (entry?.FileUrl == null) return;
         var load = _load;
         IsWorking = true;
-        WorkingText = entry.IsVideo ? "Saving the video to your phone" : "Saving the picture to your phone";
+        WorkingText = $"Saving the {(entry.IsVideo ? "video" : "picture")} to your {DeviceInfo.Noun}";
         Notice = null;
         try
         {
