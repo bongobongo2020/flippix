@@ -1,0 +1,101 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:FlipPix.Mobile.ViewModels"
+             xmlns:v="using:FlipPix.Mobile.Views"
+             xmlns:s="using:FlipPix.Mobile.Views.Studio"
+             x:Class="FlipPix.Mobile.Views.Studio.StudioConnectView"
+             x:DataType="vm:MainViewModel"
+             Background="{StaticResource DeepBrush}">
+  <Grid ColumnDefinitions="Auto,*">
+
+    <!-- The welcome: what this iPad is for, in a sentence, over a scatter of warm prints. -->
+    <Border x:Name="Hero" ClipToBounds="True">
+      <Border.Background>
+        <RadialGradientBrush Center="15%,10%" GradientOrigin="15%,10%" RadiusX="95%" RadiusY="95%">
+          <GradientStop Color="#40FF6B35" Offset="0" />
+          <GradientStop Color="#141B1D2A" Offset="0.55" />
+          <GradientStop Color="#0014151F" Offset="1" />
+        </RadialGradientBrush>
+      </Border.Background>
+      <Grid RowDefinitions="Auto,*,Auto" Margin="56,48,48,48">
+        <StackPanel Orientation="Horizontal" Spacing="12">
+          <s:BrandMark Width="36" Height="36" />
+          <TextBlock Text="FlipPix" FontSize="24" FontWeight="Bold" LetterSpacing="-0.6" VerticalAlignment="Center" />
+        </StackPanel>
+
+        <!-- The prints: a picture, a video frame and a story strip, loosely stacked. -->
+        <Canvas Grid.Row="1" Width="360" Height="300" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="6,24,0,24">
+          <Border Canvas.Left="150" Canvas.Top="14" Width="180" Height="230" CornerRadius="18"
+                  RenderTransform="rotate(9deg)" BorderBrush="#26FFFFFF" BorderThickness="1">
+            <Border.Background>
+              <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                <GradientStop Color="#FFC48A" Offset="0" />
+                <GradientStop Color="#C9658F" Offset="1" />
+              </LinearGradientBrush>
+            </Border.Background>
+          </Border>
+          <Border Canvas.Left="10" Canvas.Top="66" Width="250" Height="170" CornerRadius="18"
+                  RenderTransform="rotate(-6deg)" BorderBrush="#26FFFFFF" BorderThickness="1">
+            <Border.Background>
+              <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                <GradientStop Color="#3B4470" Offset="0" />
+                <GradientStop Color="#FF6B35" Offset="1" />
+              </LinearGradientBrush>
+            </Border.Background>
+            <Border Width="54" Height="54" CornerRadius="27" Background="#E61B1D2A" HorizontalAlignment="Center" VerticalAlignment="Center">
+              <Path Data="M0,0 L18,10.5 L0,21 Z" Fill="{StaticResource PaperBrush}" Margin="5,0,0,0"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+          </Border>
+          <StackPanel Canvas.Left="60" Canvas.Top="250" Orientation="Horizontal" Spacing="8" RenderTransform="rotate(-2deg)">
+            <Border Width="70" Height="46" CornerRadius="10" Background="#30344A" BorderBrush="{StaticResource BrandBrush}" BorderThickness="2" />
+            <Border Width="70" Height="46" CornerRadius="10" Background="#30344A" />
+            <Border Width="70" Height="46" CornerRadius="10" Background="#30344A" BorderBrush="{StaticResource GlowBrush}" BorderThickness="2" />
+          </StackPanel>
+        </Canvas>
+
+        <StackPanel Grid.Row="2" Spacing="16" MaxWidth="460" HorizontalAlignment="Left">
+          <TextBlock Text="Your studio, from the sofa." FontSize="40" FontWeight="Bold" LetterSpacing="-1.2" TextWrapping="Wrap" LineHeight="46" />
+          <TextBlock Classes="hint" FontSize="16" LineHeight="24"
+                     Text="This iPad sends the ideas. Your computer, with its ComfyUI and writing assistant, makes the pictures, videos and stories, and everything it makes shows up here." />
+          <StackPanel Spacing="12" Margin="0,10,0,0">
+            <Grid ColumnDefinitions="Auto,*">
+              <Border Width="28" Height="28" CornerRadius="14" Background="{StaticResource RaisedBrush}">
+                <TextBlock Text="1" FontSize="13" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <TextBlock Grid.Column="1" Text="On the computer, open FlipPix and click the phone button at the top." Margin="14,0,0,0"
+                         TextWrapping="Wrap" VerticalAlignment="Center" FontSize="14" />
+            </Grid>
+            <Grid ColumnDefinitions="Auto,*">
+              <Border Width="28" Height="28" CornerRadius="14" Background="{StaticResource RaisedBrush}">
+                <TextBlock Text="2" FontSize="13" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <TextBlock Grid.Column="1" Text="Turn on &quot;Let my phone connect&quot;. It works for an iPad too." Margin="14,0,0,0"
+                         TextWrapping="Wrap" VerticalAlignment="Center" FontSize="14" />
+            </Grid>
+            <Grid ColumnDefinitions="Auto,*">
+              <Border Width="28" Height="28" CornerRadius="14" Background="{StaticResource RaisedBrush}">
+                <TextBlock Text="3" FontSize="13" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <TextBlock Grid.Column="1" Text="Pick it here and type the 6-digit code it shows." Margin="14,0,0,0"
+                         TextWrapping="Wrap" VerticalAlignment="Center" FontSize="14" />
+            </Grid>
+          </StackPanel>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- The card: find, pair, and later check on the computer. The same steps as on a phone. -->
+    <Border Grid.Column="1" Background="{StaticResource BoothBrush}" CornerRadius="28" Margin="28"
+            BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" ClipToBounds="True">
+      <Grid RowDefinitions="Auto,*">
+        <Button Classes="round" HorizontalAlignment="Right" Margin="0,16,16,0"
+                IsVisible="{Binding CanCloseConnect}" Command="{Binding CloseConnectCommand}"
+                AutomationProperties.Name="Close" ToolTip.Tip="Close (Esc)">
+          <PathIcon Data="{StaticResource IconClose}" />
+        </Button>
+        <v:ConnectView Grid.Row="1" DataContext="{Binding Connect}" Margin="12,8,12,12" />
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

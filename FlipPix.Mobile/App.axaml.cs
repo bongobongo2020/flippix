@@ -19,14 +19,15 @@ public partial class App : Application
             activatable.Activated += (_, _) => FlipPix.Mobile.Services.AppServices.Jobs.Nudge();
         switch (ApplicationLifetime)
         {
-            case ISingleViewApplicationLifetime single: // Android
-                single.MainView = new MainView { DataContext = vm };
+            case ISingleViewApplicationLifetime single: // Android, iOS
+                single.MainView = new AppShell { DataContext = vm };
                 break;
-            case IClassicDesktopStyleApplicationLifetime desktop: // phone-sized window for iteration
+            case IClassicDesktopStyleApplicationLifetime desktop: // a phone- or iPad-sized window for iteration
+                var ipad = Environment.GetEnvironmentVariable("FLIPPIX_MOBILE_IPAD") == "1";
                 desktop.MainWindow = new Window
                 {
-                    Title = "FlipPix Mobile", Width = 412, Height = 900,
-                    Content = new MainView { DataContext = vm },
+                    Title = "FlipPix Mobile", Width = ipad ? 1180 : 412, Height = ipad ? 820 : 900,
+                    Content = new AppShell { DataContext = vm },
                 };
                 break;
         }

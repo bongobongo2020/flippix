@@ -1,0 +1,137 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:FlipPix.Mobile.ViewModels"
+             xmlns:c="using:FlipPix.Mobile.Controls"
+             x:Class="FlipPix.Mobile.Views.Studio.StudioLibraryView"
+             x:DataType="vm:LibraryViewModel">
+  <Grid RowDefinitions="Auto,Auto,*">
+
+    <!-- Title, what kind, and refresh on one line: the iPad has the width for it. -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Margin="36,30,32,0">
+      <StackPanel Spacing="2" VerticalAlignment="Bottom">
+        <TextBlock Classes="display" Text="Library" />
+        <TextBlock Classes="hint" FontSize="14" Text="{Binding CountText}" />
+      </StackPanel>
+      <Border Grid.Column="1" Classes="segmented" VerticalAlignment="Center">
+        <StackPanel Orientation="Horizontal">
+          <Button Classes.on="{Binding IsAll}" Command="{Binding PickKindCommand}" CommandParameter="">
+            <TextBlock Text="All" Foreground="{Binding $parent[Button].Foreground}" />
+          </Button>
+          <Button Classes.on="{Binding IsPictures}" Command="{Binding PickKindCommand}" CommandParameter="image">
+            <TextBlock Text="Pictures" Foreground="{Binding $parent[Button].Foreground}" />
+          </Button>
+          <Button Classes.on="{Binding IsVideos}" Command="{Binding PickKindCommand}" CommandParameter="video">
+            <TextBlock Text="Videos" Foreground="{Binding $parent[Button].Foreground}" />
+          </Button>
+        </StackPanel>
+      </Border>
+      <Button Grid.Column="2" Classes="round" Margin="12,0,0,0" VerticalAlignment="Center"
+              Command="{Binding RefreshCommand}" AutomationProperties.Name="Refresh" ToolTip.Tip="Refresh">
+        <PathIcon Data="{StaticResource IconRefresh}" />
+      </Button>
+    </Grid>
+
+    <!-- Which folder: every top-level folder of the output folder, most recently used first. -->
+    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" Margin="0,20,0,6">
+      <ItemsControl ItemsSource="{Binding Folders}" Margin="36,0">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="8" /></ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:FolderChip">
+            <!-- A TextBlock, not Content: a string Content treats "_" as an access key. -->
+            <Button Classes="chip" Classes.on="{Binding IsOn}"
+                    Command="{Binding $parent[ItemsControl].((vm:LibraryViewModel)DataContext).PickFolderCommand}"
+                    CommandParameter="{Binding}">
+              <TextBlock Text="{Binding Label}" FontSize="14" />
+            </Button>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+
+    <Panel Grid.Row="2">
+      <!-- The grid: as many columns as fit about 210 points each, a heading at each new day. Virtualised. -->
+      <ScrollViewer x:Name="Scroller" ScrollChanged="OnScrollChanged">
+        <ItemsControl ItemsSource="{Binding Rows}" Margin="30,0,30,28">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:LibraryRow">
+              <StackPanel>
+                <TextBlock Classes="day" Text="{Binding Header}" IsVisible="{Binding HasHeader}" Margin="6,22,0,10" />
+                <ItemsControl ItemsSource="{Binding Cells}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <UniformGrid Rows="1" Columns="{Binding $parent[UserControl].((vm:LibraryViewModel)DataContext).Columns}" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:LibraryItemVm">
+                      <Button Classes="tile" Margin="5"
+                              Command="{Binding $parent[UserControl].((vm:LibraryViewModel)DataContext).OpenCommand}"
+                              CommandParameter="{Binding}" AutomationProperties.Name="{Binding Dto.Name}"
+                              ToolTip.Tip="{Binding Dto.Name}">
+                        <c:AspectPanel Ratio="1">
+                          <Border Classes="frame">
+                            <Grid>
+                              <Image Source="{Binding Thumb}" Stretch="UniformToFill" />
+                              <Border IsVisible="{Binding IsVideo}" CornerRadius="12" Background="#B3101119" Padding="8,4,10,4"
+                                      HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                  <PathIcon Data="{StaticResource IconPlay}" Width="12" Height="12" />
+                                  <TextBlock Text="Video" FontSize="11" FontWeight="SemiBold" />
+                                </StackPanel>
+                              </Border>
+                            </Grid>
+                          </Border>
+                          <Border Classes="edge" />
+                        </c:AspectPanel>
+                      </Button>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+
+      <!-- States, over the empty grid. -->
+      <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="420" Spacing="14" IsVisible="{Binding IsScanning}">
+        <Border Classes="breathing" Width="72" Height="72" CornerRadius="36" Background="{StaticResource SurfaceBrush}" HorizontalAlignment="Center">
+          <PathIcon Data="{StaticResource IconLibrary}" Width="28" Height="28" Foreground="{StaticResource GlowBrush}" />
+        </Border>
+        <TextBlock Text="Looking through the output folder" FontSize="17" FontWeight="SemiBold" HorizontalAlignment="Center" />
+        <TextBlock Classes="hint" FontSize="14" TextAlignment="Center" Text="The first look at a big folder takes a few seconds." />
+      </StackPanel>
+
+      <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="420" Spacing="14"
+                  IsVisible="{Binding Problem, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <TextBlock Text="The library can't be shown" FontSize="17" FontWeight="SemiBold" HorizontalAlignment="Center" />
+        <TextBlock Classes="hint" FontSize="14" TextAlignment="Center" Text="{Binding Problem}" />
+        <Button Classes="quiet" Content="Try again" HorizontalAlignment="Center" Command="{Binding RefreshCommand}" />
+      </StackPanel>
+
+      <Border Classes="empty" IsVisible="{Binding ShowEmpty}">
+        <StackPanel Spacing="14">
+            <!-- The ghosts shrink, never spill, on a narrow pane. -->
+            <Viewbox StretchDirection="DownOnly" HorizontalAlignment="Center">
+            <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center" Margin="0,0,0,8">
+              <Border Classes="ghost" Width="54" Height="70" />
+              <Border Classes="ghost" Width="64" Height="64" VerticalAlignment="Center" />
+              <Border Classes="ghost" Width="84" Height="56" VerticalAlignment="Center" />
+            </StackPanel>
+            </Viewbox>
+            <TextBlock Text="Nothing here yet" FontSize="19" FontWeight="SemiBold" HorizontalAlignment="Center" />
+          <TextBlock Classes="hint" FontSize="14" LineHeight="21" TextAlignment="Center"
+                     Text="Everything FlipPix saves on your computer shows up here, newest first. Make a picture, a video or a story to start." />
+        </StackPanel>
+      </Border>
+
+      <ProgressBar IsIndeterminate="True" VerticalAlignment="Top" Height="2" MinHeight="2" Margin="36,0"
+                   Foreground="{StaticResource GlowBrush}" Background="Transparent" IsVisible="{Binding IsLoading}" />
+    </Panel>
+  </Grid>
+</UserControl>

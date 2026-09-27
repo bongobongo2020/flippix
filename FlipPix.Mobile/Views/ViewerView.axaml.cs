@@ -55,11 +55,19 @@ public partial class ViewerView : UserControl
         else vm.Previous();
     }
 
-    /// <summary>The system save sheet: the person picks where the copy goes (Downloads, Pictures, Drive).</summary>
     private async void OnSave(object? sender, RoutedEventArgs e)
     {
-        if (DataContext is not ViewerViewModel vm || vm.Current is not { } entry) return;
-        var storage = TopLevel.GetTopLevel(this)?.StorageProvider;
+        if (DataContext is ViewerViewModel vm) await SaveCurrentAsync(this, vm);
+    }
+
+    /// <summary>
+    /// The system save sheet: the person picks where the copy goes (Downloads, Pictures, Drive; Files on
+    /// an iPad). Shared with the studio viewer.
+    /// </summary>
+    internal static async Task SaveCurrentAsync(Control owner, ViewerViewModel vm)
+    {
+        if (vm.Current is not { } entry) return;
+        var storage = TopLevel.GetTopLevel(owner)?.StorageProvider;
         if (storage == null || !storage.CanSave) return;
         var file = await storage.SaveFilePickerAsync(new FilePickerSaveOptions
         {

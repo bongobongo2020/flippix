@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    iPad (and iPhone) head for FlipPix.Mobile. All UI and logic live in the shared project; the iPad
+    gets its studio layout from there too, chosen by width, so this holds only the platform glue: the
+    app delegate, the device name and an AVPlayer for videos.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0-ios</TargetFramework>
+    <SupportedOSPlatformVersion>15.0</SupportedOSPlatformVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationId>com.flippix.mobile</ApplicationId>
+    <ApplicationTitle>FlipPix</ApplicationTitle>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>0.1</ApplicationDisplayVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.iOS" Version="11.2.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FlipPix.Mobile\FlipPix.Mobile.csproj" />
+  </ItemGroup>
+</Project>

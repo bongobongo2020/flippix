@@ -80,7 +80,7 @@ public partial class ConnectViewModel : ObservableObject
     public void ShowUnpaired()
     {
         Step = ConnectStep.Find;
-        Notice = "The computer doesn't know this phone any more. Pair it again.";
+        Notice = $"The computer doesn't know this {DeviceInfo.Noun} any more. Pair it again.";
         _ = SearchAsync();
     }
 

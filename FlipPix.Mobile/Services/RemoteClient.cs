@@ -182,7 +182,7 @@ public sealed class RemoteClient
     private async Task<HttpResponseMessage> SendRawAsync(HttpMethod method, string relative, HttpContent? body,
         TimeSpan limit, CancellationToken ct)
     {
-        if (!IsConfigured) throw new RemoteException("This phone isn't connected to a computer yet.");
+        if (!IsConfigured) throw new RemoteException($"This {DeviceInfo.Noun} isn't connected to a computer yet.");
         using var cts = Limit(ct, limit);
         using var request = Request(method, relative, body);
         HttpResponseMessage resp;
@@ -215,7 +215,7 @@ public sealed class RemoteClient
     }
 
     private RemoteException Unreachable() =>
-        new($"Can't reach {_name}. Is FlipPix open there, with the phone remote on, and is this phone on the same Wi-Fi?");
+        new($"Can't reach {_name}. Is FlipPix open there, with the phone remote on, and is this {DeviceInfo.Noun} on the same Wi-Fi?");
 
     private static async Task<RemoteException> ErrorAsync(HttpResponseMessage resp, CancellationToken ct)
     {

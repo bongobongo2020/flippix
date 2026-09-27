@@ -12,7 +12,7 @@
         <StackPanel Spacing="10">
           <TextBlock Classes="title" Text="Connect to your computer" TextWrapping="Wrap" />
           <TextBlock Classes="hint" FontSize="14" LineHeight="21"
-                     Text="Open FlipPix on your computer, click the phone button at the top (Phone remote) and turn on &quot;Let my phone connect&quot;. Keep this phone on the same Wi-Fi." />
+                     Text="{Binding Source={x:Static svc:DeviceInfo.Noun}, StringFormat='Open FlipPix on your computer, click the phone button at the top (Phone remote) and turn on &quot;Let my phone connect&quot;. Keep this {0} on the same Wi-Fi.'}" />
         </StackPanel>
 
         <StackPanel Spacing="10">
@@ -158,7 +158,7 @@
         </StackPanel>
       </ScrollViewer>
       <Border Grid.Row="1" Padding="24,10,24,16">
-        <Button Classes="quiet" Content="Disconnect this phone" HorizontalAlignment="Stretch" Height="52" CornerRadius="26"
+        <Button Classes="quiet" Content="{Binding Source={x:Static svc:DeviceInfo.Noun}, StringFormat='Disconnect this {0}'}" HorizontalAlignment="Stretch" Height="52" CornerRadius="26"
                 Command="{Binding ForgetCommand}" />
       </Border>
     </Grid>
