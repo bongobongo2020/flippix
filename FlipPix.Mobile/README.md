@@ -39,9 +39,18 @@ dotnet build FlipPix.Mobile.iOS -c Debug -r iossimulator-arm64
 xcrun simctl install booted FlipPix.Mobile.iOS/bin/Debug/net9.0-ios/iossimulator-arm64/FlipPix.Mobile.iOS.app
 xcrun simctl launch booted com.flippix.mobile
 
-# A device needs a signing identity and provisioning profile (CodesignKey, CodesignProvision)
-dotnet build FlipPix.Mobile.iOS -c Release -r ios-arm64
+# A real iPad, plugged in: provisions, builds, signs, installs and launches
+FlipPix.Mobile.iOS/deploy-ipad.sh
 ```
+
+`deploy-ipad.sh` works with a free Apple ID (Personal Team) signed in to Xcode. .NET can't fetch a
+provisioning profile, so the script builds an empty Xcode app (via `xcodegen`) with the same bundle
+id and lets `xcodebuild -allowProvisioningUpdates` make the certificate, register the iPad and
+fetch the profile. A free team needs a bundle id of its own, so the device build is
+`com.zaheerahmed.flippix` (`BUNDLE_ID=` to change it), and its profile lasts 7 days: run the
+script again to renew. It passes `ValidateXcodeVersion=false`, since the pinned workload builds
+fine with Xcode 27. On the iPad: turn on Developer Mode, and trust the Apple ID under
+Settings > General > VPN & Device Management the first time.
 
 ## The iPad studio layout
 
