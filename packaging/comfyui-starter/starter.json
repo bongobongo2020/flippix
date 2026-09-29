@@ -1,0 +1,61 @@
+{
+  "_comment": "The FlipPix starter ComfyUI: exactly what the phone remote (FlipPix.Remote) submits, nothing more. build-starter.ps1 reads 'comfyui' and 'packs'; the FlipPix Models window (scripts/flippix-models.ps1) reads 'features' and 'models'. Regenerate the node and model lists with tools/starter_manifest.py whenever a phone recipe or its workflow changes.",
+  "version": "2026.09.28",
+  "bundle": {
+    "file": "flippix-starter-windows.7z",
+    "repo": "bongo2k22/flippix-comfyui",
+    "url": "https://huggingface.co/bongo2k22/flippix-comfyui/resolve/main/flippix-starter-windows.7z"
+  },
+  "comfyui": {
+    "tag": "v0.37.0",
+    "asset": "ComfyUI_windows_portable_nvidia.7z",
+    "url": "https://github.com/comfyanonymous/ComfyUI/releases/download/v0.37.0/ComfyUI_windows_portable_nvidia.7z"
+  },
+  "packs": [
+    { "dir": "ComfyUI-KJNodes",                    "url": "https://github.com/kijai/ComfyUI-KJNodes",                     "commit": "d3cfe21625e5170126ce06fbfcfe1d88108688c3", "pip": ["color-matcher", "mss", "matplotlib", "opencv-python-headless"], "for": "VAELoaderKJ, DiffusionModelLoaderKJ, ModelPreviewOverrideKJ" },
+    { "dir": "ComfyUI-VideoHelperSuite",           "url": "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite",      "commit": "4d907bee61e92c2e65af3bd6383a4e4d356126d1", "pip": ["imageio-ffmpeg", "opencv-python-headless"], "for": "VHS_VideoCombine" },
+    { "dir": "rgthree-comfy",                      "url": "https://github.com/rgthree/rgthree-comfy",                     "commit": "2c5342a8cb0eaecaabf61435a5f37dd594c510ba", "pip": [], "for": "Power Lora Loader (rgthree)" },
+    { "dir": "ComfyUI-Custom-Scripts",             "url": "https://github.com/pythongosssss/ComfyUI-Custom-Scripts",      "commit": "609f3afaa74b2f88ef9ce8d939626065e3247469", "pip": [], "for": "LoraLoader|pysssss" },
+    { "dir": "RES4LYF",                            "url": "https://github.com/ClownsharkBatwing/RES4LYF",                 "commit": "3d1d69da69ee47f7647d59e1bd0967e472fccc41", "pip": ["pywavelets", "matplotlib", "opencv-python-headless"], "for": "ClownsharKSampler_Beta" },
+    { "dir": "ComfyUI-Flux2-INT8",                 "url": "https://github.com/BobJohnson24/ComfyUI-Flux2-INT8",           "commit": "48a88b2fde88e986c6444fa1f51589b6089d04f3", "pip": [], "for": "OTUNetLoaderW8A8" },
+    { "dir": "Nvidia_RTX_Nodes_ComfyUI",           "url": "https://github.com/Comfy-Org/Nvidia_RTX_Nodes_ComfyUI",        "commit": "892515e3eb9a4920a131a502a047e47adca9eb0d", "pip": ["nvidia-vfx"], "pipIndex": "https://pypi.nvidia.com", "for": "RTXVideoSuperResolution" },
+    { "dir": "ComfyUI-AudioTools",                 "url": "https://github.com/Urabewe/ComfyUI-AudioTools",                "commit": "8763c3ec71d4d05278b53386cec57a06e1d99417", "pip": ["resampy", "soundfile", "librosa"], "for": "AudioEnhancementNode" },
+    { "dir": "ComfyUI-Spectrum-MiniMax-H3",        "url": "https://github.com/xmarre/ComfyUI-Spectrum-MiniMax-H3",        "commit": "5161f0457bc8c52535212d6783eee73f439e1537", "pip": [], "for": "SpectrumApplyMiniMaxH3" },
+    { "dir": "Comfyui_Minimax_h3_latent_Upscaler", "url": "https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler", "commit": "40316cf008b2fd8663263270669eb4da23f89d2c", "pip": [], "for": "MinimaxH3LatentUpscaler3D" },
+    { "dir": "Comfyui-PlagueKind-Nodes",           "url": "https://github.com/PlagueKind/Comfyui-PlagueKind-Nodes",       "commit": "d58d006a4ea32c25c06499f2ff104f0852a045a6", "pip": [], "for": "H3SLAAttention" }
+  ],
+  "mirror": {
+    "repo": "bongo2k22/flippix-models",
+    "_comment": "Files with no public copy that matches what the server runs: local conversions, a renamed upscaler, and three Civitai LoRAs. packaging/comfyui-starter/mirror-models.ps1 uploads them."
+  },
+  "features": [
+    { "key": "photo",  "name": "Photo",         "blurb": "Real camera look (Krea 2)" },
+    { "key": "dream",  "name": "Dream",         "blurb": "Rewrites a short idea into a rich scene (Qwen Image 2.1)" },
+    { "key": "detail", "name": "Detail",        "blurb": "Slow and careful: skin, fabric, texture (Z-Image)" },
+    { "key": "video",  "name": "Video & Story", "blurb": "Up to 15 s clips with sound from your pictures (MiniMax H3)" }
+  ],
+  "models": [
+    { "path": "diffusion_models/krea/krea2_raw_int8_convrot.safetensors", "size": 13492686496, "features": ["photo"], "url": "https://huggingface.co/Comfy-Org/Krea2/resolve/main/diffusion_models/krea2_raw_int8_convrot.safetensors", "sha256": "5585a4a38c4bcfb6fde2d480a4aa6edf7f665721ebde56d30662c35a45f5fa5c" },
+    { "path": "text_encoders/qwen3vl_4b_fp8_scaled.safetensors", "size": 5242467968, "features": ["photo"], "url": "https://huggingface.co/Comfy-Org/Krea2/resolve/main/text_encoders/qwen3vl_4b_fp8_scaled.safetensors", "sha256": "54bd5144df0bbc25dd6ccadfcb826b521445a1b06ae5a42570bdd2974ca87094" },
+    { "path": "vae/Wan2_1_VAE_bf16.safetensors", "size": 253806278, "features": ["photo"], "url": "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/Wan2_1_VAE_bf16.safetensors", "sha256": "1ab9a32cc2c740f6e39d80d367ce5dcc28db8c71b79b28670546b8973e9d75f9" },
+    { "path": "loras/krea2-system/krea2_turbo_lora_rank_64_bf16.safetensors", "size": 469423778, "features": ["photo"], "url": "https://huggingface.co/Comfy-Org/Krea2/resolve/main/loras/krea2_turbo_lora_rank_64_bf16.safetensors", "sha256": "db8c5bae0a415d448da9d842111d6e51f7d32e47143a3118eb267e5c4773de87" },
+    { "path": "loras/krea2-system/krea2filterbypass.safetensors", "size": 160, "features": ["photo"], "mirror": true },
+    { "path": "loras/krea2/Krea2-realism-V1.safetensors", "size": 1562410280, "features": ["photo"], "mirror": true },
+
+    { "path": "diffusion_models/qwen_image_2.1_int8_convrot.safetensors", "size": 7256783064, "features": ["dream"], "url": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/diffusion_models/qwen_image_2.1_int8_convrot.safetensors", "sha256": "cb74113cb03faecd79611b01fd7fd642f0aa60d6f0b95086abee214d75eaa57d" },
+    { "path": "text_encoders/qwen3vl_8b_fp8_scaled.safetensors", "size": 10588637512, "features": ["dream"], "url": "https://huggingface.co/Comfy-Org/Qwen3-VL/resolve/main/text_encoders/qwen3vl_8b_fp8_scaled.safetensors", "sha256": "4ba424cf62e51392e4d1a39933e803706f4e823c1065f36aaf149c6453f66bcd" },
+    { "path": "vae/qwen_image_2.1_vae_bf16.safetensors", "size": 675509688, "features": ["dream"], "url": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/vae/qwen_image_2.1_vae_bf16.safetensors", "sha256": "bb21f7473051e1ac368515dd3f2e15cd44d7a11748ee8823e1ddca3e4876b7c9" },
+
+    { "path": "diffusion_models/z_image_int8_convrot.safetensors", "size": 6299127240, "features": ["detail"], "mirror": true },
+    { "path": "text_encoders/qwen_3_4b_int8_convrot.safetensors", "size": 4512693241, "features": ["detail"], "mirror": true },
+    { "path": "vae/ae.safetensors", "size": 335304388, "features": ["detail"], "url": "https://huggingface.co/Comfy-Org/z_image/resolve/main/split_files/vae/ae.safetensors", "sha256": "afc8e28272cd15db3919bacdb6918ce9c1ed22e96cb12c4d5ed0fba823529e38" },
+    { "path": "loras/zimage/zib/skin texture style zib v2.1.safetensors", "size": 170128320, "features": ["detail"], "mirror": true },
+
+    { "path": "diffusion_models/h3-minimax/minimax_h3_ref2va_pruned_int8_convrot.safetensors", "size": 20970379616, "features": ["video"], "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors", "sha256": "9255f52b6677845ad238f20dfaafa94727053694127ab7f255c048f0f9365779" },
+    { "path": "text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors", "size": 15687142551, "features": ["video"], "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors", "sha256": "35a88d51044231fe332301d7a62aa81e3f2cba62febeb446e2c1e3e0ef76f2c6" },
+    { "path": "vae/minimax_h3_video_vae_fp16.safetensors", "size": 5207808496, "features": ["video"], "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_fp16.safetensors", "sha256": "7c1f131492e7eddacaac9069a61b81bdd39de5cc96561e677c5eab1cdce5e522" },
+    { "path": "vae/minimax_h3_audio_vae_fp32.safetensors", "size": 605254808, "features": ["video"], "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors", "sha256": "8e505d95dd1561d47abd43d4238fd40d9bb1ae9e147ed0a4cba778d76ae4db48" },
+    { "path": "latent_upscale_models/minimax_h3_latent_upscaler_3d_fp16.safetensors", "size": 690592992, "features": ["video"], "mirror": true },
+    { "path": "loras/H3/minimax_h3_fl2v_lightx2v_turbo_4step_v1.0_768p_resized_avg_rank_31_bf16.safetensors", "size": 440873704, "features": ["video"], "mirror": true }
+  ]
+}
