@@ -6,7 +6,9 @@
     A self-contained, click-through installer for brand-new users:
       * Welcome / info pages
       * Choose install folder, desktop / Start Menu shortcuts
-      * Optional: also install ComfyUI (chains to setup-comfyui-fresh.ps1)
+      * ComfyUI: the FlipPix starter engine (a prebuilt ComfyUI with only the node packs the phone
+        needs, packaging\comfyui-starter), the full installer (setup-comfyui-fresh.ps1), or none
+      * FlipPix Models (flippix-models.ps1): pick features, reuse models you have, download the rest
       * Classic segmented progress bar while it deploys FlipPix
       * Finish page that can launch FlipPix
 
@@ -41,12 +43,17 @@ $RepoRoot  = Split-Path -Parent $ScriptDir
 $IconPath  = Join-Path $RepoRoot 'flippix.ico'
 $PublishDir = Join-Path $RepoRoot 'publish'
 $ComfyBat  = Join-Path $RepoRoot 'Install-ComfyUI.bat'
+$ModelsPs1 = Join-Path $ScriptDir 'flippix-models.ps1'
+# starter.json sits beside this script in a release, and under packaging\ in the repo.
+$StarterJson = @((Join-Path $ScriptDir 'starter.json'), (Join-Path $RepoRoot 'packaging\comfyui-starter\starter.json')) |
+    Where-Object { Test-Path $_ } | Select-Object -First 1
 
 $script:step = 0
 $script:InstallDir   = Join-Path $env:LOCALAPPDATA 'Programs\FlipPix'
 $script:DesktopSC    = $true
 $script:StartMenuSC  = $true
-$script:InstallComfy = $false
+$script:ComfyMode    = 'none'     # starter | full | none
+$script:EngineDir    = Join-Path $env:USERPROFILE 'ComfyUI_FlipPix'
 $script:LaunchOnExit = $true
 $script:Installed    = $false
 
@@ -164,9 +171,13 @@ What gets installed:
 
 What FlipPix needs to actually generate:
   * A running ComfyUI server (default http://127.0.0.1:8188) with the FlipPix
-    custom nodes and model weights. If you don't have ComfyUI yet, tick the
-    "Also install ComfyUI" box on the next page and Setup will launch the
-    one-click ComfyUI installer for you.
+    custom nodes and model weights. If you don't have ComfyUI yet, choose
+    "Set up the FlipPix engine for me" on the next page: Setup installs a
+    ready-made ComfyUI (~2 GB) with everything the phone app needs, and FlipPix
+    starts it for you.
+  * Model weights. When Setup finishes, FlipPix Models lets you tick what your
+    phone should make (Photo, Dream, Detail, Video & Story), reuse models you
+    already have, and download only the rest. It stays in the Start Menu.
 
 Requirements:
   * Windows 10 or 11 (64-bit).
@@ -213,12 +224,42 @@ $chkStart.Location = New-Object Drawing.Point(18,156); $chkStart.Size = New-Obje
 
 $grpComfy = New-Object Windows.Forms.GroupBox
 $grpComfy.Text = 'ComfyUI (image/video engine)'
-$grpComfy.Location = New-Object Drawing.Point(18,188); $grpComfy.Size = New-Object Drawing.Size(461,100)
-$chkComfy = New-Object Windows.Forms.CheckBox
-$chkComfy.Text = 'Also install ComfyUI (launches the one-click ComfyUI installer)'
-$chkComfy.Location = New-Object Drawing.Point(12,22); $chkComfy.Size = New-Object Drawing.Size(440,20)
-$lblComfy = New-Label "Provisions a fresh, self-contained ComfyUI and all FlipPix custom nodes.`r`nLarge download (~2 GB + optional models). Runs in its own window after FlipPix`r`nis installed. Leave unticked if you already have ComfyUI set up." 30 44 425 48
-$grpComfy.Controls.AddRange(@($chkComfy, $lblComfy))
+$grpComfy.Location = New-Object Drawing.Point(18,180); $grpComfy.Size = New-Object Drawing.Size(461,124)
+$rbStarter = New-Object Windows.Forms.RadioButton
+$rbStarter.Text = 'Set up the FlipPix engine for me (ready-made ComfyUI, ~2 GB download)'
+$rbStarter.Location = New-Object Drawing.Point(12,18); $rbStarter.Size = New-Object Drawing.Size(440,20)
+$txtEngine = New-Object Windows.Forms.TextBox
+$txtEngine.Location = New-Object Drawing.Point(30,40); $txtEngine.Size = New-Object Drawing.Size(340,20)
+$txtEngine.Text = $script:EngineDir
+$btnEngine = New-Object Windows.Forms.Button
+$btnEngine.Text = 'Browse...'; $btnEngine.Location = New-Object Drawing.Point(376,39); $btnEngine.Size = New-Object Drawing.Size(75,23)
+$btnEngine.Add_Click({
+    $dlg = New-Object Windows.Forms.FolderBrowserDialog
+    $dlg.Description = 'Where should the FlipPix engine go? It needs ~6 GB, plus room for models.'
+    if ($dlg.ShowDialog() -eq 'OK') { $txtEngine.Text = (Join-Path $dlg.SelectedPath 'ComfyUI_FlipPix') }
+})
+$rbFull = New-Object Windows.Forms.RadioButton
+$rbFull.Text = 'Run the full ComfyUI installer (every FlipPix node, for the desktop tabs)'
+$rbFull.Location = New-Object Drawing.Point(12,70); $rbFull.Size = New-Object Drawing.Size(440,20)
+$rbNone = New-Object Windows.Forms.RadioButton
+$rbNone.Text = 'I already have ComfyUI'
+$rbNone.Location = New-Object Drawing.Point(12,94); $rbNone.Size = New-Object Drawing.Size(440,20)
+$rbStarter.Add_CheckedChanged({ $txtEngine.Enabled = $rbStarter.Checked; $btnEngine.Enabled = $rbStarter.Checked })
+$grpComfy.Controls.AddRange(@($rbStarter, $txtEngine, $btnEngine, $rbFull, $rbNone))
+
+# Offer the engine to anyone without a ComfyUI that FlipPix already knows about.
+$hasComfy = $false
+try {
+    $sf = Join-Path $env:APPDATA 'FlipPix\settings.json'
+    if (Test-Path $sf) {
+        $s0 = Get-Content $sf -Raw | ConvertFrom-Json
+        $hasComfy = ($s0.ComfyUIFolderPath -and (Test-Path $s0.ComfyUIFolderPath)) -or
+                    ($s0.BaseUrl -and $s0.BaseUrl -notmatch 'localhost|127\.0\.0\.1')
+    }
+} catch {}
+if (-not $StarterJson) { $rbStarter.Enabled = $false }
+if ($hasComfy -or -not $StarterJson) { $rbNone.Checked = $true } else { $rbStarter.Checked = $true }
+$txtEngine.Enabled = $rbStarter.Checked; $btnEngine.Enabled = $rbStarter.Checked
 
 $pgOpts.Controls.AddRange(@($txtDir, $btnBrowse, $chkDesktop, $chkStart, $grpComfy))
 
@@ -251,8 +292,12 @@ $dBody  = New-Label 'Setup has finished installing FlipPix on your computer.' 18
 $chkLaunch = New-Object Windows.Forms.CheckBox
 $chkLaunch.Text = 'Launch FlipPix now'; $chkLaunch.Checked = $true
 $chkLaunch.Location = New-Object Drawing.Point(180,120); $chkLaunch.Size = New-Object Drawing.Size(300,20)
+$chkModels = New-Object Windows.Forms.CheckBox
+$chkModels.Text = 'Choose models for your phone now'; $chkModels.Checked = $true
+$chkModels.Location = New-Object Drawing.Point(180,144); $chkModels.Size = New-Object Drawing.Size(300,20)
+$dModels = New-Label 'FlipPix Models stays in the Start Menu for later.' 198 166 290 30
 $dHint = New-Label 'Click Finish to exit Setup.' 180 270 300 30
-$pgDone.Controls.AddRange(@($dTitle, $dBody, $chkLaunch, $dHint))
+$pgDone.Controls.AddRange(@($dTitle, $dBody, $chkLaunch, $chkModels, $dModels, $dHint))
 
 $form.Controls.AddRange(@($pgWelcome, $pgInfo, $pgOpts, $pgRun, $pgDone))
 
@@ -334,16 +379,178 @@ function Get-FlipPixSource {
     return $PublishDir
 }
 
-function New-Shortcut($lnkPath, $target, $workdir, $icon) {
+function New-Shortcut($lnkPath, $target, $workdir, $icon, $arguments = '', $description = 'FlipPix - AI image & video studio') {
     $dir = Split-Path $lnkPath -Parent
     if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
     $ws = New-Object -ComObject WScript.Shell
     $sc = $ws.CreateShortcut($lnkPath)
     $sc.TargetPath = $target
+    if ($arguments) { $sc.Arguments = $arguments }
     $sc.WorkingDirectory = $workdir
     $sc.IconLocation = "$icon,0"
-    $sc.Description = 'FlipPix - AI image & video studio'
+    $sc.Description = $description
     $sc.Save()
+}
+
+# ---------------------------------------------------------------------------
+# the FlipPix starter engine (packaging\comfyui-starter)
+# ---------------------------------------------------------------------------
+
+# Runs one external tool while the wizard keeps painting; $progress is polled every 250 ms.
+function Wait-Tool($proc, [scriptblock]$progress) {
+    $null = $proc.Handle   # without this, ExitCode reads back empty once the process is gone
+    while (-not $proc.HasExited) {
+        & $progress
+        [Windows.Forms.Application]::DoEvents()
+        Start-Sleep -Milliseconds 250
+    }
+    $proc.WaitForExit()
+    return $proc.ExitCode
+}
+
+function Get-7zr {
+    foreach ($p in (Join-Path $ScriptDir '7zr.exe'), (Join-Path $RepoRoot '7zr.exe')) { if (Test-Path $p) { return $p } }
+    $dst = Join-Path $env:TEMP 'FlipPix\7zr.exe'
+    New-Item -ItemType Directory -Force -Path (Split-Path $dst -Parent) | Out-Null
+    if (-not (Test-Path $dst)) {
+        & curl.exe -L --fail --silent --show-error -o $dst 'https://www.7-zip.org/a/7zr.exe'
+        if ($LASTEXITCODE -ne 0) { throw 'Could not download 7zr.exe (the extractor for the engine).' }
+    }
+    return $dst
+}
+
+# The bundle beside Setup when it was shipped that way (offline installs), else downloaded, resuming.
+function Get-EngineBundle($starter) {
+    $name = $starter.bundle.file
+    foreach ($p in (Join-Path $RepoRoot $name), (Join-Path $ScriptDir $name), (Join-Path $RepoRoot "release\comfyui-starter\$name")) {
+        if (Test-Path $p) { Write-Log "Using the engine next to Setup: $p"; return $p }
+    }
+    $dir = Join-Path $env:TEMP 'FlipPix'
+    New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    $dst = Join-Path $dir $name
+    $total = [int64]0
+    try {
+        $head = & curl.exe -sIL $starter.bundle.url
+        $len = $head | Where-Object { $_ -match '^content-length:\s*(\d+)' } | Select-Object -Last 1
+        if ($len -match '(\d+)') { $total = [int64]$Matches[1] }
+    } catch {}
+    if (-not ((Test-Path $dst) -and $total -gt 0 -and (Get-Item $dst).Length -eq $total)) {
+        Write-Log "Downloading the engine: $($starter.bundle.url)"
+        $part = "$dst.part"
+        $cargs = @('-L', '--fail', '--silent', '--show-error', '--retry', '5', '--retry-delay', '5', '-C', '-', '-o', "`"$part`"", "`"$($starter.bundle.url)`"")
+        $p = Start-Process -FilePath 'curl.exe' -ArgumentList $cargs -PassThru -WindowStyle Hidden
+        $code = Wait-Tool $p {
+            $have = if (Test-Path $part) { (Get-Item $part).Length } else { 0 }
+            if ($total -gt 0) { Set-Status ('Downloading the FlipPix engine... {0:N0} of {1:N0} MB' -f ($have / 1MB), ($total / 1MB)) (50 + 30 * $have / $total) }
+            else { Set-Status ('Downloading the FlipPix engine... {0:N0} MB' -f ($have / 1MB)) $null }
+        }
+        if ($code -ne 0) { throw "The engine download stopped (curl exit $code). Run Setup again to resume it." }
+        Move-Item $part $dst -Force
+    }
+
+    Set-Status 'Checking the download...' 80
+    $expected = ((& curl.exe -sL --fail "$($starter.bundle.url).sha256") -join ' ') -split '\s+' | Select-Object -First 1
+    if ($expected -match '^[0-9a-fA-F]{64}$') {
+        $actual = (Get-FileHash $dst -Algorithm SHA256).Hash
+        if ($actual -ne $expected.ToUpper()) {
+            Remove-Item $dst -Force
+            throw 'The engine download was damaged (checksum mismatch) and has been removed. Run Setup again.'
+        }
+        Write-Log 'Download verified.'
+    } else {
+        Write-Log 'No checksum published for the engine; skipped verification.'
+    }
+    return $dst
+}
+
+function Install-Engine($engineDir) {
+    $starter = Get-Content $StarterJson -Raw | ConvertFrom-Json
+    $bundle = Get-EngineBundle $starter
+    $seven = Get-7zr
+
+    # Extract beside the target, then move into place: the archive's folder is ComfyUI_FlipPix, and a
+    # half-extracted engine must never look like an installed one.
+    $parent = Split-Path $engineDir -Parent
+    New-Item -ItemType Directory -Force -Path $parent | Out-Null
+    $tmp = Join-Path $parent '.flippix-engine-extract'
+    if (Test-Path $tmp) { Remove-Item -Recurse -Force $tmp }
+    $log = Join-Path $env:TEMP 'FlipPix\engine-extract.log'
+    New-Item -ItemType Directory -Force -Path (Split-Path $log -Parent) | Out-Null
+    $p = Start-Process -FilePath $seven -ArgumentList @('x', "`"$bundle`"", "`"-o$tmp`"", '-y', '-bsp1') `
+        -PassThru -WindowStyle Hidden -RedirectStandardOutput $log
+    $code = Wait-Tool $p {
+        $pct = 0
+        try {
+            $m = [regex]::Matches((Get-Content $log -Raw -ErrorAction SilentlyContinue), '(\d+)%')
+            if ($m.Count) { $pct = [int]$m[$m.Count - 1].Groups[1].Value }
+        } catch {}
+        Set-Status "Unpacking the FlipPix engine... $pct%" (82 + 14 * $pct / 100)
+    }
+    if ($code -ne 0) { throw "Unpacking the engine failed (7zr exit $code)." }
+    $new = Join-Path $tmp 'ComfyUI_FlipPix'
+
+    # Reinstalling over an earlier engine keeps its models, outputs and model-folder registrations.
+    if (Test-Path $engineDir) {
+        $old = "$engineDir.old-" + (Get-Date -Format 'yyyyMMdd-HHmmss')
+        Rename-Item $engineDir (Split-Path $old -Leaf)
+        foreach ($keep in 'ComfyUI\models', 'ComfyUI\output', 'ComfyUI\extra_model_paths.yaml') {
+            $from = Join-Path $old $keep
+            if (Test-Path $from) {
+                $to = Join-Path $new $keep
+                if (Test-Path $to) { Remove-Item -Recurse -Force $to }
+                Move-Item $from $to
+            }
+        }
+        Write-Log "The previous engine was moved to $old (its models were kept). Delete it when you're happy."
+    }
+    Move-Item $new $engineDir
+    Remove-Item -Recurse -Force $tmp
+    Write-Log "Engine installed: $engineDir"
+
+    Set-Status 'Pointing FlipPix at the engine...' 97
+    $dir = Join-Path $env:APPDATA 'FlipPix'
+    New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    $file = Join-Path $dir 'settings.json'
+    $settings = $null
+    if (Test-Path $file) { try { $settings = Get-Content $file -Raw | ConvertFrom-Json } catch {} }
+    if (-not $settings) { $settings = [PSCustomObject]@{} }
+    $comfy = Join-Path $engineDir 'ComfyUI'
+    # PascalCase, exactly as ComfyUISettings names them: System.Text.Json matches keys case-sensitively.
+    $set = [ordered]@{
+        ComfyUIFolderPath        = $comfy
+        OutputFolderPath         = (Join-Path $comfy 'output')
+        BaseUrl                  = 'http://127.0.0.1:8188'
+        AutoRestartComfyUI       = $true
+        ComfyUIRestartScriptPath = (Join-Path $engineDir 'run_flippix.bat')
+    }
+    foreach ($k in $set.Keys) { $settings | Add-Member -NotePropertyName $k -NotePropertyValue $set[$k] -Force }
+    $settings | ConvertTo-Json -Depth 32 | Set-Content -Path $file -Encoding UTF8
+
+    # The phone remote on from the first start, so the pairing code is waiting when FlipPix opens.
+    $rfile = Join-Path $dir 'remote.json'
+    $remote = $null
+    if (Test-Path $rfile) { try { $remote = Get-Content $rfile -Raw | ConvertFrom-Json } catch {} }
+    if (-not $remote) { $remote = [PSCustomObject]@{} }
+    $remote | Add-Member -NotePropertyName 'Enabled' -NotePropertyValue $true -Force
+    $remote | ConvertTo-Json -Depth 8 | Set-Content -Path $rfile -Encoding UTF8
+    Write-Log 'FlipPix will start the engine itself, with the phone remote switched on.'
+}
+
+# FlipPix Models, copied into the install so its Start Menu entry outlives the Setup folder.
+function Install-ModelsTool {
+    if (-not $StarterJson -or -not (Test-Path $ModelsPs1)) { return $null }
+    $dst = Join-Path $script:InstallDir 'setup'
+    New-Item -ItemType Directory -Force -Path $dst | Out-Null
+    Copy-Item $ModelsPs1 (Join-Path $dst 'flippix-models.ps1') -Force
+    Copy-Item $StarterJson (Join-Path $dst 'starter.json') -Force
+    if (Test-Path $IconPath) { Copy-Item $IconPath (Join-Path $dst 'flippix.ico') -Force }
+    return (Join-Path $dst 'flippix-models.ps1')
+}
+
+function Start-ModelsTool($ps1, $modelsDir) {
+    $a = "-NoProfile -STA -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$ps1`""
+    if ($modelsDir) { $a += " -ModelsDir `"$modelsDir`"" }
+    Start-Process -FilePath 'powershell.exe' -ArgumentList $a -WindowStyle Hidden
 }
 
 function Start-Install {
@@ -351,7 +558,10 @@ function Start-Install {
         $script:InstallDir   = $txtDir.Text.Trim()
         $script:DesktopSC    = $chkDesktop.Checked
         $script:StartMenuSC  = $chkStart.Checked
-        $script:InstallComfy = $chkComfy.Checked
+        $script:ComfyMode    = if ($rbStarter.Checked) { 'starter' } elseif ($rbFull.Checked) { 'full' } else { 'none' }
+        $script:EngineDir    = $txtEngine.Text.Trim()
+        # With the engine to fetch as well, copying FlipPix takes the first third of the bar.
+        $copySpan = if ($script:ComfyMode -eq 'starter') { 33 } else { 73 }
 
         Set-Status 'Locating FlipPix binaries...' 2
         $src = Get-FlipPixSource
@@ -370,22 +580,30 @@ function Start-Install {
             if (-not (Test-Path $dd)) { New-Item -ItemType Directory -Force -Path $dd | Out-Null }
             Copy-Item -LiteralPath $f.FullName -Destination $dest -Force
             $i++
-            $pct = 12 + [int](($i / $total) * 73)
+            $pct = 12 + [int](($i / $total) * $copySpan)
             if (($i % 10) -eq 0 -or $i -eq $total) { Set-Status ("Copying files... ({0}/{1})" -f $i, $total) $pct }
         }
         Write-Log "Copied $total files."
 
         $exe = Join-Path $script:InstallDir 'FlipPix.UI.exe'
+        $script:ModelsTool = Install-ModelsTool
         if ($script:DesktopSC) {
-            Set-Status 'Creating desktop shortcut...' 88
+            Set-Status 'Creating desktop shortcut...' 46
             New-Shortcut (Join-Path ([Environment]::GetFolderPath('Desktop')) 'FlipPix.lnk') $exe $script:InstallDir $exe
             Write-Log 'Desktop shortcut created.'
         }
         if ($script:StartMenuSC) {
-            Set-Status 'Creating Start Menu shortcut...' 92
+            Set-Status 'Creating Start Menu shortcut...' 48
             $sm = Join-Path ([Environment]::GetFolderPath('Programs')) 'FlipPix\FlipPix.lnk'
             New-Shortcut $sm $exe $script:InstallDir $exe
             Write-Log 'Start Menu shortcut created.'
+            if ($script:ModelsTool) {
+                $smM = Join-Path ([Environment]::GetFolderPath('Programs')) 'FlipPix\FlipPix Models.lnk'
+                New-Shortcut $smM 'powershell.exe' (Split-Path $script:ModelsTool -Parent) $exe `
+                    "-NoProfile -STA -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$($script:ModelsTool)`"" `
+                    'Choose, find and download the models FlipPix needs'
+                Write-Log 'FlipPix Models shortcut created.'
+            }
             $uninst = Join-Path $script:InstallDir 'Uninstall-FlipPix.exe'
             if (Test-Path $uninst) {
                 $smU = Join-Path ([Environment]::GetFolderPath('Programs')) 'FlipPix\Uninstall FlipPix.lnk'
@@ -394,7 +612,9 @@ function Start-Install {
             }
         }
 
-        if ($script:InstallComfy) {
+        if ($script:ComfyMode -eq 'starter') {
+            Install-Engine $script:EngineDir
+        } elseif ($script:ComfyMode -eq 'full') {
             Set-Status 'Launching the ComfyUI installer in a separate window...' 96
             if (Test-Path $ComfyBat) {
                 Start-Process -FilePath $ComfyBat -WorkingDirectory $RepoRoot
@@ -407,6 +627,9 @@ function Start-Install {
         Set-Status 'Done.' 100
         Write-Log 'FlipPix installation complete.'
         $script:Installed = $true
+        # The full installer asks about models itself; the other two hand over to FlipPix Models.
+        $offer = [bool]$script:ModelsTool -and $script:ComfyMode -ne 'full'
+        $chkModels.Visible = $offer; $dModels.Visible = $offer; $chkModels.Checked = $offer
         Start-Sleep -Milliseconds 400
         Show-Step 4
     } catch {
@@ -427,6 +650,11 @@ $btnNext.Add_Click({
         0 { Show-Step 1 }
         1 { Show-Step 2 }
         2 {
+            if ($rbStarter.Checked -and [string]::IsNullOrWhiteSpace($txtEngine.Text)) {
+                [Windows.Forms.MessageBox]::Show('Please choose where the FlipPix engine should go.', 'FlipPix Setup',
+                    [Windows.Forms.MessageBoxButtons]::OK, [Windows.Forms.MessageBoxIcon]::Warning) | Out-Null
+                return
+            }
             if ([string]::IsNullOrWhiteSpace($txtDir.Text)) {
                 [Windows.Forms.MessageBox]::Show('Please choose an install folder.', 'FlipPix Setup',
                     [Windows.Forms.MessageBoxButtons]::OK, [Windows.Forms.MessageBoxIcon]::Warning) | Out-Null
@@ -439,6 +667,10 @@ $btnNext.Add_Click({
             if ($chkLaunch.Checked -and $script:Installed) {
                 $exe = Join-Path $script:InstallDir 'FlipPix.UI.exe'
                 if (Test-Path $exe) { Start-Process -FilePath $exe -WorkingDirectory $script:InstallDir }
+            }
+            if ($chkModels.Visible -and $chkModels.Checked -and $script:ModelsTool) {
+                $md = if ($script:ComfyMode -eq 'starter') { Join-Path $script:EngineDir 'ComfyUI\models' } else { '' }
+                Start-ModelsTool $script:ModelsTool $md
             }
             $form.Close()
         }
