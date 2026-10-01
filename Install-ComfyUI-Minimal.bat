@@ -4,7 +4,7 @@ REM  FlipPix - minimal one-click ComfyUI installer
 REM
 REM  Just DOUBLE-CLICK this file. It provisions a stripped-down, self-contained
 REM  ComfyUI for the core creative subset (image generation + image editing) and
-REM  downloads only the models that subset needs (~21 GB instead of ~45 GB).
+REM  downloads only the models that subset needs (~49 GB instead of ~84 GB).
 REM
 REM  VRAM is auto-detected: on a ~16 GB GPU, FlipPix is set to the memory-optimized
 REM  "16gb" workflow tier so workflows fit instead of crashing. Force a tier by
@@ -39,7 +39,7 @@ echo   FlipPix - MINIMAL ComfyUI installer
 echo  ============================================
 echo.
 echo  Downloads ComfyUI (large, ~2 GB), the core custom nodes, and the core
-echo  creative subset models (~21 GB). VRAM tier is auto-detected. Grab a coffee.
+echo  creative subset models (~49 GB). VRAM tier is auto-detected. Grab a coffee.
 echo.
 
 REM -ExecutionPolicy Bypass: run the script without changing system policy.

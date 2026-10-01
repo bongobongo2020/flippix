@@ -5,7 +5,7 @@
 # Forward slashes in the path; blank lines and lines starting with '#' are ignored.
 #
 # Scope: the "core creative subset" only - image generation (Z-Image Turbo) and image editing
-# (Qwen-Image-Edit). ~21 GB total instead of the full ~45 GB. Video weights are intentionally
+# (Qwen-Image-Edit). ~49 GB total instead of the full ~84 GB. Video weights are intentionally
 # excluded from the minimal install.
 #
 # NOTE on the 16gb tier: the memory-optimized image workflows under workflow/16gb load these same
@@ -13,18 +13,17 @@
 # manifest. The tier only changes which workflow JSON the app loads, not the model files.
 
 # --- CLIP / text encoders ---
-clip/qwen_2.5_vl_7b_fp8_scaled.safetensors | ~4.2 GB | https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors
-clip/qwen_3_4b.safetensors | ~2.5 GB | https://huggingface.co/Comfy-Org/ZhipuAI_Z-Image-Turbo_models/resolve/main/qwen_3_4b.safetensors
-text_encoders/gemma_2_2b_it_elm_bf16.safetensors | ~5.2 GB | https://huggingface.co/Comfy-Org/PixelDiT/resolve/main/text_encoders/gemma_2_2b_it_elm_bf16.safetensors
+clip/qwen_2.5_vl_7b_fp8_scaled.safetensors | ~8.7 GB | https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors
+clip/qwen_3_4b.safetensors | ~7.5 GB | https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors
 
 # --- VAE ---
-vae/qwen_image_vae.safetensors | ~168 MB | https://huggingface.co/QuantStack/Qwen-Image-GGUF/resolve/main/VAE/Qwen_Image-VAE.safetensors
-vae/ae.safetensors | ~168 MB | https://huggingface.co/Comfy-Org/ZhipuAI_Z-Image-Turbo_models/resolve/main/ae.safetensors
+vae/qwen_image_vae.safetensors | ~242 MB | https://huggingface.co/QuantStack/Qwen-Image-GGUF/resolve/main/VAE/Qwen_Image-VAE.safetensors
+vae/ae.safetensors | ~320 MB | https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors
 
 # --- UNET / diffusion models ---
-unet/Qwen-Image-Edit-2509_fp8_e4m3fn.safetensors | ~3.8 GB | https://huggingface.co/Kijai/Qwen-Edit-2509_safetensors/resolve/main/Qwen-Image-Edit-2509_fp8_e4m3fn.safetensors
-unet/z_image_turbo_bf16.safetensors | ~5.8 GB | https://huggingface.co/Comfy-Org/ZhipuAI_Z-Image-Turbo_models/resolve/main/z_image_turbo_bf16.safetensors
+unet/Qwen-Image-Edit-2509_fp8_e4m3fn.safetensors | ~19.0 GB | https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI/resolve/main/split_files/diffusion_models/qwen_image_edit_2509_fp8_e4m3fn.safetensors
+unet/z_image_turbo_bf16.safetensors | ~11.5 GB | https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/diffusion_models/z_image_turbo_bf16.safetensors
 
 # --- LoRA ---
-loras/qwen/Qwen-Image-Lightning-8steps-V2.0.safetensors | ~383 MB | https://huggingface.co/lightx2v/Qwen-Image-Lightning/resolve/main/Qwen-Image-Lightning-8steps-V2.0.safetensors
-loras/qwen/mult-angles.safetensors | ~383 MB | https://huggingface.co/dx8152/Qwen-Edit-2509-Multiple-angles/resolve/main/%E9%95%9C%E5%A4%B4%E8%BD%AC%E6%8D%A2.safetensors
+loras/qwen/Qwen-Image-Lightning-8steps-V2.0.safetensors | ~1.6 GB | https://huggingface.co/lightx2v/Qwen-Image-Lightning/resolve/main/Qwen-Image-Lightning-8steps-V2.0.safetensors
+loras/qwen/mult-angles.safetensors | ~225 MB | https://huggingface.co/dx8152/Qwen-Edit-2509-Multiple-angles/resolve/main/%E9%95%9C%E5%A4%B4%E8%BD%AC%E6%8D%A2.safetensors

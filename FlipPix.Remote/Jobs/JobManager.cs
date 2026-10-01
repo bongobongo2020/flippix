@@ -168,7 +168,8 @@ public sealed class JobManager : IDisposable
         {
             case JobKinds.Image:
                 if (string.IsNullOrWhiteSpace(request.Prompt)) throw new ArgumentException("Describe the picture first.");
-                if (ImageLook.All.All(l => l.Key != request.Look)) throw new ArgumentException("Unknown look: " + request.Look);
+                if (_engine.Looks.All(l => l.Key != request.Look))
+                    throw new ArgumentException("This computer doesn't offer that look. Pick another one.");
                 request.Prompt = request.Prompt.Trim();
                 request.Count = Math.Clamp(request.Count, 1, 4);
                 job.Title = TitleOf(request.Prompt, 90);

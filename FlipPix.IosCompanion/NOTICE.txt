@@ -1,0 +1,12 @@
+FlipPix iOS Companion - third-party notices
+
+Krea 2 is licensed under the Krea 2 Community License Agreement. For more information, visit
+https://krea.ai/krea-2-licensing.
+
+MiniMax H3 is licensed under the MiniMax H3 Community License Agreement
+(https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/LICENSE). It is NOT licensed for use in the
+European Union, the United Kingdom, the Republic of Korea or the United States of America.
+
+The companion does not include any model weights. Setup downloads them from their publishers on
+your computer, and your use of each model is governed by its license. The full list, with links, is
+in THIRD_PARTY_LICENSES.md next to this file.

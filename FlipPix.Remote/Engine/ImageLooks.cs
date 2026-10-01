@@ -64,6 +64,14 @@ public sealed class ImageLook
             },
         };
         g.Remove("5");
+
+        // The authored graph stacks a "filter bypass" LoRA (26) between the turbo LoRA (29) and the
+        // sampler. Krea 2's license forbids circumventing its usage restrictions, so the phone's graph
+        // wires around it. The realism LoRA in the Power Lora seat has no license; it is switched off.
+        Workflows.Set(g, "27", "model", new JsonArray("29", 0));
+        Workflows.Set(g, "6", "clip", new JsonArray("29", 1));
+        g.Remove("26");
+        if (g["17"]?["inputs"]?["lora_1"] is JsonObject realism) realism["on"] = false;
         return g;
     }
 

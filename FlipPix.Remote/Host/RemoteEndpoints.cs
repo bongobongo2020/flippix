@@ -97,6 +97,8 @@ internal static class RemoteEndpoints
                 LibraryReachable = ComfyUISettings.IsReachableFolder(folder),
                 Queued = queued,
                 Running = running,
+                Looks = engine.Looks.Select(l => l.Key).ToList(),
+                Credits = engine.Options.Credits.ToList(),
             };
         });
 
@@ -105,6 +107,11 @@ internal static class RemoteEndpoints
         app.MapPost(root + "/uploads", async (HttpRequest request, CancellationToken ct) =>
         {
             var (id, width, height) = await engine.Uploads.SaveAsync(request.Body, ct);
+            if (await engine.ScreenUploadAsync(await engine.Uploads.BytesOf(id, ct), ct) is { } blocked)
+            {
+                engine.Uploads.Delete(id);
+                throw new ArgumentException(blocked);
+            }
             return new UploadResponse { Id = id, Width = width, Height = height, ThumbUrl = $"{root}/uploads/{id}/thumb" };
         });
 

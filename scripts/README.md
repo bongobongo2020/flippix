@@ -2,20 +2,68 @@
 
 ## Install FlipPix (one click)
 
-New to FlipPix? **Double-click `Install-FlipPix.bat`** in the repo root. It opens a retro
-Windows 98-style setup wizard that:
+New to FlipPix, or setting up a PC for the iPad app? **Double-click `Install-FlipPix.bat`** in
+the repo root. It opens a retro Windows 98-style setup wizard that leaves the PC ready to use:
 
-- lets you choose the install folder (defaults to `%LOCALAPPDATA%\Programs\FlipPix`, no admin needed),
-- creates desktop / Start Menu shortcuts,
-- can **also install ComfyUI** for you (ticking the box launches the ComfyUI installer below),
-- copies FlipPix and can launch it when done.
+1. **Options:** one install folder (defaults to `FlipPix` on the drive with the most free
+   space), an optional **Video models** box, start with Windows, and shortcuts.
+2. **System check:** NVIDIA GPU with 12 GB+ VRAM (RTX 4070 Ti or better), driver version, free
+   disk space for the chosen options, and internet access. Install stays disabled until the
+   blocking checks pass.
+3. **Install:** two segmented progress bars (overall + current file, with speed and time left).
+   It installs everything below, in order:
+   - the FlipPix app → `<folder>\App`
+   - ComfyUI, custom nodes and models (`setup-comfyui-fresh.ps1 -Wizard`) → `<folder>\ComfyUI`,
+     `<folder>\models`. Image only: ~49 GB of models (`-Minimal`). With video: ~84 GB, plus the
+     13 GB low-VRAM LTX GGUF on a GPU with 16 GB or less.
+   - the writing assistant (`setup-llm.ps1 -Wizard`): llama-server (llama.cpp CUDA 12.4) and
+     Qwen2.5-VL-7B-Instruct Q4_K_M + Q8_0 mmproj → `<folder>\LLM`, served on `127.0.0.1:8080`
+   - turns on the phone remote (`remote.json`), adds a private-network firewall rule (one UAC
+     prompt), and adds Startup shortcuts for FlipPix and the writing assistant
+   - self-test: the writing assistant answers a prompt and ComfyUI starts on the GPU
+4. **Finish:** test results and the three steps to pair the iPad.
+
+**Re-running is safe:** finished work is skipped and interrupted downloads resume from their
+`.part` files. So the fix for a dropped connection or a closed window is "run Setup again".
+Logs are in `%LOCALAPPDATA%\FlipPix\setup-logs`.
 
 FlipPix is published self-contained, so end users need **no .NET runtime**. If the repo already
 has a built `publish\` folder it's used directly; otherwise the wizard builds it with
 `dotnet publish` (that build step needs the .NET 8 SDK).
 
 The wizard is `scripts\flippix-installer.ps1` (WinForms, intentionally classic-themed). The `.bat`
-just launches it with the right execution policy in STA mode.
+just launches it with the right execution policy in STA mode. The child scripts report progress
+through `##FLIPPIX|...` stdout markers; `setup-common.ps1` describes them.
+
+`setup-llm.ps1` also runs on its own to add the writing assistant to an existing install:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\setup-llm.ps1 -InstallDir D:\FlipPix\LLM
+```
+
+---
+
+## FlipPix iOS Companion (just what the iPad needs)
+
+For a PC that only serves the FlipPix iPad / iPhone app, ship **`release\FlipPix-iOS-Companion-Setup.exe`**
+(built by `scripts\make-ios-companion.ps1`, which also cross-builds from macOS with PowerShell 7 and the
+.NET 8 SDK). The user double-clicks it; it unpacks the package under
+`%LocalAppData%\FlipPix\ios-companion-setup\` and runs the same wizard with `-Companion`. The same package
+is also in `release\ios-companion.zip` for anyone who prefers to unzip it and double-click
+`Install-iOS-Companion.bat`. The exe is unsigned, so Windows SmartScreen warns until it's code-signed.
+
+- **License page:** Krea 2 and MiniMax H3 terms, and the H3 territory limit. Next stays disabled until accepted.
+- **Installs:** the companion app (`FlipPix.IosCompanion.exe`), ComfyUI with only the 11 node packs in
+  `flippix-custom-nodes-ios.txt`, the ~60 GB in `flippix-models-ios.txt` (Krea 2 + MiniMax H3 + the content
+  filter), and the writing assistant. The missing-node scan reads only the two graphs the iPad runs.
+- **Configures:** `%AppData%\FlipPix\companion.json` (where things went), a firewall rule, and a Startup
+  shortcut that starts the companion in the tray.
+
+The companion keeps ComfyUI and llama-server running, shows the pairing code, offers the phone exactly
+two things (the Krea 2 "Photo" look and H3 video), and runs every picture, video and uploaded photo
+through an on-device NSFW classifier before the phone sees it. Its library lists only what it made. It
+won't turn the phone link on without the classifier, because both model licenses require filtering.
+See `THIRD_PARTY_LICENSES.md` for the terms that affect the App Store listing.
 
 ---
 
@@ -69,7 +117,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup-comfyui-fresh.ps1
 7. **Models:** asks for your *current* ComfyUI models folder. If it already exists, the new
    install is pointed at it (via `extra_model_paths.yaml`) and **nothing is downloaded**. Only
    if the folder doesn't exist does it offer to create it and download the FlipPix models
-   (~45 GB, listed in `flippix-models.txt`) there.
+   (~84 GB, listed in `flippix-models.txt`) there.
 
 ## Model options
 
@@ -87,7 +135,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup-comfyui-fresh.ps1
 ## Requirements
 
 - Windows 10/11
-- ~60 GB free disk space (models ~45 GB, ComfyUI + nodes ~5 GB, working space ~10 GB)
+- ~100 GB free disk space for everything (models ~84 GB, ComfyUI + nodes ~5 GB, working space ~10 GB); ~65 GB for the image-only (minimal) set
 - Stable internet connection
 - `git` (the installer offers to install it via `winget` if missing)
 

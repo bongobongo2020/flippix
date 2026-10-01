@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    FlipPix iOS Companion: the PC side of the FlipPix iPad / iPhone app, and nothing else. It hosts
+    the phone remote (FlipPix.Remote) narrowed to the two graphs the companion installs (Krea 2
+    pictures, MiniMax H3 video), screens every output with an on-device content classifier, and keeps
+    ComfyUI and the writing assistant (llama-server) running. Installed by Install-iOS-Companion.bat.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>FlipPix.IosCompanion</AssemblyName>
+    <RootNamespace>FlipPix.IosCompanion</RootNamespace>
+    <Product>FlipPix iOS Companion</Product>
+    <ApplicationIcon>..\flippix.ico</ApplicationIcon>
+    <!-- Lets the project build (not run) on a Mac or Linux dev box. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FlipPix.Core\FlipPix.Core.csproj" />
+    <ProjectReference Include="..\FlipPix.Remote\FlipPix.Remote.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\THIRD_PARTY_LICENSES.md" Link="THIRD_PARTY_LICENSES.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="NOTICE.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

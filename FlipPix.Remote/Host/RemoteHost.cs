@@ -45,14 +45,17 @@ public sealed partial class RemoteHost : ObservableObject, IAsyncDisposable
 
     /// <param name="settings">The desktop's live settings; read at the moment each job needs them.</param>
     /// <param name="dispatch">Runs an action on the desktop's UI thread.</param>
+    /// <param name="options">What this host exposes and screens; null for everything, unscreened (the desktop).</param>
     public RemoteHost(Func<ComfyUISettings> settings, IAppLogger? logger, Action<Action> dispatch,
-        string? configPath = null, string? dataDir = null)
+        string? configPath = null, string? dataDir = null, RemoteOptions? options = null)
     {
         _dispatch = dispatch;
         _configPath = configPath ?? RemoteConfig.DefaultPath;
         Engine = new RemoteEngine(settings, logger, dataDir ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FlipPix", "remote"));
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FlipPix", "remote"), options);
         Jobs = new JobManager(Engine);
+        if (Engine.Options.LibraryMadeOnly)
+            Engine.Library.Visible = entry => Jobs.MadeFor(entry.RelativePath) != null;
         Jobs.Changed += () => _dispatch(RefreshActivity);
         Name = Environment.MachineName;
     }
