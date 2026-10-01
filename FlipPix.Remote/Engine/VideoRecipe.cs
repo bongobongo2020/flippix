@@ -45,6 +45,7 @@ public static class VideoRecipe
     private const string NodeDetailSwitch = "4145:4220";
     private const string NodeRtxSwitch = "4145:139";
     private const string NodeAudioSwitch = "4145:143";
+    private const string NodeLatentSwitch = "4145:170"; // Ref2V's latent, or one with a driving audio mixed in
 
     /// <summary>ResolutionSelector's combo, widest to tallest. Anything else fails validation.</summary>
     private static readonly (string Option, double Ratio)[] Aspects =
@@ -111,9 +112,6 @@ public static class VideoRecipe
             Workflows.Set(g, sla, "block_size", "64"); // 128 rows = 1.6 s of audio per block: robotic speech
         }
         Workflows.Set(g, NodeSolAttn, "switch", false);
-        // The switch is off, so its "on" side (the Sol-Attn patch) never runs; pointing it at the "off"
-        // side drops those nodes in PruneTo, and with them a custom-node pack the phone doesn't need.
-        Inputs(g, NodeSolAttn)["on_true"] = Inputs(g, NodeSolAttn)["on_false"]?.DeepClone();
 
         Workflows.Set(g, NodeTurboLora, "model", new JsonArray(NodeSolAttn, 0));
         Workflows.Set(g, NodeSigmaShift, "model", new JsonArray(NodeTurboLora, 0));
@@ -132,8 +130,57 @@ public static class VideoRecipe
         Workflows.Set(g, NodeSink, "filename_prefix", filePrefix);
         Workflows.Set(g, NodeSink, "save_output", true);
 
+        // The phone never sends a driving audio, so the two ImpactIfNone probes behind 170 always
+        // answer false and it always takes Ref2V's own latent. Saying so here, and making the seconds
+        // a core int rather than Easy-Use's, lets the starter ComfyUI (packaging/comfyui-starter)
+        // ship without Impact Pack and Easy-Use, whose dependencies are most of their weight.
+        Workflows.Set(g, NodeLatentSwitch, "switch", false);
+        g[NodeSeconds] = new JsonObject
+        {
+            ["class_type"] = "PrimitiveInt",
+            ["inputs"] = new JsonObject { ["value"] = Math.Clamp(seconds, 1, MaxSeconds) },
+        };
+
+        FoldSwitches(g);
         PruneTo(g, NodeSink);
         return g;
+    }
+
+    /// <summary>
+    /// Wires past every If/Else switch whose switch is a constant, so the branch it would never take
+    /// is pruned with everything else unreachable. Output is unchanged (the switch is lazy); what
+    /// changes is that ComfyUI no longer needs the dead branch's node packs installed — SolAttn's
+    /// triton kernels and the RTX upscaler here.
+    /// </summary>
+    private static void FoldSwitches(JsonObject g)
+    {
+        var target = new Dictionary<string, JsonArray>();
+        foreach (var (id, node) in g)
+        {
+            if (node?["class_type"]?.GetValue<string>() != "ComfySwitchNode" || node["inputs"] is not JsonObject inputs) continue;
+            if (inputs["switch"] is not JsonValue sw || !sw.TryGetValue<bool>(out var on)) continue;
+            if (inputs[on ? "on_true" : "on_false"] is JsonArray { Count: 2 } chosen) target[id] = chosen;
+        }
+
+        // A switch may feed another; follow the chain to the first real node.
+        JsonArray Resolve(JsonArray link)
+        {
+            for (var hops = 0; hops < 64 && link[0]?.GetValue<string>() is { } src && target.TryGetValue(src, out var next); hops++)
+                link = next;
+            return link;
+        }
+
+        foreach (var (_, node) in g)
+        {
+            if (node?["inputs"] is not JsonObject inputs) continue;
+            foreach (var key in inputs.Select(kv => kv.Key).ToList())
+                if (inputs[key] is JsonArray { Count: 2 } link && link[0] is JsonValue v && v.TryGetValue<string>(out var src)
+                    && target.ContainsKey(src))
+                {
+                    var to = Resolve(link);
+                    inputs[key] = new JsonArray(to[0]!.GetValue<string>(), to[1]!.GetValue<int>());
+                }
+        }
     }
 
     /// <summary>

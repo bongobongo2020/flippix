@@ -72,10 +72,8 @@ only fetches it on demand, from the Missing Models window, when one of those wor
 | kijai/ComfyUI-KJNodes | GPL-3.0 |
 | PlagueKind/ComfyUI-PlagueKind-Nodes | MIT |
 | LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler | MIT |
-| PGCRT/CRT-Nodes | MIT |
+| xmarre/ComfyUI-Spectrum-MiniMax-H3 | GPL-3.0 |
 | Urabewe/ComfyUI-AudioTools | MIT |
-| yolain/ComfyUI-Easy-Use | GPL-3.0 |
-| ltdrdata/ComfyUI-Impact-Pack | GPL-3.0 |
 | Kosinkadink/ComfyUI-VideoHelperSuite | GPL-3.0 |
 
 These run inside ComfyUI on your computer; neither FlipPix nor the companion links against them.

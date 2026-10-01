@@ -53,7 +53,7 @@ is also in `release\ios-companion.zip` for anyone who prefers to unzip it and do
 `Install-iOS-Companion.bat`. The exe is unsigned, so Windows SmartScreen warns until it's code-signed.
 
 - **License page:** Krea 2 and MiniMax H3 terms, and the H3 territory limit. Next stays disabled until accepted.
-- **Installs:** the companion app (`FlipPix.IosCompanion.exe`), ComfyUI with only the 13 node packs in
+- **Installs:** the companion app (`FlipPix.IosCompanion.exe`), ComfyUI with only the 11 node packs in
   `flippix-custom-nodes-ios.txt`, the ~60 GB in `flippix-models-ios.txt` (Krea 2 + MiniMax H3 + the content
   filter), and the writing assistant. The missing-node scan reads only the two graphs the iPad runs.
 - **Configures:** `%AppData%\FlipPix\companion.json` (where things went), a firewall rule, and a Startup

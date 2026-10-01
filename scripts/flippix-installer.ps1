@@ -4,7 +4,10 @@
 
 .DESCRIPTION
     One click-through installer that leaves this PC ready for the FlipPix iPad / phone app:
-      * Options     - one install folder, optional video models, start with Windows, shortcuts
+      * Options     - one install folder, start with Windows, shortcuts, and (desktop) how to get
+                      ComfyUI: install it with every node and model (video optional), use the
+                      ready-made FlipPix engine (packaging\comfyui-starter) and pick models in
+                      FlipPix Models (flippix-models.ps1) afterwards, or use one already installed
       * System check - NVIDIA GPU with 12 GB+ VRAM, driver, free disk space, internet
       * Installing  - two classic segmented progress bars (overall + current item) while it:
             1. copies the FlipPix app
@@ -69,6 +72,13 @@ if ($Companion) {
 # comma-separated argument, because powershell -File can't pass an array.
 $CompanionWorkflows = 'image\krea\krea2RealismV1_krea2RealismV1WF.json,video\h3-minimax\h3-minimax-i2v.json'
 
+# The ready-made FlipPix engine and FlipPix Models (desktop only). starter.json sits beside this
+# script in a release, and under packaging\ in the repo.
+$ModelsPs1   = Join-Path $ScriptDir 'flippix-models.ps1'
+$StarterJson = @((Join-Path $ScriptDir 'starter.json'), (Join-Path $RepoRoot 'packaging\comfyui-starter\starter.json')) |
+    Where-Object { Test-Path $_ } | Select-Object -First 1
+$EngineBytes = [long](2.45GB)   # the starter bundle; unpacks to ~6 GB
+
 # Read-ModelManifest / ConvertTo-Bytes (the wizard sizes the model download from the manifests)
 . (Join-Path $ScriptDir 'setup-common.ps1')
 
@@ -128,8 +138,10 @@ function Get-DefaultRoot {
     return (Join-Path $env:LOCALAPPDATA 'Programs\FlipPix')
 }
 
-function Get-ModelFiles([string]$Root, [bool]$Video) {
-    # The model files this install should end up with: path, expected bytes.
+function Get-ModelFiles([string]$Root, [bool]$Video, [string]$Mode = 'full') {
+    # The model files this install should end up with: path, expected bytes. With the ready-made
+    # engine or an existing ComfyUI, models are chosen afterwards in FlipPix Models.
+    if (-not $Companion -and $Mode -ne 'full') { return @() }
     $list = if ($Companion) { 'flippix-models-ios.txt' } elseif ($Video) { 'flippix-models.txt' } else { 'flippix-models-min.txt' }
     $entries = @(Read-ModelManifest (Join-Path $ScriptDir $list))
     if ($Video -and $Tier16 -and -not $Companion) { $entries += @(Read-ModelManifest (Join-Path $ScriptDir 'flippix-models-16gb-video.txt')) }
@@ -318,6 +330,8 @@ Apache License 2.0: Qwen-Image, Qwen-Image-Edit 2509, Z-Image Turbo, Wan 2.1 / 2
 
 With video models on a GPU with 16 GB or less: the LTX-2.3 GGUF, under the LTX-2 Community License (companies with US`$10M or more yearly revenue need a paid license).
 
+The ready-made FlipPix engine (a ComfyUI with only the node packs the phone uses) and the models FlipPix Models offers come from their publishers or the FlipPix Hugging Face repositories; each keeps its own license (Krea 2 and MiniMax H3 included, see the full list).
+
 Not downloaded by Setup: the PixelDiT Gemma text encoder some image workflows ask for is for non-commercial use only (NVIDIA NSCLv1). FlipPix offers to fetch it the first time such a workflow needs it.
 
 ComfyUI (GPL-3.0), llama.cpp (MIT) and the ComfyUI custom nodes are downloaded from their own projects under their own licenses.
@@ -361,47 +375,80 @@ $btnBrowse.Add_Click({
 })
 
 $grpParts = New-Object Windows.Forms.GroupBox
-$grpParts.Text = 'Components'
-$grpParts.Location = New-Object Drawing.Point(18,118); $grpParts.Size = New-Object Drawing.Size(461,104)
+$grpParts.Location = New-Object Drawing.Point(18,114); $grpParts.Size = New-Object Drawing.Size(461,112)
 $chkCore = New-Object Windows.Forms.CheckBox
-$chkCore.Text = 'FlipPix, ComfyUI with image models, and the writing assistant'
 $chkCore.Checked = $true; $chkCore.Enabled = $false
 $chkCore.Location = New-Object Drawing.Point(12,20); $chkCore.Size = New-Object Drawing.Size(440,20)
+$rbFull = New-Object Windows.Forms.RadioButton
+$rbFull.Text = 'Install ComfyUI with every FlipPix node and model, ready to use'
+$rbFull.Location = New-Object Drawing.Point(12,18); $rbFull.Size = New-Object Drawing.Size(440,20)
 $chkVideo = New-Object Windows.Forms.CheckBox
-$chkVideo.Location = New-Object Drawing.Point(12,42); $chkVideo.Size = New-Object Drawing.Size(440,20)
+$chkVideo.Location = New-Object Drawing.Point(30,38); $chkVideo.Size = New-Object Drawing.Size(422,20)
+$rbStarter = New-Object Windows.Forms.RadioButton
+$rbStarter.Text = 'Use the ready-made FlipPix engine (~2 GB), then choose models'
+$rbStarter.Location = New-Object Drawing.Point(12,60); $rbStarter.Size = New-Object Drawing.Size(440,20)
+$rbNone = New-Object Windows.Forms.RadioButton
+$rbNone.Text = 'I already have ComfyUI'
+$rbNone.Location = New-Object Drawing.Point(12,82); $rbNone.Size = New-Object Drawing.Size(440,20)
 if ($Companion) {
     # The companion installs exactly what the iPad's two graphs need; there is nothing to choose.
+    $grpParts.Text = 'Components'
     $chkCore.Text = 'FlipPix iOS Companion, ComfyUI with Krea 2 and MiniMax H3, writing assistant'
-    $chkVideo.Visible = $false
+    $grpParts.Controls.Add($chkCore)
+    $rbFull.Checked = $true
+} else {
+    $grpParts.Text = 'ComfyUI (the picture and video engine)'
+    $grpParts.Controls.AddRange(@($rbFull, $chkVideo, $rbStarter, $rbNone))
+    # Someone FlipPix already knows a ComfyUI for keeps it; everyone else gets the complete install.
+    $hasComfy = $false
+    try {
+        $sf = Join-Path $env:APPDATA 'FlipPix\settings.json'
+        if (Test-Path $sf) {
+            $s0 = Get-Content $sf -Raw | ConvertFrom-Json
+            $hasComfy = ($s0.ComfyUIFolderPath -and (Test-Path $s0.ComfyUIFolderPath)) -or
+                        ($s0.BaseUrl -and $s0.BaseUrl -notmatch 'localhost|127\.0\.0\.1')
+        }
+    } catch {}
+    if (-not $StarterJson) { $rbStarter.Enabled = $false }
+    if ($hasComfy) { $rbNone.Checked = $true } else { $rbFull.Checked = $true }
 }
-$lblSize = New-Label '' 30 70 420 28
-$grpParts.Controls.AddRange(@($chkCore, $chkVideo, $lblSize))
+$lblSize = New-Label '' 18 232 461 16
 
 $chkStartup = New-Object Windows.Forms.CheckBox
 $chkStartup.Text = "Start $Product when Windows starts, so the iPad can always connect"
 $chkStartup.Checked = $true
-$chkStartup.Location = New-Object Drawing.Point(18,232); $chkStartup.Size = New-Object Drawing.Size(460,20)
+$chkStartup.Location = New-Object Drawing.Point(18,252); $chkStartup.Size = New-Object Drawing.Size(460,20)
 $chkDesktop = New-Object Windows.Forms.CheckBox
 $chkDesktop.Text = 'Desktop shortcut'; $chkDesktop.Checked = $true
-$chkDesktop.Location = New-Object Drawing.Point(18,256); $chkDesktop.Size = New-Object Drawing.Size(200,20)
+$chkDesktop.Location = New-Object Drawing.Point(18,274); $chkDesktop.Size = New-Object Drawing.Size(200,20)
 $chkStart = New-Object Windows.Forms.CheckBox
 $chkStart.Text = 'Start Menu shortcut'; $chkStart.Checked = $true
-$chkStart.Location = New-Object Drawing.Point(230,256); $chkStart.Size = New-Object Drawing.Size(200,20)
+$chkStart.Location = New-Object Drawing.Point(230,274); $chkStart.Size = New-Object Drawing.Size(200,20)
 
-$pgOpts.Controls.AddRange(@($txtDir, $btnBrowse, $grpParts, $chkStartup, $chkDesktop, $chkStart))
+$pgOpts.Controls.AddRange(@($txtDir, $btnBrowse, $grpParts, $lblSize, $chkStartup, $chkDesktop, $chkStart))
+
+function Get-ComfyMode {
+    if ($Companion -or $rbFull.Checked) { return 'full' }
+    if ($rbStarter.Checked) { return 'starter' }
+    return 'none'
+}
 
 function Get-Plan {
     # Sizes for the current choices; also used by the disk check.
     $root  = $txtDir.Text.Trim()
-    $video = $chkVideo.Checked
-    $models = Get-ModelFiles $root $video
+    $mode  = Get-ComfyMode
+    $video = $chkVideo.Checked -and $mode -eq 'full'
+    $models = Get-ModelFiles $root $video $mode
     $mp = Get-FilesProgress $models
     $llmHave = (Get-FilesProgress @(
         @{ Path = [IO.Path]::Combine($root, 'LLM\models\Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf'); Bytes = 4683072032 },
         @{ Path = [IO.Path]::Combine($root, 'LLM\models\mmproj-Qwen2.5-VL-7B-Instruct-Q8_0.gguf'); Bytes = 853119712 })).Have
-    $download = $BaseDownloadBytes + $LlmServerBytes + $LlmModelBytes + $mp.Total
-    $stillNeed = $BaseDiskBytes + ($LlmModelBytes - $llmHave) + ($mp.Total - $mp.Have)
-    return @{ Root = $root; Video = $video; Models = $models; ModelBytes = $mp.Total
+    # What ComfyUI itself costs: built here (full), the ready-made engine, or nothing (already have it).
+    $comfyDownload = switch ($mode) { 'full' { $BaseDownloadBytes } 'starter' { $EngineBytes } default { 0 } }
+    $comfyDisk     = switch ($mode) { 'full' { $BaseDiskBytes } 'starter' { [long](10GB) } default { [long](2GB) } }
+    $download = $comfyDownload + $LlmServerBytes + $LlmModelBytes + $mp.Total
+    $stillNeed = $comfyDisk + ($LlmModelBytes - $llmHave) + ($mp.Total - $mp.Have)
+    return @{ Root = $root; Mode = $mode; Video = $video; Models = $models; ModelBytes = $mp.Total
               Download = $download; DiskNeeded = [long]($stillNeed * 1.1) }
 }
 
@@ -413,10 +460,14 @@ function Update-SizeLabel {
     try {
         if ([string]::IsNullOrWhiteSpace($txtDir.Text)) { $lblSize.Text = ''; return }
         $p = Get-Plan
-        $lblSize.Text = "Download: about $(Format-Size $p.Download).   Disk space needed: about $(Format-Size $p.DiskNeeded)."
+        $later = if ($p.Mode -ne 'full') { ' (plus the models you pick)' } else { '' }
+        $lblSize.Text = "Download: about $(Format-Size $p.Download)$later.   Disk space needed: about $(Format-Size $p.DiskNeeded)."
     } catch { $lblSize.Text = '' }
 }
 $chkVideo.Add_CheckedChanged({ Update-SizeLabel })
+foreach ($rb in $rbFull, $rbStarter, $rbNone) {
+    $rb.Add_CheckedChanged({ $chkVideo.Enabled = $rbFull.Checked; Update-SizeLabel })
+}
 $txtDir.Add_TextChanged({ Update-SizeLabel })
 
 # ===========================================================================
@@ -527,7 +578,12 @@ $chkLaunch = New-Object Windows.Forms.CheckBox
 $chkLaunch.Text = "Start $Product now"; $chkLaunch.Checked = $true
 $chkLaunch.Location = New-Object Drawing.Point(180,252); $chkLaunch.Size = New-Object Drawing.Size(300,20)
 $dHint = New-Label 'Click Finish to exit Setup.' 180 282 300 20
-$pgDone.Controls.AddRange(@($dTitle, $dIpad, $chkLaunch, $dHint))
+# The ready-made engine and an existing ComfyUI hand over to FlipPix Models (it stays in the Start Menu).
+$chkModels = New-Object Windows.Forms.CheckBox
+$chkModels.Text = 'Choose models for your iPad now (FlipPix Models)'
+$chkModels.Location = New-Object Drawing.Point(180,274); $chkModels.Size = New-Object Drawing.Size(300,20)
+$chkModels.Visible = $false
+$pgDone.Controls.AddRange(@($dTitle, $dIpad, $chkLaunch, $dHint, $chkModels))
 
 $form.Controls.AddRange(@($pgWelcome, $pgLicense, $pgOpts, $pgCheck, $pgRun, $pgDone))
 
@@ -594,22 +650,29 @@ function New-Phase($key, $title, [double]$weight, $creep = 0) {
 }
 
 function Initialize-Phases($plan) {
+    $comfy = switch ($plan.Mode) {
+        'full' { @(
+            (New-Phase 'prereqs'        'Preparing (git, 7-Zip, Visual C++)'        0.3GB 60)
+            (New-Phase 'comfy-download' 'Downloading ComfyUI'                       2GB)
+            (New-Phase 'extract'        'Unpacking ComfyUI'                         1GB 120)
+            (New-Phase 'nodes'          'Installing ComfyUI custom nodes'           3GB)
+            (New-Phase 'scan'           'Checking workflows for missing nodes'      1GB)
+            (New-Phase 'models'         'Downloading models'                        ([double]$plan.ModelBytes))
+            (New-Phase 'link'           'Connecting FlipPix to ComfyUI'             0.05GB 5)) }
+        'starter' { @(
+            (New-Phase 'engine-download' 'Downloading the FlipPix engine'           ([double]$EngineBytes))
+            (New-Phase 'engine-extract'  'Unpacking the FlipPix engine'             1GB 180)) }
+        default { @() }
+    }
     $script:Phases = @(
-        (New-Phase 'app'            "Installing $Product"                       0.3GB)
-        (New-Phase 'prereqs'        'Preparing (git, 7-Zip, Visual C++)'        0.3GB 60)
-        (New-Phase 'comfy-download' 'Downloading ComfyUI'                       2GB)
-        (New-Phase 'extract'        'Unpacking ComfyUI'                         1GB 120)
-        (New-Phase 'nodes'          'Installing ComfyUI custom nodes'           3GB)
-        (New-Phase 'scan'           'Checking workflows for missing nodes'      1GB)
-        (New-Phase 'models'         'Downloading models'                        ([double]$plan.ModelBytes))
-        (New-Phase 'link'           'Connecting FlipPix to ComfyUI'             0.05GB 5)
+        (New-Phase 'app'            "Installing $Product"                       0.3GB)) + $comfy + @(
         (New-Phase 'llm-server'     'Installing the writing assistant'          ([double]$LlmServerBytes))
         (New-Phase 'llm-model'      'Downloading Qwen2.5-VL 7B'                 ([double]$LlmModelBytes))
         (New-Phase 'llm-config'     'Setting up the writing assistant'          0.05GB 5)
         (New-Phase 'configure'      'Setting up iPad access and start-up'       0.1GB)
         (New-Phase 'selftest'       'Testing everything'                        1GB 300)
     )
-    ($script:Phases | Where-Object { $_.Key -eq 'models' }).Files = $plan.Models
+    if ($plan.Mode -eq 'full') { ($script:Phases | Where-Object { $_.Key -eq 'models' }).Files = $plan.Models }
     $script:TotalWeight = ($script:Phases | ForEach-Object { $_.Weight } | Measure-Object -Sum).Sum
     $script:PhaseIdx = -1
 }
@@ -859,6 +922,170 @@ function Install-App($appDir) {
     }
 }
 
+# ---------------------------------------------------------------------------
+# the ready-made FlipPix engine (packaging\comfyui-starter) and FlipPix Models
+# ---------------------------------------------------------------------------
+
+# Runs one external tool while the wizard keeps painting; $progress is polled every 250 ms. Cancel
+# stops the tool too.
+function Wait-Tool($proc, [scriptblock]$progress) {
+    $null = $proc.Handle   # without this, ExitCode reads back empty once the process is gone
+    $script:Child = $proc
+    while (-not $proc.HasExited) {
+        & $progress
+        [Windows.Forms.Application]::DoEvents()
+        Start-Sleep -Milliseconds 250
+    }
+    $proc.WaitForExit()
+    $script:Child = $null
+    if ($script:Cancelled) { throw 'cancelled' }
+    return $proc.ExitCode
+}
+
+function Get-7zr {
+    foreach ($p in (Join-Path $ScriptDir '7zr.exe'), (Join-Path $RepoRoot '7zr.exe')) { if (Test-Path $p) { return $p } }
+    $dst = Join-Path $env:TEMP 'FlipPix\7zr.exe'
+    New-Item -ItemType Directory -Force -Path (Split-Path $dst -Parent) | Out-Null
+    if (-not (Test-Path $dst)) {
+        & curl.exe -L --fail --silent --show-error -o $dst 'https://www.7-zip.org/a/7zr.exe'
+        if ($LASTEXITCODE -ne 0) { throw 'Could not download 7zr.exe (the extractor for the engine).' }
+    }
+    return $dst
+}
+
+# The bundle beside Setup when it was shipped that way (offline installs), else downloaded, resuming.
+function Get-EngineBundle($starter) {
+    Enter-Phase 'engine-download'
+    $name = $starter.bundle.file
+    foreach ($p in (Join-Path $RepoRoot $name), (Join-Path $ScriptDir $name), (Join-Path $RepoRoot "release\comfyui-starter\$name")) {
+        if (Test-Path $p) { Write-Log "Using the engine next to Setup: $p"; return $p }
+    }
+    $dir = Join-Path $env:TEMP 'FlipPix'
+    New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    $dst = Join-Path $dir $name
+    $total = [int64]0
+    try {
+        $head = & curl.exe -sIL $starter.bundle.url
+        $len = $head | Where-Object { $_ -match '^content-length:\s*(\d+)' } | Select-Object -Last 1
+        if ($len -match '(\d+)') { $total = [int64]$Matches[1] }
+    } catch {}
+    if (-not ((Test-Path $dst) -and $total -gt 0 -and (Get-Item $dst).Length -eq $total)) {
+        Write-Log "Downloading the engine: $($starter.bundle.url)"
+        $part = "$dst.part"
+        $script:Dl = @{ Part = $part; Bytes = $(if ($total -gt 0) { $total } else { $EngineBytes }); Label = 'FlipPix engine'
+                        LastSize = [long]0; LastTime = (Get-Date); Speed = 0.0 }
+        $cargs = @('-L', '--fail', '--silent', '--show-error', '--retry', '5', '--retry-delay', '5', '-C', '-', '-o', "`"$part`"", "`"$($starter.bundle.url)`"")
+        $p = Start-Process -FilePath 'curl.exe' -ArgumentList $cargs -PassThru -WindowStyle Hidden
+        $code = Wait-Tool $p { Update-Progress }
+        $script:Dl = $null
+        if ($code -ne 0) { throw "The engine download stopped (curl exit $code). Run Setup again to resume it." }
+        Move-Item $part $dst -Force
+    }
+
+    Set-Manual 0.99 'Checking the download...'
+    $expected = ((& curl.exe -sL --fail "$($starter.bundle.url).sha256") -join ' ') -split '\s+' | Select-Object -First 1
+    if ($expected -match '^[0-9a-fA-F]{64}$') {
+        $actual = (Get-FileHash $dst -Algorithm SHA256).Hash
+        if ($actual -ne $expected.ToUpper()) {
+            Remove-Item $dst -Force
+            throw 'The engine download was damaged (checksum mismatch) and has been removed. Run Setup again.'
+        }
+        Write-Log 'Download verified.'
+    } else {
+        Write-Log 'No checksum published for the engine; skipped verification.'
+    }
+    return $dst
+}
+
+function Install-Engine($engineDir) {
+    $starter = Get-Content $StarterJson -Raw | ConvertFrom-Json
+    $bundle = Get-EngineBundle $starter
+    $seven = Get-7zr
+
+    # Extract beside the target, then move into place: the archive's folder is ComfyUI_FlipPix, and a
+    # half-extracted engine must never look like an installed one.
+    Enter-Phase 'engine-extract'
+    $parent = Split-Path $engineDir -Parent
+    New-Item -ItemType Directory -Force -Path $parent | Out-Null
+    $tmp = Join-Path $parent '.flippix-engine-extract'
+    if (Test-Path $tmp) { Remove-Item -Recurse -Force $tmp }
+    $log = Join-Path $LogDir 'engine-extract.log'
+    $p = Start-Process -FilePath $seven -ArgumentList @('x', "`"$bundle`"", "`"-o$tmp`"", '-y', '-bsp1') `
+        -PassThru -WindowStyle Hidden -RedirectStandardOutput $log
+    $code = Wait-Tool $p {
+        $pct = 0
+        try {
+            $m = [regex]::Matches((Get-Content $log -Raw -ErrorAction SilentlyContinue), '(\d+)%')
+            if ($m.Count) { $pct = [int]$m[$m.Count - 1].Groups[1].Value }
+        } catch {}
+        Set-Manual ($pct / 100) "Unpacking the FlipPix engine... $pct%"
+    }
+    if ($code -ne 0) { throw "Unpacking the engine failed (7zr exit $code)." }
+    $new = Join-Path $tmp 'ComfyUI_FlipPix'
+
+    # Reinstalling over an earlier engine keeps its models, outputs and model-folder registrations.
+    if (Test-Path $engineDir) {
+        $old = "$engineDir.old-" + (Get-Date -Format 'yyyyMMdd-HHmmss')
+        Rename-Item $engineDir (Split-Path $old -Leaf)
+        foreach ($keep in 'ComfyUI\models', 'ComfyUI\output', 'ComfyUI\extra_model_paths.yaml') {
+            $from = Join-Path $old $keep
+            if (Test-Path $from) {
+                $to = Join-Path $new $keep
+                if (Test-Path $to) { Remove-Item -Recurse -Force $to }
+                Move-Item $from $to
+            }
+        }
+        Write-Log "The previous engine was moved to $old (its models were kept). Delete it when you're happy."
+    }
+    Move-Item $new $engineDir
+    Remove-Item -Recurse -Force $tmp
+    Write-Log "Engine installed: $engineDir"
+
+    Set-Manual 1.0 'Pointing FlipPix at the engine...'
+    $dir = Join-Path $env:APPDATA 'FlipPix'
+    New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    $file = Join-Path $dir 'settings.json'
+    $settings = $null
+    if (Test-Path $file) { try { $settings = Get-Content $file -Raw | ConvertFrom-Json } catch {} }
+    if (-not $settings) { $settings = [PSCustomObject]@{} }
+    $comfy = Join-Path $engineDir 'ComfyUI'
+    # PascalCase, exactly as ComfyUISettings names them: System.Text.Json matches keys case-sensitively.
+    $set = [ordered]@{
+        ComfyUIFolderPath        = $comfy
+        OutputFolderPath         = (Join-Path $comfy 'output')
+        BaseUrl                  = 'http://127.0.0.1:8188'
+        AutoRestartComfyUI       = $true
+        ComfyUIRestartScriptPath = (Join-Path $engineDir 'run_flippix.bat')
+    }
+    foreach ($k in $set.Keys) { $settings | Add-Member -NotePropertyName $k -NotePropertyValue $set[$k] -Force }
+    $settings | ConvertTo-Json -Depth 32 | Set-Content -Path $file -Encoding UTF8
+    Write-Log 'FlipPix will start the engine itself.'
+}
+
+# FlipPix Models, copied into the install so its Start Menu entry outlives the Setup folder.
+function Install-ModelsTool($appDir) {
+    if (-not $StarterJson -or -not (Test-Path $ModelsPs1)) { return $null }
+    $dst = Join-Path $appDir 'setup'
+    New-Item -ItemType Directory -Force -Path $dst | Out-Null
+    Copy-Item $ModelsPs1 (Join-Path $dst 'flippix-models.ps1') -Force
+    Copy-Item $StarterJson (Join-Path $dst 'starter.json') -Force
+    if (Test-Path $IconPath) { Copy-Item $IconPath (Join-Path $dst 'flippix.ico') -Force }
+    $tool = Join-Path $dst 'flippix-models.ps1'
+    if ($chkStart.Checked) {
+        $exe = Join-Path $appDir $AppExe
+        New-Shortcut (Join-Path ([Environment]::GetFolderPath('Programs')) 'FlipPix\FlipPix Models.lnk') 'powershell.exe' $dst $exe 1 `
+            "-NoProfile -STA -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$tool`""
+        Write-Log 'FlipPix Models shortcut created.'
+    }
+    return $tool
+}
+
+function Start-ModelsTool($ps1, $modelsDir) {
+    $a = "-NoProfile -STA -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$ps1`""
+    if ($modelsDir) { $a += " -ModelsDir `"$modelsDir`"" }
+    Start-Process -FilePath 'powershell.exe' -ArgumentList $a -WindowStyle Hidden
+}
+
 function Set-RemoteEnabled {
     # FlipPix.Remote's own settings file (RemoteConfig): turn the phone remote on, keep paired phones.
     $file = Join-Path $env:APPDATA 'FlipPix\remote.json'
@@ -939,7 +1166,7 @@ function Wait-Url($url, [int]$timeoutSec, $label) {
     return $null
 }
 
-function Invoke-SelfTest($root) {
+function Invoke-SelfTest($root, [bool]$StartComfy = $true) {
     Enter-Phase 'selftest'
     $script:TestRows = @()
 
@@ -969,7 +1196,7 @@ function Invoke-SelfTest($root) {
     $comfyDir = $null
     try { $comfyDir = (Get-Content $settingsFile -Raw | ConvertFrom-Json).ComfyUIFolderPath } catch {}
     try { Invoke-RestMethod -Uri 'http://127.0.0.1:8188/system_stats' -TimeoutSec 3 | Out-Null } catch {
-        if ($comfyDir -and (Test-Path $comfyDir)) {
+        if ($StartComfy -and $comfyDir -and (Test-Path $comfyDir)) {
             $portable = Split-Path $comfyDir -Parent
             $py = Join-Path $portable 'python_embeded\python.exe'
             Write-Log 'Starting ComfyUI (the first start takes a few minutes)...'
@@ -977,7 +1204,7 @@ function Invoke-SelfTest($root) {
                 -WorkingDirectory $portable -WindowStyle Minimized
         }
     }
-    $stats = Wait-Url 'http://127.0.0.1:8188/system_stats' 900 'Starting ComfyUI and loading custom nodes'
+    $stats = Wait-Url 'http://127.0.0.1:8188/system_stats' $(if ($StartComfy) { 900 } else { 20 }) 'Starting ComfyUI and loading custom nodes'
     if ($stats) {
         $comfyOk = $true
         try { $gpuName = ($stats.devices[0].name -replace '^cuda:\d+\s*', '' -replace '\s*:\s*cudaMallocAsync$', '') } catch {}
@@ -1003,13 +1230,22 @@ function Start-Install {
 
         Install-App $appDir
 
-        $comfyArgs = @('-InstallDir', (Join-Path $root 'ComfyUI'), '-ModelsDir', (Join-Path $root 'models'),
-                       '-DownloadModels', '-EnsureModels', '-Wizard')
-        if ($Companion) {
-            $comfyArgs += @('-NodeListFile', 'flippix-custom-nodes-ios.txt', '-ModelListFile', 'flippix-models-ios.txt',
-                            '-ScanWorkflow', $CompanionWorkflows)
-        } elseif (-not $plan.Video) { $comfyArgs += '-Minimal' }
-        Invoke-Child $ComfyPs1 $comfyArgs 'comfyui'
+        $script:ComfyMode = $plan.Mode
+        $script:EngineDir = Join-Path $root 'ComfyUI_FlipPix'
+        switch ($plan.Mode) {
+            'full' {
+                $comfyArgs = @('-InstallDir', (Join-Path $root 'ComfyUI'), '-ModelsDir', (Join-Path $root 'models'),
+                               '-DownloadModels', '-EnsureModels', '-Wizard')
+                if ($Companion) {
+                    $comfyArgs += @('-NodeListFile', 'flippix-custom-nodes-ios.txt', '-ModelListFile', 'flippix-models-ios.txt',
+                                    '-ScanWorkflow', $CompanionWorkflows)
+                } elseif (-not $plan.Video) { $comfyArgs += '-Minimal' }
+                Invoke-Child $ComfyPs1 $comfyArgs 'comfyui'
+            }
+            'starter' { Install-Engine $script:EngineDir }
+            default   { Write-Log 'Using the ComfyUI FlipPix already knows about.' }
+        }
+        if (-not $Companion) { $script:ModelsTool = Install-ModelsTool $appDir }
 
         $llmArgs = @('-InstallDir', (Join-Path $root 'LLM'), '-Port', "$LlmPort", '-Wizard')
         # The companion starts and watches the writing assistant itself.
@@ -1017,7 +1253,7 @@ function Start-Install {
         Invoke-Child $LlmPs1 $llmArgs 'writing-assistant'
 
         Set-Configuration $appDir $root
-        Invoke-SelfTest $root
+        Invoke-SelfTest $root ($plan.Mode -ne 'none')
 
         $pbAll.Value = 100
         Write-Log 'Setup complete.'
@@ -1052,6 +1288,8 @@ function Show-Finish($root) {
             "Type the 6-digit code it shows into the iPad."
         })
     Write-Log "Installed in $root"
+    $offer = [bool]$script:ModelsTool -and $script:ComfyMode -ne 'full'
+    $chkModels.Visible = $offer; $chkModels.Checked = $offer; $dHint.Visible = -not $offer
 }
 
 # ---------------------------------------------------------------------------
@@ -1086,6 +1324,10 @@ $btnNext.Add_Click({
             if ($chkLaunch.Checked -and $script:Installed) {
                 $exe = Join-Path $script:InstallDir $AppExe
                 if (Test-Path $exe) { Start-Process -FilePath $exe -WorkingDirectory $script:InstallDir }
+            }
+            if ($chkModels.Visible -and $chkModels.Checked -and $script:ModelsTool) {
+                $md = if ($script:ComfyMode -eq 'starter') { Join-Path $script:EngineDir 'ComfyUI\models' } else { '' }
+                Start-ModelsTool $script:ModelsTool $md
             }
             $form.Close()
         }

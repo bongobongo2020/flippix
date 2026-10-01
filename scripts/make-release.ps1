@@ -27,6 +27,11 @@
 .PARAMETER NoZip
     Stage the folder but don't create the .zip.
 
+.PARAMETER IncludeEngine
+    Also put the starter ComfyUI (release\comfyui-starter\flippix-starter-windows.7z, from
+    packaging\comfyui-starter\build-starter.ps1) beside Setup, so installing needs no download
+    for it. Without it, Setup downloads the engine from Hugging Face when it's chosen.
+
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File scripts\make-release.ps1
 #>
@@ -35,7 +40,8 @@
 param(
     [string]$OutDir = '',
     [switch]$NoBuild,
-    [switch]$NoZip
+    [switch]$NoZip,
+    [switch]$IncludeEngine
 )
 
 $ErrorActionPreference = 'Stop'
@@ -107,10 +113,24 @@ $scriptsDst = Join-Path $Stage 'scripts'
 New-Item -ItemType Directory -Force -Path $scriptsDst | Out-Null
 foreach ($s in 'flippix-installer.ps1','setup-common.ps1','setup-llm.ps1','setup-comfyui-fresh.ps1','setup-comfyui-wsl.ps1','set-wsl-models.ps1','flippix-custom-nodes.txt','flippix-models.txt',
                'flippix-custom-nodes-min.txt','flippix-models-min.txt','flippix-models-16gb-video.txt',
-               'backup-comfyui-remote.ps1','restore-comfyui.sh','restore-comfyui-windows.ps1','README.md') {
+               'backup-comfyui-remote.ps1','restore-comfyui.sh','restore-comfyui-windows.ps1','README.md',
+               'flippix-models.ps1') {
     Copy-Item (Join-Path $ScriptDir $s) (Join-Path $scriptsDst $s) -Force
 }
 Write-Ok 'copied installer + backup/restore scripts'
+
+# The starter engine's manifest (Setup's engine option and FlipPix Models both read it).
+$starterDir = Join-Path $RepoRoot 'packaging\comfyui-starter'
+Copy-Item (Join-Path $starterDir 'starter.json') (Join-Path $scriptsDst 'starter.json') -Force
+$sevenZr = Join-Path $RepoRoot 'release\comfyui-starter\cache\7zr.exe'
+if (Test-Path $sevenZr) { Copy-Item $sevenZr (Join-Path $scriptsDst '7zr.exe') -Force }
+if ($IncludeEngine) {
+    $engine = Join-Path $RepoRoot ('release\comfyui-starter\' + (Get-Content (Join-Path $starterDir 'starter.json') -Raw | ConvertFrom-Json).bundle.file)
+    if (-not (Test-Path $engine)) { throw "No engine to include: run packaging\comfyui-starter\build-starter.ps1 first ($engine)." }
+    Copy-Item $engine $Stage -Force
+    Write-Ok 'included the starter engine (no download needed at install)'
+}
+Write-Ok 'copied starter manifest + FlipPix Models'
 
 # workflow library (used by the ComfyUI installer's copy + missing-node scan)
 if (Test-Path (Join-Path $RepoRoot 'workflow')) {
