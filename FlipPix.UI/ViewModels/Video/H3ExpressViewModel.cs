@@ -102,6 +102,7 @@ namespace FlipPix.UI.ViewModels.Video
             InitTaoMate();
             InitBunny();
             InitParasyte();
+            InitHyperFlow();
             InitSteps();
             InitChain();
             InitStoryPrompts();
@@ -1162,6 +1163,9 @@ namespace FlipPix.UI.ViewModels.Video
             ExpressStack.Parasyte =>
                 $"Parasyte sparse attention · fl2va/ref2va hybrid · res_multistep/simple · " +
                 $"{FirstPassSteps} steps · Parasyte turbo LoRA · MMH3 upscale + FILM",
+            ExpressStack.HyperFlow =>
+                $"HyperFlow 8-step · Singularity · euler on its own {HyperFlowSteps}-step grid (steps dial " +
+                "inert) · bypass + curve refit · SLA 0.90 · 2-step TaoMate upscale",
             ExpressStack.Singularity => SingularityErSde
                 ? $"Singularity ref2va checkpoint · er_sde/beta + sigma shift · {FirstPassSteps} steps"
                 : $"Singularity ref2va checkpoint · euler/simple · {FirstPassSteps} steps",

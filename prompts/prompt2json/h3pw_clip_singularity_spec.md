@@ -121,6 +121,13 @@ the bar, glasses shattering across the wood as she lands.
   breath driven out, the grip lost, the blood.
 - Use the space — walls, floor, furniture, rain, the edge of a drop — and what the fight breaks stays broken.
 
+### Open mid-attack, stay in motion
+
+- `[Shot 1]` opens **mid-attack** — a blow already travelling, a lunge already landing, a grapple already under
+  way. Even the first clip of the film. Never circling, never sizing each other up, never a standoff or a
+  squared-up pause before first contact: H3 renders a standoff as two people waiting, and it never starts moving.
+- No shot ends on a held pose, a stare or a freeze. A frozen last frame is inherited by the next clip.
+
 ### A clip is one piece of one fight
 
 - After the first clip, `[Shot 1]` picks up the exact moment the previous clip ended on, from a new angle: the
@@ -174,7 +181,7 @@ final state**.
 - Connect cause and effect: trigger → movement → impact → reaction.
 - **One exchange per shot.** Never several unrelated actions packed into one shot.
 - A subject who is small in frame or in the background and should keep moving is told so, explicitly:
-  `<Subject 2> keeps circling toward screen-right throughout the shot, his steps continuous even though his
+  `<Subject 2> keeps pressing in from screen-right throughout the shot, his steps continuous even though his
   small scale makes the movement subtle.`
 
 ## Camera (§9)
@@ -191,7 +198,9 @@ Never "dynamic camera" or "cinematic camera". Name the movement:
 - Dive / plunge — moves sharply down or forward from a high viewpoint.
 - Barrel roll — rotates around the lens axis while moving.
 - Handheld — controlled small-scale shake, for presence or instability.
-- Static / locked-off — the camera holds while the action unfolds.
+
+**The camera moves in every shot** — tracking, arc, push-in, handheld — including a shot that holds a line of
+dialogue. Never static or locked-off: a static camera on a fight renders two statues.
 
 A camera instruction has five elements: **position / shot size + movement + direction + speed or amplitude +
 the subject it follows** — `The camera tracks backward at matching speed, keeping <Subject 1> in the lower
@@ -272,9 +281,10 @@ fingers re-settling their grip on the knife.
 - `overall_soundscape:` — the ambient environment plus the diegetic effects, each synchronized with a
   visible event: the footfalls with the steps, the crack with the contact, cloth with the movement, breath,
   the scrape of a blade. Never speech or a voice, never music.
-- `non_diegetic_music:` — the score alone: style, instrumentation, intensity and how it builds across the clip.
-  The film has one score: when you are handed the score so far, continue that cue with the same
-  instrumentation and change only its intensity. `N/A` only if the story wants silence.
+- `non_diegetic_music:` — write exactly `N/A` unless the story explicitly asks for a score. Never describe the
+  absence of music in words ("no music", "silence", "no score"): H3 reads the word *music* and adds music. When
+  the story does ask for a score, write the score alone — style, instrumentation, intensity — and when you are
+  handed the score so far, continue that cue with the same instrumentation and change only its intensity.
 
 ## Continuity — each clip is rendered alone (§12)
 
@@ -295,6 +305,10 @@ H3 renders this clip on its own and has never seen the one before it; the words 
 ## Common failure modes (§16)
 
 - Fighters facing the camera, or side by side facing the same way, instead of each other.
+- A clip that opens on circling, sizing up or a standoff instead of mid-attack.
+- A static or locked-off camera — it renders two statues.
+- A last shot that holds, stares or freezes.
+- "No music" written in words in `non_diegetic_music:` instead of `N/A`.
 - One fighter acting while the other stands and waits.
 - A clip that restarts the fight — neutral stances, a fresh establishing shot — instead of continuing the last one.
 - The beat's lines dropped, or a line spoken in an open two-shot.
@@ -311,6 +325,8 @@ H3 renders this clip on its own and has never seen the one before it; the words 
 
 ## Before you reply (§17)
 
+- Does `[Shot 1]` open mid-attack, with no circling or standoff? Does the camera move in every shot?
+- Is `non_diegetic_music:` exactly `N/A`, unless the story asked for a score?
 - Do the fighters face each other in every shot that holds both, on their stated sides?
 - Does every shot hold an exchange in which both fighters act, with the consequence of each hit?
 - Does `[Shot 1]` continue the previous clip's last moment, and does the last shot end mid-motion?
@@ -333,26 +349,27 @@ yourself repeating a phrase, close the sentence and move on.
 ## Two shots at the density required (§19)
 
 ```
-[Shot 1] Live-action, 35mm film. A low-angle medium two-shot in a torch-lit stone courtyard at night holds
-<Subject 1>, wearing a dark leather jerkin, on screen-left and <Subject 2>, wearing a grey wool cloak, on
-screen-right, two strides apart and squared up to each other: <Subject 1> turned toward screen-right,
-<Subject 2> toward screen-left, both bodies three-quarter to the camera and their eyes locked. <Subject 2>
-drives in first, stepping through with a heavy overhand cut at <Subject 1>'s head. <Subject 1> brings her
-sword up across her body and catches the blade on the flat; sparks spit from the contact and the weight of it
-buckles her knees. <Subject 1> shoves the bind aside, rolls her wrist and slashes back low across
-<Subject 2>'s thigh, and <Subject 2> twists away so the edge only tears his cloak. The camera pushes in hard on
-the bind, then arcs a quarter-turn as they break apart, staying on <Subject 1>'s side of the line. Both remain
-silent with their mouths closed through the exchange. The shot ends with the two of them a stride apart, still
-facing each other, chests heaving, <Subject 2> circling toward the torches.
+[Shot 1] Live-action, 35mm film. A low-angle medium two-shot in a torch-lit stone courtyard at night, the
+well on screen-left and the torch-lit gate behind screen-right, opens with <Subject 2>, wearing a grey wool
+cloak, already mid-swing on screen-right, a heavy overhand cut coming down at <Subject 1>'s head. <Subject 1>,
+wearing a dark leather jerkin, on screen-left and turned toward screen-right, brings her sword up across her
+body and catches the blade on the flat; sparks spit from the contact and the weight of it buckles her knees.
+<Subject 1> shoves the bind aside, rolls her wrist and slashes back low across <Subject 2>'s thigh, and
+<Subject 2>, facing screen-left, twists away so the edge only tears his cloak. The camera tracks in fast on the
+bind, then arcs a quarter-turn with the slash, staying on <Subject 1>'s side of the line. Both remain silent
+with their mouths closed through the exchange. The shot ends with <Subject 2> stumbling back a stride and
+already driving forward again, blade rising, as <Subject 1> sets her feet to meet him.
 
 [Shot 2] At 00:05.000, a medium close-up holds <Subject 2> alone in frame on screen-right, facing screen-left
 toward <Subject 1>, who is just out of frame. Torchlight catches the blood running from a cut above his eye.
-<Subject 2> spits onto the flagstones, tightens both hands on the hilt, and <Subject 2> (S1) says:
+The camera pushes in slowly on his face as <Subject 2> spits onto the flagstones, tightens both hands on the
+hilt, and <Subject 2> (S1) says:
 <d>[English] You should have stayed down.</d> His mouth moves in sync with the words while <Subject 1> remains
 silent with her mouth closed. On the last word <Subject 2> lunges toward screen-left, and the camera whip-pans
 with the blade as it leaves the frame.
 ```
 
-Both shots are concrete on purpose: the fighters' sides and facing, an exchange in which both act, the
-consequence of the hit, a camera tied to the action, a line in its own shot with the listener silent, and a
-final state still in motion — no generic quality adjectives.
+Both shots are concrete on purpose: an opening already mid-attack, the fighters' sides and facing, landmarks
+that keep their side of the frame, an exchange in which both act, the consequence of the hit, a camera that
+moves in every shot, a line in its own shot with the listener silent, and a final state still in motion — no
+generic quality adjectives.

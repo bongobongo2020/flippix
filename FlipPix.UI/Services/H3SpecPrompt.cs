@@ -54,11 +54,19 @@ namespace FlipPix.UI.Services
 
         /// <summary>What a saved story's <c>PromptBuild</c> says when this build wrote it. Changed when the fight
         /// director came in, so a set the earlier build wrote is recognised and written again.</summary>
-        public const string BuildTag = "singularity-spec-fight";
+        public const string BuildTag = "singularity-spec-action";
 
         /// <summary>The tag this build saved under before the fight director. Still a spec set; no longer a current
         /// one.</summary>
         public const string EarlierBuildTag = "singularity-spec";
+
+        /// <summary>The tag the fight-director build saved under before the action rules (mid-attack openings,
+        /// a moving camera, the fixed screen map, N/A music). Still a spec set; no longer a current one.</summary>
+        public const string FightDirectorBuildTag = "singularity-spec-fight";
+
+        /// <summary>Whether a saved set's recorded build is any spec build, current or earlier.</summary>
+        public static bool IsSpecBuild(string? tag) =>
+            tag == BuildTag || tag == FightDirectorBuildTag || tag == EarlierBuildTag;
 
         public const string SubjectDefinitions = "subject_definitions:";
         public const string Summary = "summary:";
@@ -270,9 +278,58 @@ namespace FlipPix.UI.Services
             var place = StoryContinuity.SceneSentence(environment);
             if (place.Length == 0 && !string.IsNullOrWhiteSpace(setting)) place = setting.Trim();
             if (place.Length > 0) lines.Add($"<Environment>: {place}");
+            if (cast.Count > 1) lines.Add(ScreenMap);
 
             return string.Join("\n", lines);
         }
+
+        /// <summary>
+        /// One fixed screen map, byte-identical in every clip of a chain. Each clip is rendered with no memory of
+        /// the last, so the sides are stated where the text never changes rather than left to each writer —
+        /// a map restated in different words per clip is a map that flips. It lives in subject_definitions:, the
+        /// section code writes and H3 reads first.
+        /// </summary>
+        public const string ScreenMap =
+            "<Screen map>: fixed for the whole film and never flipped — <Subject 1> fights from screen-left facing " +
+            "screen-right, <Subject 2> from screen-right facing screen-left. The camera stays on the near side of " +
+            "the line between them, so every landmark of <Environment> keeps its side of the frame from shot to shot " +
+            "and from clip to clip.";
+
+        /// <summary>
+        /// <c>non_diegetic_music:</c> as H3 should read it. Writing "no music" in words gets music: the text encoder
+        /// sees the word, not the negation. Anything that says there is no score — "none", "no music", "silence",
+        /// "no background score" — is written <c>N/A</c>, the one form H3 treats as absent.
+        /// </summary>
+        public static string NormalizeMusic(string? music)
+        {
+            var text = (music ?? string.Empty).Trim();
+            if (text.Length == 0) return "N/A";
+            return NoMusicRegex.IsMatch(text) ? "N/A" : text;
+        }
+
+        /// <summary>Opens by saying there is no score: "N/A", "none", "silence", "no (background) music…", "without
+        /// music", "there is no score". A score that merely mentions "no melody" further on is not matched.</summary>
+        private static readonly Regex NoMusicRegex = new(
+            @"^\s*(?:n\s*/\s*a\b|none\b|nil\b|silen(?:ce|t)\b|no\s+(?:\w+\s+){0,2}(?:music|score|soundtrack)\b|without\s+(?:\w+\s+){0,2}(?:music|score)\b|there\s+is\s+no\s+(?:\w+\s+){0,2}(?:music|score|soundtrack)\b)",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>A whole prompt — one or several segments — with every <c>non_diegetic_music:</c> section run
+        /// through <see cref="NormalizeMusic"/>. For writers whose reply is kept as text rather than parsed.</summary>
+        public static string NormalizeMusicSections(string? body)
+        {
+            if (string.IsNullOrEmpty(body)) return body ?? string.Empty;
+            return MusicSectionRegex.Replace(body, m =>
+            {
+                var content = m.Groups["content"].Value;
+                var normalized = NormalizeMusic(content);
+                return normalized == content.Trim() ? m.Value : $"{m.Groups["label"].Value}\n{normalized}";
+            });
+        }
+
+        /// <summary>The label and everything after it up to the next field label, a segment marker or the end.</summary>
+        private static readonly Regex MusicSectionRegex = new(
+            @"(?<label>^[ \t]*non[ _\-]diegetic[ _\-]music[ \t]*:)[ \t]*\r?\n?(?<content>.*?)(?=\r?\n[ \t]*\r?\n?[ \t]*(?:===|[a-z_ ]{3,40}:[ \t]*\r?$)|\z)",
+            RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Singleline | RegexOptions.Compiled);
 
         /// <summary>
         /// <c>retention_analysis:</c> — what each photograph hands its subject, in the spec's vocabulary (§6).
@@ -316,7 +373,7 @@ namespace FlipPix.UI.Services
             Section(sb, RetentionAnalysis, retentionAnalysis);
             Section(sb, DetailedDescription, description);
             Section(sb, OverallSoundscape, soundscape);
-            Section(sb, NonDiegeticMusic, string.IsNullOrWhiteSpace(music) ? "N/A" : music);
+            Section(sb, NonDiegeticMusic, NormalizeMusic(music));
             return sb.ToString();
         }
 
@@ -369,16 +426,17 @@ namespace FlipPix.UI.Services
                       "the reversals, the near misses, the dirty tricks and the dialogue that make it thrilling to " +
                       "watch. Add no character and no location the story does not have.\n");
             sb.Append(duo
-                ? "- Build the whole fight as ONE escalating arc: the standoff and first contact; exchanges that " +
+                ? "- Build the whole fight as ONE escalating arc: the first beat opens mid-attack, a blow already " +
+                  "travelling — no standoff, no sizing each other up, no circling; exchanges that " +
                   "trade the advantage back and forth; a reversal where the one losing turns it; the most violent " +
                   "peak; and the story's outcome in the last beat. No beat is filler, and each one raises the stakes " +
                   "on the one before.\n" +
                   "- Every beat is an EXCHANGE, and both fighters act in it: who attacks and how, how the other " +
                   "blocks, slips or takes it, the counter that comes back, and what it does to them. Nobody stands " +
                   "waiting for their turn.\n" +
-                  "- The fighters face each other. End every beat by saying where they are relative to each other: " +
-                  "squared up two strides apart, one pinned against the wall, one on the ground with the other over " +
-                  "them.\n"
+                  "- The fighters face each other. End every beat by saying where they are relative to each other, " +
+                  "still in motion: locked in a clinch, one driven into the wall, one going down with the other " +
+                  "diving after them. Never a pause, a stare-down or a reset to guard.\n"
                 : "- Build the whole film as ONE escalating arc: the setup, the struggle getting harder, a reversal, " +
                   "the peak, and the story's outcome in the last beat. No beat is filler.\n" +
                   "- Every beat is one continuous action with a cause, a struggle and a consequence. End it by " +
@@ -405,7 +463,8 @@ namespace FlipPix.UI.Services
         /// <summary>The director's rules restated in the beat sheet's user message, because a rule said once in a
         /// system prompt is one a small local model drops by beat 6.</summary>
         public static string DirectorBeatSheetRules(int castCount) => castCount > 1
-            ? "For every beat: an exchange in which BOTH fighters act, where it leaves them facing each other, and " +
+            ? "For every beat: an exchange in which BOTH fighters act (beat 1 opens mid-attack, with no standoff or " +
+              "circling), where it leaves them facing each other, still moving, and " +
               "the line or lines spoken in it as CHARACTER N: \"...\", the story's own words where it has them and " +
               "yours where it does not. Each beat picks up exactly where the one before it ended, and the fight " +
               "escalates to the story's outcome in the last beat."
@@ -480,7 +539,7 @@ namespace FlipPix.UI.Services
             sb.Append("Every shot ends on a stated final state — a pose, a position, what is held, what has changed. ");
             sb.Append(lastClip
                 ? "This is the story's last clip: its last shot may settle into the story's final state, with the " +
-                  "camera still moving gently."
+                  "camera still moving and the subjects still breathing and shifting — never a frozen tableau."
                 : $"The last shot runs to {H3ResearchPrompt.Timecode(seconds)} and its final state is still in " +
                   "motion — a blow on its way, a body moving, a camera travelling — on its way into the next clip, " +
                   "on a different framing from [Shot 1]. Never a held pose, never a stare into the lens.");
@@ -535,6 +594,20 @@ namespace FlipPix.UI.Services
             "consequence inside the same shot: the recoil, the stagger, the breath driven out, the grip lost, the " +
             "blood. Use the space (walls, floor, furniture, rain), and what the fight breaks stays broken.";
 
+        /// <summary>
+        /// What made fight clips work in practice, and what made them fail: a clip that opens on a standoff or
+        /// circling renders two people waiting; a static camera renders two statues; a last shot that holds
+        /// renders a freeze the next clip inherits.
+        /// </summary>
+        public static string MotionRule(bool lastClip) =>
+            "MOTION AND CAMERA — [Shot 1] opens MID-ATTACK: a blow already travelling, a lunge already landing. No " +
+            "circling, no sizing each other up, no standoff, no squared-up pause before the first contact. The camera " +
+            "MOVES in every shot — tracking, arcing, pushing in, handheld — never static or locked-off, even on a " +
+            "line of dialogue. " +
+            (lastClip
+                ? "The last shot never freezes: even the ending keeps the camera and the subjects moving."
+                : "No shot ends on a held pose, a stare or a freeze.");
+
         /// <summary>§14's speaker IDs and sync; Issue 1's silence mandate; Issue 2 and Rule 19's single for a
         /// spoken line. The beat's lines are spoken, and one short line may be added where the beat has none.</summary>
         public static string SpeechRule(int castCount)
@@ -581,6 +654,7 @@ namespace FlipPix.UI.Services
             sb.Append(ShotPlan(seconds, shots, lastClip)).Append("\n\n");
             sb.Append(Blocking(castCount)).Append("\n\n");
             if (castCount > 1) sb.Append(FightRule).Append("\n\n");
+            sb.Append(MotionRule(lastClip)).Append("\n\n");
             sb.Append(ShotQuestions).Append("\n\n");
             sb.Append(ConcreteRule(castCount)).Append("\n\n");
             sb.Append(SpeechRule(castCount));

@@ -35,6 +35,7 @@ namespace FlipPix.UI.ViewModels.Video
     {
         // ── The model wire ──────────────────────────────────────────────────────────────────────────
         private const string NodeModelLoader = "55:3701";   // DiffusionModelLoaderKJ
+        private const string NodeAttentionBackend = "55:3703";  // ModelAttentionBackend → the Sol-Attn switch
         private const string NodeTurboLora = "55:3690";     // LoraLoaderModelOnly, lightx2v 4-step turbo
         private const string NodeSigmaShift = "55:3704";    // MiniMaxH3SigmaShift
         private const string NodeSpectrum = "55:3705";      // SpectrumApplyMiniMaxH3 (disabled pass-through)
@@ -111,6 +112,11 @@ namespace FlipPix.UI.ViewModels.Video
             // already last on each branch's wire, so this stack adds no patch of its own.
             I2VStack.Parasyte => new StackSpec("res_multistep", "simple", false, 0, 0),
 
+            // h3-hyperflow.json: euler on the adapter's own grid, no turbo LoRA and no sigma shift (the pack
+            // says the model's default 12/3 is what it was trained against). The scheduler named here only
+            // reaches BasicSchedulers nothing reads once the grid is wired in.
+            I2VStack.HyperFlow => new StackSpec("euler", "simple", false, 0, 0),
+
             // The graph as authored.
             _ => new StackSpec("euler", "simple", true, 12, 3),
         };
@@ -167,6 +173,10 @@ namespace FlipPix.UI.ViewModels.Video
             // Built from the Sol-Attn switch outwards. Nodes a stack does not want are not disabled, they
             // are stepped over: the node below is pointed at the node above, and the prune takes them.
             var wire = NodeSparseAttention;     // 55:3706 — the switch the attention backend feeds
+
+            // 🌊 brings its own adapter and starts from the backend rather than the tab's Sol-Attn switch —
+            // see ApplyHyperFlow.
+            if (item.Stack == I2VStack.HyperFlow) wire = ApplyHyperFlow(root);
 
             if (spec.KeepTurboLora)
             {
@@ -230,11 +240,110 @@ namespace FlipPix.UI.ViewModels.Video
                     ApplyTaoMateRelay(root, BaseBranch, userWire, steps, runSeed, item);
                     ApplyTaoMateRelay(root, LoopBranch, userWire, steps, runSeed, item);
                     break;
+
+                case I2VStack.HyperFlow:
+                    // The draft runs the top half of the adapter's grid — the cut is fixed, because the grid
+                    // is — and the finish takes over with its own fixed sigmas as on every stack. With the
+                    // upscale off, BuildWorkflow points the samplers at the whole grid instead.
+                    Link(root, NodeDraftSigmas, "sigmas", NodeHyperFlowApply, HyperFlowSigmasSlot);
+                    SetInput(root, NodeDraftSigmas, "step", HyperFlowSteps / 2);
+
+                    // The recipe's sparse attention: SLA at 0.90, on regardless of the tab's own dial.
+                    foreach (var id in NodeSla)
+                    {
+                        SetInput(root, id, "enabled", true);
+                        SetInput(root, id, "sparsity_ratio", HyperFlowSlaSparsity);
+                    }
+
+                    // The upscale pass: TaoMate in place of HyperFlow, two steps. See ApplyHyperFlowFinish.
+                    SetInput(root, NodeFinishSigmas, "sigmas", HyperFlowPass2Sigmas);
+                    ApplyHyperFlowFinish(root, BaseBranch);
+                    ApplyHyperFlowFinish(root, LoopBranch);
+                    break;
             }
 
             // ── RIFE ──────────────────────────────────────────────────────────
             if (item.UseRife) GraftRife(root, sink);
         }
+
+        // ── 🌊 HyperFlow ────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>ApplyHyperFlowH3 — the adapter. Output 0 is the patched model, output 1 its trained sigma
+        /// grid, which stands in for every scheduler on this stack.</summary>
+        private const string NodeHyperFlowApply = "hf_apply";
+        private const string NodeHyperFlowPass2Lora = "hf_p2lora";
+        private const int HyperFlowSigmasSlot = 1;
+
+        // The action recipe (tools/build_h3_hyperflow.py): SLA 0.90, and an upscale pass on the TaoMate
+        // 3-step LoRA in place of the HyperFlow engine, two steps — more steps softened it.
+        private const double HyperFlowSlaSparsity = 0.90;
+        private const string HyperFlowPass2Lora = "H3/taomate_h3_3step_comfy.safetensors";
+        private const double HyperFlowPass2LoraStrength = 1.0;
+        private const string HyperFlowPass2Sigmas = "0.9035, 0.6316, 0.0000";
+
+        /// <summary>Nine sigmas, eight steps — the grid is in the weights file, so the dial cannot move it.</summary>
+        private const int HyperFlowSteps = 8;
+
+        /// <summary>The pruned-base build of the adapter, from <c>models/hyperflow/</c>. The node refuses the
+        /// full build on a pruned checkpoint (and vice versa) with an error naming the right file.</summary>
+        private const string HyperFlowWeights = "custom_node_hyperflow_8step_v1.0_comfyui_pruned.safetensors";
+
+        /// <summary>
+        /// 🌊 <b>HyperFlow</b>'s head of the model wire, as <c>h3-hyperflow.json</c> has it: the attention
+        /// backend → <c>ApplyHyperFlowH3</c> at 1.00, bypass, curve refit on. Returns the adapter, which the
+        /// rest of <see cref="ApplyRenderStack"/> builds on — the user's LoRAs go <i>below</i> it, so the
+        /// checkpoint-bound curve refit sees the model it was fitted to, and the graph's own
+        /// <c>H3SLAAttention</c> nodes stay last.
+        ///
+        /// <para>The tab's Sol-Attn switch (<c>55:3706</c>) is stepped over: the recipe's sparse attention is
+        /// SLA, and two sparse patches on one wire would fight.</para>
+        /// </summary>
+        private static string ApplyHyperFlow(JsonObject root)
+        {
+            RequireClass(root, NodeAttentionBackend, "ModelAttentionBackend");
+
+            root[NodeHyperFlowApply] = Node("ApplyHyperFlowH3", "HyperFlow 8-step + curve refit", new JsonObject
+            {
+                ["model"] = new JsonArray(NodeAttentionBackend, 0),
+                ["hyperflow_file"] = HyperFlowWeights,
+                ["strength"] = 1.0,
+                ["lora_mode"] = "bypass",
+                ["variant"] = "auto",
+                ["download_if_missing"] = false,
+                ["verbose"] = false,
+                ["experimental_curve_refit"] = true,
+            });
+
+            return NodeHyperFlowApply;
+        }
+
+        /// <summary>
+        /// 🌊's upscale pass on one branch: the finish guiders move off the HyperFlow wire onto a fork of the
+        /// attention backend carrying the TaoMate 3-step LoRA and its own SLA node — "replace engine LoRA".
+        /// One LoRA node shared by both branches, one SLA clone each (SLA has to sit last on a wire).
+        /// </summary>
+        private static void ApplyHyperFlowFinish(JsonObject root, Branch branch)
+        {
+            if (root[NodeHyperFlowPass2Lora] == null)
+                root[NodeHyperFlowPass2Lora] = Node("LoraLoaderModelOnly", "TaoMate 3-step (upscale pass)",
+                    new JsonObject
+                    {
+                        ["lora_name"] = HyperFlowPass2Lora,
+                        ["strength_model"] = HyperFlowPass2LoraStrength,
+                        ["model"] = new JsonArray(NodeAttentionBackend, 0),
+                    });
+
+            var sla = $"hf_p2sla_{branch.Tag}";
+            root[sla] = CloneNode(root, branch.Sla, new JsonObject { ["model"] = new JsonArray(NodeHyperFlowPass2Lora, 0) });
+            foreach (var guider in branch.FinishGuiders) Link(root, guider, "model", sla, 0);
+        }
+
+        /// <summary>
+        /// Where a pass that runs its whole schedule reads it from — the branch's own BasicScheduler, or on
+        /// 🌊 the adapter's grid. Used by <see cref="BuildWorkflow"/> when the latent upscale is off.
+        /// </summary>
+        private static (string Node, int Slot) FullSigmasFor(I2VStack stack, string branchScheduler) =>
+            stack == I2VStack.HyperFlow ? (NodeHyperFlowApply, HyperFlowSigmasSlot) : (branchScheduler, 0);
 
         /// <summary>
         /// 🐰 <b>BUNNY</b> on one branch. The whole schedule is built once, three steps are woven into the

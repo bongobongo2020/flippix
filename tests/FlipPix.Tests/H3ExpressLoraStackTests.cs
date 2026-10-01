@@ -24,7 +24,7 @@ public sealed class H3ExpressLoraStackTests
     /// <summary>The four graphs a stack can be rendered on. All of them carry node 21.</summary>
     public static TheoryData<string> Graphs() => new()
     {
-        "h3-eros.json", "h3-singularity.json", "h3-taomate.json", "h3-bunny.json",
+        "h3-eros.json", "h3-singularity.json", "h3-taomate.json", "h3-bunny.json", "h3-hyperflow.json",
     };
 
     private const string PowerLora = "21";

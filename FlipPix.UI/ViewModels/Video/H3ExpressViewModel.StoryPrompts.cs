@@ -406,11 +406,13 @@ namespace FlipPix.UI.ViewModels.Video
                 }
                 else if (SpecPromptBuild && saved.PromptBuild != H3SpecPrompt.BuildTag && !saved.EditedByHand)
                 {
-                    // Written by the spec build before the fight director: beats with no dialogue, and clips that never
-                    // saw how the one before them ended. Reusing it would render exactly what that change fixes.
-                    AddLog($"📚 \"{saved.Title}\" has saved prompts from the earlier 📐 spec build, before the fight " +
-                           "director — its clips are written again, and the new set replaces the saved one (kept in " +
-                           "history). A set edited by hand is kept.");
+                    // Written by an earlier spec build — before the fight director (no dialogue, no handoff), or before
+                    // the action rules (standoff openings, static shots, a written-out score). Reusing it would render
+                    // exactly what those changes fix.
+                    AddLog($"📚 \"{saved.Title}\" has saved prompts from an earlier 📐 spec build — its clips are " +
+                           "written again with the current rules (mid-attack openings, a moving camera, the fixed " +
+                           "screen map, N/A music), and the new set replaces the saved one (kept in history). A set " +
+                           "edited by hand is kept.");
                     saved = null;
                 }
             }

@@ -38,7 +38,35 @@ namespace FlipPix.UI.Models
         /// <summary>1-based position, shown as the &lt;Picture N&gt; label.</summary>
         public int Slot { get; }
 
-        public string Label => Slot == 1 ? "Picture 1 · required" : $"Picture {Slot}";
+        public string Label => Slot == 1 ? "Picture 1 · required"
+            : IsLocationPlate ? $"Picture {Slot} · 🏞️ location plate"
+            : $"Picture {Slot}";
+
+        private bool _isLocationPlate;
+
+        /// <summary>
+        /// Whether this slot holds a location plate the tab rendered itself, rather than a picture the user
+        /// chose. Told to the prompt writer as "the setting, no people", and reused on the next Analyze instead
+        /// of rendering another. Anything else put in the slot clears it.
+        /// </summary>
+        public bool IsLocationPlate
+        {
+            get => _isLocationPlate;
+            private set
+            {
+                if (_isLocationPlate == value) return;
+                _isLocationPlate = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(Label));
+            }
+        }
+
+        /// <summary>Fills the slot with a rendered location plate.</summary>
+        public void SetLocationPlate(string path)
+        {
+            Path = path;
+            IsLocationPlate = true;
+        }
 
         public string Path
         {
@@ -47,6 +75,7 @@ namespace FlipPix.UI.Models
             {
                 if (_path == value) return;
                 _path = value ?? string.Empty;
+                IsLocationPlate = false;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(HasImage));
                 LoadPreview();
@@ -353,6 +382,11 @@ namespace FlipPix.UI.Models
         /// already last on each branch's wire, so this stack is the LoRA and the sampling and nothing
         /// else.</summary>
         Parasyte,
+
+        /// <summary>🌊 Video Rebirth's HyperFlow 8-step adapter on the ref2va pruned checkpoint: euler on the
+        /// adapter's own sigma grid in place of every scheduler, the curve refit on, and its Sol-Attn recipe
+        /// in place of the graph's SLA. The shipped turbo LoRA and the sigma shift come off the wire.</summary>
+        HyperFlow,
     }
 
     /// <summary>

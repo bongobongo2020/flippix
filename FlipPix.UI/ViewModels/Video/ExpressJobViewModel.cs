@@ -182,6 +182,7 @@ namespace FlipPix.UI.ViewModels.Video
                     ExpressStack.TaoMate => "TaoMate",
                     ExpressStack.Bunny => "BUNNY",
                     ExpressStack.Parasyte => "Parasyte",
+                    ExpressStack.HyperFlow => "HyperFlow",
                     ExpressStack.Singularity => SingularityErSde ? "Singularity er_sde" : "Singularity",
                     _ => "H3 Eros"
                 };
@@ -365,6 +366,12 @@ namespace FlipPix.UI.ViewModels.Video
             set { if (value) SelectStack(ExpressStack.Parasyte); }
         }
 
+        public bool StackIsHyperFlow
+        {
+            get => Job.Stack == ExpressStack.HyperFlow;
+            set { if (value) SelectStack(ExpressStack.HyperFlow); }
+        }
+
         private void SelectStack(ExpressStack stack)
         {
             if (Job.Stack == stack) return;
@@ -376,15 +383,26 @@ namespace FlipPix.UI.ViewModels.Video
             Job.DiffusionModel = d.Model;
             Job.Steps = Math.Clamp(d.Steps, d.MinSteps, MaxSteps);
 
+            // 🌊's recommended 720p, as on the rail.
+            if (stack == ExpressStack.HyperFlow)
+            {
+                Job.PreviewMegapixels = H3ExpressViewModel.HyperFlowDraftMegapixels;
+                Job.Megapixels = H3ExpressViewModel.HyperFlowMegapixels;
+                OnPropertyChanged(nameof(Megapixels));
+                OnPropertyChanged(nameof(PreviewMegapixels));
+            }
+
             OnPropertyChanged(nameof(StackIsEros));
             OnPropertyChanged(nameof(StackIsSingularity));
             OnPropertyChanged(nameof(StackIsTaoMate));
             OnPropertyChanged(nameof(StackIsBunny));
             OnPropertyChanged(nameof(StackIsParasyte));
+            OnPropertyChanged(nameof(StackIsHyperFlow));
             OnPropertyChanged(nameof(SelectedDiffusionModel));
             OnPropertyChanged(nameof(Steps));
             OnPropertyChanged(nameof(MinSteps));
             OnPropertyChanged(nameof(UsesDraftCanvas));
+            OnPropertyChanged(nameof(UsesStepDials));
             OnPropertyChanged(nameof(StackSummary));
                 RaiseFooter();
         }
@@ -473,6 +491,9 @@ namespace FlipPix.UI.ViewModels.Video
 
         public bool UsesDraftCanvas => Job.Stack != ExpressStack.TaoMate;
 
+        /// <summary>🌊 HyperFlow reads neither the steps nor the upscale steps.</summary>
+        public bool UsesStepDials => Job.Stack != ExpressStack.HyperFlow;
+
         // ── Chained clips ────────────────────────────────────────────────────────
 
         /// <summary>This job's own 🔗 setting. On the rail it is frozen while anything renders, which is the
@@ -526,6 +547,11 @@ namespace FlipPix.UI.ViewModels.Video
                 "wire. Composed at the draft canvas and lifted to the Quality one by MMH3UltimateUpscale, " +
                 "which does the upscale and the second pass in one node. The fps checkbox doubles frames " +
                 "with FILM rather than RIFE.",
+            ExpressStack.HyperFlow =>
+                "🌊 HyperFlow — Video Rebirth's 8-step adapter on the Singularity checkpoint: euler on the " +
+                "adapter's own sigma grid (the steps dial does nothing here), bypass with the curve refit on, " +
+                "SLA 0.90. Composed at the draft canvas and lifted to the Quality one by a two-step pass on the " +
+                "TaoMate 3-step LoRA. Leave the LoRA stack empty. Needs the ComfyUI-HyperFlow-H3 pack.",
             ExpressStack.Bunny =>
                 $"🐰 BUNNY — the fl2va/ref2va hybrid, a {Steps}-step res_multistep/simple schedule with three " +
                 "more steps woven into the mid sigmas and the last quarter run out as a cleanup that does not " +

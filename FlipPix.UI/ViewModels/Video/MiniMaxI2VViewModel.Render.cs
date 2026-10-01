@@ -70,6 +70,10 @@ namespace FlipPix.UI.ViewModels.Video
         /// sampling that make the stack, not the checkpoint.</summary>
         public const string ParasyteModel = "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors";
 
+        /// <summary>🌊 HyperFlow's checkpoint: Singularity ref2va pruned v1.3, the action recipe's pick and one
+        /// of the files the pack ships a curve fit for.</summary>
+        public const string HyperFlowModel = "h3-minimax/Minimax-h3_Singularity_ref2va_Pruned_v1.3_int8.safetensors";
+
         /// <summary>The checkpoint a stack is authored on. Picking a stack moves the dropdown here; moving
         /// the dropdown afterwards sticks, so a stack can be sampled on another checkpoint on purpose.</summary>
         public static string ShippedModelFor(I2VStack stack) => stack switch
@@ -79,6 +83,7 @@ namespace FlipPix.UI.ViewModels.Video
             I2VStack.TaoMate => TaoMateModel,
             I2VStack.Bunny => BunnyModel,
             I2VStack.Parasyte => ParasyteModel,
+            I2VStack.HyperFlow => HyperFlowModel,
             _ => ShippedI2VModel,
         };
 
@@ -104,6 +109,7 @@ namespace FlipPix.UI.ViewModels.Video
             I2VStack.TaoMate => 10,
             I2VStack.Bunny => 8,
             I2VStack.Parasyte => 13,
+            I2VStack.HyperFlow => HyperFlowSteps,
             _ => 8,           // the graph's own BasicScheduler
         };
 
@@ -152,6 +158,8 @@ namespace FlipPix.UI.ViewModels.Video
                 ? stored
                 : I2VStack.Shipped;
             _singularityErSde = settings?.MiniMaxI2VSingularityErSde ?? false;
+            // The canvas is not persisted, so a restart on 🌊 starts from the recipe's 720p again.
+            if (_stack == I2VStack.HyperFlow) _megapixels = HyperFlowMegapixels;
             _upscaleSteps = FinishSigmas.ContainsKey(settings?.MiniMaxI2VUpscaleSteps ?? 3)
                 ? settings!.MiniMaxI2VUpscaleSteps
                 : 3;
@@ -232,6 +240,13 @@ namespace FlipPix.UI.ViewModels.Video
                     UseRtxUpscale = true;
                 }
 
+                // 🌊 is a draft + latent upscale + two-step TaoMate pass, at the recipe's 720p.
+                if (value == I2VStack.HyperFlow)
+                {
+                    UseLatentUpscale = true;
+                    Megapixels = HyperFlowMegapixels;
+                }
+
                 var settings = _settingsService.Settings;
                 if (settings != null)
                 {
@@ -290,6 +305,13 @@ namespace FlipPix.UI.ViewModels.Video
             set { if (value) Stack = I2VStack.Parasyte; }
         }
 
+        /// <inheritdoc cref="StackIsShipped"/>
+        public bool StackIsHyperFlow
+        {
+            get => _stack == I2VStack.HyperFlow;
+            set { if (value) Stack = I2VStack.HyperFlow; }
+        }
+
         /// <summary>✴️'s sub-option: keep the Singularity graph's checkpoint and its 12/3 shift, but sample
         /// it the H3 Eros way — er_sde/beta at 12 instead of euler/simple at 10.</summary>
         public bool SingularityErSde
@@ -321,6 +343,17 @@ namespace FlipPix.UI.ViewModels.Video
         /// there doing nothing rather than leaving them to lie.</summary>
         public bool UsesDraftCanvas => _stack != I2VStack.TaoMate;
 
+        /// <summary>Whether the steps slider and the upscale-steps dial reach the graph — not on 🌊, whose grid and
+        /// two-step TaoMate pass are fixed.</summary>
+        public bool UsesStepDials => _stack != I2VStack.HyperFlow;
+
+        /// <summary>Whether the SLA and Sol-Attn toggles reach the graph — not on 🌊, which forces SLA 0.90 and
+        /// steps over Sol-Attn.</summary>
+        public bool UsesAttentionDials => _stack != I2VStack.HyperFlow;
+
+        /// <summary>🌊's recommended 720p: finished 0.9 MP, a 640×352 draft doubled to 1280×704.</summary>
+        public const double HyperFlowMegapixels = 0.9;
+
         /// <summary>Whether the card can be moved at all: not while anything is on the GPU. The stack, the
         /// checkpoint and the step count are read as each item's graph is built, so a queue switched
         /// halfway is a queue of takes that do not match each other.</summary>
@@ -350,6 +383,7 @@ namespace FlipPix.UI.ViewModels.Video
             I2VStack.TaoMate => "🍥 TaoMate relay",
             I2VStack.Bunny => "🐰 BUNNY (action)",
             I2VStack.Parasyte => "🦠 Parasyte (sparse)",
+            I2VStack.HyperFlow => "🌊 HyperFlow (8-step)",
             _ => "🌀 Shipped",
         };
 
@@ -373,6 +407,12 @@ namespace FlipPix.UI.ViewModels.Video
                 "Parasyte turbo LoRA at 1.00 and no sigma shift — PlagueKind's sparse-attention sampling. This " +
                 "graph already patches H3SLAAttention last on both branches' wires, so the speed is whatever " +
                 "the SLA dial below is set to; the stack itself is the LoRA and the schedule.",
+            I2VStack.HyperFlow =>
+                "Video Rebirth's HyperFlow 8-step adapter on the Singularity checkpoint, bypass with the curve " +
+                "refit on: euler on the adapter's own sigma grid in place of every scheduler (the steps dial does " +
+                "nothing here), SLA forced on at 0.90. The upscale pass swaps HyperFlow for the TaoMate 3-step " +
+                "LoRA and runs two steps (the upscale-steps dial does nothing either). The shipped turbo LoRA, the " +
+                "sigma shift and the Sol-Attn toggle come off the wire. Leave the LoRA stack empty.",
             I2VStack.Bunny =>
                 "res_multistep/simple on the fl2va/ref2va hybrid: three extra steps woven between sigma 0.65 and " +
                 "0.28 where the motion is decided, the schedule cut at 75%, the first three quarters sampled on " +
@@ -404,8 +444,12 @@ namespace FlipPix.UI.ViewModels.Video
             OnPropertyChanged(nameof(StackIsSingularity));
             OnPropertyChanged(nameof(StackIsTaoMate));
             OnPropertyChanged(nameof(StackIsBunny));
+            OnPropertyChanged(nameof(StackIsParasyte));
+            OnPropertyChanged(nameof(StackIsHyperFlow));
             OnPropertyChanged(nameof(StackSummary));
             OnPropertyChanged(nameof(UsesDraftCanvas));
+            OnPropertyChanged(nameof(UsesStepDials));
+            OnPropertyChanged(nameof(UsesAttentionDials));
             OnPropertyChanged(nameof(RenderSummary));
             RaiseStepsState();
         }
@@ -813,6 +857,9 @@ namespace FlipPix.UI.ViewModels.Video
                         : "euler/simple, as the Singularity graph is authored",
                     I2VStack.Eros => "er_sde/beta on the 10Eros hybrid",
                     I2VStack.Parasyte => "res_multistep/simple on the Parasyte turbo LoRA",
+                    I2VStack.HyperFlow =>
+                        "not read at all — HyperFlow samples its own trained 8-step sigma grid, so this dial " +
+                        "does nothing on this stack",
                     _ => "euler/simple on the turbo LoRA, as this graph is authored",
                 };
 

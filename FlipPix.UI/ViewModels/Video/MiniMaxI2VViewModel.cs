@@ -309,6 +309,7 @@ namespace FlipPix.UI.ViewModels.Video
             OnPropertyChanged(nameof(HasReference));
             OnPropertyChanged(nameof(ResolvedAspectRatio));
             OnPropertyChanged(nameof(ReferenceSummary));
+            OnPropertyChanged(nameof(LocationPlateSummary));
             OnPropertyChanged(nameof(PrimaryReferencePath));
             OnPropertyChanged(nameof(PrimaryStereo));
             OnPropertyChanged(nameof(IsPrimaryStereo));
@@ -795,8 +796,10 @@ namespace FlipPix.UI.ViewModels.Video
             // land within a few percent of the same pixel count, except 1:1, which comes out ~5% smaller.
             new MegapixelOption(0.4, "0.4 MP — fast draft (832×512)"),
             new MegapixelOption(0.7, "0.7 MP — balanced (1152×640)"),
+            new MegapixelOption(0.9, "0.9 MP — 720p (1280×704)"),
             new MegapixelOption(1.0, "1.0 MP — full quality (1344×768)"),
             new MegapixelOption(1.5, "1.5 MP — high (1664×960)"),
+            new MegapixelOption(2.0, "2.0 MP — 1080p (1920×1088), ~2.75× the time of 720p"),
         };
 
         public double Megapixels
@@ -1040,6 +1043,10 @@ namespace FlipPix.UI.ViewModels.Video
                     throw new FileNotFoundException($"System prompt not found: {promptFilePath}");
                 var systemPrompt = await File.ReadAllTextAsync(promptFilePath, token);
 
+                // An empty set for the take to be staged in, rendered into a free slot first — see
+                // MiniMaxI2VViewModel.LocationPlate.cs.
+                await EnsureLocationPlateAsync(model, token);
+
                 var pictures = FilledReferences;
                 AddLog($"Writing the Ref2VA prompt — {pictures.Count} picture(s) → {_lmStudioService.DescribeTarget(model)}");
 
@@ -1087,7 +1094,9 @@ namespace FlipPix.UI.ViewModels.Video
                 $"You are given {pictures.Count} reference picture(s), in order:"
             };
             for (var i = 0; i < pictures.Count; i++)
-                lines.Add($"  <Picture {i + 1}> — {Path.GetFileNameWithoutExtension(pictures[i].Path)}");
+                lines.Add(pictures[i].IsLocationPlate
+                    ? $"  <Picture {i + 1}> — {LocationPlateNote}"
+                    : $"  <Picture {i + 1}> — {Path.GetFileNameWithoutExtension(pictures[i].Path)}");
 
             lines.Add(string.Empty);
             if (Continuations.Count == 0)
@@ -1166,7 +1175,8 @@ namespace FlipPix.UI.ViewModels.Video
                 return;
             }
 
-            var blocks = SplitSegments(reply);
+            // "No music" in words gets music; the field is written N/A instead.
+            var blocks = SplitSegments(reply).Select(H3SpecPrompt.NormalizeMusicSections).ToList();
             Prompt = blocks[0];
             AddLog($"Segment 1 prompt written ({blocks[0].Length} chars)");
 
@@ -1227,7 +1237,8 @@ namespace FlipPix.UI.ViewModels.Video
 
                 // The reply should be one segment, but a model that ignored "no marker" would wrap it —
                 // take the first block either way.
-                var text = SplitSegments(CleanLLMOutput(reply)).FirstOrDefault() ?? string.Empty;
+                var text = H3SpecPrompt.NormalizeMusicSections(
+                    SplitSegments(CleanLLMOutput(reply)).FirstOrDefault() ?? string.Empty);
                 if (string.IsNullOrWhiteSpace(text))
                 {
                     AddLog($"WARNING: continuation {segment.Index} still came back empty");
@@ -1258,7 +1269,9 @@ namespace FlipPix.UI.ViewModels.Video
                 $"You are given {pictures.Count} reference picture(s), in order:"
             };
             for (var i = 0; i < pictures.Count; i++)
-                lines.Add($"  <Picture {i + 1}> — {Path.GetFileNameWithoutExtension(pictures[i].Path)}");
+                lines.Add(pictures[i].IsLocationPlate
+                    ? $"  <Picture {i + 1}> — {LocationPlateNote}"
+                    : $"  <Picture {i + 1}> — {Path.GetFileNameWithoutExtension(pictures[i].Path)}");
 
             lines.Add(string.Empty);
             lines.Add("The user's idea for the WHOLE take:");
@@ -2487,12 +2500,21 @@ namespace FlipPix.UI.ViewModels.Video
             // 🐰 is the exception: its first sampler runs the top three quarters of its own extended and
             // split schedule and its second runs the tail out, so neither draft_split nor the plain
             // scheduler is what it reads. ApplyRenderStack has already wired it.
+            // 🌊's whole schedule is the HyperFlow adapter's grid, not the branch's scheduler.
             if (item.Stack != I2VStack.Bunny)
             {
-                Link(root, NodeBaseSampler, "sigmas",
-                     item.UseLatentUpscale ? NodeDraftSigmas : NodeBaseFullSigmas, 0);
-                Link(root, NodeLoopSampler, "sigmas",
-                     item.UseLatentUpscale ? NodeDraftSigmas : NodeLoopFullSigmas, 0);
+                var (baseFull, baseSlot) = FullSigmasFor(item.Stack, NodeBaseFullSigmas);
+                var (loopFull, loopSlot) = FullSigmasFor(item.Stack, NodeLoopFullSigmas);
+                if (item.UseLatentUpscale)
+                {
+                    Link(root, NodeBaseSampler, "sigmas", NodeDraftSigmas, 0);
+                    Link(root, NodeLoopSampler, "sigmas", NodeDraftSigmas, 0);
+                }
+                else
+                {
+                    Link(root, NodeBaseSampler, "sigmas", baseFull, baseSlot);
+                    Link(root, NodeLoopSampler, "sigmas", loopFull, loopSlot);
+                }
             }
 
             // Only the half that owns the saved sink finishes the frames and the audio: on the base pass

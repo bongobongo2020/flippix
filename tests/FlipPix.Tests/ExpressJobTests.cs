@@ -222,6 +222,8 @@ public class ExpressJobTests
     [InlineData(ExpressStack.Singularity, "✴️ Singularity")]
     [InlineData(ExpressStack.TaoMate, "🍥 TaoMate")]
     [InlineData(ExpressStack.Bunny, "🐰 BUNNY")]
+    [InlineData(ExpressStack.Parasyte, "🦠 Parasyte")]
+    [InlineData(ExpressStack.HyperFlow, "🌊 HyperFlow")]
     public void EveryStackHasItsOwnLabel(ExpressStack stack, string expected)
     {
         var job = new ExpressJob { Stack = stack, SingularityErSde = false };

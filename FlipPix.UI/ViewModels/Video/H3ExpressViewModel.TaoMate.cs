@@ -106,7 +106,7 @@ namespace FlipPix.UI.ViewModels.Video
             set
             {
                 if (_useTaoMate == value) return;
-                if (value) { ClearSingularity(); ClearBunny(); }
+                if (value) { ClearSingularity(); ClearBunny(); ClearParasyte(); ClearHyperFlow(); }
                 _useTaoMate = value;
                 OnPropertyChanged();
                 RaiseStackState();

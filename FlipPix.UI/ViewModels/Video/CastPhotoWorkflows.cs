@@ -338,6 +338,33 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>
+        /// A <b>location plate</b> — an empty set for a video to be staged in — on the Qwen Image 2512 graph, at the
+        /// clip's own aspect. Qwen rather than a portrait engine: it carries no character LoRA and no selfie look,
+        /// and it is the graph here that draws a readable place. The prompt is expected to say "no people"; the
+        /// graph is run as authored otherwise.
+        /// </summary>
+        /// <param name="width">Canvas width; rounded to 16 as the latent wants.</param>
+        /// <param name="height">Canvas height; rounded to 16.</param>
+        public static async Task<(string Json, string SaveNode)> BuildLocationPlateAsync(
+            string prefix, long seed, string prompt, int width, int height)
+        {
+            var json = await ReadWorkflowAsync("workflow/image/qwen/Qwen_Image_2512_INT8_Convrot_WF.json");
+            var root = ParseGraph(json);
+            RequireClass(root, QwenImgPromptNode, "CLIPTextEncode");
+            RequireClass(root, QwenImgSamplerNode, "KSampler");
+            RequireClass(root, QwenImgLatentNode, "EmptySD3LatentImage");
+            RequireClass(root, QwenImgSaveNode, "SaveImage");
+            json = root.ToJsonString();
+
+            SetInput(ref json, QwenImgPromptNode, "text", prompt);
+            SetInput(ref json, QwenImgSamplerNode, "seed", seed);
+            SetInput(ref json, QwenImgLatentNode, "width", Math.Max(256, width / 16 * 16));
+            SetInput(ref json, QwenImgLatentNode, "height", Math.Max(256, height / 16 * 16));
+            SetInput(ref json, QwenImgSaveNode, "filename_prefix", prefix);
+            return (json, QwenImgSaveNode);
+        }
+
+        /// <summary>
         /// Whether a graph has been seen drawing the "Image blocked by safety filter" placeholder instead of the
         /// portrait (<see cref="SafetyFilterPlaceholder"/>). Ideogram 4 does; the others have not been seen to, so
         /// their photos are not checked.

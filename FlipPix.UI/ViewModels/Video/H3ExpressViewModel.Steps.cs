@@ -136,6 +136,10 @@ namespace FlipPix.UI.ViewModels.Video
                     ExpressStack.Bunny =>
                         "the schedule BUNNY extends and splits — three more steps are woven into the mid " +
                         $"sigmas and the last {BunnySplit:0%} of what comes out is the cleanup pass",
+                    ExpressStack.Parasyte => "res_multistep/simple on the Parasyte turbo LoRA",
+                    ExpressStack.HyperFlow =>
+                        "not read at all — HyperFlow samples its own trained 8-step sigma grid, so this dial " +
+                        "does nothing on this stack",
                     ExpressStack.Singularity => SingularityErSde
                         ? "er_sde/beta over the Singularity graph"
                         : "euler/simple, as the Singularity graph is authored",
