@@ -17,4 +17,4 @@
 #   Q3_K_M 14.7 GB
 #   Q4_K_S 16.7 GB / Q4_K_M 17.8 GB  (only with VRAM headroom / GGUF CPU offload)
 
-unet/LTX-2.3-22B-distilled-1.1-Q3_K_S.gguf | ~14 GB | https://huggingface.co/QuantStack/LTX-2.3-GGUF/resolve/main/LTX-2.3-distilled-1.1/LTX-2.3-22B-distilled-1.1-Q3_K_S.gguf
+unet/LTX-2.3-22B-distilled-1.1-Q3_K_S.gguf | ~13.0 GB | https://huggingface.co/QuantStack/LTX-2.3-GGUF/resolve/main/LTX-2.3-distilled-1.1/LTX-2.3-22B-distilled-1.1-Q3_K_S.gguf

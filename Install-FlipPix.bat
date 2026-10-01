@@ -2,9 +2,10 @@
 REM ===========================================================================
 REM  FlipPix - one-click installer
 REM
-REM  Just DOUBLE-CLICK this file. A setup wizard (Windows 98 style) walks you
-REM  through installing FlipPix on this computer, with an option to also install
-REM  ComfyUI (the image/video engine FlipPix drives).
+REM  Just DOUBLE-CLICK this file. A setup wizard (Windows 98 style) checks this PC,
+REM  then installs FlipPix, ComfyUI (custom nodes + models; video models optional)
+REM  and the Qwen2.5-VL writing assistant, with a progress bar the whole way, and
+REM  shows how to pair the iPad. Run it again to resume an interrupted install.
 REM
 REM  It bootstraps scripts\flippix-installer.ps1 with the right PowerShell
 REM  execution policy so you never have to open a terminal.

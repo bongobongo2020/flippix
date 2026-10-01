@@ -49,6 +49,12 @@ public sealed class LibraryIndex
     /// <param name="root">The output folder as the desktop's settings resolve it right now.</param>
     public LibraryIndex(Func<string> root) => _root = root;
 
+    /// <summary>
+    /// Which entries the phone may see. Null: everything in the output folder. Applied to listing and
+    /// to lookups by id, so a hidden file can't be reached by guessing its id either.
+    /// </summary>
+    public Func<LibraryEntry, bool>? Visible { get; set; }
+
     /// <summary>Raised on the scanning thread with the newest entries after each scan.</summary>
     public event Action<IReadOnlyList<LibraryEntry>>? Scanned;
 
@@ -225,7 +231,10 @@ public sealed class LibraryIndex
     /// The entry for an id, from the index or, for a file saved since the last scan, from disk. Null
     /// when it isn't a media file inside the output folder: an id can't reach anywhere else.
     /// </summary>
-    public LibraryEntry? Find(string id)
+    public LibraryEntry? Find(string id) =>
+        FindAny(id) is { } entry && (Visible == null || Visible(entry)) ? entry : null;
+
+    private LibraryEntry? FindAny(string id)
     {
         lock (_lock)
             if (_byId.TryGetValue(id, out var known) && File.Exists(known.FullPath)) return known;
@@ -262,7 +271,7 @@ public sealed class LibraryIndex
 
     private void Include(string relativePath, int attempt)
     {
-        var entry = Find(IdOf(relativePath));
+        var entry = FindAny(IdOf(relativePath));
         if (entry == null)
         {
             // Over SMB, a file ComfyUI wrote a moment ago can read as missing for several seconds
@@ -294,6 +303,7 @@ public sealed class LibraryIndex
             all = _entries;
             problem = _problem;
         }
+        if (Visible is { } visible) all = all.Where(visible).ToList();
 
         // Folders are listed by their newest item, so the one being worked in comes first.
         var folders = all.GroupBy(e => e.Folder, StringComparer.OrdinalIgnoreCase)

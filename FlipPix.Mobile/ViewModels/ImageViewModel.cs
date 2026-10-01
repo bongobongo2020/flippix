@@ -32,9 +32,17 @@ public partial class ImageViewModel : ObservableObject
     {
         _openViewer = openViewer;
         AppServices.Jobs.Changed += Sync;
+        // The computer may offer fewer looks (the iOS Companion makes only Photo).
+        ServerInfo.Current.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(ServerInfo.Looks)) return;
+            OnPropertyChanged(nameof(LookOptions));
+            if (!LookOptions.Contains(Look)) Look = LookOptions.FirstOrDefault() ?? Looks.All[0];
+        };
+        _ = ServerInfo.Current.RefreshAsync();
     }
 
-    public IReadOnlyList<LookOption> LookOptions => Looks.All;
+    public IReadOnlyList<LookOption> LookOptions => ServerInfo.Current.Looks;
 
     /// <summary>Every picture this phone asked for, newest first: waiting, developing and done.</summary>
     public ObservableCollection<JobItemVm> Tiles { get; } = new();
@@ -93,7 +101,7 @@ public partial class ImageViewModel : ObservableObject
     public void UsePrompt(string prompt, string? look, string? shape)
     {
         Prompt = prompt;
-        if (look != null) Look = Looks.All.FirstOrDefault(l => l.Key == look) ?? Look;
+        if (look != null) Look = LookOptions.FirstOrDefault(l => l.Key == look) ?? Look;
         if (shape != null) Shape = ShapeOf(shape);
         Notice = null;
     }

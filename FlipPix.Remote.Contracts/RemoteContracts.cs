@@ -81,6 +81,10 @@ public sealed class StatusDto
     public string LibraryFolder { get; init; } = "";
     public int Queued { get; init; }
     public int Running { get; init; }
+    /// <summary>The image looks this computer offers. Empty from an older desktop: all of them.</summary>
+    public List<string> Looks { get; init; } = new();
+    /// <summary>Model credits to show, e.g. "Video by MiniMax H3". Their licenses require it.</summary>
+    public List<string> Credits { get; init; } = new();
 }
 
 /// <summary>

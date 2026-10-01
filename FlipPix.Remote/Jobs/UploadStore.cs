@@ -71,6 +71,18 @@ public sealed class UploadStore
         return (id, w, h);
     }
 
+    /// <summary>The stored (normalised) JPEG of an upload.</summary>
+    public Task<byte[]> BytesOf(string id, CancellationToken ct) =>
+        IsId(id) ? File.ReadAllBytesAsync(PathOf(id), ct) : throw new ArgumentException("Unknown photo.");
+
+    /// <summary>Removes an upload and its thumbnail, e.g. one the content filter turned away.</summary>
+    public void Delete(string id)
+    {
+        if (!IsId(id)) return;
+        foreach (var path in new[] { PathOf(id), ThumbPathOf(id) })
+            try { File.Delete(path); } catch (IOException) { }
+    }
+
     public string? ThumbFor(string id) =>
         IsId(id) && File.Exists(ThumbPathOf(id)) ? ThumbPathOf(id) : null;
 
