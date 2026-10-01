@@ -45,9 +45,12 @@ powershell -ExecutionPolicy Bypass -File scripts\setup-llm.ps1 -InstallDir D:\Fl
 
 ## FlipPix iOS Companion (just what the iPad needs)
 
-For a PC that only serves the FlipPix iPad / iPhone app, ship **`ios-companion.zip`** (built by
-`scripts\make-ios-companion.ps1`). The user extracts it and double-clicks **`Install-iOS-Companion.bat`**,
-which runs the same wizard with `-Companion`:
+For a PC that only serves the FlipPix iPad / iPhone app, ship **`release\FlipPix-iOS-Companion-Setup.exe`**
+(built by `scripts\make-ios-companion.ps1`, which also cross-builds from macOS with PowerShell 7 and the
+.NET 8 SDK). The user double-clicks it; it unpacks the package under
+`%LocalAppData%\FlipPix\ios-companion-setup\` and runs the same wizard with `-Companion`. The same package
+is also in `release\ios-companion.zip` for anyone who prefers to unzip it and double-click
+`Install-iOS-Companion.bat`. The exe is unsigned, so Windows SmartScreen warns until it's code-signed.
 
 - **License page:** Krea 2 and MiniMax H3 terms, and the H3 territory limit. Next stays disabled until accepted.
 - **Installs:** the companion app (`FlipPix.IosCompanion.exe`), ComfyUI with only the 13 node packs in

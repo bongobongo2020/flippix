@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    FlipPix-iOS-Companion-Setup.exe: the one-file download. It carries the whole ios-companion package
+    (release\ios-companion.zip, embedded at build time) and, when double-clicked, unpacks it and runs
+    the setup wizard (scripts\flippix-installer.ps1 -Companion). Built by scripts\make-ios-companion.ps1,
+    which passes the zip as -p:PayloadZip=...
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>FlipPix-iOS-Companion-Setup</AssemblyName>
+    <RootNamespace>FlipPix.IosCompanion.Setup</RootNamespace>
+    <Product>FlipPix iOS Companion Setup</Product>
+    <ApplicationIcon>..\flippix.ico</ApplicationIcon>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(PayloadZip)' != ''">
+    <EmbeddedResource Include="$(PayloadZip)" LogicalName="payload.zip" />
+  </ItemGroup>
+</Project>
