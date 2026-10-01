@@ -111,6 +111,9 @@ public static class VideoRecipe
             Workflows.Set(g, sla, "block_size", "64"); // 128 rows = 1.6 s of audio per block: robotic speech
         }
         Workflows.Set(g, NodeSolAttn, "switch", false);
+        // The switch is off, so its "on" side (the Sol-Attn patch) never runs; pointing it at the "off"
+        // side drops those nodes in PruneTo, and with them a custom-node pack the phone doesn't need.
+        Inputs(g, NodeSolAttn)["on_true"] = Inputs(g, NodeSolAttn)["on_false"]?.DeepClone();
 
         Workflows.Set(g, NodeTurboLora, "model", new JsonArray(NodeSolAttn, 0));
         Workflows.Set(g, NodeSigmaShift, "model", new JsonArray(NodeTurboLora, 0));

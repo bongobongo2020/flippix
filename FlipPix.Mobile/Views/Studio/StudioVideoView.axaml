@@ -18,6 +18,7 @@
             <StackPanel Spacing="6">
               <TextBlock Classes="eyebrow" Text="VIDEO" Foreground="{StaticResource GlowBrush}" />
               <TextBlock Classes="display" Text="Bring it to life" />
+              <TextBlock Classes="hint" Text="{Binding VideoCredit}" IsVisible="{Binding HasVideoCredit}" />
             </StackPanel>
 
             <!-- Photos: who and where. The first one sets the frame. -->

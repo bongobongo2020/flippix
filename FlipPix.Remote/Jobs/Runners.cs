@@ -25,7 +25,7 @@ public static class ImageRunner
     public static async Task RunAsync(JobContext c)
     {
         var r = c.Job.Request;
-        var look = ImageLook.All.First(l => l.Key == r.Look);
+        var look = c.Engine.Looks.First(l => l.Key == r.Look);
         var shape = ShapeOf(r.Shape);
         var todo = c.Job.Items.Where(i => i.State != ItemStates.Done).ToList();
 
@@ -45,6 +45,8 @@ public static class ImageRunner
 
                 var image = outputs.FirstOrDefault(o => !o.IsVideo)
                     ?? throw new InvalidOperationException("The server finished but saved no picture.");
+                c.SetItem(item, i => i.Status = "Checking the picture");
+                if (await c.Engine.ScreenAsync(image, c.Token) is { } blocked) throw new InvalidOperationException(blocked);
                 c.SetItem(item, i =>
                 {
                     i.Output = image;
@@ -128,6 +130,13 @@ public static class VideoRunner
 
         var video = outputs.FirstOrDefault(o => o.IsVideo)
             ?? throw new InvalidOperationException("The server finished but saved no video.");
+        c.SetItem(item, i => i.Status = "Checking the video");
+        if (await c.Engine.ScreenAsync(video, ct) is { } blocked)
+        {
+            c.SetItem(item, i => { i.State = ItemStates.Failed; i.Status = blocked; }, persist: true);
+            ImageRunner.Finish(c, "video");
+            return;
+        }
         c.SetItem(item, i =>
         {
             i.Output = video;
@@ -211,11 +220,12 @@ public static class StoryRunner
             var prompt = (await llm.ChatAsync(StoryRecipe.CastPhotoSystem, r.Story!, Array.Empty<byte[]>(), 300, 0.7, ct))
                 .Trim().Trim('"');
             c.Set(j => j.Status = "Photographing your lead");
-            var photo = ImageLook.All.First(l => l.Key == "photo");
+            var photo = c.Engine.Looks.FirstOrDefault(l => l.Key == "photo") ?? ImageLook.All.First(l => l.Key == "photo");
             var outputs = await c.Engine.Comfy.RunAsync(photo.Build(prompt, ImageShape.Landscape, Workflows.RandomSeed()),
                 (v, max) => c.Set(j => j.Status = $"Photographing your lead, step {v} of {max}"), ct);
             var image = outputs.FirstOrDefault(o => !o.IsVideo)
                 ?? throw new InvalidOperationException("The portrait came back empty.");
+            if (await c.Engine.ScreenAsync(image, ct) is { } blocked) throw new InvalidOperationException(blocked);
             var saved = await c.Engine.Uploads.SaveBytesAsync(await c.Engine.Comfy.DownloadAsync(image, ct), ct);
             cast.Add("upload:" + saved.Id);
             lines.Add(prompt);
@@ -326,6 +336,8 @@ public static class StoryRunner
                 }), ct);
                 var video = outputs.FirstOrDefault(o => o.IsVideo)
                     ?? throw new InvalidOperationException("The server finished but saved no video.");
+                c.SetItem(clip, i => i.Status = "Checking the video");
+                if (await c.Engine.ScreenAsync(video, ct) is { } blocked) throw new InvalidOperationException(blocked);
                 c.SetItem(clip, i =>
                 {
                     i.Output = video;

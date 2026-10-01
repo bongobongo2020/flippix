@@ -14,8 +14,8 @@ the repo root. It opens a retro Windows 98-style setup wizard that leaves the PC
    It installs everything below, in order:
    - the FlipPix app → `<folder>\App`
    - ComfyUI, custom nodes and models (`setup-comfyui-fresh.ps1 -Wizard`) → `<folder>\ComfyUI`,
-     `<folder>\models`. Image only: ~23 GB of models (`-Minimal`). With video: ~50 GB, plus the
-     14 GB low-VRAM LTX GGUF on a GPU with 16 GB or less.
+     `<folder>\models`. Image only: ~49 GB of models (`-Minimal`). With video: ~84 GB, plus the
+     13 GB low-VRAM LTX GGUF on a GPU with 16 GB or less.
    - the writing assistant (`setup-llm.ps1 -Wizard`): llama-server (llama.cpp CUDA 12.4) and
      Qwen2.5-VL-7B-Instruct Q4_K_M + Q8_0 mmproj → `<folder>\LLM`, served on `127.0.0.1:8080`
    - turns on the phone remote (`remote.json`), adds a private-network firewall rule (one UAC
@@ -40,6 +40,27 @@ through `##FLIPPIX|...` stdout markers; `setup-common.ps1` describes them.
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\setup-llm.ps1 -InstallDir D:\FlipPix\LLM
 ```
+
+---
+
+## FlipPix iOS Companion (just what the iPad needs)
+
+For a PC that only serves the FlipPix iPad / iPhone app, ship **`ios-companion.zip`** (built by
+`scripts\make-ios-companion.ps1`). The user extracts it and double-clicks **`Install-iOS-Companion.bat`**,
+which runs the same wizard with `-Companion`:
+
+- **License page:** Krea 2 and MiniMax H3 terms, and the H3 territory limit. Next stays disabled until accepted.
+- **Installs:** the companion app (`FlipPix.IosCompanion.exe`), ComfyUI with only the 13 node packs in
+  `flippix-custom-nodes-ios.txt`, the ~60 GB in `flippix-models-ios.txt` (Krea 2 + MiniMax H3 + the content
+  filter), and the writing assistant. The missing-node scan reads only the two graphs the iPad runs.
+- **Configures:** `%AppData%\FlipPix\companion.json` (where things went), a firewall rule, and a Startup
+  shortcut that starts the companion in the tray.
+
+The companion keeps ComfyUI and llama-server running, shows the pairing code, offers the phone exactly
+two things (the Krea 2 "Photo" look and H3 video), and runs every picture, video and uploaded photo
+through an on-device NSFW classifier before the phone sees it. Its library lists only what it made. It
+won't turn the phone link on without the classifier, because both model licenses require filtering.
+See `THIRD_PARTY_LICENSES.md` for the terms that affect the App Store listing.
 
 ---
 
@@ -93,7 +114,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup-comfyui-fresh.ps1
 7. **Models:** asks for your *current* ComfyUI models folder. If it already exists, the new
    install is pointed at it (via `extra_model_paths.yaml`) and **nothing is downloaded**. Only
    if the folder doesn't exist does it offer to create it and download the FlipPix models
-   (~45 GB, listed in `flippix-models.txt`) there.
+   (~84 GB, listed in `flippix-models.txt`) there.
 
 ## Model options
 
@@ -111,7 +132,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup-comfyui-fresh.ps1
 ## Requirements
 
 - Windows 10/11
-- ~60 GB free disk space (models ~45 GB, ComfyUI + nodes ~5 GB, working space ~10 GB)
+- ~100 GB free disk space for everything (models ~84 GB, ComfyUI + nodes ~5 GB, working space ~10 GB); ~65 GB for the image-only (minimal) set
 - Stable internet connection
 - `git` (the installer offers to install it via `winget` if missing)
 

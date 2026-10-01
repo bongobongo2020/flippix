@@ -9,7 +9,10 @@
     <ScrollViewer Grid.Row="0">
       <StackPanel Margin="20,6,20,24" Spacing="28">
 
-        <TextBlock Classes="title" Text="Bring it to life" />
+        <StackPanel Spacing="2">
+          <TextBlock Classes="title" Text="Bring it to life" />
+          <TextBlock Classes="hint" Text="{Binding VideoCredit}" IsVisible="{Binding HasVideoCredit}" />
+        </StackPanel>
 
         <!-- Photos: who and where. The first one sets the frame. -->
         <StackPanel Spacing="10">

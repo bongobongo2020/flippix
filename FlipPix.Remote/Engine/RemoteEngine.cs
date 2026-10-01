@@ -14,9 +14,10 @@ public sealed class RemoteEngine : IDisposable
 {
     private readonly Func<ComfyUISettings> _settings;
 
-    public RemoteEngine(Func<ComfyUISettings> settings, IAppLogger? logger, string dataDir)
+    public RemoteEngine(Func<ComfyUISettings> settings, IAppLogger? logger, string dataDir, RemoteOptions? options = null)
     {
         _settings = settings;
+        Options = options ?? new RemoteOptions();
         DataDir = dataDir;
         Directory.CreateDirectory(dataDir);
         Logger = new RemoteLogger(logger);
@@ -33,6 +34,11 @@ public sealed class RemoteEngine : IDisposable
     }
 
     public string DataDir { get; }
+    public RemoteOptions Options { get; }
+
+    /// <summary>The looks this host offers: all of them, or the ones <see cref="RemoteOptions.Looks"/> names.</summary>
+    public IReadOnlyList<ImageLook> Looks =>
+        Options.Looks is { } keys ? ImageLook.All.Where(l => keys.Contains(l.Key)).ToList() : ImageLook.All;
     public IAppLogger Logger { get; }
     public ComfyGateway Comfy { get; }
     public LlmClient Llm { get; }
@@ -120,6 +126,67 @@ public sealed class RemoteEngine : IDisposable
             catch (Exception) { /* made on demand instead */ }
             finally { Interlocked.Exchange(ref _warming, 0); }
         });
+    }
+
+    // ── Screening ─────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>How many frames of a video the filter reads: one a second, and the phone's longest clip is 15 s.</summary>
+    private const int VideoFrames = 16;
+
+    /// <summary>
+    /// Runs the content filter over a finished output. Null when it may be shown (or there is no
+    /// filter); otherwise the output is deleted from the output folder, so neither the job nor the
+    /// library can hand it out, and the reason is returned. A video that can't be read is not shown.
+    /// </summary>
+    public async Task<string?> ScreenAsync(ComfyOutput output, CancellationToken ct)
+    {
+        if (Options.Filter is not { } filter) return null;
+        string? reason;
+        if (output.IsVideo)
+        {
+            SyncComfy();
+            var source = LocalPathOf(output) is { } local && File.Exists(local) ? local : Comfy.ViewUrl(output);
+            var frames = await Thumbnailer.SampleFramesAsync(source, VideoFrames, 336, ct);
+            reason = frames.Count == 0 ? "The video couldn't be checked, so it isn't shown." : null;
+            foreach (var frame in frames)
+            {
+                if (reason != null) break;
+                reason = await filter.CheckImageAsync(frame, ct);
+            }
+        }
+        else
+        {
+            SyncComfy();
+            reason = await filter.CheckImageAsync(await Comfy.DownloadAsync(output, ct), ct);
+        }
+        if (reason != null) Discard(output);
+        return reason;
+    }
+
+    /// <summary>Screens a photo the phone sent. Null when it may be used.</summary>
+    public Task<string?> ScreenUploadAsync(byte[] jpeg, CancellationToken ct) =>
+        Options.Filter is { } filter ? filter.CheckImageAsync(jpeg, ct) : Task.FromResult<string?>(null);
+
+    private string? LocalPathOf(ComfyOutput output)
+    {
+        if (output.Type != "output") return null;
+        var root = OutputRoot();
+        if (string.IsNullOrWhiteSpace(root)) return null;
+        return Path.Combine(root, output.Subfolder ?? "", output.FileName);
+    }
+
+    /// <summary>Deletes a blocked output and the poster / audio copies VHS saves beside a video.</summary>
+    private void Discard(ComfyOutput output)
+    {
+        if (LocalPathOf(output) is not { } path) return;
+        var dir = Path.GetDirectoryName(path) ?? "";
+        var stem = Path.GetFileNameWithoutExtension(path);
+        foreach (var candidate in new[] { path, Path.Combine(dir, stem + ".png"), Path.Combine(dir, stem + "-audio" + Path.GetExtension(path)) })
+        {
+            try { if (File.Exists(candidate)) File.Delete(candidate); }
+            catch (Exception ex) { Logger.LogWarning("Couldn't delete a blocked output {0}: {1}", candidate, ex.Message); }
+        }
+        Library.Invalidate();
     }
 
     public void Dispose() => Comfy.Dispose();

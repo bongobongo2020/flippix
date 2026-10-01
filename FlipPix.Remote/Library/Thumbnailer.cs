@@ -174,6 +174,62 @@ public sealed class Thumbnailer
     }
 
     /// <summary>
+    /// One frame a second of a video (a file or a URL ffmpeg can read), at most <paramref name="max"/>,
+    /// each a small JPEG for a content classifier. Empty when ffmpeg is missing or reads nothing.
+    /// </summary>
+    public static async Task<IReadOnlyList<byte[]>> SampleFramesAsync(string input, int max, int side, CancellationToken ct)
+    {
+        var ffmpeg = FindFfmpeg();
+        if (ffmpeg == null) return Array.Empty<byte[]>();
+        var dir = Path.Combine(Path.GetTempPath(), "flippix-frames-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var psi = new ProcessStartInfo(ffmpeg)
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardError = true,
+                RedirectStandardOutput = true,
+            };
+            foreach (var a in new[]
+                     {
+                         "-hide_banner", "-loglevel", "error", "-i", input,
+                         "-vf", $"fps=1,scale={side}:{side}:force_original_aspect_ratio=decrease",
+                         "-frames:v", max.ToString(), "-q:v", "4", Path.Combine(dir, "f%03d.jpg"),
+                     })
+                psi.ArgumentList.Add(a);
+
+            using var p = Process.Start(psi);
+            if (p == null) return Array.Empty<byte[]>();
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(120));
+            try
+            {
+                var drainErr = p.StandardError.ReadToEndAsync(timeout.Token);
+                var drainOut = p.StandardOutput.ReadToEndAsync(timeout.Token);
+                await p.WaitForExitAsync(timeout.Token);
+                await Task.WhenAll(drainErr, drainOut);
+            }
+            catch (OperationCanceledException)
+            {
+                try { p.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+                if (ct.IsCancellationRequested) throw;
+                return Array.Empty<byte[]>();
+            }
+
+            var frames = new List<byte[]>();
+            foreach (var f in Directory.EnumerateFiles(dir, "f*.jpg").OrderBy(f => f, StringComparer.Ordinal))
+                frames.Add(await File.ReadAllBytesAsync(f, ct));
+            return frames;
+        }
+        finally
+        {
+            try { Directory.Delete(dir, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    /// <summary>
     /// ffmpeg on PATH, found once per run. Only local fixed-drive folders are probed: on this machine a
     /// PATH entry on a disconnected mapped drive costs a 12 s SMB timeout per File.Exists.
     /// </summary>

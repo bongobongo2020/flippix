@@ -30,7 +30,10 @@
 #>
 
 [CmdletBinding()]
-param()
+param(
+    # Install the FlipPix iOS Companion (only what the iPad app needs) instead of the FlipPix desktop app.
+    [switch]$Companion
+)
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -50,6 +53,21 @@ $IconPath   = Join-Path $RepoRoot 'flippix.ico'
 $PublishDir = Join-Path $RepoRoot 'publish'
 $ComfyPs1   = Join-Path $ScriptDir 'setup-comfyui-fresh.ps1'
 $LlmPs1     = Join-Path $ScriptDir 'setup-llm.ps1'
+
+# What this run installs: the FlipPix desktop app, or (-Companion) the iOS Companion.
+if ($Companion) {
+    $Product    = 'FlipPix iOS Companion'
+    $PublishDir = Join-Path $RepoRoot 'publish-companion'
+    $AppExe     = 'FlipPix.IosCompanion.exe'
+    $AppProject = 'FlipPix.IosCompanion\FlipPix.IosCompanion.csproj'
+} else {
+    $Product    = 'FlipPix'
+    $AppExe     = 'FlipPix.UI.exe'
+    $AppProject = 'FlipPix.UI\FlipPix.UI.csproj'
+}
+# The two graphs the iPad runs, relative to workflow\ (FlipPix.Remote embeds the same files). One
+# comma-separated argument, because powershell -File can't pass an array.
+$CompanionWorkflows = 'image\krea\krea2RealismV1_krea2RealismV1WF.json,video\h3-minimax\h3-minimax-i2v.json'
 
 # Read-ModelManifest / ConvertTo-Bytes (the wizard sizes the model download from the manifests)
 . (Join-Path $ScriptDir 'setup-common.ps1')
@@ -112,9 +130,9 @@ function Get-DefaultRoot {
 
 function Get-ModelFiles([string]$Root, [bool]$Video) {
     # The model files this install should end up with: path, expected bytes.
-    $list = if ($Video) { 'flippix-models.txt' } else { 'flippix-models-min.txt' }
+    $list = if ($Companion) { 'flippix-models-ios.txt' } elseif ($Video) { 'flippix-models.txt' } else { 'flippix-models-min.txt' }
     $entries = @(Read-ModelManifest (Join-Path $ScriptDir $list))
-    if ($Video -and $Tier16) { $entries += @(Read-ModelManifest (Join-Path $ScriptDir 'flippix-models-16gb-video.txt')) }
+    if ($Video -and $Tier16 -and -not $Companion) { $entries += @(Read-ModelManifest (Join-Path $ScriptDir 'flippix-models-16gb-video.txt')) }
     # IO.Path, not Join-Path: Join-Path throws for a drive letter this PC doesn't have, and this
     # runs on every keystroke in the folder box.
     $modelsDir = [IO.Path]::Combine($Root, 'models')
@@ -158,7 +176,7 @@ $fntMark   = New-Object Drawing.Font('Marlett', 11)       # 'a' = check mark, 'r
 # form
 # ---------------------------------------------------------------------------
 $form = New-Object Windows.Forms.Form
-$form.Text            = 'FlipPix Setup'
+$form.Text            = "$Product Setup"
 $form.ClientSize      = New-Object Drawing.Size(497, 360)
 $form.FormBorderStyle = 'FixedDialog'
 $form.MaximizeBox     = $false
@@ -253,11 +271,11 @@ function Set-CheckRow($row, [string]$state, [string]$text) {
 # ===========================================================================
 $pgWelcome = New-Page
 $pgWelcome.Controls.Add((New-Banner))
-$wTitle = New-Label 'Welcome to the FlipPix Setup Wizard' 180 24 300 40
+$wTitle = New-Label "Welcome to the $Product Setup Wizard" 180 24 300 40
 $wTitle.Font = $fntBold
 $wBody  = New-Label ("This sets up everything the FlipPix iPad app needs on this PC:`r`n`r`n" +
-    "   - the FlipPix desktop app`r`n" +
-    "   - ComfyUI, its custom nodes and models`r`n" +
+    $(if ($Companion) { "   - the FlipPix iOS Companion`r`n" } else { "   - the FlipPix desktop app`r`n" }) +
+    $(if ($Companion) { "   - ComfyUI with Krea 2 (pictures) and MiniMax H3 (video)`r`n" } else { "   - ComfyUI, its custom nodes and models`r`n" }) +
     "   - the Qwen2.5-VL writing assistant`r`n`r`n" +
     "You need an NVIDIA graphics card with 12 GB of memory or more (RTX 4070 Ti or better). " +
     "Most of the time goes on downloads, so expect about an hour on a fast connection. " +
@@ -266,7 +284,65 @@ $wBody  = New-Label ("This sets up everything the FlipPix iPad app needs on this
 $pgWelcome.Controls.AddRange(@($wTitle, $wBody))
 
 # ===========================================================================
-# Page 1 - Options
+# Page 1 - License agreement
+# ===========================================================================
+$pgLicense = New-Page
+$pgLicense.Controls.Add((New-Header 'License Agreement' 'Please read the following important information before continuing.'))
+$txtLicense = New-Object Windows.Forms.TextBox
+$txtLicense.Multiline = $true; $txtLicense.ReadOnly = $true; $txtLicense.ScrollBars = 'Vertical'
+$txtLicense.BackColor = $clWhite
+$txtLicense.Location = New-Object Drawing.Point(18,66); $txtLicense.Size = New-Object Drawing.Size(461,168)
+$licenseCompanion = @"
+FlipPix iOS Companion does not include any AI models. Setup downloads each one from its publisher onto this PC, and you may use it only under its own license.
+
+KREA 2 (pictures): Krea 2 Community License Agreement
+  - Commercial use only while your company's yearly revenue is under US`$1,000,000.
+  - Content filters are required. The companion checks every picture and video, and every photo sent from the iPad.
+  - https://krea.ai/krea-2-licensing
+
+MINIMAX H3 (video): MiniMax H3 Community License Agreement
+  - NOT licensed for use in the United States, the European Union, the United Kingdom or South Korea.
+  - You must follow its Acceptable Use Policy: nothing illegal, harmful, deceptive or infringing.
+  - https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/LICENSE
+
+Apache License 2.0: Qwen2.5-VL 7B (writing assistant), the Wan 2.1 VAE, the H3 turbo LoRA and latent upscaler, and the content filter (Falconsai nsfw_image_detection).
+
+ComfyUI (GPL-3.0), llama.cpp (MIT) and the ComfyUI custom nodes are downloaded from their own projects under their own licenses.
+
+By selecting "I accept the agreement" you agree to the license of every component above, including the Krea 2 and MiniMax H3 Acceptable Use Policies.
+"@
+$licenseDesktop = @"
+FlipPix does not include any AI models. Setup downloads each one from its publisher onto this PC, and you may use it only under its own license.
+
+Apache License 2.0: Qwen-Image, Qwen-Image-Edit 2509, Z-Image Turbo, Wan 2.1 / 2.2, their text encoders, VAEs and LoRAs, and Qwen2.5-VL 7B (writing assistant).
+
+With video models on a GPU with 16 GB or less: the LTX-2.3 GGUF, under the LTX-2 Community License (companies with US`$10M or more yearly revenue need a paid license).
+
+Not downloaded by Setup: the PixelDiT Gemma text encoder some image workflows ask for is for non-commercial use only (NVIDIA NSCLv1). FlipPix offers to fetch it the first time such a workflow needs it.
+
+ComfyUI (GPL-3.0), llama.cpp (MIT) and the ComfyUI custom nodes are downloaded from their own projects under their own licenses.
+
+By selecting "I accept the agreement" you agree to the license of every component above.
+"@
+$txtLicense.Text = $(if ($Companion) { $licenseCompanion } else { $licenseDesktop }).Replace("`r`n", "`n").Replace("`n", "`r`n")
+$lnkLicenses = New-Object Windows.Forms.LinkLabel
+$lnkLicenses.Text = 'Open the full list of licenses'
+$lnkLicenses.Location = New-Object Drawing.Point(18,238); $lnkLicenses.AutoSize = $true
+$lnkLicenses.Add_LinkClicked({
+    $f = Join-Path $RepoRoot 'THIRD_PARTY_LICENSES.md'
+    if (Test-Path $f) { try { Start-Process -FilePath $f } catch { Start-Process -FilePath 'notepad.exe' -ArgumentList "`"$f`"" } }
+})
+$rbAccept = New-Object Windows.Forms.RadioButton
+$rbAccept.Text = 'I accept the agreement'
+$rbAccept.Location = New-Object Drawing.Point(18,260); $rbAccept.Size = New-Object Drawing.Size(300,20)
+$rbDecline = New-Object Windows.Forms.RadioButton
+$rbDecline.Text = 'I do not accept the agreement'; $rbDecline.Checked = $true
+$rbDecline.Location = New-Object Drawing.Point(18,282); $rbDecline.Size = New-Object Drawing.Size(300,20)
+$rbAccept.Add_CheckedChanged({ if ($script:step -eq 1) { $btnNext.Enabled = $rbAccept.Checked } })
+$pgLicense.Controls.AddRange(@($txtLicense, $lnkLicenses, $rbAccept, $rbDecline))
+
+# ===========================================================================
+# Page 2 - Options
 # ===========================================================================
 $pgOpts = New-Page
 $pgOpts.Controls.Add((New-Header 'Choose options' 'Choose where FlipPix and its models go, and what to include.'))
@@ -293,11 +369,16 @@ $chkCore.Checked = $true; $chkCore.Enabled = $false
 $chkCore.Location = New-Object Drawing.Point(12,20); $chkCore.Size = New-Object Drawing.Size(440,20)
 $chkVideo = New-Object Windows.Forms.CheckBox
 $chkVideo.Location = New-Object Drawing.Point(12,42); $chkVideo.Size = New-Object Drawing.Size(440,20)
+if ($Companion) {
+    # The companion installs exactly what the iPad's two graphs need; there is nothing to choose.
+    $chkCore.Text = 'FlipPix iOS Companion, ComfyUI with Krea 2 and MiniMax H3, writing assistant'
+    $chkVideo.Visible = $false
+}
 $lblSize = New-Label '' 30 70 420 28
 $grpParts.Controls.AddRange(@($chkCore, $chkVideo, $lblSize))
 
 $chkStartup = New-Object Windows.Forms.CheckBox
-$chkStartup.Text = 'Start FlipPix when Windows starts, so the iPad can always connect'
+$chkStartup.Text = "Start $Product when Windows starts, so the iPad can always connect"
 $chkStartup.Checked = $true
 $chkStartup.Location = New-Object Drawing.Point(18,232); $chkStartup.Size = New-Object Drawing.Size(460,20)
 $chkDesktop = New-Object Windows.Forms.CheckBox
@@ -339,7 +420,7 @@ $chkVideo.Add_CheckedChanged({ Update-SizeLabel })
 $txtDir.Add_TextChanged({ Update-SizeLabel })
 
 # ===========================================================================
-# Page 2 - System check
+# Page 3 - System check
 # ===========================================================================
 $pgCheck = New-Page
 $pgCheck.Controls.Add((New-Header 'System check' 'Setup checks that this PC can run FlipPix before downloading anything.'))
@@ -413,7 +494,7 @@ function Invoke-SystemCheck {
 $btnRecheck.Add_Click({ Invoke-SystemCheck })
 
 # ===========================================================================
-# Page 3 - Installing (progress)
+# Page 4 - Installing (progress)
 # ===========================================================================
 $pgRun = New-Page
 $pgRun.Controls.Add((New-Header 'Installing' 'Please wait while Setup downloads and installs FlipPix and everything it needs.'))
@@ -433,22 +514,22 @@ $lstLog.HorizontalScrollbar = $true
 $pgRun.Controls.AddRange(@($lblStep, $pbAll, $lblItem, $pbItem, $lstLog))
 
 # ===========================================================================
-# Page 4 - Finish
+# Page 5 - Finish
 # ===========================================================================
 $pgDone = New-Page
 $pgDone.Controls.Add((New-Banner))
-$dTitle = New-Label 'FlipPix is ready' 180 20 300 24
+$dTitle = New-Label $(if ($Companion) { 'Your PC is ready for the iPad' } else { 'FlipPix is ready' }) 180 20 300 24
 $dTitle.Font = $fntBold
 $rowTestLlm   = New-CheckRow $pgDone 180 50 300
 $rowTestComfy = New-CheckRow $pgDone 180 80 300
 $dIpad = New-Label '' 180 116 300 128
 $chkLaunch = New-Object Windows.Forms.CheckBox
-$chkLaunch.Text = 'Launch FlipPix now'; $chkLaunch.Checked = $true
+$chkLaunch.Text = "Start $Product now"; $chkLaunch.Checked = $true
 $chkLaunch.Location = New-Object Drawing.Point(180,252); $chkLaunch.Size = New-Object Drawing.Size(300,20)
 $dHint = New-Label 'Click Finish to exit Setup.' 180 282 300 20
 $pgDone.Controls.AddRange(@($dTitle, $dIpad, $chkLaunch, $dHint))
 
-$form.Controls.AddRange(@($pgWelcome, $pgOpts, $pgCheck, $pgRun, $pgDone))
+$form.Controls.AddRange(@($pgWelcome, $pgLicense, $pgOpts, $pgCheck, $pgRun, $pgDone))
 
 # ===========================================================================
 # Button bar
@@ -472,17 +553,18 @@ $form.Controls.Add($bar)
 # ---------------------------------------------------------------------------
 # navigation
 # ---------------------------------------------------------------------------
-$pages = @($pgWelcome, $pgOpts, $pgCheck, $pgRun, $pgDone)
+$pages = @($pgWelcome, $pgLicense, $pgOpts, $pgCheck, $pgRun, $pgDone)
 
 function Show-Step($i) {
     $script:step = $i
     for ($k=0; $k -lt $pages.Count; $k++) { $pages[$k].Visible = ($k -eq $i) }
     switch ($i) {
         0 { $btnBack.Enabled=$false; $btnNext.Enabled=$true; $btnNext.Text='Next >'; $btnCancel.Visible=$true; $btnCancel.Enabled=$true }
-        1 { $btnBack.Enabled=$true;  $btnNext.Enabled=$true; $btnNext.Text='Next >'; $btnCancel.Visible=$true; $btnCancel.Enabled=$true; Update-SizeLabel }
-        2 { $btnBack.Enabled=$true;  $btnNext.Text='Install'; $btnCancel.Visible=$true; $btnCancel.Enabled=$true; Invoke-SystemCheck }
-        3 { $btnBack.Enabled=$false; $btnNext.Enabled=$false; $btnNext.Text='Next >'; $btnCancel.Enabled=$true }
-        4 { $btnBack.Enabled=$false; $btnNext.Enabled=$true; $btnNext.Text='Finish'; $btnCancel.Visible=$false }
+        1 { $btnBack.Enabled=$true;  $btnNext.Enabled=$rbAccept.Checked; $btnNext.Text='Next >'; $btnCancel.Visible=$true; $btnCancel.Enabled=$true }
+        2 { $btnBack.Enabled=$true;  $btnNext.Enabled=$true; $btnNext.Text='Next >'; $btnCancel.Visible=$true; $btnCancel.Enabled=$true; Update-SizeLabel }
+        3 { $btnBack.Enabled=$true;  $btnNext.Text='Install'; $btnCancel.Visible=$true; $btnCancel.Enabled=$true; Invoke-SystemCheck }
+        4 { $btnBack.Enabled=$false; $btnNext.Enabled=$false; $btnNext.Text='Next >'; $btnCancel.Enabled=$true }
+        5 { $btnBack.Enabled=$false; $btnNext.Enabled=$true; $btnNext.Text='Finish'; $btnCancel.Visible=$false }
     }
 }
 
@@ -513,7 +595,7 @@ function New-Phase($key, $title, [double]$weight, $creep = 0) {
 
 function Initialize-Phases($plan) {
     $script:Phases = @(
-        (New-Phase 'app'            'Installing the FlipPix app'                0.3GB)
+        (New-Phase 'app'            "Installing $Product"                       0.3GB)
         (New-Phase 'prereqs'        'Preparing (git, 7-Zip, Visual C++)'        0.3GB 60)
         (New-Phase 'comfy-download' 'Downloading ComfyUI'                       2GB)
         (New-Phase 'extract'        'Unpacking ComfyUI'                         1GB 120)
@@ -699,7 +781,7 @@ function Stop-Child {
 # ---------------------------------------------------------------------------
 function Get-FlipPixSource {
     # Returns a folder that contains FlipPix.UI.exe, building it if necessary.
-    if (Test-Path (Join-Path $PublishDir 'FlipPix.UI.exe')) {
+    if (Test-Path (Join-Path $PublishDir $AppExe)) {
         Write-Log "Using prebuilt binaries: $PublishDir"
         return $PublishDir
     }
@@ -710,7 +792,7 @@ function Get-FlipPixSource {
     }
     $lblItem.Text = 'Building FlipPix from source (this can take a few minutes)...'
     Write-Log 'Running dotnet publish (self-contained, win-x64)...'
-    $csproj = Join-Path $RepoRoot 'FlipPix.UI\FlipPix.UI.csproj'
+    $csproj = Join-Path $RepoRoot $AppProject
     $out = Join-Path $LogDir ('dotnet-publish-{0}.log' -f $PID)
     $publishArgs = @('publish', $csproj, '-c','Release','-r','win-x64','--self-contained','true',
               '-p:PublishSingleFile=true','-p:IncludeNativeLibrariesForSelfExtract=true','-o', $PublishDir)
@@ -725,7 +807,7 @@ function Get-FlipPixSource {
     return $PublishDir
 }
 
-function New-Shortcut($lnkPath, $target, $workdir, $icon, $windowStyle = 1) {
+function New-Shortcut($lnkPath, $target, $workdir, $icon, $windowStyle = 1, $arguments = '') {
     $dir = Split-Path $lnkPath -Parent
     if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
     $ws = New-Object -ComObject WScript.Shell
@@ -734,6 +816,7 @@ function New-Shortcut($lnkPath, $target, $workdir, $icon, $windowStyle = 1) {
     $sc.WorkingDirectory = $workdir
     $sc.IconLocation = "$icon,0"
     $sc.WindowStyle = $windowStyle
+    if ($arguments) { $sc.Arguments = $arguments }
     $sc.Description = 'FlipPix - AI image & video studio'
     $sc.Save()
 }
@@ -758,13 +841,13 @@ function Install-App($appDir) {
     }
     Write-Log "Copied $total files."
 
-    $exe = Join-Path $appDir 'FlipPix.UI.exe'
+    $exe = Join-Path $appDir $AppExe
     if ($chkDesktop.Checked) {
-        New-Shortcut (Join-Path ([Environment]::GetFolderPath('Desktop')) 'FlipPix.lnk') $exe $appDir $exe
+        New-Shortcut (Join-Path ([Environment]::GetFolderPath('Desktop')) "$Product.lnk") $exe $appDir $exe
         Write-Log 'Desktop shortcut created.'
     }
     if ($chkStart.Checked) {
-        $sm = Join-Path ([Environment]::GetFolderPath('Programs')) 'FlipPix\FlipPix.lnk'
+        $sm = Join-Path ([Environment]::GetFolderPath('Programs')) "FlipPix\$Product.lnk"
         New-Shortcut $sm $exe $appDir $exe
         Write-Log 'Start Menu shortcut created.'
         $uninst = Join-Path $appDir 'Uninstall-FlipPix.exe'
@@ -804,18 +887,39 @@ function Add-FirewallRule($exe) {
     }
 }
 
-function Set-Configuration($appDir) {
+function Set-CompanionConfig($root) {
+    # Tells the companion where Setup put things (CompanionConfig in FlipPix.IosCompanion).
+    $comfyDir = $null
+    try { $comfyDir = (Get-Content (Join-Path $env:APPDATA 'FlipPix\settings.json') -Raw | ConvertFrom-Json).ComfyUIFolderPath } catch {}
+    $cfg = [PSCustomObject]@{
+        PortableRoot   = $(if ($comfyDir) { Split-Path $comfyDir -Parent } else { '' })
+        LlmStartScript = (Join-Path $root 'LLM\start-llm.bat')
+        FilterModel    = (Join-Path $root 'models\filter\nsfw_image_detection_uint8.onnx')
+    }
+    $file = Join-Path $env:APPDATA 'FlipPix\companion.json'
+    New-Item -ItemType Directory -Force -Path (Split-Path $file -Parent) | Out-Null
+    $cfg | ConvertTo-Json | Set-Content -Path $file -Encoding UTF8
+    Write-Log "Companion settings written to $file"
+}
+
+function Set-Configuration($appDir, $root) {
     Enter-Phase 'configure'
-    Set-Manual 0.1 'Turning on the phone remote...'
-    Set-RemoteEnabled
+    if ($Companion) {
+        # The companion keeps its own pairing file and always listens; it only needs to know where things are.
+        Set-Manual 0.1 'Recording where everything was installed...'
+        Set-CompanionConfig $root
+    } else {
+        Set-Manual 0.1 'Turning on the phone remote...'
+        Set-RemoteEnabled
+    }
     Set-Manual 0.4 'Adding a firewall rule (Windows may ask for permission)...'
-    $exe = Join-Path $appDir 'FlipPix.UI.exe'
+    $exe = Join-Path $appDir $AppExe
     Add-FirewallRule $exe
     Set-Manual 0.8 'Start-up shortcut...'
-    $startupLnk = Join-Path ([Environment]::GetFolderPath('Startup')) 'FlipPix.lnk'
+    $startupLnk = Join-Path ([Environment]::GetFolderPath('Startup')) "$Product.lnk"
     if ($chkStartup.Checked) {
-        New-Shortcut $startupLnk $exe $appDir $exe 7
-        Write-Log 'FlipPix starts (minimized) when you sign in to Windows.'
+        New-Shortcut $startupLnk $exe $appDir $exe 7 $(if ($Companion) { '--tray' } else { '' })
+        Write-Log "$Product starts (minimized) when you sign in to Windows."
     } else {
         Remove-Item -LiteralPath $startupLnk -ErrorAction SilentlyContinue
     }
@@ -901,14 +1005,18 @@ function Start-Install {
 
         $comfyArgs = @('-InstallDir', (Join-Path $root 'ComfyUI'), '-ModelsDir', (Join-Path $root 'models'),
                        '-DownloadModels', '-EnsureModels', '-Wizard')
-        if (-not $plan.Video) { $comfyArgs += '-Minimal' }
+        if ($Companion) {
+            $comfyArgs += @('-NodeListFile', 'flippix-custom-nodes-ios.txt', '-ModelListFile', 'flippix-models-ios.txt',
+                            '-ScanWorkflow', $CompanionWorkflows)
+        } elseif (-not $plan.Video) { $comfyArgs += '-Minimal' }
         Invoke-Child $ComfyPs1 $comfyArgs 'comfyui'
 
         $llmArgs = @('-InstallDir', (Join-Path $root 'LLM'), '-Port', "$LlmPort", '-Wizard')
-        if (-not $chkStartup.Checked) { $llmArgs += '-NoStartup' }
+        # The companion starts and watches the writing assistant itself.
+        if ($Companion -or -not $chkStartup.Checked) { $llmArgs += '-NoStartup' }
         Invoke-Child $LlmPs1 $llmArgs 'writing-assistant'
 
-        Set-Configuration $appDir
+        Set-Configuration $appDir $root
         Invoke-SelfTest $root
 
         $pbAll.Value = 100
@@ -917,7 +1025,7 @@ function Start-Install {
         $script:Installed = $true
         $script:Busy = $false
         Show-Finish $root
-        Show-Step 4
+        Show-Step 5
     } catch {
         $script:Busy = $false
         Stop-Child
@@ -926,8 +1034,8 @@ function Start-Install {
         if ($script:Cancelled) { $form.Close(); return }
         [Windows.Forms.MessageBox]::Show(
             "$msg`r`n`r`nClick Install to try again - finished downloads are kept.`r`nThe full log is in $LogDir",
-            'FlipPix Setup - Error', [Windows.Forms.MessageBoxButtons]::OK, [Windows.Forms.MessageBoxIcon]::Error) | Out-Null
-        Show-Step 2
+            "$Product Setup - Error", [Windows.Forms.MessageBoxButtons]::OK, [Windows.Forms.MessageBoxIcon]::Error) | Out-Null
+        Show-Step 3
     }
 }
 
@@ -937,8 +1045,12 @@ function Show-Finish($root) {
     $dIpad.Text = "Connect your iPad:`r`n" +
         "  1. Put the iPad on the same Wi-Fi as this PC.`r`n" +
         "  2. Open FlipPix on the iPad and tap $($env:COMPUTERNAME).`r`n" +
-        "  3. On this PC, open FlipPix and click the phone button at the top of the Image Generator. " +
-        "Type the 6-digit code it shows into the iPad."
+        $(if ($Companion) {
+            "  3. Type the 6-digit code shown in the FlipPix iOS Companion window on this PC."
+        } else {
+            "  3. On this PC, open FlipPix and click the phone button at the top of the Image Generator. " +
+            "Type the 6-digit code it shows into the iPad."
+        })
     Write-Log "Installed in $root"
 }
 
@@ -948,7 +1060,7 @@ function Show-Finish($root) {
 function Confirm-StopInstall {
     $ans = [Windows.Forms.MessageBox]::Show(
         "Stop Setup now?`r`n`r`nNothing is lost: run Setup again later and it carries on where it left off.",
-        'FlipPix Setup', [Windows.Forms.MessageBoxButtons]::YesNo, [Windows.Forms.MessageBoxIcon]::Question)
+        "$Product Setup", [Windows.Forms.MessageBoxButtons]::YesNo, [Windows.Forms.MessageBoxIcon]::Question)
     if ($ans -eq 'Yes') { $script:Cancelled = $true; Stop-Child; return $true }
     return $false
 }
@@ -956,22 +1068,23 @@ function Confirm-StopInstall {
 $btnNext.Add_Click({
     switch ($script:step) {
         0 { Show-Step 1 }
-        1 {
+        1 { if ($rbAccept.Checked) { Show-Step 2 } }
+        2 {
             if ([string]::IsNullOrWhiteSpace($txtDir.Text)) {
-                [Windows.Forms.MessageBox]::Show('Please choose an install folder.', 'FlipPix Setup',
+                [Windows.Forms.MessageBox]::Show('Please choose an install folder.', "$Product Setup",
                     [Windows.Forms.MessageBoxButtons]::OK, [Windows.Forms.MessageBoxIcon]::Warning) | Out-Null
                 return
             }
-            Show-Step 2
-        }
-        2 {
-            if (-not $script:ChecksOk) { return }
             Show-Step 3
+        }
+        3 {
+            if (-not $script:ChecksOk) { return }
+            Show-Step 4
             Start-Install
         }
-        4 {
+        5 {
             if ($chkLaunch.Checked -and $script:Installed) {
-                $exe = Join-Path $script:InstallDir 'FlipPix.UI.exe'
+                $exe = Join-Path $script:InstallDir $AppExe
                 if (Test-Path $exe) { Start-Process -FilePath $exe -WorkingDirectory $script:InstallDir }
             }
             $form.Close()
@@ -982,11 +1095,12 @@ $btnBack.Add_Click({
     switch ($script:step) {
         1 { Show-Step 0 }
         2 { Show-Step 1 }
+        3 { Show-Step 2 }
     }
 })
 $btnCancel.Add_Click({
     if ($script:Busy) { [void](Confirm-StopInstall); return }
-    if ([Windows.Forms.MessageBox]::Show('Cancel FlipPix Setup?', 'FlipPix Setup',
+    if ([Windows.Forms.MessageBox]::Show('Cancel FlipPix Setup?', "$Product Setup",
         [Windows.Forms.MessageBoxButtons]::YesNo, [Windows.Forms.MessageBoxIcon]::Question) -eq 'Yes') {
         $form.Close()
     }

@@ -14,11 +14,23 @@ namespace FlipPix.Mobile.ViewModels;
 public partial class VideoViewModel : ObservableObject
 {
     public const int MaxPictures = 4;
+
+    /// <summary>"Video by MiniMax H3": its license requires the model's name on screen where video is made.</summary>
+    public string VideoCredit => ServerInfo.Current.VideoCredit;
+    public bool HasVideoCredit => ServerInfo.Current.HasVideoCredit;
     private readonly Action<IReadOnlyList<ViewerEntry>, int> _openViewer;
 
     public VideoViewModel(Action<IReadOnlyList<ViewerEntry>, int> openViewer)
     {
         _openViewer = openViewer;
+        ServerInfo.Current.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(ServerInfo.VideoCredit) or nameof(ServerInfo.HasVideoCredit))
+            {
+                OnPropertyChanged(nameof(VideoCredit));
+                OnPropertyChanged(nameof(HasVideoCredit));
+            }
+        };
         Pictures.CollectionChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(CanAddPicture));

@@ -1,0 +1,27 @@
+# FlipPix iOS Companion custom-node packs - read by setup-comfyui-fresh.ps1 -NodeListFile
+#
+# Exactly the packs the two graphs the iPad runs need (FlipPix.Remote's krea2.json "Photo" look and
+# h3-minimax-i2v.json video, as the remote builds them), found from ComfyUI-Manager's node map.
+# Every other node in those graphs is core ComfyUI. Same format as flippix-custom-nodes.txt.
+
+# --- installer support ---
+https://github.com/Comfy-Org/ComfyUI-Manager                     # cm-cli: the post-install missing-node scan
+
+# --- Krea 2 (Photo look) ---
+https://github.com/ClownsharkBatwing/RES4LYF                     # ClownsharKSampler_Beta
+https://github.com/pythongosssss/ComfyUI-Custom-Scripts          # LoraLoader|pysssss
+https://github.com/BobJohnson24/ComfyUI-INT8-Fast                # OTUNetLoaderW8A8 (int8 ConvRot loader)
+https://github.com/rgthree/rgthree-comfy                         # Power Lora Loader (rgthree)
+https://github.com/Comfy-Org/Nvidia_RTX_Nodes_ComfyUI            # RTXVideoSuperResolution (also H3's optional upscale)
+
+# --- shared ---
+https://github.com/kijai/ComfyUI-KJNodes                         # VAELoaderKJ, DiffusionModelLoaderKJ, ModelPreviewOverrideKJ
+
+# --- MiniMax H3 (video) ---
+https://github.com/PlagueKind/ComfyUI-PlagueKind-Nodes           # H3SLAAttention
+https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler # MinimaxH3LatentUpscaler3D
+https://github.com/PGCRT/CRT-Nodes                               # SpectrumApplyMiniMaxH3 (wired, disabled)
+https://github.com/Urabewe/ComfyUI-AudioTools                    # AudioEnhancementNode
+https://github.com/yolain/ComfyUI-Easy-Use                       # easy int
+https://github.com/ltdrdata/ComfyUI-Impact-Pack                  # ImpactIfNone
+https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite          # VHS_VideoCombine (+ imageio-ffmpeg, used by the companion's filter)

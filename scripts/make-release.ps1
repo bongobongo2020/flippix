@@ -97,7 +97,7 @@ if (Test-Path $Stage) { Remove-Item -Recurse -Force $Stage }
 New-Item -ItemType Directory -Force -Path $Stage | Out-Null
 
 # root files (launchers + the one-click backup entry point)
-foreach ($f in 'Install-FlipPix.bat','Uninstall-FlipPix.bat','Install-ComfyUI.bat','Install-ComfyUI-WSL.bat','Backup-ComfyUI.bat','flippix.ico') {
+foreach ($f in 'Install-FlipPix.bat','Uninstall-FlipPix.bat','Install-ComfyUI.bat','Install-ComfyUI-WSL.bat','Backup-ComfyUI.bat','flippix.ico','THIRD_PARTY_LICENSES.md') {
     Copy-Item (Join-Path $RepoRoot $f) (Join-Path $Stage $f) -Force
 }
 Write-Ok 'copied launchers + icon'

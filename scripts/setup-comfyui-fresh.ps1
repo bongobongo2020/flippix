@@ -53,6 +53,18 @@
     (normally an existing folder is reused as-is). The setup wizard uses this so a fresh or
     half-finished install always ends up with the full model set.
 
+.PARAMETER NodeListFile
+    Custom-node list to install instead of the curated one (path, or a file name in scripts\).
+    The iOS Companion passes flippix-custom-nodes-ios.txt.
+
+.PARAMETER ModelListFile
+    Model manifest to download instead of flippix-models(-min).txt. The iOS Companion passes
+    flippix-models-ios.txt. A custom manifest also skips the 16gb-tier video GGUF.
+
+.PARAMETER ScanWorkflow
+    Workflow JSON files (relative to the repo's workflow\ folder) for the cm-cli missing-node scan
+    and the copy into ComfyUI. Default: every workflow.
+
 .PARAMETER Wizard
     Run unattended for the setup wizard: print '##FLIPPIX|...' progress markers (see
     setup-common.ps1) and silence curl's progress meter. Pair with -ModelsDir and -DownloadModels
@@ -81,6 +93,9 @@ param(
     [switch]$EnsureModels,
     [switch]$Wizard,
     [switch]$Minimal,
+    [string]$NodeListFile = '',
+    [string]$ModelListFile = '',
+    [string[]]$ScanWorkflow = @(),
     [ValidateSet('auto','full','16gb')]
     [string]$Tier = 'auto'
 )
@@ -107,9 +122,29 @@ function Invoke-Quiet([scriptblock]$Command) {
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot  = Split-Path -Parent $ScriptDir
 # -Minimal trims to the core creative subset (image gen + image edit): fewer node packs and a
-# smaller (~21 GB) model set. Without it, the full curated lists are used.
-$NodeListFile = Join-Path $ScriptDir ($(if ($Minimal) { 'flippix-custom-nodes-min.txt' } else { 'flippix-custom-nodes.txt' }))
+# smaller (~49 GB) model set. Without it, the full curated lists are used.
+function Resolve-ListFile([string]$given, [string]$default) {
+    if (-not $given) { return (Join-Path $ScriptDir $default) }
+    if (Test-Path $given) { return (Resolve-Path $given).Path }
+    return (Join-Path $ScriptDir $given)
+}
+$CustomModelList = [bool]$ModelListFile
+# powershell -File passes "a,b" as one string; accept both that and a real array.
+$ScanWorkflow = @($ScanWorkflow | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+$NodeListFile  = Resolve-ListFile $NodeListFile ($(if ($Minimal) { 'flippix-custom-nodes-min.txt' } else { 'flippix-custom-nodes.txt' }))
+$ModelListFile = Resolve-ListFile $ModelListFile ($(if ($Minimal) { 'flippix-models-min.txt' } else { 'flippix-models.txt' }))
 $WorkflowSrc  = Join-Path $RepoRoot 'workflow'
+
+# The workflows to scan for missing nodes and copy into ComfyUI: all of them, or the -ScanWorkflow set.
+function Get-WorkflowFiles {
+    if ($ScanWorkflow.Count -eq 0) {
+        return @(Get-ChildItem -Path $WorkflowSrc -Recurse -Filter *.json -ErrorAction SilentlyContinue)
+    }
+    return @($ScanWorkflow | ForEach-Object {
+        $f = Join-Path $WorkflowSrc $_
+        if (Test-Path -LiteralPath $f) { Get-Item -LiteralPath $f } else { Write-Warn2 "workflow not found: $_" }
+    })
+}
 
 # ---------------------------------------------------------------------------
 # VRAM tier: pick the memory-optimized (16gb) workflow tier on small GPUs so FlipPix loads
@@ -396,7 +431,7 @@ if (-not $SkipMissingNodeScan) {
         Write-Marker 'phase' @('scan')
         Write-Step 'Scanning FlipPix workflows for any remaining missing nodes (cm-cli)'
         $tmpDeps = Join-Path $env:TEMP 'flippix_deps.json'
-        $workflows = @(Get-ChildItem -Path $WorkflowSrc -Recurse -Filter *.json -ErrorAction SilentlyContinue)
+        $workflows = Get-WorkflowFiles
         $count = 0
         foreach ($wf in $workflows) {
             $count++
@@ -440,7 +475,6 @@ function Normalize-Path($p) { return ([IO.Path]::GetFullPath($p)).TrimEnd('\') }
 
 # FlipPix model manifest, loaded from scripts/flippix-models.txt (format: see setup-common.ps1).
 # Get-File resumes/skips already-downloaded files.
-$ModelListFile = Join-Path $ScriptDir ($(if ($Minimal) { 'flippix-models-min.txt' } else { 'flippix-models.txt' }))
 $ModelManifest = @(Read-ModelManifest $ModelListFile)
 
 # 16gb-tier video GGUF: pulled separately, only on a FULL install at the 16gb tier (see below).
@@ -476,6 +510,7 @@ flippix:
     vae: vae
     text_encoders: text_encoders
     upscale_models: upscale_models
+    latent_upscale_models: latent_upscale_models
 "@
     $yamlPath = Join-Path $ComfyDir 'extra_model_paths.yaml'
     Set-Content -Path $yamlPath -Value $yaml -Encoding UTF8
@@ -487,7 +522,7 @@ function Download-Models($Dir) {
         Write-Warn2 "model manifest is empty or missing ($ModelListFile) - skipping download"
         return
     }
-    Write-Step "Downloading FlipPix models into $Dir (~45 GB total)"
+    Write-Step "Downloading FlipPix models into $Dir (~84 GB full, ~49 GB minimal)"
     Write-Warn2 'Large download; interrupted files resume automatically on re-run.'
     $n = 0
     $failed = 0
@@ -590,7 +625,7 @@ if ($SkipModels) {
         Write-Warn2 "models folder does not exist yet: $target"
         $doDownload = $DownloadModels
         if (-not $doDownload) {
-            $ans = Read-Host "  Create it and download the FlipPix models there now (~45 GB)? [y/N]"
+            $ans = Read-Host "  Create it and download the FlipPix models there now (~49-84 GB)? [y/N]"
             $doDownload = ($ans -match '^(y|yes)$')
         }
         if ($doDownload) {
@@ -605,7 +640,7 @@ if ($SkipModels) {
     # On a FULL install at the 16gb tier, also fetch the GGUF LTX weight the memory-optimized
     # SeedHunt video variant needs. (Minimal is image-only, so it's skipped there.) Only when the
     # models folder actually exists (reused, or just created above).
-    if (-not $Minimal -and $ResolvedTier -eq '16gb' -and (Test-Path $target)) {
+    if (-not $Minimal -and -not $CustomModelList -and $ResolvedTier -eq '16gb' -and (Test-Path $target)) {
         $pullGguf = $DownloadModels
         if (-not $pullGguf) {
             $ans = Read-Host "  16gb tier: download the LTX GGUF for low-VRAM video (~14 GB) into $target now? [y/N]"

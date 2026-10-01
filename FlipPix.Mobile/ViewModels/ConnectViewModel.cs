@@ -197,6 +197,7 @@ public partial class ConnectViewModel : ObservableObject
         try
         {
             var s = await AppServices.Remote.StatusAsync();
+            ServerInfo.Current.Apply(s);
             ComputerName = s.Name;
             ComfyOnline = s.ComfyOnline;
             ComfyText = s.ComfyOnline ? "Ready to make things" : $"Not answering at {s.ComfyUrl}";
