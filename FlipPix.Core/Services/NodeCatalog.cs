@@ -30,6 +30,8 @@ public static class NodeCatalog
         ["GrowMaskWithBlur"] = "https://github.com/kijai/ComfyUI-KJNodes",
         ["PointsEditor"] = "https://github.com/kijai/ComfyUI-KJNodes",
         ["ModelPatchTorchSettings"] = "https://github.com/kijai/ComfyUI-KJNodes",
+        // HyperFlow 8-step adapter for MiniMax H3 (H3 Express / MiniMax I2V 🌊 stack).
+        ["ApplyHyperFlowH3"] = "https://github.com/Adudeguyman/ComfyUI-HyperFlow-H3",
         ["Florence2Run"] = "https://github.com/kijai/ComfyUI-Florence2",
         ["DownloadAndLoadFlorence2Model"] = "https://github.com/kijai/ComfyUI-Florence2",
         ["Sam2Segmentation"] = "https://github.com/kijai/ComfyUI-segment-anything-2",

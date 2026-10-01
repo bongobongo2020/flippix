@@ -338,6 +338,9 @@
                             <RadioButton Content="🦠 Parasyte (sparse)" GroupName="JobStack"
                                          IsChecked="{Binding StackIsParasyte, Mode=TwoWay}"
                                          Style="{StaticResource JobRadio}"/>
+                            <RadioButton Content="🌊 HyperFlow (8-step)" GroupName="JobStack"
+                                         IsChecked="{Binding StackIsHyperFlow, Mode=TwoWay}"
+                                         Style="{StaticResource JobRadio}"/>
                             <RadioButton Content="🌹 H3 Eros" GroupName="JobStack"
                                          IsChecked="{Binding StackIsEros, Mode=TwoWay}"
                                          Style="{StaticResource JobRadio}"/>
@@ -356,6 +359,7 @@
                                       ToolTip="The finish re-samples the draft from a high noise level, so a join that is only pinned on the draft can be undone by it. With this on, the upscale pass is pinned to the previous clip's FINISHED tail as well (a second latent is saved per clip). Untick it if the finish misbehaves — the draft pass stays chained. 🍥 TaoMate has no upscale pass; both its legs are pinned regardless."/>
                             <TextBlock Text="{Binding ChainSummary}" Style="{StaticResource JobHint}" Margin="20,2,0,10"/>
 
+                            <StackPanel Visibility="{Binding UsesStepDials, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <Grid Margin="0,0,0,2">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -373,6 +377,7 @@
                             <Slider Minimum="{Binding MinSteps}" Maximum="30" Value="{Binding Steps}"
                                     TickFrequency="1" IsSnapToTickEnabled="True" SmallChange="1" LargeChange="2"
                                     Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,10"/>
+                            </StackPanel>
 
                             <TextBlock Text="Aspect ratio" Style="{StaticResource JobFieldLabel}"/>
                             <ComboBox ItemsSource="{Binding AspectRatioOptions}" SelectedItem="{Binding SelectedAspectRatio}"
@@ -470,9 +475,11 @@
                                           SelectedValue="{Binding PreviewMegapixels}"
                                           Height="30" FontSize="11" Margin="0,0,0,10"/>
 
-                                <TextBlock Text="Upscale steps" Style="{StaticResource JobFieldLabel}"/>
-                                <ComboBox ItemsSource="{Binding UpscaleStepOptions}" SelectedItem="{Binding UpscaleSteps}"
-                                          Height="30" FontSize="11" Margin="0,0,0,10"/>
+                                <StackPanel Visibility="{Binding UsesStepDials, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <TextBlock Text="Upscale steps" Style="{StaticResource JobFieldLabel}"/>
+                                    <ComboBox ItemsSource="{Binding UpscaleStepOptions}" SelectedItem="{Binding UpscaleSteps}"
+                                              Height="30" FontSize="11" Margin="0,0,0,10"/>
+                                </StackPanel>
                             </StackPanel>
 
                             <CheckBox Content="RIFE interpolation (24 → 48 fps)" IsChecked="{Binding UseRife}"

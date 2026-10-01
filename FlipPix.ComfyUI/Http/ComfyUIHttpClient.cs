@@ -2289,6 +2289,8 @@ public class ComfyUIHttpClient : IDisposable
             case "vae_name": return "vae";
             case "lora_name": return "loras";
             case "control_net_name": return "controlnet";
+            // ComfyUI-HyperFlow-H3 registers a folder of its own for the adapter weights.
+            case "hyperflow_file": return "hyperflow";
             case "style_model_name": return "style_models";
             case "clip_name":
             case "clip_name1":

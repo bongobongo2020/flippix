@@ -133,6 +133,7 @@ public sealed class MiniMaxI2VStackTests
     [InlineData(I2VStack.Singularity)]
     [InlineData(I2VStack.TaoMate)]
     [InlineData(I2VStack.Bunny)]
+    [InlineData(I2VStack.HyperFlow)]
     public void Every_link_points_at_a_node_that_exists(I2VStack stack)
     {
         var root = Patched(stack,
@@ -157,6 +158,7 @@ public sealed class MiniMaxI2VStackTests
     [InlineData(I2VStack.Singularity)]
     [InlineData(I2VStack.TaoMate)]
     [InlineData(I2VStack.Bunny)]
+    [InlineData(I2VStack.HyperFlow)]
     public void Both_sinks_still_reach_the_checkpoint(I2VStack stack)
     {
         var root = Patched(stack);
@@ -449,6 +451,7 @@ public sealed class MiniMaxI2VStackTests
     [InlineData(I2VStack.Singularity, 10)]
     [InlineData(I2VStack.TaoMate, 10)]
     [InlineData(I2VStack.Bunny, 8)]
+    [InlineData(I2VStack.HyperFlow, 8)]
     public void Each_stack_is_authored_at_its_own_step_count(I2VStack stack, int expected) =>
         Assert.Equal(expected, MiniMaxI2VViewModel.AuthoredStepsFor(stack, erSde: false));
 
@@ -462,6 +465,7 @@ public sealed class MiniMaxI2VStackTests
     [InlineData(I2VStack.Singularity, "Minimax-h3_Singularity_ref2va_Pruned_v1.3_int8")]
     [InlineData(I2VStack.TaoMate, "minimax_h3_fl2va_pruned_int8_convrot")]
     [InlineData(I2VStack.Bunny, "minimax_h3_hybrid_fl2va_ref2va_b25-49-int8")]
+    [InlineData(I2VStack.HyperFlow, "Minimax-h3_Singularity_ref2va_Pruned_v1.3_int8")]
     public void Each_stack_names_the_checkpoint_its_express_graph_loads(I2VStack stack, string file) =>
         Assert.Equal($"h3-minimax/{file}.safetensors", MiniMaxI2VViewModel.ShippedModelFor(stack));
 
@@ -472,6 +476,7 @@ public sealed class MiniMaxI2VStackTests
     [InlineData(I2VStack.Singularity, "h3-singularity.json")]
     [InlineData(I2VStack.TaoMate, "h3-taomate.json")]
     [InlineData(I2VStack.Bunny, "h3-bunny.json")]
+    [InlineData(I2VStack.HyperFlow, "h3-hyperflow.json")]
     public void And_that_checkpoint_is_the_one_that_graph_ships(I2VStack stack, string file)
     {
         var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,

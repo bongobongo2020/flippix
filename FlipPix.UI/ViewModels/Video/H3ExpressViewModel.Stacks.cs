@@ -24,6 +24,8 @@ namespace FlipPix.UI.ViewModels.Video
     /// H3ExpressViewModel.Bunny.cs.</item>
     /// <item>🦠 <b>Parasyte</b> — <c>h3-parasyte.json</c>, PlagueKind's sparse-attention build; the one
     /// stack whose upscale and second pass are a single node. See H3ExpressViewModel.Parasyte.cs.</item>
+    /// <item>🌊 <b>HyperFlow</b> — <c>h3-hyperflow.json</c>, Video Rebirth's 8-step adapter, whose sigma
+    /// grid replaces the scheduler. See H3ExpressViewModel.HyperFlow.cs.</item>
     /// </list>
     ///
     /// <para><b>Why the radio group binds computed properties.</b> The choice is stored as one flag per
@@ -44,6 +46,7 @@ namespace FlipPix.UI.ViewModels.Video
             get => UseTaoMate ? ExpressStack.TaoMate
                  : UseBunny ? ExpressStack.Bunny
                  : UseParasyte ? ExpressStack.Parasyte
+                 : UseHyperFlow ? ExpressStack.HyperFlow
                  : UseSingularity ? ExpressStack.Singularity
                  : ExpressStack.Eros;
             set
@@ -64,16 +67,21 @@ namespace FlipPix.UI.ViewModels.Video
                     case ExpressStack.Parasyte:
                         UseParasyte = true;
                         break;
+                    case ExpressStack.HyperFlow:
+                        UseHyperFlow = true;
+                        break;
                     case ExpressStack.Singularity:
                         UseTaoMate = false;
                         UseBunny = false;
                         UseParasyte = false;
+                        UseHyperFlow = false;
                         UseSingularity = true;
                         break;
                     default:
                         UseTaoMate = false;
                         UseBunny = false;
                         UseParasyte = false;
+                        UseHyperFlow = false;
                         UseSingularity = false;
                         break;
                 }
@@ -118,6 +126,13 @@ namespace FlipPix.UI.ViewModels.Video
             set { if (value) Stack = ExpressStack.Parasyte; }
         }
 
+        /// <inheritdoc cref="StackIsEros"/>
+        public bool StackIsHyperFlow
+        {
+            get => Stack == ExpressStack.HyperFlow;
+            set { if (value) Stack = ExpressStack.HyperFlow; }
+        }
+
         private void RaiseStackState()
         {
             OnPropertyChanged(nameof(Stack));
@@ -126,9 +141,11 @@ namespace FlipPix.UI.ViewModels.Video
             OnPropertyChanged(nameof(StackIsTaoMate));
             OnPropertyChanged(nameof(StackIsBunny));
             OnPropertyChanged(nameof(StackIsParasyte));
+            OnPropertyChanged(nameof(StackIsHyperFlow));
             OnPropertyChanged(nameof(StackSummary));
             OnPropertyChanged(nameof(HuntSummary));
             OnPropertyChanged(nameof(UsesDraftCanvas));
+            OnPropertyChanged(nameof(UsesStepDials));
             // The frame stack is four times the pixels on 🍥, so the warning changes with the stack.
             OnPropertyChanged(nameof(LoadSummary));
             OnPropertyChanged(nameof(HasLoadWarning));
@@ -140,6 +157,10 @@ namespace FlipPix.UI.ViewModels.Video
         /// that would otherwise sit there doing nothing.</summary>
         public bool UsesDraftCanvas => !UseTaoMate;
 
+        /// <summary>Whether the steps slider and the upscale-steps dial reach the graph. 🌊 HyperFlow samples the
+        /// adapter's own grid and its upscale pass keeps its own two steps, so both are hidden there.</summary>
+        public bool UsesStepDials => !UseHyperFlow;
+
         // ── Identity: what the choice actually changes ───────────────────────────────────────────────
 
         protected override string WorkflowFileName => Stack switch
@@ -147,6 +168,7 @@ namespace FlipPix.UI.ViewModels.Video
             ExpressStack.TaoMate => TaoMateWorkflow,
             ExpressStack.Bunny => BunnyWorkflow,
             ExpressStack.Parasyte => ParasyteWorkflow,
+            ExpressStack.HyperFlow => HyperFlowWorkflow,
             _ => base.WorkflowFileName          // Singularity's own file, or Eros's, from H3BatchViewModel
         };
 
@@ -155,6 +177,7 @@ namespace FlipPix.UI.ViewModels.Video
             ExpressStack.TaoMate => TaoMateModel,
             ExpressStack.Bunny => BunnyModel,
             ExpressStack.Parasyte => ParasyteModel,
+            ExpressStack.HyperFlow => HyperFlowModel,
             _ => base.ShippedModel
         };
 
@@ -187,6 +210,7 @@ namespace FlipPix.UI.ViewModels.Video
             ExpressStack.TaoMate => TaoMateSteps,
             ExpressStack.Bunny => BunnySteps,
             ExpressStack.Parasyte => ParasyteSteps,
+            ExpressStack.HyperFlow => HyperFlowSteps,
             _ => base.FirstPassSteps
         };
     }

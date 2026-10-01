@@ -113,8 +113,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// <summary>Whether this clip is rewritten in the 📐 spec build: what the set was written in, and — for a
         /// set that recorded no build — what the clip itself looks like.</summary>
         private static bool IsSpecRewrite(ClipRewriteRequest request) =>
-            request.PromptBuild == H3SpecPrompt.BuildTag ||
-            request.PromptBuild == H3SpecPrompt.EarlierBuildTag ||
+            H3SpecPrompt.IsSpecBuild(request.PromptBuild) ||
             (request.PromptBuild.Length == 0 && H3SpecPrompt.IsSpecBody(request.Body));
 
         /// <summary>How many characters this story's clips are written for — what the set recorded, and failing

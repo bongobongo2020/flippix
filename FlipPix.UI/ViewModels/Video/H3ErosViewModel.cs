@@ -246,6 +246,7 @@ namespace FlipPix.UI.ViewModels.Video
         {
             new MegapixelOption(0.5, "0.5 MP — fast finish (960×544)"),
             new MegapixelOption(0.8, "0.8 MP — balanced (1216×672)"),
+            new MegapixelOption(0.9, "0.9 MP — 720p (≈1280×736)"),
             new MegapixelOption(1.0, "1.0 MP — full quality (1376×768)"),
             new MegapixelOption(1.5, "1.5 MP — high (1664×928)"),
             new MegapixelOption(2.0, "2.0 MP — 2K (1920×1088)"),
@@ -418,9 +419,10 @@ namespace FlipPix.UI.ViewModels.Video
         public virtual IReadOnlyList<MegapixelOption> PreviewMegapixelOptions { get; } = new[]
         {
             new MegapixelOption(0.15, "0.15 MP — default, quickest (512×288)"),
-            new MegapixelOption(0.2, "0.2 MP — a little clearer (608×352)"),
+            new MegapixelOption(0.2, "0.2 MP — a little clearer, the 720p draft (608×352)"),
             new MegapixelOption(0.3, "0.3 MP — clearer (736×416)"),
             new MegapixelOption(0.4, "0.4 MP — closest to the finish (864×480)"),
+            new MegapixelOption(0.6, "0.6 MP — the 1080p draft (1056×608)"),
         };
 
         /// <summary>Fixed sigmas on the upscale pass: 3, 4 or 5. Four is what the graph ships live.</summary>
@@ -1919,8 +1921,7 @@ namespace FlipPix.UI.ViewModels.Video
             SetInput(root, NodeUpscaler, "mode", "megapixels");
             SetInput(root, NodeUpscaler, "mode.megapixels", item.Megapixels);
             SetInput(root, NodeUpscaleNoise, "noise_seed", System.Random.Shared.NextInt64(0, long.MaxValue));
-            Link(root, NodeUpscaleSampler, "sigmas",
-                 SigmaSchedules.TryGetValue(item.UpscaleSteps, out var sigmas) ? sigmas : SigmaSchedules[4], 0);
+            Link(root, NodeUpscaleSampler, "sigmas", FinishSigmasNode(item), 0);
 
             // Which decode feeds the mux, and whether RIFE stands between them.
             WireSink(root, item, NodeUpscaledVideo, NodeUpscaledAudio, runToken);
@@ -1931,6 +1932,14 @@ namespace FlipPix.UI.ViewModels.Video
                    $"Finish graph: the picked branch kept, {pruned} node(s) removed.");
             return new FinishSubmission(json, NodeFinalSave, fw, fh);
         }
+
+        /// <summary>
+        /// The <c>ManualSigmas</c> node the upscale pass samples: the ⬆ steps dial's schedule. Virtual because a
+        /// stack may carry a schedule of its own that the dial must not replace — 🌊 HyperFlow's two-step
+        /// TaoMate pass, which softens when given more.
+        /// </summary>
+        protected virtual string FinishSigmasNode(H3CastQueueItem item) =>
+            SigmaSchedules.TryGetValue(item.UpscaleSteps, out var sigmas) ? sigmas : SigmaSchedules[4];
 
         /// <summary>
         /// Points the final mux at the decodes that feed it, with RIFE in the chain or relinked out of it,

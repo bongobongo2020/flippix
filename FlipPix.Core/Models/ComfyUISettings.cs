@@ -274,6 +274,13 @@ public class ComfyUISettings
     // finish that does the upscale and the second pass in one MMH3UltimateUpscale node. Mutually exclusive
     // with the three above; the Express tab's radio group keeps them in step.
     public bool H3ExpressUseParasyte { get; set; }
+    // 🌊 The sixth stack: Video Rebirth's HyperFlow 8-step adapter (h3-hyperflow.json) on the ref2va pruned
+    // checkpoint — euler on the adapter's own sigma grid, the Sol-Attn recipe ahead of it, the curve refit
+    // on, then the tab's own latent upscale. Mutually exclusive with the four above.
+    public bool H3ExpressUseHyperFlow { get; set; }
+    // MiniMax I2V: render a location plate (an empty set, Qwen Image 2512) into a free reference slot on
+    // Analyze, so the take is staged in a real place rather than a flat one.
+    public bool MiniMaxI2VAutoLocationPlate { get; set; } = true;
     // Sampling steps per checkpoint: the first-pass step count the Express tab renders with, keyed by the
     // model name it was set for (lowercased, forward slashes). A checkpoint that has never been set is not
     // in here at all and renders at the step count its stack was authored at — Singularity's 10, the Eros

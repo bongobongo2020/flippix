@@ -39,6 +39,12 @@ public static class ModelCatalog
         ["wan2.2_i2v_A14b_high_noise_scaled_fp8_e4m3_lightx2v_4step_comfyui_1030.safetensors"] = "https://huggingface.co/Kijai/WanVideoGenerator/resolve/main/diffusion_models/wan2.2_i2v_A14b_high_noise_scaled_fp8_e4m3_lightx2v_4step_comfyui_1030.safetensors",
         ["wan2.2_i2v_A14b_low_noise_scaled_fp8_e4m3_lightx2v_4step_comfyui.safetensors"] = "https://huggingface.co/Kijai/WanVideoGenerator/resolve/main/diffusion_models/wan2.2_i2v_A14b_low_noise_scaled_fp8_e4m3_lightx2v_4step_comfyui.safetensors",
 
+        // --- HyperFlow 8-step adapter for MiniMax H3 (models/hyperflow, ComfyUI-HyperFlow-H3) ---
+        // The pruned build is what H3 Express's and MiniMax I2V's 🌊 stack load; the full one is for
+        // unpruned checkpoints, and the node names whichever it wants when handed the wrong one.
+        ["custom_node_hyperflow_8step_v1.0_comfyui_pruned.safetensors"] = "https://huggingface.co/drbaph/Hyperflow-Comfyui/resolve/main/custom_node_hyperflow_8step_v1.0_comfyui_pruned.safetensors",
+        ["custom_node_hyperflow_8step_v1.0_comfyui.safetensors"] = "https://huggingface.co/drbaph/Hyperflow-Comfyui/resolve/main/custom_node_hyperflow_8step_v1.0_comfyui.safetensors",
+
         // --- LTX 2.3 (16gb video tier) ---
         ["LTX-2.3-22B-distilled-1.1-Q3_K_S.gguf"] = "https://huggingface.co/QuantStack/LTX-2.3-GGUF/resolve/main/LTX-2.3-distilled-1.1/LTX-2.3-22B-distilled-1.1-Q3_K_S.gguf",
     };

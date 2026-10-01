@@ -119,7 +119,7 @@ namespace FlipPix.UI.ViewModels.Video
             set
             {
                 if (_useParasyte == value) return;
-                if (value) { ClearTaoMate(); ClearBunny(); ClearSingularity(); }
+                if (value) { ClearTaoMate(); ClearBunny(); ClearSingularity(); ClearHyperFlow(); }
                 _useParasyte = value;
                 OnPropertyChanged();
                 RaiseStackState();

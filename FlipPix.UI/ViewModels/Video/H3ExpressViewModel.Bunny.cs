@@ -115,7 +115,7 @@ namespace FlipPix.UI.ViewModels.Video
             set
             {
                 if (_useBunny == value) return;
-                if (value) { ClearTaoMate(); ClearSingularity(); }
+                if (value) { ClearTaoMate(); ClearSingularity(); ClearParasyte(); ClearHyperFlow(); }
                 _useBunny = value;
                 OnPropertyChanged();
                 RaiseStackState();
