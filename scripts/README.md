@@ -2,20 +2,44 @@
 
 ## Install FlipPix (one click)
 
-New to FlipPix? **Double-click `Install-FlipPix.bat`** in the repo root. It opens a retro
-Windows 98-style setup wizard that:
+New to FlipPix, or setting up a PC for the iPad app? **Double-click `Install-FlipPix.bat`** in
+the repo root. It opens a retro Windows 98-style setup wizard that leaves the PC ready to use:
 
-- lets you choose the install folder (defaults to `%LOCALAPPDATA%\Programs\FlipPix`, no admin needed),
-- creates desktop / Start Menu shortcuts,
-- can **also install ComfyUI** for you (ticking the box launches the ComfyUI installer below),
-- copies FlipPix and can launch it when done.
+1. **Options:** one install folder (defaults to `FlipPix` on the drive with the most free
+   space), an optional **Video models** box, start with Windows, and shortcuts.
+2. **System check:** NVIDIA GPU with 12 GB+ VRAM (RTX 4070 Ti or better), driver version, free
+   disk space for the chosen options, and internet access. Install stays disabled until the
+   blocking checks pass.
+3. **Install:** two segmented progress bars (overall + current file, with speed and time left).
+   It installs everything below, in order:
+   - the FlipPix app → `<folder>\App`
+   - ComfyUI, custom nodes and models (`setup-comfyui-fresh.ps1 -Wizard`) → `<folder>\ComfyUI`,
+     `<folder>\models`. Image only: ~23 GB of models (`-Minimal`). With video: ~50 GB, plus the
+     14 GB low-VRAM LTX GGUF on a GPU with 16 GB or less.
+   - the writing assistant (`setup-llm.ps1 -Wizard`): llama-server (llama.cpp CUDA 12.4) and
+     Qwen2.5-VL-7B-Instruct Q4_K_M + Q8_0 mmproj → `<folder>\LLM`, served on `127.0.0.1:8080`
+   - turns on the phone remote (`remote.json`), adds a private-network firewall rule (one UAC
+     prompt), and adds Startup shortcuts for FlipPix and the writing assistant
+   - self-test: the writing assistant answers a prompt and ComfyUI starts on the GPU
+4. **Finish:** test results and the three steps to pair the iPad.
+
+**Re-running is safe:** finished work is skipped and interrupted downloads resume from their
+`.part` files. So the fix for a dropped connection or a closed window is "run Setup again".
+Logs are in `%LOCALAPPDATA%\FlipPix\setup-logs`.
 
 FlipPix is published self-contained, so end users need **no .NET runtime**. If the repo already
 has a built `publish\` folder it's used directly; otherwise the wizard builds it with
 `dotnet publish` (that build step needs the .NET 8 SDK).
 
 The wizard is `scripts\flippix-installer.ps1` (WinForms, intentionally classic-themed). The `.bat`
-just launches it with the right execution policy in STA mode.
+just launches it with the right execution policy in STA mode. The child scripts report progress
+through `##FLIPPIX|...` stdout markers; `setup-common.ps1` describes them.
+
+`setup-llm.ps1` also runs on its own to add the writing assistant to an existing install:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\setup-llm.ps1 -InstallDir D:\FlipPix\LLM
+```
 
 ---
 

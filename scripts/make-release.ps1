@@ -105,7 +105,8 @@ Write-Ok 'copied launchers + icon'
 # scripts the installers + backup/restore tooling use (NOT make-release.ps1 / dev helpers)
 $scriptsDst = Join-Path $Stage 'scripts'
 New-Item -ItemType Directory -Force -Path $scriptsDst | Out-Null
-foreach ($s in 'flippix-installer.ps1','setup-comfyui-fresh.ps1','setup-comfyui-wsl.ps1','set-wsl-models.ps1','flippix-custom-nodes.txt','flippix-models.txt',
+foreach ($s in 'flippix-installer.ps1','setup-common.ps1','setup-llm.ps1','setup-comfyui-fresh.ps1','setup-comfyui-wsl.ps1','set-wsl-models.ps1','flippix-custom-nodes.txt','flippix-models.txt',
+               'flippix-custom-nodes-min.txt','flippix-models-min.txt','flippix-models-16gb-video.txt',
                'backup-comfyui-remote.ps1','restore-comfyui.sh','restore-comfyui-windows.ps1','README.md') {
     Copy-Item (Join-Path $ScriptDir $s) (Join-Path $scriptsDst $s) -Force
 }

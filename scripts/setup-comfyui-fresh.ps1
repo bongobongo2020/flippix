@@ -48,6 +48,16 @@
 .PARAMETER SkipModels
     Don't touch models at all (no prompt, no download).
 
+.PARAMETER EnsureModels
+    Download any manifest file missing from -ModelsDir even when that folder already exists
+    (normally an existing folder is reused as-is). The setup wizard uses this so a fresh or
+    half-finished install always ends up with the full model set.
+
+.PARAMETER Wizard
+    Run unattended for the setup wizard: print '##FLIPPIX|...' progress markers (see
+    setup-common.ps1) and silence curl's progress meter. Pair with -ModelsDir and -DownloadModels
+    so nothing prompts.
+
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File scripts\setup-comfyui-fresh.ps1
 
@@ -68,6 +78,8 @@ param(
     [string]$ModelsDir = '',
     [switch]$DownloadModels,
     [switch]$SkipModels,
+    [switch]$EnsureModels,
+    [switch]$Wizard,
     [switch]$Minimal,
     [ValidateSet('auto','full','16gb')]
     [string]$Tier = 'auto'
@@ -76,13 +88,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'   # massively speeds up Invoke-WebRequest
 
-# ---------------------------------------------------------------------------
-# logging helpers
-# ---------------------------------------------------------------------------
-function Write-Step($m) { Write-Host "`n==> $m" -ForegroundColor Cyan }
-function Write-Ok($m)   { Write-Host "  [ok] $m" -ForegroundColor Green }
-function Write-Warn2($m){ Write-Host "  [!] $m"  -ForegroundColor Yellow }
-function Write-Err2($m) { Write-Host "  [x] $m"  -ForegroundColor Red }
+# logging, progress markers, Get-File, Read-ModelManifest
+. (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'setup-common.ps1')
 
 # Run a native command quietly and return its exit code, WITHOUT letting harmless
 # stderr output abort the script. Under $ErrorActionPreference = 'Stop', merging a
@@ -134,24 +141,6 @@ function Resolve-VramTier {
     $tier = if ($mb -le 17408) { '16gb' } else { 'full' }
     Write-Ok "detected ${gb} GB VRAM -> '$tier' workflow tier"
     return $tier
-}
-
-# ---------------------------------------------------------------------------
-# download helper: prefer curl.exe (fast, resumable) then fall back to BITS / IWR
-# ---------------------------------------------------------------------------
-function Get-File($Url, $OutFile) {
-    if (Test-Path $OutFile) {
-        $sizeMB = [math]::Round((Get-Item $OutFile).Length / 1MB, 1)
-        Write-Ok "already downloaded ($sizeMB MB): $(Split-Path $OutFile -Leaf)"
-        return
-    }
-    $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
-    if ($curl) {
-        & $curl.Source -L --fail --retry 3 -C - -o $OutFile $Url
-        if ($LASTEXITCODE -ne 0) { throw "curl failed downloading $Url" }
-    } else {
-        Invoke-WebRequest -Uri $Url -OutFile $OutFile -UseBasicParsing
-    }
 }
 
 # ---------------------------------------------------------------------------
@@ -285,8 +274,10 @@ function Resolve-PortableUrl {
     }
     if (-not $asset) { throw "Could not find a windows portable .7z asset in the latest release. Pass -ComfyUIArchiveUrl explicitly." }
     Write-Ok "found $($asset.name) ($([math]::Round($asset.size/1GB,2)) GB)"
+    $script:PortableArchiveBytes = [long]$asset.size
     return $asset.browser_download_url
 }
+$script:PortableArchiveBytes = [long]0
 
 # ---------------------------------------------------------------------------
 # main
@@ -295,6 +286,7 @@ Write-Host "FlipPix - ComfyUI fresh installer" -ForegroundColor Magenta
 Write-Host "Repo: $RepoRoot"
 if ($Minimal) { Write-Ok 'minimal install (core creative subset)' }
 
+Write-Marker 'phase' @('prereqs')
 Write-Step 'Selecting VRAM workflow tier'
 $ResolvedTier = Resolve-VramTier
 
@@ -303,6 +295,15 @@ Persist-GitForRuntime
 Ensure-VCRedist
 $SevenZip = Get-SevenZip
 Write-Ok "7-Zip: $SevenZip"
+
+# A re-run (e.g. the wizard resuming after a dropped connection) reuses an already-extracted
+# portable build instead of downloading and extracting it again.
+if (-not $ExistingComfyDir -and (Test-Path $InstallDir)) {
+    $already = Get-ChildItem -Path $InstallDir -Directory -ErrorAction SilentlyContinue |
+        Where-Object { Test-Path (Join-Path $_.FullName 'python_embeded\python.exe') } |
+        Select-Object -First 1 -ExpandProperty FullName
+    if ($already) { $ExistingComfyDir = $already; Write-Ok "ComfyUI already extracted at $already" }
+}
 
 # Locate / create the portable root (folder containing python_embeded + ComfyUI)
 if ($ExistingComfyDir) {
@@ -313,11 +314,13 @@ if ($ExistingComfyDir) {
     $url = Resolve-PortableUrl
     $archive = Join-Path $InstallDir ([IO.Path]::GetFileName(($url -split '\?')[0]))
 
+    Write-Marker 'phase' @('comfy-download')
     Write-Step "Downloading ComfyUI portable -> $archive"
     Write-Warn2 'This is a large file (often 1.5-2.5 GB); please be patient.'
-    Get-File $url $archive
+    Get-File $url $archive $script:PortableArchiveBytes 'ComfyUI portable'
     Write-Ok 'download complete'
 
+    Write-Marker 'phase' @('extract')
     Write-Step "Extracting into $InstallDir"
     & $SevenZip x $archive "-o$InstallDir" -y | Out-Null
     if ($LASTEXITCODE -ne 0) { throw '7-Zip extraction failed.' }
@@ -364,12 +367,18 @@ function Install-NodeRepo($Url) {
     }
 }
 
+Write-Marker 'phase' @('nodes')
 Write-Step 'Installing custom-node packs (curated list)'
 if (-not (Test-Path $NodeListFile)) { throw "Missing node list: $NodeListFile" }
-$repos = Get-Content $NodeListFile |
+$repos = @(Get-Content $NodeListFile |
     ForEach-Object { ($_ -split '#')[0].Trim() } |
-    Where-Object { $_ -ne '' }
-foreach ($r in $repos) { Install-NodeRepo $r }
+    Where-Object { $_ -ne '' })
+$i = 0
+foreach ($r in $repos) {
+    $i++
+    Write-Marker 'count' @($i, $repos.Count, (($r -split '/')[-1] -replace '\.git$', ''))
+    Install-NodeRepo $r
+}
 
 # Make sure ComfyUI-Manager's own deps are present (needed for cm-cli below)
 $mgrReq = Join-Path $CustomDir 'ComfyUI-Manager\requirements.txt'
@@ -384,12 +393,14 @@ if (Test-Path $mgrReq) {
 if (-not $SkipMissingNodeScan) {
     $cmCli = Join-Path $CustomDir 'ComfyUI-Manager\cm-cli.py'
     if (Test-Path $cmCli) {
+        Write-Marker 'phase' @('scan')
         Write-Step 'Scanning FlipPix workflows for any remaining missing nodes (cm-cli)'
         $tmpDeps = Join-Path $env:TEMP 'flippix_deps.json'
-        $workflows = Get-ChildItem -Path $WorkflowSrc -Recurse -Filter *.json -ErrorAction SilentlyContinue
+        $workflows = @(Get-ChildItem -Path $WorkflowSrc -Recurse -Filter *.json -ErrorAction SilentlyContinue)
         $count = 0
         foreach ($wf in $workflows) {
             $count++
+            Write-Marker 'count' @($count, $workflows.Count, $wf.Name)
             try {
                 Push-Location $ComfyDir
                 Invoke-Quiet { & $Py -s $cmCli deps-in-workflow --workflow "$($wf.FullName)" --output "$tmpDeps" } | Out-Null
@@ -427,28 +438,14 @@ $DefaultModels = Join-Path $ComfyDir 'models'
 
 function Normalize-Path($p) { return ([IO.Path]::GetFullPath($p)).TrimEnd('\') }
 
-# FlipPix model manifest, loaded from scripts/flippix-models.txt. Each entry:
-# Path (relative to the models folder) | Size | Url.
+# FlipPix model manifest, loaded from scripts/flippix-models.txt (format: see setup-common.ps1).
 # Get-File resumes/skips already-downloaded files.
 $ModelListFile = Join-Path $ScriptDir ($(if ($Minimal) { 'flippix-models-min.txt' } else { 'flippix-models.txt' }))
-function Read-ModelManifest($file) {
-    @(
-        if (Test-Path $file) {
-            Get-Content $file | ForEach-Object {
-                $line = $_.Trim()
-                if ($line -eq '' -or $line.StartsWith('#')) { return }
-                $parts = $line -split '\|', 3
-                if ($parts.Count -ne 3) { return }
-                @{ Path = $parts[0].Trim() -replace '/', '\'; Size = $parts[1].Trim(); Url = $parts[2].Trim() }
-            }
-        }
-    )
-}
-$ModelManifest = Read-ModelManifest $ModelListFile
+$ModelManifest = @(Read-ModelManifest $ModelListFile)
 
 # 16gb-tier video GGUF: pulled separately, only on a FULL install at the 16gb tier (see below).
 $VideoGgufListFile = Join-Path $ScriptDir 'flippix-models-16gb-video.txt'
-$VideoGgufManifest = Read-ModelManifest $VideoGgufListFile
+$VideoGgufManifest = @(Read-ModelManifest $VideoGgufListFile)
 
 function Set-ModelPathLink($Dir) {
     # If the chosen folder isn't the install's own models dir, tell ComfyUI to look there too.
@@ -493,14 +490,18 @@ function Download-Models($Dir) {
     Write-Step "Downloading FlipPix models into $Dir (~45 GB total)"
     Write-Warn2 'Large download; interrupted files resume automatically on re-run.'
     $n = 0
+    $failed = 0
     foreach ($m in $ModelManifest) {
         $n++
         $out = Join-Path $Dir $m.Path
         New-Item -ItemType Directory -Force -Path (Split-Path $out -Parent) | Out-Null
         Write-Host ("  [{0}/{1}] {2} ({3})" -f $n, $ModelManifest.Count, $m.Path, $m.Size)
-        try { Get-File $m.Url $out } catch { Write-Warn2 "failed: $($m.Path) - $($_.Exception.Message)" }
+        Write-Marker 'count' @($n, $ModelManifest.Count, (Split-Path $m.Path -Leaf))
+        try { Get-File $m.Url $out $m.Bytes } catch { $failed++; Write-Warn2 "failed: $($m.Path) - $($_.Exception.Message)" }
     }
     Write-Ok 'model downloads finished (any failures are listed above; re-run to retry)'
+    # The wizard must not report success with weights missing; the console flow keeps going.
+    if ($Wizard -and $failed -gt 0) { throw "$failed model download(s) failed. Run Setup again to retry; finished files are kept." }
 }
 
 function Download-VideoGguf($Dir) {
@@ -513,14 +514,17 @@ function Download-VideoGguf($Dir) {
     }
     Write-Step "Downloading 16gb-tier video GGUF into $Dir"
     $n = 0
+    $failed = 0
     foreach ($m in $VideoGgufManifest) {
         $n++
         $out = Join-Path $Dir $m.Path
         New-Item -ItemType Directory -Force -Path (Split-Path $out -Parent) | Out-Null
         Write-Host ("  [{0}/{1}] {2} ({3})" -f $n, $VideoGgufManifest.Count, $m.Path, $m.Size)
-        try { Get-File $m.Url $out } catch { Write-Warn2 "failed: $($m.Path) - $($_.Exception.Message)" }
+        Write-Marker 'count' @($n, $VideoGgufManifest.Count, (Split-Path $m.Path -Leaf))
+        try { Get-File $m.Url $out $m.Bytes } catch { $failed++; Write-Warn2 "failed: $($m.Path) - $($_.Exception.Message)" }
     }
     Write-Ok '16gb video GGUF finished'
+    if ($Wizard -and $failed -gt 0) { throw "$failed video model download(s) failed. Run Setup again to retry; finished files are kept." }
 }
 
 function Format-ModelsPath([string]$raw) {
@@ -547,6 +551,7 @@ if ($SkipModels) {
     Write-Step 'Models'
     Write-Ok 'skipping models (-SkipModels)'
 } else {
+    Write-Marker 'phase' @('models')
     Write-Step 'Models'
     $target = $ModelsDir
     if ($target) {
@@ -579,7 +584,8 @@ if ($SkipModels) {
     if (Test-Path $target) {
         Write-Ok "found existing models folder: $target"
         Set-ModelPathLink $target
-        Write-Ok 'reusing existing models - nothing to download'
+        if ($EnsureModels) { Download-Models $target }
+        else { Write-Ok 'reusing existing models - nothing to download' }
     } else {
         Write-Warn2 "models folder does not exist yet: $target"
         $doDownload = $DownloadModels
@@ -664,6 +670,7 @@ function Set-FlipPixComfyUISettings($comfyDir, $portableRoot) {
     }
 }
 
+Write-Marker 'phase' @('link')
 Write-Step 'Linking FlipPix to this ComfyUI install'
 Set-FlipPixComfyUISettings $ComfyDir $PortableRoot
 
