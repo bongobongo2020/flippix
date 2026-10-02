@@ -93,21 +93,29 @@ public sealed class Supervisor : IDisposable
 
     private Process? StartComfy()
     {
+        // Windows: the portable build's python_embeded. Linux: the venv the Ubuntu installer made
+        // beside ComfyUI (scripts/install-ios-companion-linux.sh).
         var root = _config.PortableRoot;
-        var python = Path.Combine(root, "python_embeded", "python.exe");
+        var windows = OperatingSystem.IsWindows();
+        var python = windows
+            ? Path.Combine(root, "python_embeded", "python.exe")
+            : Path.Combine(root, "venv", "bin", "python");
         if (!File.Exists(python)) return null;
         var psi = Hidden(python, root);
-        foreach (var a in new[] { "-s", Path.Combine("ComfyUI", "main.py"), "--windows-standalone-build", "--disable-auto-launch" })
-            psi.ArgumentList.Add(a);
+        var args = windows
+            ? new[] { "-s", Path.Combine("ComfyUI", "main.py"), "--windows-standalone-build", "--disable-auto-launch" }
+            : new[] { "-s", Path.Combine("ComfyUI", "main.py"), "--listen", "127.0.0.1", "--port", "8188", "--disable-auto-launch" };
+        foreach (var a in args) psi.ArgumentList.Add(a);
         return _comfy.Launch(psi, _log);
     }
 
     private Process? StartLlm()
     {
+        // start-llm.bat on Windows, start-llm.sh on Linux.
         var script = _config.LlmStartScript;
         if (!File.Exists(script)) return null;
-        var psi = Hidden("cmd.exe", Path.GetDirectoryName(script) ?? "");
-        psi.ArgumentList.Add("/c");
+        var psi = Hidden(OperatingSystem.IsWindows() ? "cmd.exe" : "/bin/bash", Path.GetDirectoryName(script) ?? "");
+        if (OperatingSystem.IsWindows()) psi.ArgumentList.Add("/c");
         psi.ArgumentList.Add(script);
         return _llm.Launch(psi, _log);
     }

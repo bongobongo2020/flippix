@@ -65,6 +65,31 @@ through an on-device NSFW classifier before the phone sees it. Its library lists
 won't turn the phone link on without the classifier, because both model licenses require filtering.
 See `THIRD_PARTY_LICENSES.md` for the terms that affect the App Store listing.
 
+### On Ubuntu
+
+Ship **`release/FlipPix-iOS-Companion-Setup-Linux.sh`** (built on Windows by
+`scripts\make-ios-companion-linux.ps1`). On the Ubuntu 22.04 / 24.04 PC with the NVIDIA card:
+
+```bash
+bash FlipPix-iOS-Companion-Setup-Linux.sh          # options: --dir DIR  --yes  --no-service  --no-linger
+```
+
+It unpacks itself and runs `install-ios-companion-linux.sh`, which installs everything into `~/FlipPix`
+and asks for sudo only for apt packages, the firewall (ufw) and starting at boot:
+
+- **Installs:** the same node and model lists as Windows (`flippix-custom-nodes-ios.txt`,
+  `flippix-models-ios.txt`). ComfyUI v0.37.0 goes into a uv-managed Python 3.12 venv with the portable
+  build's torch pins (CUDA 13.0, driver 580+; older drivers get CUDA 12.8). It also installs llama-server
+  (CUDA 12.8 build) with Qwen2.5-VL 7B, and the headless companion (`FlipPix.IosCompanion.Linux`). If the
+  NVIDIA driver is missing, it offers `ubuntu-drivers install`.
+- **Configures:** `~/.config/FlipPix/{settings,companion}.json`, a `flippix-companion` systemd user service
+  (with linger, so it starts at boot), and ports 47800/tcp + 47801/udp when ufw is on.
+- **Use:** `flippix-companion` shows the pairing code and status; `flippix-companion code` gives a new code;
+  `restart`, `logs` and `uninstall` do what they say.
+
+Running it again carries on where it stopped: finished downloads are skipped and `.part` files resume.
+`FLIPPIX_ALLOW_NO_CUDA=1` lets it run past the GPU check, for testing on a machine without the card.
+
 ---
 
 # ComfyUI Setup

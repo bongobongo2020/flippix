@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    FlipPix iOS Companion for Ubuntu: the same companion as FlipPix.IosCompanion (phone remote narrowed
+    to Krea 2 pictures and MiniMax H3 video, every output screened by the content classifier, ComfyUI
+    and the writing assistant kept running), headless. It runs as a systemd user service
+    ("flippix-companion serve"); "flippix-companion" in a terminal shows the pairing code and status.
+    The configuration, supervisor, filter and logger are FlipPix.IosCompanion's own files, linked.
+    Installed by scripts/install-ios-companion-linux.sh; packaged by scripts/make-ios-companion-linux.ps1.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>flippix-companion</AssemblyName>
+    <RootNamespace>FlipPix.IosCompanion</RootNamespace>
+    <Product>FlipPix iOS Companion</Product>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\FlipPix.IosCompanion\CompanionConfig.cs" Link="Shared\CompanionConfig.cs" />
+    <Compile Include="..\FlipPix.IosCompanion\CompanionLogger.cs" Link="Shared\CompanionLogger.cs" />
+    <Compile Include="..\FlipPix.IosCompanion\NsfwFilter.cs" Link="Shared\NsfwFilter.cs" />
+    <Compile Include="..\FlipPix.IosCompanion\Supervisor.cs" Link="Shared\Supervisor.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FlipPix.Core\FlipPix.Core.csproj" />
+    <ProjectReference Include="..\FlipPix.Remote\FlipPix.Remote.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\THIRD_PARTY_LICENSES.md" Link="THIRD_PARTY_LICENSES.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\FlipPix.IosCompanion\NOTICE.txt" Link="NOTICE.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
