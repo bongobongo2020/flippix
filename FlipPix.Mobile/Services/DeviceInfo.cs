@@ -12,4 +12,10 @@ public static class DeviceInfo
 
     /// <summary>What this device is called in running text: "Disconnect this iPad".</summary>
     public static string Noun { get; set; } = "phone";
+
+    /// <summary>
+    /// Where Save writes straight to, with no save sheet: the app's Documents folder on iOS, which has
+    /// no save picker and shows that folder in Files as On My iPad › FlipPix. Null elsewhere.
+    /// </summary>
+    public static string? SaveFolder { get; set; }
 }

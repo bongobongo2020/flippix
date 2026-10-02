@@ -42,6 +42,12 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<!-- Save writes to Documents (iOS has no save sheet); these two show that folder in the Files app
+	     as On My iPad › FlipPix. It stays on this iPad: not iCloud, not other devices. -->
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Choose photos to use as references for videos and stories.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

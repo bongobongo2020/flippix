@@ -17,6 +17,8 @@ public partial class AppDelegate : AvaloniaAppDelegate<App>
         var ipad = UIDevice.CurrentDevice.UserInterfaceIdiom == UIUserInterfaceIdiom.Pad;
         DeviceInfo.Noun = ipad ? "iPad" : "iPhone";
         DeviceInfo.Name = DeviceName(ipad);
+        // Documents, which Info.plist shows in Files as On My iPad › FlipPix: on this device only, not iCloud.
+        DeviceInfo.SaveFolder = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         return base.CustomizeAppBuilder(builder).WithInterFont();
     }
 

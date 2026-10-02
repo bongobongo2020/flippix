@@ -97,7 +97,7 @@ output folder, queue) or to disconnect. Removing the phone on the computer signs
 (the vision model says what's in it), **Similar** (a prompt for a picture like it, into the
 Image page), **Animate** (into the Video page as a reference), **Prompt** (when the phone made
 it: the prompt, look and shape it was made with) and **Save** (the full file, through the system
-save sheet).
+save sheet; on iPhone and iPad, straight into Files › On My iPad › FlipPix, on that device only).
 
 ## How it stays in step
 

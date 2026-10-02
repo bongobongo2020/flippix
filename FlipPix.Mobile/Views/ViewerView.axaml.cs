@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using FlipPix.Mobile.Controls;
+using FlipPix.Mobile.Services;
 using FlipPix.Mobile.ViewModels;
 
 namespace FlipPix.Mobile.Views;
@@ -61,12 +62,18 @@ public partial class ViewerView : UserControl
     }
 
     /// <summary>
-    /// The system save sheet: the person picks where the copy goes (Downloads, Pictures, Drive; Files on
-    /// an iPad). Shared with the studio viewer.
+    /// The system save sheet: the person picks where the copy goes (Downloads, Pictures, Drive). iOS has
+    /// no save sheet, so there the copy goes straight into the app's own folder. Shared with the studio
+    /// viewer.
     /// </summary>
     internal static async Task SaveCurrentAsync(Control owner, ViewerViewModel vm)
     {
         if (vm.Current is not { } entry) return;
+        if (DeviceInfo.SaveFolder is { } folder)
+        {
+            await SaveIntoFolderAsync(vm, entry, folder);
+            return;
+        }
         var storage = TopLevel.GetTopLevel(owner)?.StorageProvider;
         if (storage == null || !storage.CanSave) return;
         var file = await storage.SaveFilePickerAsync(new FilePickerSaveOptions
@@ -78,5 +85,22 @@ public partial class ViewerView : UserControl
         if (file == null) return;
         await using var stream = await file.OpenWriteAsync();
         await vm.SaveToAsync(stream);
+    }
+
+    // Never over an earlier save: "name.png", then "name (2).png", and so on.
+    private static async Task SaveIntoFolderAsync(ViewerViewModel vm, ViewerEntry entry, string folder)
+    {
+        Directory.CreateDirectory(folder);
+        var name = Path.GetFileName(entry.FileName);
+        var stem = Path.GetFileNameWithoutExtension(name);
+        var extension = Path.GetExtension(name);
+        var path = Path.Combine(folder, name);
+        for (var n = 2; File.Exists(path); n++)
+            path = Path.Combine(folder, $"{stem} ({n}){extension}");
+
+        bool saved;
+        await using (var stream = File.Create(path))
+            saved = await vm.SaveToAsync(stream, $"Saved to Files › On My {DeviceInfo.Noun} › FlipPix.");
+        if (!saved) File.Delete(path);
     }
 }

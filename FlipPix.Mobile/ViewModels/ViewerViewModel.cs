@@ -270,11 +270,14 @@ public sealed partial class ViewerViewModel : ObservableObject
         }
     }
 
-    /// <summary>Called by the view with the stream the system save sheet opened.</summary>
-    public async Task SaveToAsync(Stream target)
+    /// <summary>
+    /// Called by the view with the stream the system save sheet opened, or a file in the app's own
+    /// folder. False when nothing was written, so the view can drop the empty file.
+    /// </summary>
+    public async Task<bool> SaveToAsync(Stream target, string savedNotice = "Saved.")
     {
         var entry = Current;
-        if (entry?.FileUrl == null) return;
+        if (entry?.FileUrl == null) return false;
         var load = _load;
         IsWorking = true;
         WorkingText = $"Saving the {(entry.IsVideo ? "video" : "picture")} to your {DeviceInfo.Noun}";
@@ -282,11 +285,13 @@ public sealed partial class ViewerViewModel : ObservableObject
         try
         {
             await AppServices.Remote.DownloadToAsync(entry.FileUrl, target);
-            if (load == _load) Notice = "Saved.";
+            if (load == _load) Notice = savedNotice;
+            return true;
         }
         catch (RemoteException ex)
         {
             if (load == _load) Notice = ex.Message;
+            return false;
         }
         finally
         {
