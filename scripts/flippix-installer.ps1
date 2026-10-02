@@ -130,10 +130,30 @@ $Gpu = Get-GpuInfo
 # and a full (video) install on that tier also pulls the low-VRAM LTX GGUF.
 $Tier16 = ($Gpu -and $Gpu.VramMb -le 17408)
 
+$LastRootFile = Join-Path $env:APPDATA 'FlipPix\setup-root.txt'
+
 function Get-DefaultRoot {
-    $d = [IO.DriveInfo]::GetDrives() |
-        Where-Object { $_.DriveType -eq 'Fixed' -and $_.IsReady } |
-        Sort-Object AvailableFreeSpace -Descending | Select-Object -First 1
+    # An earlier install wins: the folder holding the most of this install's models, or the one
+    # Setup last used. Only a first install picks the drive with the most free space. (Choosing
+    # by free space alone moved the default to another drive once the first run's ~60 GB of models
+    # had filled this one, and the next run downloaded them all again into an empty folder.)
+    $fixed = @([IO.DriveInfo]::GetDrives() | Where-Object { $_.DriveType -eq 'Fixed' -and $_.IsReady })
+    $candidates = @($fixed | ForEach-Object { Join-Path $_.Name 'FlipPix' })
+    $last = $null
+    try { if (Test-Path $LastRootFile) { $last = (Get-Content $LastRootFile -Raw).Trim() } } catch {}
+    if ($last) { $candidates = @($last) + $candidates }
+    $best = $null; $bestHave = [long]0
+    foreach ($c in $candidates) {
+        try {
+            if (-not (Test-Path -LiteralPath $c)) { continue }
+            $have = (Get-FilesProgress (Get-ModelFiles $c $true)).Have
+            if ($have -gt $bestHave) { $best = $c; $bestHave = $have }
+        } catch {}
+    }
+    if ($best) { return $best }
+    if ($last -and (Test-Path -LiteralPath $last)) { return $last }
+
+    $d = $fixed | Sort-Object AvailableFreeSpace -Descending | Select-Object -First 1
     if ($d) { return (Join-Path $d.Name 'FlipPix') }
     return (Join-Path $env:LOCALAPPDATA 'Programs\FlipPix')
 }
@@ -1244,6 +1264,11 @@ function Start-Install {
         $plan = Get-Plan
         $root = [IO.Path]::GetFullPath($plan.Root)
         $appDir = Join-Path $root 'App'
+        # Remembered so the next run offers this folder again (Get-DefaultRoot).
+        try {
+            New-Item -ItemType Directory -Force -Path (Split-Path $LastRootFile -Parent) | Out-Null
+            Set-Content -Path $LastRootFile -Value $root -Encoding UTF8
+        } catch {}
         Initialize-Phases $plan
         Write-Log "FlipPix Setup - $(Get-Date)"
         Write-Log "Folder: $root   Video models: $($plan.Video)   GPU: $(if ($Gpu) { "$($Gpu.Name) $($Gpu.VramMb) MB" } else { 'none' })"
