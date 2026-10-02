@@ -711,7 +711,7 @@ function Update-Progress {
         $now = Get-Date
         $dt = ($now - $d.LastTime).TotalSeconds
         if ($dt -ge 1) {
-            $rate = [Math]::Max(0, ($size - $d.LastSize) / $dt)
+            $rate = [Math]::Max(0.0, [double](($size - $d.LastSize) / $dt))
             $d.Speed = if ($d.Speed -gt 0) { 0.7 * $d.Speed + 0.3 * $rate } else { $rate }
             $d.LastSize = $size; $d.LastTime = $now
         }
@@ -719,7 +719,7 @@ function Update-Progress {
         if ($d.Bytes -gt 0) { $item = $size / $d.Bytes; $itemText += " of $(Format-Size $d.Bytes)" }
         if ($d.Speed -gt 0 -and $d.Bytes -gt 0) {
             $itemText += ('  ({0:N1} MB/s' -f ($d.Speed / 1MB))
-            $left = [Math]::Max(0, $d.Bytes - $size) / $d.Speed
+            $left = [Math]::Max(0.0, [double]($d.Bytes - $size)) / $d.Speed
             if ($left -ge 90) { $itemText += (', about {0:N0} min left)' -f ($left / 60)) } else { $itemText += ')' }
         }
         $frac = ($script:PhaseBytes + $size) / [Math]::Max([double]$ph.Weight, [double]($script:PhaseBytes + $d.Bytes))
