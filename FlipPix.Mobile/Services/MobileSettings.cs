@@ -15,9 +15,14 @@ public sealed class MobileSettings
 
     public bool IsPaired => ServerUrl.Length > 0 && Token.Length > 0;
 
-    private static string FilePath =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "FlipPixMobile", "remote.json");
+    /// <summary>
+    /// Where remote.json lives. iOS sets its own: there LocalApplicationData is Documents, which Files
+    /// shows as On My iPad › FlipPix, and the pairing must not sit beside the saved pictures.
+    /// </summary>
+    public static string Folder { get; set; } =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FlipPixMobile");
+
+    private static string FilePath => Path.Combine(Folder, "remote.json");
 
     public static MobileSettings Load()
     {

@@ -19,7 +19,30 @@ public partial class AppDelegate : AvaloniaAppDelegate<App>
         DeviceInfo.Name = DeviceName(ipad);
         // Documents, which Info.plist shows in Files as On My iPad › FlipPix: on this device only, not iCloud.
         DeviceInfo.SaveFolder = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        MobileSettings.Folder = SettingsFolder(DeviceInfo.SaveFolder);
         return base.CustomizeAppBuilder(builder).WithInterFont();
+    }
+
+    /// <summary>
+    /// Library/Application Support/FlipPixMobile, which Files never shows. Earlier builds kept the
+    /// pairing in Documents/FlipPixMobile; it moves here once, so the iPad stays paired.
+    /// </summary>
+    private static string SettingsFolder(string documents)
+    {
+        var support = NSFileManager.DefaultManager
+            .GetUrls(NSSearchPathDirectory.ApplicationSupportDirectory, NSSearchPathDomain.User)[0].Path!;
+        var folder = Path.Combine(support, "FlipPixMobile");
+        var old = Path.Combine(documents, "FlipPixMobile");
+        try
+        {
+            if (Directory.Exists(old) && !Directory.Exists(folder))
+            {
+                Directory.CreateDirectory(support);
+                Directory.Move(old, folder);
+            }
+        }
+        catch { /* left where it was: the iPad pairs again */ }
+        return folder;
     }
 
     /// <summary>
