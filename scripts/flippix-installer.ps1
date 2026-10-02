@@ -1256,6 +1256,28 @@ function Invoke-SelfTest($root, [bool]$StartComfy = $true) {
     Set-Manual 1.0 ''
 }
 
+function Stop-InstallProcesses($root) {
+    # A ComfyUI left running from this folder keeps the node packs it loaded at its start: packages
+    # installed under it now only arrive at the next start, and the companion leaves a ComfyUI that
+    # already answers alone, so it never got one (RTXVideoSuperResolution stayed "missing" after a
+    # re-run). Stop the companion and the servers running from this folder; the self-test below
+    # starts ComfyUI again and the companion is relaunched from the finish page. The desktop app is
+    # left alone (it may hold unsaved work).
+    $names = @('FlipPix.IosCompanion.exe', 'python.exe', 'pythonw.exe', 'llama-server.exe')
+    $prefix = $root.TrimEnd('\') + '\'
+    $procs = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+        $names -contains $_.Name -and $_.ExecutablePath -and
+        $_.ExecutablePath.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase) })
+    # The companion first: it stops what it started.
+    foreach ($p in @($procs | Sort-Object { $_.Name -ne 'FlipPix.IosCompanion.exe' })) {
+        try {
+            Stop-Process -Id $p.ProcessId -Force -ErrorAction Stop
+            Write-Log "Stopped $($p.Name) (pid $($p.ProcessId)) so the update takes effect."
+        } catch { <# already gone #> }
+    }
+    if ($procs.Count -gt 0) { Start-Sleep -Milliseconds 1500 }   # let the ports and file locks go
+}
+
 function Start-Install {
     $script:Busy = $true
     $script:Cancelled = $false
@@ -1274,6 +1296,7 @@ function Start-Install {
         Write-Log "Folder: $root   Video models: $($plan.Video)   GPU: $(if ($Gpu) { "$($Gpu.Name) $($Gpu.VramMb) MB" } else { 'none' })"
         Write-Log "Log: $LogFile"
 
+        Stop-InstallProcesses $root
         Install-App $appDir
 
         $script:ComfyMode = $plan.Mode
@@ -1300,6 +1323,9 @@ function Start-Install {
 
         Set-Configuration $appDir $root
         Invoke-SelfTest $root ($plan.Mode -ne 'none')
+        # The servers the test started belong to nobody: the companion would find them running and
+        # leave them alone, so quitting it wouldn't stop them. It starts (and owns) its own.
+        if ($Companion) { Stop-InstallProcesses $root }
 
         $pbAll.Value = 100
         Write-Log 'Setup complete.'
