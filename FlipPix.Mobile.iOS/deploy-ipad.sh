@@ -69,6 +69,21 @@ xcodebuild -project "$STUB/FlipPixProvision.xcodeproj" -scheme FlipPixProvision 
   -allowProvisioningUpdates -allowProvisioningDeviceRegistration -quiet build
 
 # ---- build, install, launch --------------------------------------------------------------------
+APP="$HERE/bin/Release/net9.0-ios/ios-arm64/FlipPix.Mobile.iOS.app"
+# An incremental build after a code change can ship AOT code that no longer matches the trimmed
+# assemblies, and the app aborts at launch ("Failed to load AOT module ... out of date") without a
+# word on the iPad. So when any source changed since the last deploy, the trimmed and AOT outputs go
+# and are made again (most of a clean build's time); with no change the build stays incremental.
+SOURCES_HASH_FILE="$HERE/obj/deployed-sources.sha"
+sources_hash="$(cd "$HERE/.." && find FlipPix.Mobile FlipPix.Mobile.iOS FlipPix.Remote.Contracts \
+  \( -name bin -o -name obj \) -prune -o -type f ! -name .DS_Store -print0 \
+  | sort -z | xargs -0 shasum | shasum | cut -d' ' -f1)"
+if [[ "$(cat "$SOURCES_HASH_FILE" 2>/dev/null)" != "$sources_hash" ]]; then
+  echo "==> Sources changed since the last deploy: clearing the AOT outputs"
+  AOT_OBJ="$HERE/obj/Release/net9.0-ios/ios-arm64"
+  rm -rf "$AOT_OBJ"/{linked,linker-cache,linker-items,stripped,nativelibraries,stamp,aot-instances.dll} "$APP"
+fi
+
 # The pinned iOS workload (18.5) asks for Xcode 16.4 by name; it builds fine with newer Xcode.
 echo "==> Building FlipPix"
 "$DOTNET" build "$HERE" -c Release -r ios-arm64 \
@@ -76,8 +91,8 @@ echo "==> Building FlipPix"
   -p:ApplicationId="$BUNDLE_ID" \
   -p:CodesignKey="Apple Development" \
   -p:CodesignTeamId="$TEAM"
+echo "$sources_hash" > "$SOURCES_HASH_FILE"
 
-APP="$HERE/bin/Release/net9.0-ios/ios-arm64/FlipPix.Mobile.iOS.app"
 echo "==> Installing"
 xcrun devicectl device install app --device "$DEVICE" "$APP"
 echo "==> Launching"
