@@ -438,9 +438,12 @@ if (-not $SkipMissingNodeScan) {
             Write-Marker 'count' @($count, $workflows.Count, $wf.Name)
             try {
                 Push-Location $ComfyDir
+                Remove-Item $tmpDeps -ErrorAction SilentlyContinue
                 Invoke-Quiet { & $Py -s $cmCli deps-in-workflow --workflow "$($wf.FullName)" --output "$tmpDeps" } | Out-Null
-                if (Test-Path $tmpDeps) {
-                    Invoke-Quiet { & $Py -s $cmCli install-deps --deps "$tmpDeps" } | Out-Null
+                # Written only when something is missing. install-deps takes the file as a plain
+                # argument: current ComfyUI-Manager has no --deps option, so that call did nothing.
+                if ((Test-Path $tmpDeps) -and (Get-Item $tmpDeps).Length -gt 0) {
+                    Invoke-Quiet { & $Py -s $cmCli install-deps "$tmpDeps" } | Out-Null
                     Remove-Item $tmpDeps -ErrorAction SilentlyContinue
                 }
             } catch {

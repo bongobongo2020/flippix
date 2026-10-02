@@ -151,15 +151,25 @@ function Get-ModelFiles([string]$Root, [bool]$Video, [string]$Mode = 'full') {
     @($entries | ForEach-Object { @{ Path = [IO.Path]::Combine($modelsDir, $_.Path); Bytes = $_.Bytes } })
 }
 
+function Get-FileSize([string]$Path) {
+    # Size of a file, or -1 if it isn't there. Never throws: the child renames each .part the moment
+    # its download finishes, so a Test-Path + Get-Item pair can lose the race ("Could not find item"),
+    # and an exception here would abort the whole install.
+    try {
+        $fi = New-Object IO.FileInfo $Path
+        if ($fi.Exists) { return [long]$fi.Length }
+    } catch {}
+    return [long]-1
+}
+
 function Get-FilesProgress($Files) {
     # Bytes already on disk for a file list: finished files count in full, partial .part files by size.
     $have = [long]0; $total = [long]0
     foreach ($f in $Files) {
         $total += $f.Bytes
-        if (Test-Path -LiteralPath $f.Path) { $have += $f.Bytes }
-        elseif (Test-Path -LiteralPath "$($f.Path).part") {
-            $have += [Math]::Min($f.Bytes, (Get-Item -LiteralPath "$($f.Path).part").Length)
-        }
+        if ((Get-FileSize $f.Path) -ge 0) { $have += $f.Bytes; continue }
+        $part = Get-FileSize "$($f.Path).part"
+        if ($part -gt 0) { $have += [Math]::Min([long]$f.Bytes, $part) }
     }
     return @{ Have = $have; Total = $total }
 }
@@ -697,7 +707,7 @@ function Complete-Download {
     if ($script:Dl) { $script:PhaseBytes += $script:Dl.Bytes; $script:Dl = $null }
 }
 
-function Update-Progress {
+function Update-ProgressCore {
     $ph = $script:Phase
     if (-not $ph) { return }
     $frac = 0.0; $item = 0.0; $itemText = $lblItem.Text
@@ -705,9 +715,8 @@ function Update-Progress {
     if ($script:Dl) {
         $d = $script:Dl
         $final = $d.Part -replace '\.part$', ''
-        $size = 0
-        if (Test-Path -LiteralPath $d.Part) { $size = (Get-Item -LiteralPath $d.Part).Length }
-        elseif (Test-Path -LiteralPath $final) { $size = $d.Bytes }
+        $size = Get-FileSize $d.Part
+        if ($size -lt 0) { $size = $(if ((Get-FileSize $final) -ge 0) { $d.Bytes } else { 0 }) }
         $now = Get-Date
         $dt = ($now - $d.LastTime).TotalSeconds
         if ($dt -ge 1) {
@@ -746,6 +755,18 @@ function Update-Progress {
     $lblItem.Text = $itemText
 }
 
+function Update-Progress {
+    # Only the bars: a problem drawing them must never stop the install (an exception here used to
+    # abort Setup and kill the running download).
+    try { Update-ProgressCore }
+    catch {
+        if (-not $script:ProgressError) {
+            $script:ProgressError = $true
+            Write-Log "Progress display: $($_.Exception.Message)"
+        }
+    }
+}
+
 function Set-Manual($frac, $text) {
     $script:Manual = $frac
     if ($text) { $lblItem.Text = $text }
@@ -775,7 +796,7 @@ function Read-ChildLine([string]$line) {
                 Complete-Download
                 $script:Dl = @{ Part = $f[1]; Bytes = [long]$f[2]; Label = $f[3]
                                 LastSize = [long]0; LastTime = (Get-Date); Speed = 0.0 }
-                if (Test-Path -LiteralPath $f[1]) { $script:Dl.LastSize = (Get-Item -LiteralPath $f[1]).Length }
+                $script:Dl.LastSize = [Math]::Max([long]0, (Get-FileSize $f[1]))
             }
         }
         return
