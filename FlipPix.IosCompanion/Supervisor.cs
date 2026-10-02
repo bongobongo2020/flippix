@@ -76,6 +76,8 @@ public sealed class Supervisor : IDisposable
             m.Set(false, "Stopped; trying again shortly. See the logs if this keeps happening.");
             return;
         }
+        // Quitting: a start now would outlive the companion.
+        if (_stop.IsCancellationRequested) return;
         try
         {
             m.Stop();

@@ -9,7 +9,7 @@ namespace FlipPix.IosCompanion;
 
 /// <summary>
 /// The companion's one window: the pairing code, whether everything the iPad needs is running, and
-/// the model credits. Closing it keeps the companion running in the tray; Quit stops it.
+/// the model credits. Hide keeps the companion running in the tray; closing the window or Quit stops it.
 /// </summary>
 public sealed class CompanionForm : Form
 {
@@ -35,6 +35,7 @@ public sealed class CompanionForm : Form
     private RemoteHost? _host;
     private Supervisor? _supervisor;
     private bool _quitting;
+    private bool _stopped;
     private bool _toldAboutTray;
 
     public CompanionForm()
@@ -238,11 +239,12 @@ public sealed class CompanionForm : Form
 
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
-        // The window's X hides it; the companion keeps serving the iPad until Quit or Windows shuts down.
-        if (!_quitting && e.CloseReason == CloseReason.UserClosing)
+        // The X quits, like Quit in the tray (Hide is the button for keeping it running). The close
+        // waits for the servers to stop off the UI thread, then QuitAsync closes for real.
+        if (!_stopped && e.CloseReason == CloseReason.UserClosing)
         {
             e.Cancel = true;
-            HideToTray();
+            if (!_quitting) _ = QuitAsync();
             return;
         }
         base.OnFormClosing(e);
@@ -257,8 +259,12 @@ public sealed class CompanionForm : Form
 
     private async Task QuitAsync()
     {
+        if (_quitting) return;
         _quitting = true;
+        Hide();
+        _tray.Visible = false;
         await Task.Run(Shutdown);
+        _stopped = true;
         Close();
     }
 
