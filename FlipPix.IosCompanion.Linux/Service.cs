@@ -101,8 +101,7 @@ internal static class Service
         {
             host.PropertyChanged += (_, _) => ui.Post(Refresh);
             host.Devices.CollectionChanged += (_, _) => ui.Post(Refresh);
-            await host.InitializeAsync();
-            if (filter != null) ui.Post(() => host.IsEnabled = true);
+            await host.InitializeAsync(alwaysOn: filter != null);
 
             supervisor.Changed += () => ui.Post(Refresh);
             supervisor.Start();

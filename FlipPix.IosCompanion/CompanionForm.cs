@@ -172,8 +172,7 @@ public sealed class CompanionForm : Form
             options: options);
         _host.PropertyChanged += (_, _) => Dispatch(RefreshUi);
         _host.Devices.CollectionChanged += (_, _) => Dispatch(RefreshUi);
-        await _host.InitializeAsync();
-        if (_filter != null) _host.IsEnabled = true;
+        await _host.InitializeAsync(alwaysOn: _filter != null);
 
         _supervisor = new Supervisor(_config, () => _settings.Settings, _log);
         _supervisor.Changed += () => Dispatch(RefreshUi);

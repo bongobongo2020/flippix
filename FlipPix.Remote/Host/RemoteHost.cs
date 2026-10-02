@@ -83,9 +83,14 @@ public sealed partial class RemoteHost : ObservableObject, IAsyncDisposable
     // ── Lifetime ───────────────────────────────────────────────────────────────────────────────
 
     /// <summary>Reads the config off the UI thread and starts listening if the remote was left on.</summary>
-    public async Task InitializeAsync()
+    /// <param name="alwaysOn">
+    /// Listen whatever the config says (the iOS companion). Setting IsEnabled after this returns isn't
+    /// the same: the load is applied through the dispatcher, so it can land later and switch it back off.
+    /// </param>
+    public async Task InitializeAsync(bool alwaysOn = false)
     {
         var config = await Task.Run(() => RemoteConfig.Load(_configPath));
+        if (alwaysOn) config.Enabled = true;
         _ = Task.Run(Engine.Uploads.Prune);
         await Jobs.StartAsync();
         lock (_configLock) _config = config;
