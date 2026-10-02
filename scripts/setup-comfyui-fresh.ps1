@@ -380,6 +380,9 @@ Write-Ok "embedded python: $Py"
 # ---------------------------------------------------------------------------
 # 2. clone custom-node packs + install their requirements
 # ---------------------------------------------------------------------------
+# requirement name -> the index that hosts its wheels (nvidia-vfx: RTXVideoSuperResolution).
+$VendorPipIndex = @{ 'nvidia-vfx' = 'https://pypi.nvidia.com' }
+
 function Install-NodeRepo($Url) {
     $name = ($Url -split '/')[-1] -replace '\.git$', ''
     $dest = Join-Path $CustomDir $name
@@ -397,7 +400,14 @@ function Install-NodeRepo($Url) {
     $req = Join-Path $dest 'requirements.txt'
     if (Test-Path $req) {
         Write-Host "    installing requirements for $name ..."
-        $rc = Invoke-Quiet { & $Py -s -m pip install -r $req --no-warn-script-location }
+        # Some wheels live only on a vendor index (PyPI has just a source stub that won't build), and
+        # without them the pack fails to import and its nodes go missing. Same table as NodeCatalog.cs.
+        $pipArgs = @('-s', '-m', 'pip', 'install', '-r', $req, '--no-warn-script-location')
+        $reqText = Get-Content $req -Raw
+        foreach ($pkg in $VendorPipIndex.Keys) {
+            if ($reqText -match "(?im)^\s*$([regex]::Escape($pkg))\b") { $pipArgs += @('--extra-index-url', $VendorPipIndex[$pkg]) }
+        }
+        $rc = Invoke-Quiet { & $Py @pipArgs }
         if ($rc -ne 0) { Write-Warn2 "some requirements for $name failed (continuing)" }
     }
 }
