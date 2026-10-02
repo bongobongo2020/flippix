@@ -39,8 +39,13 @@ public sealed class CompanionForm : Form
 
     public CompanionForm()
     {
+        // Every size below is in 96-DPI pixels; the fonts are in points and grow with the display's
+        // scale on their own. Dpi autoscaling grows the layout to match, or the text overflows its boxes.
+        SuspendLayout();
+        AutoScaleDimensions = new SizeF(96f, 96f);
+        AutoScaleMode = AutoScaleMode.Dpi;
         Text = "FlipPix iOS Companion";
-        ClientSize = new Size(460, 392);
+        ClientSize = new Size(460, 410);
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
@@ -52,12 +57,19 @@ public sealed class CompanionForm : Form
         var banner = new Panel { Location = new Point(0, 0), Size = new Size(460, 56) };
         banner.Paint += (_, e) =>
         {
+            // Painted by hand, so it scales its own coordinates (autoscaling only moves controls).
+            var k = banner.DeviceDpi / 96f;
+            int Px(float v) => (int)Math.Round(v * k);
             using var brush = new LinearGradientBrush(banner.ClientRectangle, Color.FromArgb(0, 0, 128), Color.FromArgb(16, 132, 208), 0f);
             e.Graphics.FillRectangle(brush, banner.ClientRectangle);
-            if (Icon != null) e.Graphics.DrawIcon(new Icon(Icon, 32, 32), 14, 12);
+            if (Icon != null)
+            {
+                using var icon = new Icon(Icon, Px(32), Px(32));
+                e.Graphics.DrawIcon(icon, new Rectangle(Px(14), Px(12), Px(32), Px(32)));
+            }
             using var title = new Font("MS Sans Serif", 12f, FontStyle.Bold);
-            e.Graphics.DrawString("FlipPix iOS Companion", title, Brushes.White, 54, 10);
-            e.Graphics.DrawString("Keeps this PC ready for FlipPix on your iPad.", UiFont, Brushes.Gainsboro, 56, 32);
+            e.Graphics.DrawString("FlipPix iOS Companion", title, Brushes.White, Px(54), Px(10));
+            e.Graphics.DrawString("Keeps this PC ready for FlipPix on your iPad.", UiFont, Brushes.Gainsboro, Px(56), Px(32));
         };
         Controls.Add(banner);
 
@@ -79,14 +91,16 @@ public sealed class CompanionForm : Form
         Controls.Add(status);
 
         _activity = new Label { Location = new Point(14, 338), Size = new Size(350, 16) };
-        _credits = new Label { Text = string.Join("  ·  ", Credits), Location = new Point(14, 362), Size = new Size(300, 16) };
-        var licenses = new LinkLabel { Text = "Licenses", Location = new Point(320, 362), AutoSize = true };
+        // The credits get a line of their own: beside the links they ran into "Licenses".
+        _credits = new Label { Text = string.Join("  ·  ", Credits), Location = new Point(14, 364), Size = new Size(432, 16) };
+        var licenses = new LinkLabel { Text = "Licenses", Location = new Point(14, 386), AutoSize = true };
         licenses.LinkClicked += (_, _) => Open(Path.Combine(AppContext.BaseDirectory, "THIRD_PARTY_LICENSES.md"));
-        var logs = new LinkLabel { Text = "Logs", Location = new Point(380, 362), AutoSize = true };
+        var logs = new LinkLabel { Text = "Logs", Location = new Point(74, 386), AutoSize = true };
         logs.LinkClicked += (_, _) => Open(_log.FolderPath);
         var hide = new Button { Text = "Hide", Location = new Point(370, 336), Size = new Size(80, 22) };
         hide.Click += (_, _) => HideToTray();
         Controls.AddRange(new Control[] { _activity, _credits, licenses, logs, hide });
+        ResumeLayout(false);
 
         _tray.Icon = Icon ?? SystemIcons.Application;
         _tray.Text = "FlipPix iOS Companion";
