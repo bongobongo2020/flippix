@@ -444,18 +444,24 @@ if ($Companion) {
 }
 $lblSize = New-Label '' 18 232 461 16
 
+$chkLlm = New-Object Windows.Forms.CheckBox
+$chkLlm.Text = 'Writing assistant (Qwen 2.5VL for Analyze buttons; optional - you can use LM Studio/Ollama instead)'
+$chkLlm.Checked = $false
+$chkLlm.Location = New-Object Drawing.Point(18,252); $chkLlm.Size = New-Object Drawing.Size(460,20)
+if ($Companion) { $chkLlm.Checked = $true; $chkLlm.Enabled = $false }
+
 $chkStartup = New-Object Windows.Forms.CheckBox
 $chkStartup.Text = "Start $Product when Windows starts, so the iPad can always connect"
 $chkStartup.Checked = $true
-$chkStartup.Location = New-Object Drawing.Point(18,252); $chkStartup.Size = New-Object Drawing.Size(460,20)
+$chkStartup.Location = New-Object Drawing.Point(18,274); $chkStartup.Size = New-Object Drawing.Size(460,20)
 $chkDesktop = New-Object Windows.Forms.CheckBox
 $chkDesktop.Text = 'Desktop shortcut'; $chkDesktop.Checked = $true
-$chkDesktop.Location = New-Object Drawing.Point(18,274); $chkDesktop.Size = New-Object Drawing.Size(200,20)
+$chkDesktop.Location = New-Object Drawing.Point(18,296); $chkDesktop.Size = New-Object Drawing.Size(200,20)
 $chkStart = New-Object Windows.Forms.CheckBox
 $chkStart.Text = 'Start Menu shortcut'; $chkStart.Checked = $true
-$chkStart.Location = New-Object Drawing.Point(230,274); $chkStart.Size = New-Object Drawing.Size(200,20)
+$chkStart.Location = New-Object Drawing.Point(230,296); $chkStart.Size = New-Object Drawing.Size(200,20)
 
-$pgOpts.Controls.AddRange(@($txtDir, $btnBrowse, $grpParts, $lblSize, $chkStartup, $chkDesktop, $chkStart))
+$pgOpts.Controls.AddRange(@($txtDir, $btnBrowse, $grpParts, $lblSize, $chkLlm, $chkStartup, $chkDesktop, $chkStart))
 
 function Get-ComfyMode {
     if ($Companion -or $rbFull.Checked) { return 'full' }
@@ -468,17 +474,23 @@ function Get-Plan {
     $root  = $txtDir.Text.Trim()
     $mode  = Get-ComfyMode
     $video = $chkVideo.Checked -and $mode -eq 'full'
+    $installLlm = $chkLlm.Checked
     $models = Get-ModelFiles $root $video $mode
     $mp = Get-FilesProgress $models
-    $llmHave = (Get-FilesProgress @(
-        @{ Path = [IO.Path]::Combine($root, 'LLM\models\Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf'); Bytes = 4683072032 },
-        @{ Path = [IO.Path]::Combine($root, 'LLM\models\mmproj-Qwen2.5-VL-7B-Instruct-Q8_0.gguf'); Bytes = 853119712 })).Have
+    $llmHave = 0
+    if ($installLlm) {
+        $llmHave = (Get-FilesProgress @(
+            @{ Path = [IO.Path]::Combine($root, 'LLM\models\Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf'); Bytes = 4683072032 },
+            @{ Path = [IO.Path]::Combine($root, 'LLM\models\mmproj-Qwen2.5-VL-7B-Instruct-Q8_0.gguf'); Bytes = 853119712 })).Have
+    }
     # What ComfyUI itself costs: built here (full), the ready-made engine, or nothing (already have it).
     $comfyDownload = switch ($mode) { 'full' { $BaseDownloadBytes } 'starter' { $EngineBytes } default { 0 } }
     $comfyDisk     = switch ($mode) { 'full' { $BaseDiskBytes } 'starter' { [long](10GB) } default { [long](2GB) } }
-    $download = $comfyDownload + $LlmServerBytes + $LlmModelBytes + $mp.Total
-    $stillNeed = $comfyDisk + ($LlmModelBytes - $llmHave) + ($mp.Total - $mp.Have)
-    return @{ Root = $root; Mode = $mode; Video = $video; Models = $models; ModelBytes = $mp.Total
+    $llmDownload = if ($installLlm) { $LlmServerBytes + $LlmModelBytes } else { 0 }
+    $llmDisk = if ($installLlm) { $LlmModelBytes - $llmHave } else { 0 }
+    $download = $comfyDownload + $llmDownload + $mp.Total
+    $stillNeed = $comfyDisk + $llmDisk + ($mp.Total - $mp.Have)
+    return @{ Root = $root; Mode = $mode; Video = $video; InstallLlm = $installLlm; Models = $models; ModelBytes = $mp.Total
               Download = $download; DiskNeeded = [long]($stillNeed * 1.1) }
 }
 
@@ -495,6 +507,7 @@ function Update-SizeLabel {
     } catch { $lblSize.Text = '' }
 }
 $chkVideo.Add_CheckedChanged({ Update-SizeLabel })
+$chkLlm.Add_CheckedChanged({ Update-SizeLabel })
 foreach ($rb in $rbFull, $rbStarter, $rbNone) {
     $rb.Add_CheckedChanged({ $chkVideo.Enabled = $rbFull.Checked; Update-SizeLabel })
 }
@@ -700,12 +713,14 @@ function Initialize-Phases($plan) {
             (New-Phase 'engine-extract'  'Unpacking the FlipPix engine'             1GB 180)) }
         default { @() }
     }
-    $script:Phases = @(
-        (New-Phase 'app'            "Installing $Product"                       0.3GB)
-        (New-Phase 'ffmpeg'         'Installing FFmpeg'                         0.15GB 30)) + $comfy + @(
+    $llm = if ($plan.InstallLlm) { @(
         (New-Phase 'llm-server'     'Installing the writing assistant'          ([double]$LlmServerBytes))
         (New-Phase 'llm-model'      'Downloading Qwen2.5-VL 7B'                 ([double]$LlmModelBytes))
         (New-Phase 'llm-config'     'Setting up the writing assistant'          0.05GB 5)
+    ) } else { @() }
+    $script:Phases = @(
+        (New-Phase 'app'            "Installing $Product"                       0.3GB)
+        (New-Phase 'ffmpeg'         'Installing FFmpeg'                         0.15GB 30)) + $comfy + $llm + @(
         (New-Phase 'configure'      'Setting up iPad access and start-up'       0.1GB)
         (New-Phase 'selftest'       'Testing everything'                        1GB 300)
     )
@@ -1283,29 +1298,31 @@ function Wait-Url($url, [int]$timeoutSec, $label) {
     return $null
 }
 
-function Invoke-SelfTest($root, [bool]$StartComfy = $true) {
+function Invoke-SelfTest($root, [bool]$StartComfy = $true, [bool]$TestLlm = $true) {
     Enter-Phase 'selftest'
     $script:TestRows = @()
 
     # Writing assistant: start it if needed, wait for the model to load, ask it something.
-    $llmUrl = "http://127.0.0.1:$LlmPort"
-    $startBat = Join-Path $root 'LLM\start-llm.bat'
-    try { Invoke-RestMethod -Uri "$llmUrl/health" -TimeoutSec 3 | Out-Null } catch {
-        Write-Log 'Starting the writing assistant...'
-        Start-Process -FilePath $startBat -WorkingDirectory (Split-Path $startBat) -WindowStyle Minimized
+    if ($TestLlm) {
+        $llmUrl = "http://127.0.0.1:$LlmPort"
+        $startBat = Join-Path $root 'LLM\start-llm.bat'
+        try { Invoke-RestMethod -Uri "$llmUrl/health" -TimeoutSec 3 | Out-Null } catch {
+            Write-Log 'Starting the writing assistant...'
+            Start-Process -FilePath $startBat -WorkingDirectory (Split-Path $startBat) -WindowStyle Minimized
+        }
+        $llmOk = $false
+        if (Wait-Url "$llmUrl/health" 240 'Loading Qwen2.5-VL onto the GPU') {
+            try {
+                $body = @{ model = 'qwen2.5-vl-7b-instruct-q4_k_m'; max_tokens = 8
+                           messages = @(@{ role = 'user'; content = 'Reply with the single word OK.' }) } | ConvertTo-Json -Depth 5
+                $r = Invoke-RestMethod -Uri "$llmUrl/v1/chat/completions" -Method Post -Body $body -ContentType 'application/json' -TimeoutSec 120
+                $llmOk = [bool]$r.choices[0].message.content
+            } catch { Write-Log "Writing assistant test: $($_.Exception.Message)" }
+        }
+        $script:TestRows += ,@($(if ($llmOk) { 'ok' } else { 'fail' }),
+            $(if ($llmOk) { 'The writing assistant (Qwen2.5-VL) answered.' } else { "The writing assistant didn't answer. Run start-llm.bat in the LLM folder to see why." }))
+        Write-Log $script:TestRows[-1][1]
     }
-    $llmOk = $false
-    if (Wait-Url "$llmUrl/health" 240 'Loading Qwen2.5-VL onto the GPU') {
-        try {
-            $body = @{ model = 'qwen2.5-vl-7b-instruct-q4_k_m'; max_tokens = 8
-                       messages = @(@{ role = 'user'; content = 'Reply with the single word OK.' }) } | ConvertTo-Json -Depth 5
-            $r = Invoke-RestMethod -Uri "$llmUrl/v1/chat/completions" -Method Post -Body $body -ContentType 'application/json' -TimeoutSec 120
-            $llmOk = [bool]$r.choices[0].message.content
-        } catch { Write-Log "Writing assistant test: $($_.Exception.Message)" }
-    }
-    $script:TestRows += ,@($(if ($llmOk) { 'ok' } else { 'fail' }),
-        $(if ($llmOk) { 'The writing assistant (Qwen2.5-VL) answered.' } else { "The writing assistant didn't answer. Run start-llm.bat in the LLM folder to see why." }))
-    Write-Log $script:TestRows[-1][1]
 
     # ComfyUI: start it the way FlipPix does (without opening a browser) and wait for the GPU.
     $comfyOk = $false; $gpuName = ''
@@ -1393,13 +1410,17 @@ function Start-Install {
         }
         if (-not $Companion) { $script:ModelsTool = Install-ModelsTool $appDir }
 
-        $llmArgs = @('-InstallDir', (Join-Path $root 'LLM'), '-Port', "$LlmPort", '-Wizard')
-        # The companion starts and watches the writing assistant itself.
-        if ($Companion -or -not $chkStartup.Checked) { $llmArgs += '-NoStartup' }
-        Invoke-Child $LlmPs1 $llmArgs 'writing-assistant'
+        if ($plan.InstallLlm) {
+            $llmArgs = @('-InstallDir', (Join-Path $root 'LLM'), '-Port', "$LlmPort", '-Wizard')
+            # The companion starts and watches the writing assistant itself.
+            if ($Companion -or -not $chkStartup.Checked) { $llmArgs += '-NoStartup' }
+            Invoke-Child $LlmPs1 $llmArgs 'writing-assistant'
+        } else {
+            Write-Log 'Skipping writing assistant (not selected - you can use LM Studio or Ollama instead)'
+        }
 
         Set-Configuration $appDir $root
-        Invoke-SelfTest $root ($plan.Mode -ne 'none')
+        Invoke-SelfTest $root ($plan.Mode -ne 'none') $plan.InstallLlm
         # The servers the test started belong to nobody: the companion would find them running and
         # leave them alone, so quitting it wouldn't stop them. It starts (and owns) its own.
         if ($Companion) { Stop-InstallProcesses $root }
