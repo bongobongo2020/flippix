@@ -695,7 +695,8 @@ function Initialize-Phases($plan) {
         default { @() }
     }
     $script:Phases = @(
-        (New-Phase 'app'            "Installing $Product"                       0.3GB)) + $comfy + @(
+        (New-Phase 'app'            "Installing $Product"                       0.3GB)
+        (New-Phase 'ffmpeg'         'Installing FFmpeg'                         0.15GB 30)) + $comfy + @(
         (New-Phase 'llm-server'     'Installing the writing assistant'          ([double]$LlmServerBytes))
         (New-Phase 'llm-model'      'Downloading Qwen2.5-VL 7B'                 ([double]$LlmModelBytes))
         (New-Phase 'llm-config'     'Setting up the writing assistant'          0.05GB 5)
@@ -961,6 +962,75 @@ function Install-App($appDir) {
             Write-Log 'Uninstall shortcut created.'
         }
     }
+}
+
+function Install-FFmpeg($appDir) {
+    Enter-Phase 'ffmpeg'
+
+    $ffmpegDir = Join-Path $appDir 'ffmpeg\bin'
+    $ffmpegExe = Join-Path $ffmpegDir 'ffmpeg.exe'
+
+    # Skip if already installed
+    if (Test-Path $ffmpegExe) {
+        Write-Log "FFmpeg already installed at $ffmpegDir"
+        Set-Manual 1.0 'FFmpeg ready'
+        return
+    }
+
+    # Download
+    $ffmpegUrl = 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.7z'
+    $ffmpegBytes = [long](34 * 1MB)
+    $dlDir = Join-Path $env:TEMP 'FlipPix'
+    New-Item -ItemType Directory -Force -Path $dlDir | Out-Null
+    $archive = Join-Path $dlDir 'ffmpeg-release-essentials.7z'
+
+    Write-Log "Downloading FFmpeg..."
+    Get-File $ffmpegUrl $archive $ffmpegBytes 'FFmpeg'
+    Write-Log 'FFmpeg download complete'
+
+    # Extract
+    Set-Manual 0.5 'Unpacking FFmpeg...'
+    $seven = Get-7zr
+    $tmpExtract = Join-Path $dlDir 'ffmpeg-extract'
+    if (Test-Path $tmpExtract) { Remove-Item -Recurse -Force $tmpExtract }
+
+    Write-Log "Extracting FFmpeg to $tmpExtract"
+    & $seven x $archive "-o$tmpExtract" -y | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "FFmpeg extraction failed (7zr exit $LASTEXITCODE)"
+    }
+
+    # Move binaries into place (archive extracts to ffmpeg-{version}-essentials_build/)
+    $extracted = Get-ChildItem -Path $tmpExtract -Directory |
+        Where-Object { $_.Name -match '^ffmpeg-.*-essentials' } |
+        Select-Object -First 1
+
+    if (-not $extracted) {
+        throw "Could not find extracted FFmpeg folder in $tmpExtract"
+    }
+
+    $binSrc = Join-Path $extracted.FullName 'bin'
+    if (-not (Test-Path $binSrc)) {
+        throw "FFmpeg bin folder not found in extracted archive"
+    }
+
+    New-Item -ItemType Directory -Force -Path $ffmpegDir | Out-Null
+    Copy-Item -Path "$binSrc\*" -Destination $ffmpegDir -Recurse -Force
+
+    # Verify installation
+    if (-not (Test-Path (Join-Path $ffmpegDir 'ffmpeg.exe'))) {
+        throw "FFmpeg installation failed: ffmpeg.exe not found in $ffmpegDir"
+    }
+    if (-not (Test-Path (Join-Path $ffmpegDir 'ffprobe.exe'))) {
+        Write-Log 'Warning: ffprobe.exe not found, but continuing'
+    }
+
+    # Cleanup
+    Remove-Item -Recurse -Force $tmpExtract -ErrorAction SilentlyContinue
+    Remove-Item $archive -ErrorAction SilentlyContinue
+
+    Set-Manual 1.0 ''
+    Write-Log "FFmpeg installed to $ffmpegDir"
 }
 
 # ---------------------------------------------------------------------------
@@ -1298,6 +1368,7 @@ function Start-Install {
 
         Stop-InstallProcesses $root
         Install-App $appDir
+        Install-FFmpeg $appDir
 
         $script:ComfyMode = $plan.Mode
         $script:EngineDir = Join-Path $root 'ComfyUI_FlipPix'
