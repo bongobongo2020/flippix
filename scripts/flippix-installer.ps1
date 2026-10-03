@@ -419,7 +419,13 @@ $rbStarter.Text = 'Use the ready-made FlipPix engine (~2 GB), then choose models
 $rbStarter.Location = New-Object Drawing.Point(12,60); $rbStarter.Size = New-Object Drawing.Size(440,20)
 $rbNone = New-Object Windows.Forms.RadioButton
 $rbNone.Text = 'I already have ComfyUI'
-$rbNone.Location = New-Object Drawing.Point(12,82); $rbNone.Size = New-Object Drawing.Size(440,20)
+$rbNone.Location = New-Object Drawing.Point(12,82); $rbNone.Size = New-Object Drawing.Size(200,20)
+$lblComfyUrl = New-Label 'ComfyUI URL:' 220 85 80 16
+$txtComfyUrl = New-Object Windows.Forms.TextBox
+$txtComfyUrl.Location = New-Object Drawing.Point(300,83); $txtComfyUrl.Size = New-Object Drawing.Size(150,20)
+$txtComfyUrl.Text = 'http://127.0.0.1:8188'
+$txtComfyUrl.Visible = $false
+$lblComfyUrl.Visible = $false
 if ($Companion) {
     # The companion installs exactly what the iPad's two graphs need; there is nothing to choose.
     $grpParts.Text = 'Components'
@@ -428,7 +434,7 @@ if ($Companion) {
     $rbFull.Checked = $true
 } else {
     $grpParts.Text = 'ComfyUI (the picture and video engine)'
-    $grpParts.Controls.AddRange(@($rbFull, $chkVideo, $rbStarter, $rbNone))
+    $grpParts.Controls.AddRange(@($rbFull, $chkVideo, $rbStarter, $rbNone, $lblComfyUrl, $txtComfyUrl))
     # Someone FlipPix already knows a ComfyUI for keeps it; everyone else gets the complete install.
     $hasComfy = $false
     try {
@@ -449,19 +455,25 @@ $chkLlm.Text = 'Writing assistant (Qwen 2.5VL for Analyze buttons; optional - yo
 $chkLlm.Checked = $false
 $chkLlm.Location = New-Object Drawing.Point(18,252); $chkLlm.Size = New-Object Drawing.Size(460,20)
 if ($Companion) { $chkLlm.Checked = $true; $chkLlm.Enabled = $false }
+$lblLlmUrl = New-Label 'LLM Server URL (optional):' 38 274 160 16
+$txtLlmUrl = New-Object Windows.Forms.TextBox
+$txtLlmUrl.Location = New-Object Drawing.Point(200,272); $txtLlmUrl.Size = New-Object Drawing.Size(250,20)
+$txtLlmUrl.Text = 'http://127.0.0.1:8080'
+$lblLlmUrl.Visible = $false
+$txtLlmUrl.Visible = $false
 
 $chkStartup = New-Object Windows.Forms.CheckBox
 $chkStartup.Text = "Start $Product when Windows starts, so the iPad can always connect"
 $chkStartup.Checked = $true
-$chkStartup.Location = New-Object Drawing.Point(18,274); $chkStartup.Size = New-Object Drawing.Size(460,20)
+$chkStartup.Location = New-Object Drawing.Point(18,296); $chkStartup.Size = New-Object Drawing.Size(460,20)
 $chkDesktop = New-Object Windows.Forms.CheckBox
 $chkDesktop.Text = 'Desktop shortcut'; $chkDesktop.Checked = $true
-$chkDesktop.Location = New-Object Drawing.Point(18,296); $chkDesktop.Size = New-Object Drawing.Size(200,20)
+$chkDesktop.Location = New-Object Drawing.Point(18,318); $chkDesktop.Size = New-Object Drawing.Size(200,20)
 $chkStart = New-Object Windows.Forms.CheckBox
 $chkStart.Text = 'Start Menu shortcut'; $chkStart.Checked = $true
-$chkStart.Location = New-Object Drawing.Point(230,296); $chkStart.Size = New-Object Drawing.Size(200,20)
+$chkStart.Location = New-Object Drawing.Point(230,318); $chkStart.Size = New-Object Drawing.Size(200,20)
 
-$pgOpts.Controls.AddRange(@($txtDir, $btnBrowse, $grpParts, $lblSize, $chkLlm, $chkStartup, $chkDesktop, $chkStart))
+$pgOpts.Controls.AddRange(@($txtDir, $btnBrowse, $grpParts, $lblSize, $chkLlm, $lblLlmUrl, $txtLlmUrl, $chkStartup, $chkDesktop, $chkStart))
 
 function Get-ComfyMode {
     if ($Companion -or $rbFull.Checked) { return 'full' }
@@ -490,8 +502,10 @@ function Get-Plan {
     $llmDisk = if ($installLlm) { $LlmModelBytes - $llmHave } else { 0 }
     $download = $comfyDownload + $llmDownload + $mp.Total
     $stillNeed = $comfyDisk + $llmDisk + ($mp.Total - $mp.Have)
+    $comfyUrl = if ($mode -eq 'none') { $txtComfyUrl.Text.Trim() } else { 'http://127.0.0.1:8188' }
+    $llmUrl = if (-not $installLlm -and $txtLlmUrl.Text.Trim()) { $txtLlmUrl.Text.Trim() } else { '' }
     return @{ Root = $root; Mode = $mode; Video = $video; InstallLlm = $installLlm; Models = $models; ModelBytes = $mp.Total
-              Download = $download; DiskNeeded = [long]($stillNeed * 1.1) }
+              Download = $download; DiskNeeded = [long]($stillNeed * 1.1); ComfyUrl = $comfyUrl; LlmUrl = $llmUrl }
 }
 
 function Update-SizeLabel {
@@ -506,10 +520,22 @@ function Update-SizeLabel {
         $lblSize.Text = "Download: about $(Format-Size $p.Download)$later.   Disk space needed: about $(Format-Size $p.DiskNeeded)."
     } catch { $lblSize.Text = '' }
 }
+function Update-UrlFieldsVisibility {
+    if (-not $Companion) {
+        # Show ComfyUI URL when using existing ComfyUI
+        $showComfy = $rbNone.Checked
+        $lblComfyUrl.Visible = $showComfy
+        $txtComfyUrl.Visible = $showComfy
+        # Show LLM URL when not installing LLM
+        $showLlm = -not $chkLlm.Checked
+        $lblLlmUrl.Visible = $showLlm
+        $txtLlmUrl.Visible = $showLlm
+    }
+}
 $chkVideo.Add_CheckedChanged({ Update-SizeLabel })
-$chkLlm.Add_CheckedChanged({ Update-SizeLabel })
+$chkLlm.Add_CheckedChanged({ Update-SizeLabel; Update-UrlFieldsVisibility })
 foreach ($rb in $rbFull, $rbStarter, $rbNone) {
-    $rb.Add_CheckedChanged({ $chkVideo.Enabled = $rbFull.Checked; Update-SizeLabel })
+    $rb.Add_CheckedChanged({ $chkVideo.Enabled = $rbFull.Checked; Update-SizeLabel; Update-UrlFieldsVisibility })
 }
 $txtDir.Add_TextChanged({ Update-SizeLabel })
 
@@ -1261,14 +1287,57 @@ function Set-CompanionConfig($root) {
     Write-Log "Companion settings written to $file"
 }
 
-function Set-Configuration($appDir, $root) {
+function Set-FlipPixSettings($plan) {
+    # Write settings.json with server URLs when user is using existing ComfyUI/LLM servers.
+    $dir  = Join-Path $env:APPDATA 'FlipPix'
+    $file = Join-Path $dir 'settings.json'
+    New-Item -ItemType Directory -Force -Path $dir | Out-Null
+
+    # Load existing settings if present so other preferences are preserved.
+    $settings = $null
+    if (Test-Path $file) {
+        try { $settings = Get-Content $file -Raw | ConvertFrom-Json } catch { $settings = $null }
+    }
+    if (-not $settings) { $settings = [PSCustomObject]@{} }
+
+    # Set ComfyUI URL if user is using existing ComfyUI.
+    if ($plan.Mode -eq 'none' -and $plan.ComfyUrl) {
+        $settings | Add-Member -NotePropertyName 'BaseUrl' -NotePropertyValue $plan.ComfyUrl -Force
+        Write-Log "ComfyUI URL: $($plan.ComfyUrl)"
+    }
+
+    # Set LLM server URL if user provided one (not installing locally).
+    if (-not $plan.InstallLlm -and $plan.LlmUrl) {
+        $lm = $settings.LMStudioSettings
+        if (-not $lm) { $lm = [PSCustomObject]@{} }
+
+        # Add to server list if not already present.
+        $servers = @($lm.Servers | Where-Object { $_ -and "$($_.BaseUrl)".TrimEnd('/') -ne $plan.LlmUrl.TrimEnd('/') })
+        foreach ($sv in $servers) { $sv | Add-Member -NotePropertyName 'IsDefault' -NotePropertyValue $false -Force }
+        $servers += [PSCustomObject]@{
+            Name = 'Custom Server'; BaseUrl = $plan.LlmUrl; Model = 'auto'; ModelName = 'Custom'; IsDefault = $true
+        }
+
+        $lm | Add-Member -NotePropertyName 'BaseUrl'       -NotePropertyValue $plan.LlmUrl -Force
+        $lm | Add-Member -NotePropertyName 'SelectedModel' -NotePropertyValue 'auto'       -Force
+        $lm | Add-Member -NotePropertyName 'Servers'       -NotePropertyValue $servers     -Force
+        $settings | Add-Member -NotePropertyName 'LMStudioSettings' -NotePropertyValue $lm -Force
+        Write-Log "LLM server URL: $($plan.LlmUrl)"
+    }
+
+    $settings | ConvertTo-Json -Depth 32 | Set-Content -Path $file -Encoding UTF8
+    Write-Log "FlipPix settings written to $file"
+}
+
+function Set-Configuration($appDir, $root, $plan) {
     Enter-Phase 'configure'
     if ($Companion) {
         # The companion keeps its own pairing file and always listens; it only needs to know where things are.
         Set-Manual 0.1 'Recording where everything was installed...'
         Set-CompanionConfig $root
     } else {
-        Set-Manual 0.1 'Turning on the phone remote...'
+        Set-Manual 0.1 'Configuring FlipPix...'
+        Set-FlipPixSettings $plan
         Set-RemoteEnabled
     }
     Set-Manual 0.4 'Adding a firewall rule (Windows may ask for permission)...'
@@ -1419,7 +1488,7 @@ function Start-Install {
             Write-Log 'Skipping writing assistant (not selected - you can use LM Studio or Ollama instead)'
         }
 
-        Set-Configuration $appDir $root
+        Set-Configuration $appDir $root $plan
         Invoke-SelfTest $root ($plan.Mode -ne 'none') $plan.InstallLlm
         # The servers the test started belong to nobody: the companion would find them running and
         # leave them alone, so quitting it wouldn't stop them. It starts (and owns) its own.
