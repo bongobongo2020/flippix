@@ -534,21 +534,27 @@ function Invoke-SystemCheck {
     if ([Environment]::Is64BitOperatingSystem) { Set-CheckRow $rowWin 'ok' 'Windows, 64-bit' }
     else { Set-CheckRow $rowWin 'fail' 'FlipPix needs 64-bit Windows 10 or 11.'; $fail = $true }
 
+    $plan = Get-Plan
+    $needsGpu = ($plan.Mode -eq 'full' -or $plan.Mode -eq 'starter')
     $script:Gpu = Get-GpuInfo
     if (-not $Gpu) {
-        Set-CheckRow $rowGpu 'fail' "No NVIDIA graphics card found (or its driver isn't installed). FlipPix needs an RTX 4070 Ti or better."
-        Set-CheckRow $rowDrv 'fail' 'NVIDIA driver not found. Install it from nvidia.com/drivers, then click Check again.'
-        $fail = $true
+        if ($needsGpu) {
+            Set-CheckRow $rowGpu 'fail' "No NVIDIA graphics card found (or its driver isn't installed). ComfyUI needs an RTX 4070 Ti or better."
+            Set-CheckRow $rowDrv 'fail' 'NVIDIA driver not found. Install it from nvidia.com/drivers, then click Check again.'
+            $fail = $true
+        } else {
+            Set-CheckRow $rowGpu 'ok' 'No GPU needed (using existing ComfyUI)'
+            Set-CheckRow $rowDrv 'ok' 'No GPU driver needed'
+        }
     } else {
         $gb = '{0:N0} GB' -f ($Gpu.VramMb / 1024)
         if ($Gpu.VramMb -ge $MinVramMb) { Set-CheckRow $rowGpu 'ok' "$($Gpu.Name), $gb" }
-        else { Set-CheckRow $rowGpu 'fail' "$($Gpu.Name) has $gb. FlipPix needs 12 GB or more (RTX 4070 Ti or better)."; $fail = $true }
+        elseif ($needsGpu) { Set-CheckRow $rowGpu 'fail' "$($Gpu.Name) has $gb. ComfyUI needs 12 GB or more (RTX 4070 Ti or better)."; $fail = $true }
+        else { Set-CheckRow $rowGpu 'ok' "$($Gpu.Name), $gb (not used - using existing ComfyUI)" }
         $major = 0; [void][int]::TryParse(($Gpu.Driver -split '\.')[0], [ref]$major)
         if ($major -ge $RecommendedDriver) { Set-CheckRow $rowDrv 'ok' "NVIDIA driver $($Gpu.Driver)" }
         else { Set-CheckRow $rowDrv 'warn' "NVIDIA driver $($Gpu.Driver) is old. Setup will continue, but updating from nvidia.com/drivers is recommended." }
     }
-
-    $plan = Get-Plan
     $free = $null
     try {
         $full = [IO.Path]::GetFullPath($plan.Root)
