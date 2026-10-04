@@ -88,7 +88,7 @@ namespace FlipPix.UI.Services
 
             // 1. XML thinking tags: <think>...</think> or <thinking>...</thinking>
             //    Qwen3/DeepSeek reasoning models emit </think> before their actual response.
-            var afterTag = Regex.Match(text, @"</think(?:ing)?>\s*([\s\S]+)$", RegexOptions.IgnoreCase);
+            var afterTag = Regex.Match(text, @"</think(?:ing)?>\s*([\s\S]+)$", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
             if (afterTag.Success)
             {
                 var r = afterTag.Groups[1].Value.Trim();
@@ -106,7 +106,7 @@ namespace FlipPix.UI.Services
             //      Truncated last items (no closing quote) are naturally excluded.
             var quotedBullets = Regex.Matches(text,
                 "^[ \\t]*[-*\u2022][ \\t]+\"([^\"]{20,})\"",
-                RegexOptions.Multiline);
+                RegexOptions.Multiline, TimeSpan.FromSeconds(1));
             if (quotedBullets.Count >= 2)
             {
                 var sentences = quotedBullets.Cast<Match>()
@@ -122,41 +122,48 @@ namespace FlipPix.UI.Services
             //    quote so truncated/unfinished blocks (no closing quote) are ignored.
             //    U+201C/U+201D = curly left/right double quotation marks.
             var quotedDraft = Regex.Matches(text,
-                "(?:\u201C|\")([A-Z][^\u201C\u201D\"]{80,}[.!?])(?:\u201D|\")");
+                "(?:\u201C|\")([A-Z][^\u201C\u201D\"]{80,}[.!?])(?:\u201D|\")",
+                RegexOptions.None, TimeSpan.FromSeconds(1));
             if (quotedDraft.Count > 0)
                 return quotedDraft[quotedDraft.Count - 1].Groups[1].Value.Trim();
 
             // 3. Intro phrase "Let's draft it carefully:" (or similar) followed by paragraph.
+            // OPTIMIZED: Replaced lazy quantifier [\s\S]{80,}? with explicit line matching to prevent catastrophic backtracking.
+            // Matches first line (80+ chars), then continuation lines that don't start with blank line + digit.
             var draftIntro = Regex.Matches(
                 text,
-                @"(?:let'?s?\s+draft[^:\n]*|here'?s?\s+(?:the\s+)?(?:final\s+)?draft[^:\n]*)\s*:?\s*\n+([\s\S]{80,}?)(?:\n\s*\n\d+\.|$)",
-                RegexOptions.IgnoreCase);
+                @"(?:let'?s?\s+draft[^:\n]*|here'?s?\s+(?:the\s+)?(?:final\s+)?draft[^:\n]*)\s*:?\s*\n+([^\n]{80,}(?:\n(?!\s*\n\d)[^\n]*)*)",
+                RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
             if (draftIntro.Count > 0)
             {
                 var candidate = draftIntro[draftIntro.Count - 1].Groups[1].Value.Trim();
                 // Strip surrounding straight/curly quotes if present
-                candidate = Regex.Replace(candidate, @"^[\u201C\u201D""\u2018\u2019']+|[\u201C\u201D""\u2018\u2019']+$", "").Trim();
+                candidate = Regex.Replace(candidate, @"^[\u201C\u201D""\u2018\u2019']+|[\u201C\u201D""\u2018\u2019']+$", "",
+                    RegexOptions.None, TimeSpan.FromSeconds(1)).Trim();
                 candidate = StripPostPromptMeta(candidate);
                 if (candidate.Length > 50) return candidate;
             }
 
             // 4. Italic/bold section labels: *Final Draft:*, *Final Check:*, *Revised Draft:*, etc.
             //    followed immediately by a newline + paragraph content.
+            // OPTIMIZED: Limited nested quantifier (?:\n...)* to max 100 iterations to prevent catastrophic backtracking.
+            // Original pattern caused exponential time complexity with large responses.
             var labelMatches = Regex.Matches(
                 text,
-                @"\*{1,2}[^\*\n]{0,80}(?:Draft|Output|Prompt|Check|Answer)[^\*\n]{0,80}\*{1,2}[^\n]*\n([ \t]*[^\-\*\d\n][^\n]{60,}(?:\n(?![ \t]*[\*\-•\d])[^\n]*)*)",
-                RegexOptions.IgnoreCase);
+                @"\*{1,2}[^\*\n]{0,80}(?:Draft|Output|Prompt|Check|Answer)[^\*\n]{0,80}\*{1,2}[^\n]*\n([ \t]*[^\-\*\d\n][^\n]{60,}(?:\n(?![ \t]*[\*\-•\d])[^\n]*){0,100})",
+                RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
             if (labelMatches.Count > 0)
             {
                 var candidate = labelMatches[labelMatches.Count - 1].Groups[1].Value.Trim();
-                candidate = Regex.Replace(candidate, @"^[\u201C\u201D""\u2018\u2019']+|[\u201C\u201D""\u2018\u2019']+$", "").Trim();
+                candidate = Regex.Replace(candidate, @"^[\u201C\u201D""\u2018\u2019']+|[\u201C\u201D""\u2018\u2019']+$", "",
+                    RegexOptions.None, TimeSpan.FromSeconds(1)).Trim();
                 candidate = StripPostPromptMeta(candidate);
                 if (candidate.Length > 50) return candidate;
             }
 
             // 5. Last substantial paragraph that does not look like analysis/reasoning.
             //    Split on single blank lines (with optional spaces/tabs — but NOT more newlines).
-            var paragraphs = Regex.Split(text, @"\n[ \t]*\n")
+            var paragraphs = Regex.Split(text, @"\n[ \t]*\n", RegexOptions.None, TimeSpan.FromSeconds(1))
                 .Select(p => p.Trim())
                 .Where(p => p.Length > 80)
                 .ToList();
@@ -171,7 +178,8 @@ namespace FlipPix.UI.Services
                 {
                     var result = paragraphs[i];
                     // Strip surrounding quotes the model may have left
-                    result = Regex.Replace(result, @"^[\u201C\u201D""\u2018\u2019']+|[\u201C\u201D""\u2018\u2019']+$", "").Trim();
+                    result = Regex.Replace(result, @"^[\u201C\u201D""\u2018\u2019']+|[\u201C\u201D""\u2018\u2019']+$", "",
+                        RegexOptions.None, TimeSpan.FromSeconds(1)).Trim();
                     return result;
                 }
             }
@@ -192,7 +200,7 @@ namespace FlipPix.UI.Services
             //   "**Section:**"     — non-numbered
             var sectionHeaders = Regex.Matches(text,
                 @"^\s*(?:\d+[\.\)]\s+)?\*\*[^*\n]{5,60}\*\*",
-                RegexOptions.Multiline);
+                RegexOptions.Multiline, TimeSpan.FromSeconds(1));
             if (sectionHeaders.Count < 2)
                 return null;
 
@@ -209,42 +217,44 @@ namespace FlipPix.UI.Services
             var draftMatches = Regex.Matches(
                 text,
                 @"[-*•][ \t]+\*{1,2}(?:[^:\n*]*(?:Draft|Refin|Final|Enhanc|Polished|Output|Prompt|Combin)[^:\n*]*):?\*{0,2}[ \t]+([^\n]{50,})",
-                RegexOptions.IgnoreCase);
+                RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
             if (draftMatches.Count > 0)
                 return draftMatches[draftMatches.Count - 1].Groups[1].Value.Trim();
 
             // Priority 2: last "Draft/Refin/Final/Combin" section — take its paragraph block.
             //   Captures even truncated text (model writes most-refined content first within
             //   the section). Lookahead updated to handle "1.  **Next Section" boundaries.
+            // OPTIMIZED: Replaced lazy quantifier [\s\S]+? with line-based matching to prevent catastrophic backtracking.
+            // Matches lines until hitting the NEXT section boundary or end of string.
             var finalSections = Regex.Matches(
                 text,
-                @"\*\*(?:[^*\n]*(?:Draft|Refin|Final|Combin)[^*\n]*)\*\*[:\s]*\n([\s\S]+?)(?=" + NEXT + @"|\z)",
-                RegexOptions.IgnoreCase);
+                @"\*\*(?:[^*\n]*(?:Draft|Refin|Final|Combin)[^*\n]*)\*\*[:\s]*\n([^\n]+(?:\n(?!\s*(?:\d+[\.\)]\s+)?\*\*[^*\n])[^\n]*)*)",
+                RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
             if (finalSections.Count > 0)
             {
                 var content = finalSections[finalSections.Count - 1].Groups[1].Value.Trim();
                 // Strip any opening curly/straight quote wrapping
-                content = Regex.Replace(content, @"^[""'\u201C\u201D]+", "").Trim();
+                content = Regex.Replace(content, @"^[""'\u201C\u201D]+", "", RegexOptions.None, TimeSpan.FromSeconds(1)).Trim();
                 if (content.Length > 50) return content;
             }
 
             // Priority 3: last non-Analyse section with labeled bullets → join their values.
             //   Fallback when truncated before any Refine/Draft section is written.
             //   Split pattern updated to handle "1.  **Section" boundaries.
-            var sectionParts = Regex.Split(text, @"(?=" + NEXT + ")");
+            var sectionParts = Regex.Split(text, @"(?=" + NEXT + ")", RegexOptions.None, TimeSpan.FromSeconds(1));
             for (int i = sectionParts.Length - 1; i >= 0; i--)
             {
                 var section = sectionParts[i].Trim();
                 if (section.Length < 50) continue;
 
                 var firstLine = section.Split('\n')[0];
-                if (Regex.IsMatch(firstLine, @"\bAnalyz", RegexOptions.IgnoreCase)) continue;
+                if (Regex.IsMatch(firstLine, @"\bAnalyz", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1))) continue;
 
                 // Handles both "* **Label:** VALUE" and "- *Label:* VALUE"
                 var bulletValues = Regex.Matches(
                     section,
                     @"^[ \t]*[-*•][ \t]+\*{1,2}[^:\*\n]+\*{0,2}:[ \t]+(.{40,})$",
-                    RegexOptions.Multiline);
+                    RegexOptions.Multiline, TimeSpan.FromSeconds(1));
                 if (bulletValues.Count > 0)
                 {
                     var parts = bulletValues.Cast<Match>()
@@ -266,7 +276,7 @@ namespace FlipPix.UI.Services
                 text,
                 @"\s*(?:✅|☑️?|Proceeds\.?|Ready\.?|Note:[\s\S]*|All constraints[\s\S]*|Self-Correction[\s\S]*)$",
                 string.Empty,
-                RegexOptions.IgnoreCase).Trim();
+                RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1)).Trim();
         }
 
         /// <summary>
@@ -285,10 +295,10 @@ namespace FlipPix.UI.Services
             var cleaned = prompt.Trim();
 
             // Remove common list markers (-, *, •, etc.)
-            cleaned = Regex.Replace(cleaned, @"^[\s\*\•\-]+[\s\)]*", "");
+            cleaned = Regex.Replace(cleaned, @"^[\s\*\•\-]+[\s\)]*", "", RegexOptions.None, TimeSpan.FromSeconds(1));
 
             // Remove leading numbers (1., 2., etc.)
-            cleaned = Regex.Replace(cleaned, @"^\d+[\.\)]+\s*", "", RegexOptions.IgnoreCase);
+            cleaned = Regex.Replace(cleaned, @"^\d+[\.\)]+\s*", "", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
 
             // Remove quotes surrounding the entire prompt
             if (cleaned.Length >= 2 && ((cleaned.StartsWith("\"") && cleaned.EndsWith("\"")) ||
@@ -302,7 +312,7 @@ namespace FlipPix.UI.Services
             cleaned = cleaned.Trim(' ', '\t', '\n', '\r', '.', ',', '!', '?', ';', ':', '-', '_', '(', ')', '[', ']');
 
             // Collapse multiple whitespace into single space
-            cleaned = Regex.Replace(cleaned, @"\s+", " ");
+            cleaned = Regex.Replace(cleaned, @"\s+", " ", RegexOptions.None, TimeSpan.FromSeconds(1));
 
             return cleaned.Trim();
         }
@@ -319,7 +329,7 @@ namespace FlipPix.UI.Services
                     (text.StartsWith("[") && text.Contains("\"")))
                 {
                     // Simple JSON array parsing
-                    var matches = Regex.Matches(text, "\"([^\"]*)\"");
+                    var matches = Regex.Matches(text, "\"([^\"]*)\"", RegexOptions.None, TimeSpan.FromSeconds(1));
                     foreach (Match match in matches)
                     {
                         if (match.Groups.Count > 1)
@@ -356,7 +366,7 @@ namespace FlipPix.UI.Services
 
                 foreach (var line in lines)
                 {
-                    var match = Regex.Match(line.Trim(), pattern, RegexOptions.Multiline);
+                    var match = Regex.Match(line.Trim(), pattern, RegexOptions.Multiline, TimeSpan.FromSeconds(1));
                     if (match.Success && match.Groups.Count > 2)
                     {
                         var prompt = CleanPrompt(match.Groups[2].Value);
@@ -390,7 +400,7 @@ namespace FlipPix.UI.Services
 
                 foreach (var line in lines)
                 {
-                    var match = Regex.Match(line.Trim(), pattern, RegexOptions.Multiline);
+                    var match = Regex.Match(line.Trim(), pattern, RegexOptions.Multiline, TimeSpan.FromSeconds(1));
                     if (match.Success && match.Groups.Count > 1)
                     {
                         var prompt = CleanPrompt(match.Groups[1].Value);
@@ -462,7 +472,7 @@ namespace FlipPix.UI.Services
             try
             {
                 // Split by sentence endings
-                var sentences = Regex.Split(text, @"(?<=[.!?])\s+");
+                var sentences = Regex.Split(text, @"(?<=[.!?])\s+", RegexOptions.None, TimeSpan.FromSeconds(1));
                 foreach (var sentence in sentences)
                 {
                     var prompt = CleanPrompt(sentence);

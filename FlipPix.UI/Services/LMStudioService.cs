@@ -1038,7 +1038,7 @@ namespace FlipPix.UI.Services
             //    Try paired first, then orphan closing tag.
             var result = System.Text.RegularExpressions.Regex.Replace(
                 text, @"<think(?:ing)?>[\s\S]*?</think(?:ing)?>", string.Empty,
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1)).Trim();
 
             // 1b. Orphan </think> — server's generation_prompt injects <think>, so the model
             //     emits content as "[thinking]</think>\n\nAnswer" without an opening tag.
@@ -1047,7 +1047,7 @@ namespace FlipPix.UI.Services
             {
                 var orphan = System.Text.RegularExpressions.Regex.Match(
                     result, @"</think(?:ing)?>\s*([\s\S]+)$",
-                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
                 if (orphan.Success)
                 {
                     var after = orphan.Groups[1].Value.Trim();
@@ -1065,7 +1065,7 @@ namespace FlipPix.UI.Services
                     @"^(?:The user wants|The prompt|I need to|The image shows|Let me|I'll analyze|Let's|" +
                     @"Looking at|Wait[,\.]|I see|Okay[,\.]|Sure[,\.]|Based on|Usually|" +
                     @"First[,\.]|Alright[,\.]|So[,\s]|Hmm|Actually|Here(?:'s| is))",
-                    System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1)))
             {
                 var stripped = PromptParser.StripThinking(result);
                 if (stripped.Length > 30 && stripped.Length < result.Length)
