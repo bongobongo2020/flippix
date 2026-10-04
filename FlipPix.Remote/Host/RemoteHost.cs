@@ -139,9 +139,11 @@ public sealed partial class RemoteHost : ObservableObject, IAsyncDisposable
         WebApplication? web = null;
         try
         {
+            // For single-file apps, use the exe's directory instead of temp extraction dir
+            var baseDir = Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
             var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions
             {
-                ContentRootPath = AppContext.BaseDirectory,
+                ContentRootPath = baseDir,
                 ApplicationName = typeof(RemoteHost).Assembly.GetName().Name,
             });
             builder.Logging.ClearProviders();

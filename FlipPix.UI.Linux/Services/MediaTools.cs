@@ -103,7 +103,9 @@ namespace FlipPix.UI.Linux.Services
 
         private static IEnumerable<string> WellKnownLocations(string name)
         {
-            var baseDir = AppContext.BaseDirectory;
+            // For single-file apps, AppContext.BaseDirectory is the temp extraction dir,
+            // not where the .exe lives. Use the executable's actual location.
+            var baseDir = Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
 
             // Binaries shipped alongside the app win over system ones only if PATH missed.
             yield return Path.Combine(baseDir, name);

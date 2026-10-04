@@ -79,7 +79,8 @@ public static class ModelCatalog
             _mergedFromDisk = true;
             try
             {
-                var baseDir = AppContext.BaseDirectory;
+                // For single-file apps, use the exe's directory instead of temp extraction dir
+                var baseDir = Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
                 var dirs = new[] { baseDir, Path.Combine(baseDir, "scripts") };
                 foreach (var dir in dirs)
                 {

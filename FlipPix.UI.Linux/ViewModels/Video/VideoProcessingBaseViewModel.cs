@@ -500,7 +500,9 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                     var fileInfo = new FileInfo(latestVideo);
                     AddLog($"Found recent video: {fileInfo.Name}");
 
-                    var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "video-generation");
+                    // For single-file apps, use the exe's directory instead of temp extraction dir
+                    var baseDir = Path.GetDirectoryName(Environment.ProcessPath) ?? AppDomain.CurrentDomain.BaseDirectory;
+                    var outputDir = Path.Combine(baseDir, "output", "video-generation");
                     Directory.CreateDirectory(outputDir);
 
                     var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");

@@ -699,15 +699,18 @@ namespace FlipPix.UI.ViewModels.Video
 
         private string? ResolveFFmpegPath()
         {
+            // For single-file apps, use the exe's directory instead of temp extraction dir
+            var baseDir = Path.GetDirectoryName(Environment.ProcessPath) ?? AppDomain.CurrentDomain.BaseDirectory;
+
             // Check common locations first (fast, local-only File.Exists)
             var possiblePaths = new[]
             {
                 @"C:\ffmpeg\bin\ffmpeg.exe",
                 @"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
                 @"C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe",
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe"),
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg", "ffmpeg.exe"),
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg", "bin", "ffmpeg.exe"),
+                Path.Combine(baseDir, "ffmpeg.exe"),
+                Path.Combine(baseDir, "ffmpeg", "ffmpeg.exe"),
+                Path.Combine(baseDir, "ffmpeg", "bin", "ffmpeg.exe"),
             };
 
             foreach (var path in possiblePaths)

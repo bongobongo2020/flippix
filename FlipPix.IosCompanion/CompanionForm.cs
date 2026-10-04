@@ -95,7 +95,9 @@ public sealed class CompanionForm : Form
         // The credits get a line of their own: beside the links they ran into "Licenses".
         _credits = new Label { Text = string.Join("  ·  ", Credits), Location = new Point(14, 364), Size = new Size(432, 16) };
         var licenses = new LinkLabel { Text = "Licenses", Location = new Point(14, 386), AutoSize = true };
-        licenses.LinkClicked += (_, _) => Open(Path.Combine(AppContext.BaseDirectory, "THIRD_PARTY_LICENSES.md"));
+        // For single-file apps, use the exe's directory instead of temp extraction dir
+        var baseDir = Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
+        licenses.LinkClicked += (_, _) => Open(Path.Combine(baseDir, "THIRD_PARTY_LICENSES.md"));
         var logs = new LinkLabel { Text = "Logs", Location = new Point(74, 386), AutoSize = true };
         logs.LinkClicked += (_, _) => Open(_log.FolderPath);
         var hide = new Button { Text = "Hide", Location = new Point(370, 336), Size = new Size(80, 22) };

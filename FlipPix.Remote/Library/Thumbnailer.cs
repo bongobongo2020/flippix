@@ -240,7 +240,9 @@ public sealed class Thumbnailer
             if (_ffmpegResolved) return _ffmpeg;
             _ffmpegResolved = true;
             var exe = OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg";
-            var dirs = new List<string> { AppContext.BaseDirectory };
+            // For single-file apps, use the exe's directory instead of temp extraction dir
+            var baseDir = Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
+            var dirs = new List<string> { baseDir };
             dirs.AddRange((Environment.GetEnvironmentVariable("PATH") ?? "")
                 .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
             if (!OperatingSystem.IsWindows()) dirs.AddRange(new[] { "/usr/bin", "/usr/local/bin" });
