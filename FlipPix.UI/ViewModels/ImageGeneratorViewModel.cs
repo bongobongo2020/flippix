@@ -100,6 +100,7 @@ namespace FlipPix.UI.ViewModels
         private KleinControlViewModel _kleinControl;
         private IdeogramViewModel _ideogram;
         private QwenEditViewModel _qwenEdit;
+        private QwenEdit21ViewModel _qwenEdit21;
         private RestoreViewModel _restore;
         private ImageUpscalerViewModel _imageUpscaler;
 
@@ -136,6 +137,7 @@ namespace FlipPix.UI.ViewModels
             _kleinControl = new KleinControlViewModel(comfyUIService, logger, settingsService, fileDialogService, videoAnalysisService);
             _ideogram = new IdeogramViewModel(comfyUIService, logger, settingsService, fileDialogService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), _workflowCoordinator);
             _qwenEdit = new QwenEditViewModel(comfyUIService, logger, settingsService, fileDialogService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), _workflowCoordinator);
+            _qwenEdit21 = new QwenEdit21ViewModel(comfyUIService, logger, settingsService, fileDialogService, _workflowCoordinator);
             _restore = new RestoreViewModel(comfyUIService, logger, settingsService, fileDialogService);
             _imageUpscaler = new ImageUpscalerViewModel(comfyUIService, logger, settingsService, fileDialogService, imageRetriever);
 
@@ -318,6 +320,7 @@ namespace FlipPix.UI.ViewModels
         public KleinControlViewModel KleinControl => _kleinControl;
         public IdeogramViewModel Ideogram => _ideogram;
         public QwenEditViewModel QwenEdit => _qwenEdit;
+        public QwenEdit21ViewModel QwenEdit21 => _qwenEdit21;
         public RestoreViewModel Restore => _restore;
         public ImageUpscalerViewModel ImageUpscaler => _imageUpscaler;
 
