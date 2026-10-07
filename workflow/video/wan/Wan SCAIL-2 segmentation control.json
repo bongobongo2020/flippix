@@ -234,7 +234,7 @@
         ]
       },
       "model": [
-        "199:542",
+        "199:543",
         0
       ]
     },
@@ -494,8 +494,8 @@
   },
   "199:513": {
     "inputs": {
-      "lora_name": "WAN/wan21/wan21-lightx2v-i2v-14b-480p-cfg-step-distill-rank64-bf16.safetensors",
-      "strength_model": 1,
+      "lora_name": "WAN/lightx2v_I2V_14B_480p_cfg_step_distill_rank256_bf16.safetensors",
+      "strength_model": 0.8,
       "model": [
         "199:514",
         0
@@ -527,6 +527,20 @@
     "class_type": "LoraLoaderModelOnly",
     "_meta": {
       "title": "Load LoRA"
+    }
+  },
+  "199:543": {
+    "inputs": {
+      "lora_name": "WAN/DPOSCAIL2.safetensors",
+      "strength_model": 1,
+      "model": [
+        "199:542",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "Load DPO LoRA"
     }
   },
   "199:594": {
@@ -654,7 +668,7 @@
       "scheduler": "simple",
       "denoise": 1,
       "window_length": 81,
-      "previous_frame_count": 5,
+      "previous_frame_count": 9,
       "max_frames": 0,
       "decode_tiled": false,
       "vary_seed_per_window": false,
@@ -732,7 +746,7 @@
       ],
       "cfg": 1,
       "chunk_length": 81,
-      "overlap": 5,
+      "overlap": 9,
       "seed_mode": "fixed",
       "color_transfer": true,
       "replacement_mode": [
@@ -950,7 +964,7 @@
   },
   "199:625": {
     "inputs": {
-      "value": 4
+      "value": 6
     },
     "class_type": "INTConstant",
     "_meta": {
