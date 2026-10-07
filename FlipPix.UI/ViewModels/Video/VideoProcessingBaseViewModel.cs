@@ -722,6 +722,30 @@ namespace FlipPix.UI.ViewModels.Video
                 }
             }
 
+            // Search for ffmpeg* directories in C:\ (e.g., ffmpeg-master-latest-win64-gpl-shared)
+            try
+            {
+                foreach (var ffmpegDir in Directory.EnumerateDirectories(@"C:\", "ffmpeg*"))
+                {
+                    var binPath = Path.Combine(ffmpegDir, "bin", "ffmpeg.exe");
+                    if (File.Exists(binPath))
+                    {
+                        AddLog($"Found FFmpeg at: {binPath}");
+                        return binPath;
+                    }
+                    var rootPath = Path.Combine(ffmpegDir, "ffmpeg.exe");
+                    if (File.Exists(rootPath))
+                    {
+                        AddLog($"Found FFmpeg at: {rootPath}");
+                        return rootPath;
+                    }
+                }
+            }
+            catch
+            {
+                // Directory enumeration can fail due to permissions; continue to PATH check.
+            }
+
             // Try PATH environment variable. Skip non-local roots (UNC \\ and mapped network drives)
             // so a disconnected drive can't stall the probe for ~12s on an SMB timeout.
             var pathEnv = Environment.GetEnvironmentVariable("PATH");
