@@ -92,6 +92,7 @@
     <Color x:Key="AccentVioletColor">#7C3AED</Color>
     <Color x:Key="AccentIndigoColor">#4F46E5</Color>
     <Color x:Key="AccentCyanColor">#0E7490</Color>
+    <Color x:Key="AccentTealColor">#0D9488</Color>
     <Color x:Key="AccentEmeraldColor">#047857</Color>
     <Color x:Key="AccentAmberColor">#B45309</Color>
     <Color x:Key="AccentRoseColor">#E11D48</Color>
@@ -100,9 +101,13 @@
     <SolidColorBrush x:Key="AccentVioletBrush" Color="{StaticResource AccentVioletColor}"/>
     <SolidColorBrush x:Key="AccentIndigoBrush" Color="{StaticResource AccentIndigoColor}"/>
     <SolidColorBrush x:Key="AccentCyanBrush" Color="{StaticResource AccentCyanColor}"/>
+    <SolidColorBrush x:Key="AccentTealBrush" Color="{StaticResource AccentTealColor}"/>
     <SolidColorBrush x:Key="AccentEmeraldBrush" Color="{StaticResource AccentEmeraldColor}"/>
     <SolidColorBrush x:Key="AccentAmberBrush" Color="{StaticResource AccentAmberColor}"/>
     <SolidColorBrush x:Key="AccentRoseBrush" Color="{StaticResource AccentRoseColor}"/>
+
+    <!-- Light variant for success backgrounds -->
+    <SolidColorBrush x:Key="SuccessLightBrush" Color="#DCFCE7"/>
 
     <!-- Default accent, used by any tab that does not override it. -->
     <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource BrandColor}"/>

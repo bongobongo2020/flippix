@@ -73,6 +73,12 @@ namespace FlipPix.UI.ViewModels
         /// </summary>
         public SeedUpscaleViewModel SeedUpscaleVM { get; }
 
+        /// <summary>
+        /// H3 Video Editor ViewModel — timeline-based video editor with drag-drop clips, reference images,
+        /// presets, and join/upscale capabilities based on the h3_obvpm_timeline workflow.
+        /// </summary>
+        public H3VideoEditorViewModel H3VideoEditorVM { get; }
+
         // Bound to the main TabControl so code can switch tabs programmatically.
         // 0 = Scail 2 tab.
         private int _selectedTabIndex = 0;
@@ -162,6 +168,15 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
+            H3VideoEditorVM = new H3VideoEditorViewModel(
+                comfyUIService,
+                lmStudioService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
             // Forward PlayRequested events from sub-VMs
             MainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             Scail2VM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
@@ -177,6 +192,7 @@ namespace FlipPix.UI.ViewModels
             H3VrVM.PropertyChanged += ForwardPropertyChanged;
             H3ExpressVM.PropertyChanged += ForwardPropertyChanged;
             SeedUpscaleVM.PropertyChanged += ForwardPropertyChanged;
+            H3VideoEditorVM.PropertyChanged += ForwardPropertyChanged;
 
             NavigateToImageGeneratorCommand = new RelayCommand(NavigateToImageGenerator);
 
@@ -414,6 +430,7 @@ namespace FlipPix.UI.ViewModels
                 H3VrVM.PropertyChanged -= ForwardPropertyChanged;
                 H3ExpressVM.PropertyChanged -= ForwardPropertyChanged;
                 SeedUpscaleVM.PropertyChanged -= ForwardPropertyChanged;
+                H3VideoEditorVM.PropertyChanged -= ForwardPropertyChanged;
 
                 // Dispose all sub-ViewModels
                 (MainVM as IDisposable)?.Dispose();
@@ -421,6 +438,7 @@ namespace FlipPix.UI.ViewModels
                 (H3VrVM as IDisposable)?.Dispose();
                 (H3ExpressVM as IDisposable)?.Dispose();
                 (SeedUpscaleVM as IDisposable)?.Dispose();
+                (H3VideoEditorVM as IDisposable)?.Dispose();
 
                 _disposed = true;
             }

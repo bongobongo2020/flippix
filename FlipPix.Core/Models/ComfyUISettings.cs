@@ -97,6 +97,9 @@ public class ComfyUISettings
 
     public LMStudioSettings LMStudioSettings { get; set; } = new LMStudioSettings();
 
+    // H3 Video Editor settings
+    public H3VideoEditorSettings H3VideoEditor { get; set; } = new H3VideoEditorSettings();
+
     /// <summary>
     /// Where ComfyUI's outputs land <i>as seen from this machine</i>, for a local or remote server.
     ///
@@ -432,4 +435,72 @@ public class MiniMaxI2VLora
     public string Name { get; set; } = string.Empty;
 
     public double Strength { get; set; } = 1.0;
+}
+
+// ── 🎬 H3 Video Editor settings ────────────────────────────────────────────────────────────────
+/// <summary>H3 Video Editor: settings for the timeline-based video editor with drag-drop clips.</summary>
+public class H3VideoEditorSettings
+{
+    // Generation engine settings
+    public string Preset { get; set; } = "vanilla";
+    public string Attention { get; set; } = "comfy_kitchen";
+    public string SparseAttention { get; set; } = "none";
+    public bool Spectrum { get; set; }
+    public string TurboLoader { get; set; } = "off";
+    public string TurboLora { get; set; } = string.Empty;
+    public double TurboStrength { get; set; } = 1.0;
+    public int Steps { get; set; } = 20;
+    public string Sampler { get; set; } = "res_multistep";
+    public string Scheduler { get; set; } = "simple";
+    public int ShiftVideo { get; set; } = 12;
+    public int ShiftAudio { get; set; } = 3;
+
+    // Upscale settings
+    public double UpscaleFactor { get; set; } = 2.0;
+    public double RefineAmount { get; set; } = 0.2;
+    public int CRF { get; set; } = 19;
+    public bool Crossfade { get; set; } = true;
+    public int CrossfadeFrames { get; set; }
+    public bool LevelLock { get; set; } = true;
+    public int LevelLockFrames { get; set; } = 12;
+    public bool LevelLockFlicker { get; set; } = true;
+    public bool AudioDeclick { get; set; }
+
+    // Timeline settings
+    public double DefaultClipDuration { get; set; } = 5.0;
+    public bool ChainClips { get; set; } = true;
+    public string AspectRatio { get; set; } = "16:9 (Widescreen)";
+    public double Megapixels { get; set; } = 0.5;
+
+    // Reference image slots (paths)
+    public string Picture1Path { get; set; } = string.Empty;
+    public string Picture2Path { get; set; } = string.Empty;
+    public string Picture3Path { get; set; } = string.Empty;
+    public string Picture4Path { get; set; } = string.Empty;
+
+    // Project folder
+    public string ProjectFolder { get; set; } = string.Empty;
+    public string LastBrowseFolder { get; set; } = string.Empty;
+
+    // Custom presets saved by the user
+    public List<H3VideoEditorCustomPreset> CustomPresets { get; set; } = new();
+}
+
+/// <summary>A user-saved preset for the H3 Video Editor.</summary>
+public class H3VideoEditorCustomPreset
+{
+    public string Name { get; set; } = string.Empty;
+    public string Attention { get; set; } = "comfy_kitchen";
+    public string SparseAttention { get; set; } = "none";
+    public bool Spectrum { get; set; }
+    public string TurboLoader { get; set; } = "off";
+    public string TurboLora { get; set; } = string.Empty;
+    public double TurboStrength { get; set; } = 1.0;
+    public int Steps { get; set; } = 20;
+    public string Sampler { get; set; } = "res_multistep";
+    public string Scheduler { get; set; } = "simple";
+    public int ShiftVideo { get; set; } = 12;
+    public int ShiftAudio { get; set; } = 3;
+    public double UpscaleFactor { get; set; } = 2.0;
+    public double RefineAmount { get; set; } = 0.2;
 }

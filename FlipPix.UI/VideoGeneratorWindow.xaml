@@ -4998,6 +4998,322 @@
                         </Grid>
                     </TabItem>
 
+                    <!-- ════════════════════════════════════════════════════════════════ -->
+                    <!-- Tab: H3 Video Editor (timeline-based video editor)               -->
+                    <!-- ════════════════════════════════════════════════════════════════ -->
+                    <TabItem Header="🎬 H3 Video Editor">
+                        <Grid DataContext="{Binding H3VideoEditorVM}" Style="{StaticResource TabPageStyle}">
+                            <Grid.Resources>
+                                <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource AccentTealColor}"/>
+                            </Grid.Resources>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="320"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- ═══ LEFT PANEL: Settings & Reference Images ═══════════════════ -->
+                            <Border Grid.Column="0" Background="{StaticResource SurfaceBrush}" Padding="12">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel>
+                                        <!-- Reference Images Card -->
+                                        <Border Style="{StaticResource SectionCardStyle}" Margin="0,0,0,12">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                                    <Ellipse Width="7" Height="7" Fill="{DynamicResource TabAccentBrush}" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="REFERENCE IMAGES" FontSize="12" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                </StackPanel>
+                                                <UniformGrid Rows="2" Columns="2" Margin="0,0,0,8">
+                                                    <!-- Picture 1 -->
+                                                    <Border Height="80" Margin="0,0,4,4" CornerRadius="4" Background="{StaticResource PlayerSurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Cursor="Hand">
+                                                        <Grid>
+                                                            <TextBlock Text="＋ Picture 1" Foreground="{StaticResource PlayerTextBrush}" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            <Image Source="{Binding Picture1.PreviewImage}" Stretch="UniformToFill"/>
+                                                            <Button Content="✕" Width="18" Height="18" Margin="2" Padding="0" FontSize="9" HorizontalAlignment="Right" VerticalAlignment="Top" Background="{StaticResource ScrimBrush}" Foreground="White" BorderThickness="0" Cursor="Hand" Command="{Binding ClearPictureCommand}" Visibility="{Binding Picture1.HasImages, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                <Button.CommandParameter><sys:Int32>0</sys:Int32></Button.CommandParameter>
+                                                            </Button>
+                                                        </Grid>
+                                                        <Border.InputBindings>
+                                                            <MouseBinding MouseAction="LeftClick" Command="{Binding SelectPictureCommand}">
+                                                                <MouseBinding.CommandParameter><sys:Int32>0</sys:Int32></MouseBinding.CommandParameter>
+                                                            </MouseBinding>
+                                                        </Border.InputBindings>
+                                                    </Border>
+                                                    <!-- Picture 2 -->
+                                                    <Border Height="80" Margin="4,0,0,4" CornerRadius="4" Background="{StaticResource PlayerSurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Cursor="Hand">
+                                                        <Grid>
+                                                            <TextBlock Text="＋ Picture 2" Foreground="{StaticResource PlayerTextBrush}" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            <Image Source="{Binding Picture2.PreviewImage}" Stretch="UniformToFill"/>
+                                                            <Button Content="✕" Width="18" Height="18" Margin="2" Padding="0" FontSize="9" HorizontalAlignment="Right" VerticalAlignment="Top" Background="{StaticResource ScrimBrush}" Foreground="White" BorderThickness="0" Cursor="Hand" Command="{Binding ClearPictureCommand}" Visibility="{Binding Picture2.HasImages, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                <Button.CommandParameter><sys:Int32>1</sys:Int32></Button.CommandParameter>
+                                                            </Button>
+                                                        </Grid>
+                                                        <Border.InputBindings>
+                                                            <MouseBinding MouseAction="LeftClick" Command="{Binding SelectPictureCommand}">
+                                                                <MouseBinding.CommandParameter><sys:Int32>1</sys:Int32></MouseBinding.CommandParameter>
+                                                            </MouseBinding>
+                                                        </Border.InputBindings>
+                                                    </Border>
+                                                    <!-- Picture 3 -->
+                                                    <Border Height="80" Margin="0,4,4,0" CornerRadius="4" Background="{StaticResource PlayerSurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Cursor="Hand">
+                                                        <Grid>
+                                                            <TextBlock Text="＋ Picture 3" Foreground="{StaticResource PlayerTextBrush}" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            <Image Source="{Binding Picture3.PreviewImage}" Stretch="UniformToFill"/>
+                                                            <Button Content="✕" Width="18" Height="18" Margin="2" Padding="0" FontSize="9" HorizontalAlignment="Right" VerticalAlignment="Top" Background="{StaticResource ScrimBrush}" Foreground="White" BorderThickness="0" Cursor="Hand" Command="{Binding ClearPictureCommand}" Visibility="{Binding Picture3.HasImages, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                <Button.CommandParameter><sys:Int32>2</sys:Int32></Button.CommandParameter>
+                                                            </Button>
+                                                        </Grid>
+                                                        <Border.InputBindings>
+                                                            <MouseBinding MouseAction="LeftClick" Command="{Binding SelectPictureCommand}">
+                                                                <MouseBinding.CommandParameter><sys:Int32>2</sys:Int32></MouseBinding.CommandParameter>
+                                                            </MouseBinding>
+                                                        </Border.InputBindings>
+                                                    </Border>
+                                                    <!-- Picture 4 -->
+                                                    <Border Height="80" Margin="4,4,0,0" CornerRadius="4" Background="{StaticResource PlayerSurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Cursor="Hand">
+                                                        <Grid>
+                                                            <TextBlock Text="＋ Picture 4" Foreground="{StaticResource PlayerTextBrush}" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            <Image Source="{Binding Picture4.PreviewImage}" Stretch="UniformToFill"/>
+                                                            <Button Content="✕" Width="18" Height="18" Margin="2" Padding="0" FontSize="9" HorizontalAlignment="Right" VerticalAlignment="Top" Background="{StaticResource ScrimBrush}" Foreground="White" BorderThickness="0" Cursor="Hand" Command="{Binding ClearPictureCommand}" Visibility="{Binding Picture4.HasImages, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                <Button.CommandParameter><sys:Int32>3</sys:Int32></Button.CommandParameter>
+                                                            </Button>
+                                                        </Grid>
+                                                        <Border.InputBindings>
+                                                            <MouseBinding MouseAction="LeftClick" Command="{Binding SelectPictureCommand}">
+                                                                <MouseBinding.CommandParameter><sys:Int32>3</sys:Int32></MouseBinding.CommandParameter>
+                                                            </MouseBinding>
+                                                        </Border.InputBindings>
+                                                    </Border>
+                                                </UniformGrid>
+                                                <Button Content="📷 Generate Prompt from Images" Command="{Binding GeneratePromptCommand}" Height="26" FontSize="10" Style="{StaticResource AccentButtonStyle}" Cursor="Hand"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Prompt Card -->
+                                        <Border Style="{StaticResource SectionCardStyle}" Margin="0,0,0,12">
+                                            <StackPanel>
+                                                <Grid Margin="0,0,0,8">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Ellipse Width="7" Height="7" Fill="{DynamicResource TabAccentBrush}" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="PROMPT" FontSize="12" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                    </StackPanel>
+                                                    <Button Content="📝 Template" HorizontalAlignment="Right" Command="{Binding InsertTemplateCommand}" Height="22" Padding="8,0" FontSize="10" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" ToolTip="Insert the spec prompt template"/>
+                                                </Grid>
+                                                <TextBox Text="{Binding PromptText, UpdateSourceTrigger=PropertyChanged}" Height="140" FontSize="10" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Padding="6" ToolTip="The prompt for video generation. Use the spec format with subject_definitions, detailed_description, etc."/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Presets Card -->
+                                        <Border Style="{StaticResource SectionCardStyle}" Margin="0,0,0,12">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                                    <Ellipse Width="7" Height="7" Fill="{DynamicResource TabAccentBrush}" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="PRESET" FontSize="12" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                </StackPanel>
+                                                <ComboBox ItemsSource="{Binding Presets}" DisplayMemberPath="Name" SelectedValuePath="Name" SelectedValue="{Binding SelectedPresetName}" Height="28" FontSize="11" Margin="0,0,0,10" ToolTip="Select a preset configuration"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                                        <TextBlock Text="Steps" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,3"/>
+                                                        <Grid>
+                                                            <Slider Value="{Binding Steps}" Minimum="1" Maximum="50" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                                                            <Border HorizontalAlignment="Right" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="6,2">
+                                                                <TextBlock Text="{Binding Steps}" FontFamily="Consolas" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource TabAccentBrush}"/>
+                                                            </Border>
+                                                        </Grid>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="1" Margin="6,0,0,0">
+                                                        <TextBlock Text="Sampler" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,3"/>
+                                                        <ComboBox ItemsSource="{Binding SamplerOptions}" SelectedValue="{Binding SelectedSampler}" Height="26" FontSize="10"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Upscale Settings Card -->
+                                        <Border Style="{StaticResource SectionCardStyle}">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                                    <Ellipse Width="7" Height="7" Fill="{DynamicResource TabAccentBrush}" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="UPSCALE SETTINGS" FontSize="12" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                </StackPanel>
+                                                <Grid Margin="0,0,0,8">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                                        <TextBlock Text="Upscale Factor" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,3"/>
+                                                        <ComboBox SelectedValue="{Binding UpscaleFactor}" Height="26" FontSize="10">
+                                                            <sys:Double>1.5</sys:Double>
+                                                            <sys:Double>2.0</sys:Double>
+                                                            <sys:Double>2.5</sys:Double>
+                                                            <sys:Double>3.0</sys:Double>
+                                                            <sys:Double>4.0</sys:Double>
+                                                        </ComboBox>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="1" Margin="6,0,0,0">
+                                                        <TextBlock Text="Refine Amount" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,3"/>
+                                                        <Grid>
+                                                            <Slider Value="{Binding RefineAmount}" Minimum="0" Maximum="1" TickFrequency="0.05" IsSnapToTickEnabled="True"/>
+                                                            <Border HorizontalAlignment="Right" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="6,2">
+                                                                <TextBlock Text="{Binding RefineAmount, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource TabAccentBrush}"/>
+                                                            </Border>
+                                                        </Grid>
+                                                    </StackPanel>
+                                                </Grid>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <CheckBox Content="Crossfade" IsChecked="{Binding Crossfade}" FontSize="11" Margin="0,0,12,0"/>
+                                                    <CheckBox Content="Level Lock" IsChecked="{Binding LevelLock}" FontSize="11"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+
+                            <!-- ═══ RIGHT PANEL: Timeline & Preview ════════════════════════════ -->
+                            <Grid Grid.Column="1">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="150"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Project Header -->
+                                <Border Grid.Row="0" Background="{StaticResource SurfaceAltBrush}" Padding="12,8">
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="📁 Project:" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <TextBox Text="{Binding ProjectFolder, UpdateSourceTrigger=PropertyChanged}" Width="200" Height="26" FontSize="11" VerticalContentAlignment="Center"/>
+                                            <TextBlock Text=" | " FontSize="12" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Aspect:" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="8,0,8,0"/>
+                                            <ComboBox ItemsSource="{Binding AspectRatioOptions}" SelectedValue="{Binding SelectedAspectRatio}" Width="140" Height="26" FontSize="10"/>
+                                            <TextBlock Text=" | " FontSize="12" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
+                                            <TextBlock Text="MP:" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="8,0,8,0"/>
+                                            <ComboBox SelectedValue="{Binding Megapixels}" Width="80" Height="26" FontSize="10">
+                                                <sys:Double>0.3</sys:Double>
+                                                <sys:Double>0.5</sys:Double>
+                                                <sys:Double>0.7</sys:Double>
+                                                <sys:Double>1.0</sys:Double>
+                                            </ComboBox>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding StatusText}" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TabAccentBrush}"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Video Preview -->
+                                <Border Grid.Row="1" Background="{StaticResource PlayerSurfaceBrush}" Margin="12,8,12,0">
+                                    <Grid>
+                                        <TextBlock Text="Video Preview" Foreground="{StaticResource PlayerTextBrush}" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <MediaElement x:Name="H3EditorVideoPlayer" LoadedBehavior="Manual" UnloadedBehavior="Stop" Stretch="Uniform" Visibility="{Binding PreviewVideoPath, Converter={StaticResource StringToVisibilityConverter}}"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Timeline Header -->
+                                <Border Grid.Row="2" Background="{StaticResource SurfaceAltBrush}" Padding="12,6" Margin="12,8,12,0">
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="📽️ TIMELINE" FontSize="12" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding TimelineDurationDisplay}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                            <Button Content="＋ Add Clip" Command="{Binding AddClipCommand}" Height="24" Padding="10,0" FontSize="10" Style="{StaticResource SuccessButtonStyle}" Cursor="Hand" Margin="0,0,6,0"/>
+                                            <Button Content="✂ Cut" Command="{Binding CutClipCommand}" CommandParameter="{Binding SelectedClip}" Height="24" Padding="8,0" FontSize="10" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" Margin="0,0,6,0" ToolTip="Split selected clip at midpoint"/>
+                                            <Button Content="⏮ Prepend" Command="{Binding PrependClipCommand}" Height="24" Padding="8,0" FontSize="10" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" Margin="0,0,6,0" ToolTip="Insert new clip before selected"/>
+                                            <Button Content="⏭ Append" Command="{Binding AppendClipCommand}" Height="24" Padding="8,0" FontSize="10" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" Margin="0,0,6,0" ToolTip="Insert new clip after selected"/>
+                                            <Button Content="⟷ Extend" Command="{Binding ExtendClipCommand}" CommandParameter="{Binding SelectedClip}" Height="24" Padding="8,0" FontSize="10" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" ToolTip="Extend selected clip duration"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Timeline Clips -->
+                                <Border Grid.Row="3" Background="{StaticResource SurfaceBrush}" Margin="12,0,12,0" Padding="8">
+                                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                                        <ItemsControl ItemsSource="{Binding TimelineClips}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Orientation="Horizontal"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Width="100" Height="130" Margin="4" CornerRadius="6" Cursor="Hand" BorderThickness="2">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="Background" Value="{StaticResource PlayerSurfaceBrush}"/>
+                                                                <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                        <Setter Property="BorderBrush" Value="{StaticResource AccentTealBrush}"/>
+                                                                        <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsRendered}" Value="True">
+                                                                        <Setter Property="Background" Value="{StaticResource SuccessLightBrush}"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <Border.InputBindings>
+                                                            <MouseBinding MouseAction="LeftClick" Command="{Binding DataContext.PlayPreviewCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/>
+                                                        </Border.InputBindings>
+                                                        <Grid>
+                                                            <Grid.RowDefinitions>
+                                                                <RowDefinition Height="*"/>
+                                                                <RowDefinition Height="Auto"/>
+                                                            </Grid.RowDefinitions>
+                                                            <!-- Thumbnail area -->
+                                                            <Border Grid.Row="0" CornerRadius="4,4,0,0" Margin="4,4,4,0">
+                                                                <Grid>
+                                                                    <TextBlock Text="{Binding DisplayIndex}" FontSize="24" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                    <Border Background="{StaticResource ScrimBrush}" CornerRadius="4" Padding="4,2" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="2">
+                                                                        <TextBlock Text="{Binding DurationDisplay}" FontSize="9" Foreground="White" FontWeight="Bold"/>
+                                                                    </Border>
+                                                                    <Border Background="{StaticResource ScrimBrush}" CornerRadius="4" Padding="4,2" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="2">
+                                                                        <TextBlock Text="{Binding StatusText}" FontSize="8" Foreground="White"/>
+                                                                    </Border>
+                                                                </Grid>
+                                                            </Border>
+                                                            <!-- Info area -->
+                                                            <Border Grid.Row="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="0,0,4,4" Padding="4">
+                                                                <StackPanel>
+                                                                    <TextBlock Text="{Binding PromptPreview}" FontSize="8" Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" MaxHeight="24" TextWrapping="Wrap"/>
+                                                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                                        <Button Content="▶" Width="20" Height="16" Padding="0" FontSize="8" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" Command="{Binding DataContext.PlayPreviewCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" ToolTip="Play this clip"/>
+                                                                        <Button Content="✕" Width="20" Height="16" Padding="0" FontSize="8" Margin="4,0,0,0" Style="{StaticResource DangerButtonStyle}" Cursor="Hand" Command="{Binding DataContext.RemoveClipCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" ToolTip="Remove this clip"/>
+                                                                    </StackPanel>
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </Border>
+
+                                <!-- Action Buttons -->
+                                <Border Grid.Row="4" Background="{StaticResource SurfaceAltBrush}" Padding="12,10" Margin="12,8,12,12">
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Content="⚡ Generate Clips" Command="{Binding GenerateClipsCommand}" Height="36" Padding="16,0" FontSize="12" FontWeight="Bold" Style="{StaticResource SuccessButtonStyle}" Cursor="Hand" Margin="0,0,10,0" ToolTip="Generate all pending clips"/>
+                                            <Button Content="🔗 Join Clips" Command="{Binding JoinClipsCommand}" Height="36" Padding="16,0" FontSize="12" FontWeight="Bold" Style="{StaticResource AccentButtonStyle}" Cursor="Hand" Margin="0,0,10,0" ToolTip="Join all rendered clips into one video"/>
+                                            <Button Content="📤 Upscale" Command="{Binding UpscaleCommand}" Height="36" Padding="16,0" FontSize="12" FontWeight="Bold" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" ToolTip="Upscale the joined video"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                            <ProgressBar Value="{Binding Progress}" Width="150" Height="8" Margin="0,0,12,0" Foreground="{DynamicResource TabAccentBrush}"/>
+                                            <Button Content="⏹ Cancel" Command="{Binding CancelCommand}" Height="30" Padding="12,0" FontSize="11" Style="{StaticResource DangerButtonStyle}" Cursor="Hand"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </Grid>
+                    </TabItem>
+
         </TabControl>
 
         <!-- Status Bar -->
