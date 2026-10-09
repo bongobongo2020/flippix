@@ -829,29 +829,93 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>
-        /// Builds an H3 Latent Upscale workflow that loads the joined video, encodes to H3 latent,
-        /// upscales using MinimaxH3LatentUpscaler3D, decodes back to video, and saves the result.
-        /// Based on the upscale pipeline in h3_obvpm_timeline_r2v workflow.
+        /// Builds an H3 Latent Upscale + Refine workflow that:
+        /// 1. Loads the joined video and encodes to H3 latent space
+        /// 2. Upscales using MinimaxH3LatentUpscaler3D
+        /// 3. Runs a refine/sampling pass with the H3 model to add detail (using RefineAmount as denoise)
+        /// 4. Decodes back to video and saves the result
+        /// Based on the h3-seed-upscale.json workflow and OBVPM H3 Upscale / Refine Engine.
         /// </summary>
         private (JsonObject workflow, string saveNodeId) BuildH3LatentUpscaleWorkflow(string uploadedVideoName)
         {
-            AddLog($"Building H3 Latent Upscale workflow for: {uploadedVideoName}");
-            AddLog($"Upscale factor: {UpscaleFactor}x");
+            AddLog($"Building H3 Latent Upscale + Refine workflow for: {uploadedVideoName}");
+            AddLog($"Upscale factor: {UpscaleFactor}x, Refine amount: {RefineAmount}");
 
-            // Build the H3 latent upscale workflow:
-            // VHS_LoadVideo → VAEEncode (H3 video VAE) → MinimaxH3LatentUpscaler3D → VAEDecode → VHS_VideoCombine
+            // Calculate refine steps based on refine amount (more denoise = more steps needed)
+            // With BasicScheduler's denoise parameter, only a portion of steps actually run
+            int refineSteps = RefineAmount >= 0.5 ? 10 : (RefineAmount >= 0.3 ? 8 : 6);
+            AddLog($"Using {refineSteps} refine steps with denoise={RefineAmount:F2}");
+
             var workflow = new JsonObject
             {
+                // ═══════════════════════════════════════════════════════════════════════════════════
+                // Model Stack: UNet + CLIP + VAEs
+                // ═══════════════════════════════════════════════════════════════════════════════════
+
+                // Load the H3 UNet model (for refine pass)
+                ["unet"] = new JsonObject
+                {
+                    ["class_type"] = "UNETLoader",
+                    ["inputs"] = new JsonObject
+                    {
+                        ["unet_name"] = "h3-minimax/minimax_h3_fused_refdelta_r1024_turbo8_mystic07_int8_convrot.safetensors",
+                        ["weight_dtype"] = "default"
+                    },
+                    ["_meta"] = new JsonObject { ["title"] = "H3 UNet" }
+                },
+
+                // Load the CLIP text encoder
+                ["clip"] = new JsonObject
+                {
+                    ["class_type"] = "CLIPLoader",
+                    ["inputs"] = new JsonObject
+                    {
+                        ["clip_name"] = "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+                        ["type"] = "minimax",
+                        ["device"] = "default"
+                    },
+                    ["_meta"] = new JsonObject { ["title"] = "H3 CLIP" }
+                },
+
                 // Load the H3 video VAE
                 ["vae_video"] = new JsonObject
                 {
                     ["class_type"] = "VAELoader",
                     ["inputs"] = new JsonObject
                     {
-                        ["vae_name"] = "minimax_h3_video_vae_fp16.safetensors"
+                        ["vae_name"] = "minimax_h3_video_vae_int8_convrot.safetensors"
                     },
                     ["_meta"] = new JsonObject { ["title"] = "H3 Video VAE" }
                 },
+
+                // Load the H3 audio VAE
+                ["vae_audio"] = new JsonObject
+                {
+                    ["class_type"] = "VAELoader",
+                    ["inputs"] = new JsonObject
+                    {
+                        ["vae_name"] = "minimax_h3_audio_vae_fp32.safetensors"
+                    },
+                    ["_meta"] = new JsonObject { ["title"] = "H3 Audio VAE" }
+                },
+
+                // Apply sigma shift for H3 model quality
+                ["shift"] = new JsonObject
+                {
+                    ["class_type"] = "MiniMaxH3SigmaShift",
+                    ["inputs"] = new JsonObject
+                    {
+                        ["model"] = new JsonArray { "unet", 0 },
+                        ["shift_video"] = (double)ShiftVideo,
+                        ["shift_audio"] = (double)ShiftAudio
+                    },
+                    ["_meta"] = new JsonObject { ["title"] = "MiniMaxH3SigmaShift" }
+                },
+
+                // ═══════════════════════════════════════════════════════════════════════════════════
+                // Video Loading and Encoding
+                // ═══════════════════════════════════════════════════════════════════════════════════
+
                 // Load the input video (the joined clips)
                 ["load_video"] = new JsonObject
                 {
@@ -869,8 +933,9 @@ namespace FlipPix.UI.ViewModels.Video
                     },
                     ["_meta"] = new JsonObject { ["title"] = "Load Joined Video" }
                 },
-                // Encode video frames to H3 latent space
-                ["vae_encode"] = new JsonObject
+
+                // Encode video frames to H3 video latent space
+                ["vae_encode_video"] = new JsonObject
                 {
                     ["class_type"] = "VAEEncode",
                     ["inputs"] = new JsonObject
@@ -878,16 +943,33 @@ namespace FlipPix.UI.ViewModels.Video
                         ["pixels"] = new JsonArray { "load_video", 0 },
                         ["vae"] = new JsonArray { "vae_video", 0 }
                     },
-                    ["_meta"] = new JsonObject { ["title"] = "Encode to H3 Latent" }
+                    ["_meta"] = new JsonObject { ["title"] = "Encode Video to Latent" }
                 },
-                // H3 Latent Upscaler - upscales in latent space
+
+                // Encode audio to H3 audio latent space
+                ["vae_encode_audio"] = new JsonObject
+                {
+                    ["class_type"] = "VAEEncodeAudio",
+                    ["inputs"] = new JsonObject
+                    {
+                        ["audio"] = new JsonArray { "load_video", 2 },
+                        ["vae"] = new JsonArray { "vae_audio", 0 }
+                    },
+                    ["_meta"] = new JsonObject { ["title"] = "Encode Audio to Latent" }
+                },
+
+                // ═══════════════════════════════════════════════════════════════════════════════════
+                // Latent Upscale
+                // ═══════════════════════════════════════════════════════════════════════════════════
+
+                // Upscale the video latent (not audio)
                 ["latent_upscale"] = new JsonObject
                 {
                     ["class_type"] = "MinimaxH3LatentUpscaler3D",
                     ["inputs"] = new JsonObject
                     {
-                        ["latent"] = new JsonArray { "vae_encode", 0 },
-                        ["model_name"] = "minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors",
+                        ["latent"] = new JsonArray { "vae_encode_video", 0 },
+                        ["model_name"] = "minimax_h3_latent_upscaler_3d_bf16.safetensors",
                         ["mode"] = "scale by multiplier",
                         ["mode.scale"] = UpscaleFactor,
                         ["align"] = 32,
@@ -898,25 +980,140 @@ namespace FlipPix.UI.ViewModels.Video
                     },
                     ["_meta"] = new JsonObject { ["title"] = $"H3 Latent Upscale {UpscaleFactor}x" }
                 },
-                // Decode upscaled latent back to video frames
-                ["vae_decode"] = new JsonObject
+
+                // Combine upscaled video latent with original audio latent
+                ["concat_av"] = new JsonObject
+                {
+                    ["class_type"] = "LTXVConcatAVLatent",
+                    ["inputs"] = new JsonObject
+                    {
+                        ["video_latent"] = new JsonArray { "latent_upscale", 0 },
+                        ["audio_latent"] = new JsonArray { "vae_encode_audio", 0 }
+                    },
+                    ["_meta"] = new JsonObject { ["title"] = "Concat AV Latent" }
+                },
+
+                // ═══════════════════════════════════════════════════════════════════════════════════
+                // Refine Pass - This is what adds quality/detail to the upscaled latent
+                // ═══════════════════════════════════════════════════════════════════════════════════
+
+                // Create text conditioning for the refine pass
+                // Using CLIPTextEncode for simpler, dimension-independent conditioning
+                ["conditioning"] = new JsonObject
+                {
+                    ["class_type"] = "CLIPTextEncode",
+                    ["inputs"] = new JsonObject
+                    {
+                        ["clip"] = new JsonArray { "clip", 0 },
+                        // Generic refinement prompt - focuses on preserving existing content while adding detail
+                        ["text"] = "Maintain original content. Enhance fine details, textures, and sharpness. Preserve motion, faces, and composition. High quality video upscale."
+                    },
+                    ["_meta"] = new JsonObject { ["title"] = "Refine Conditioning" }
+                },
+
+                // Create guider for the refine sampler
+                ["guider"] = new JsonObject
+                {
+                    ["class_type"] = "BasicGuider",
+                    ["inputs"] = new JsonObject
+                    {
+                        ["model"] = new JsonArray { "shift", 0 },
+                        ["conditioning"] = new JsonArray { "conditioning", 0 }
+                    },
+                    ["_meta"] = new JsonObject { ["title"] = "Refine Guider" }
+                },
+
+                // BasicScheduler with denoise parameter for proper RefineAmount control
+                // The denoise value determines what portion of the sigma schedule to use
+                ["sigmas"] = new JsonObject
+                {
+                    ["class_type"] = "BasicScheduler",
+                    ["inputs"] = new JsonObject
+                    {
+                        ["model"] = new JsonArray { "shift", 0 },
+                        ["scheduler"] = "simple",
+                        ["steps"] = refineSteps,
+                        ["denoise"] = RefineAmount
+                    },
+                    ["_meta"] = new JsonObject { ["title"] = $"Refine Scheduler (denoise={RefineAmount:F2})" }
+                },
+
+                // Select the sampler for refine pass
+                ["sampler_select"] = new JsonObject
+                {
+                    ["class_type"] = "KSamplerSelect",
+                    ["inputs"] = new JsonObject
+                    {
+                        ["sampler_name"] = "res_multistep"
+                    },
+                    ["_meta"] = new JsonObject { ["title"] = "Refine Sampler" }
+                },
+
+                // Random noise for the refine pass
+                ["noise"] = new JsonObject
+                {
+                    ["class_type"] = "RandomNoise",
+                    ["inputs"] = new JsonObject
+                    {
+                        ["noise_seed"] = Random.Shared.NextInt64(0, 999_999_999_999_999L)
+                    },
+                    ["_meta"] = new JsonObject { ["title"] = "Refine Noise" }
+                },
+
+                // The refine sampler - this adds detail to the upscaled latent
+                ["refine_sampler"] = new JsonObject
+                {
+                    ["class_type"] = "SamplerCustomAdvanced",
+                    ["inputs"] = new JsonObject
+                    {
+                        ["noise"] = new JsonArray { "noise", 0 },
+                        ["guider"] = new JsonArray { "guider", 0 },
+                        ["sampler"] = new JsonArray { "sampler_select", 0 },
+                        ["sigmas"] = new JsonArray { "sigmas", 0 },
+                        ["latent_image"] = new JsonArray { "concat_av", 0 }
+                    },
+                    ["_meta"] = new JsonObject { ["title"] = "Upscale Refine Pass" }
+                },
+
+                // ═══════════════════════════════════════════════════════════════════════════════════
+                // Decode and Save
+                // ═══════════════════════════════════════════════════════════════════════════════════
+
+                // Decode refined video latent back to frames
+                // The VAE handles extracting the video portion from the combined AV latent
+                // Using slot 0 ("output") matching h3-seed-upscale.json behavior
+                ["vae_decode_video"] = new JsonObject
                 {
                     ["class_type"] = "VAEDecode",
                     ["inputs"] = new JsonObject
                     {
-                        ["samples"] = new JsonArray { "latent_upscale", 0 },
+                        ["samples"] = new JsonArray { "refine_sampler", 0 }, // output from sampler
                         ["vae"] = new JsonArray { "vae_video", 0 }
                     },
-                    ["_meta"] = new JsonObject { ["title"] = "Decode from H3 Latent" }
+                    ["_meta"] = new JsonObject { ["title"] = "Decode Video" }
                 },
-                // Output video with original audio from loaded video
+
+                // Decode audio latent back to audio
+                // The audio VAE handles extracting the audio portion from the combined AV latent
+                ["vae_decode_audio"] = new JsonObject
+                {
+                    ["class_type"] = "VAEDecodeAudio",
+                    ["inputs"] = new JsonObject
+                    {
+                        ["samples"] = new JsonArray { "refine_sampler", 0 }, // same output slot
+                        ["vae"] = new JsonArray { "vae_audio", 0 }
+                    },
+                    ["_meta"] = new JsonObject { ["title"] = "Decode Audio" }
+                },
+
+                // Output the refined upscaled video
                 ["output"] = new JsonObject
                 {
                     ["class_type"] = "VHS_VideoCombine",
                     ["inputs"] = new JsonObject
                     {
-                        ["images"] = new JsonArray { "vae_decode", 0 },
-                        ["audio"] = new JsonArray { "load_video", 2 }, // Audio output from VHS_LoadVideo
+                        ["images"] = new JsonArray { "vae_decode_video", 0 },
+                        ["audio"] = new JsonArray { "vae_decode_audio", 0 },
                         ["frame_rate"] = 24,
                         ["loop_count"] = 0,
                         ["filename_prefix"] = $"video/{ProjectFolder}/upscale",
@@ -928,7 +1125,7 @@ namespace FlipPix.UI.ViewModels.Video
                         ["pingpong"] = false,
                         ["save_output"] = true
                     },
-                    ["_meta"] = new JsonObject { ["title"] = "Save Upscaled Video" }
+                    ["_meta"] = new JsonObject { ["title"] = "Save Upscaled + Refined Video" }
                 }
             };
 
