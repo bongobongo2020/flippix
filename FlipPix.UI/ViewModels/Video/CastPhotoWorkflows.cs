@@ -773,9 +773,11 @@ namespace FlipPix.UI.ViewModels.Video
             CancellationToken token)
         {
             var systemPrompt =
-                "You are a casting director reading a story and listing the characters who belong in " +
-                "its cast. You reply with nothing but the cast lines you were asked for — no preamble, " +
-                "no headings, no markdown, no notes, no explanation.";
+                "You are a casting director reading a story and listing ONLY the characters who actually " +
+                "appear in it. You reply with nothing but the cast lines — no preamble, no headings, no " +
+                "markdown, no notes, no explanation. CRITICAL: Only list characters that are explicitly " +
+                "mentioned and play a role in the story. Do NOT invent characters. Do NOT pad the list. " +
+                "If the story has only 2 characters, output only 2 lines.";
 
             var kinds = personKindsOnly
                 ? "<kind> is exactly one word from this list: man, woman, boy, girl. This film casts " +
@@ -787,9 +789,11 @@ namespace FlipPix.UI.ViewModels.Video
                   "group for several non-people acting as one (a herd, a flock).";
 
             var userMessage =
-                "Read the story below and list the characters it is actually about, most important " +
-                $"first — at most {maxCharacters} of them. Background extras, narrators and characters " +
-                "who never appear in a scene do not belong in the cast.\n\n" +
+                "Read the story below and list ONLY the characters who actually appear in it. " +
+                $"List at most {maxCharacters}, most important first. " +
+                "IMPORTANT: If the story has fewer characters, list only those — do NOT invent extra " +
+                "characters to fill slots. Background extras, narrators, and characters who never appear " +
+                "in a scene do not belong in the cast.\n\n" +
                 "Reply with one line per character, in EXACTLY this format, and nothing else:\n" +
                 "CAST|<kind>|<who>\n\n" +
                 kinds + "\n" +

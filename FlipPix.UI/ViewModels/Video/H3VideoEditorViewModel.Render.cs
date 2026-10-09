@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
@@ -613,21 +615,41 @@ namespace FlipPix.UI.ViewModels.Video
 
             try
             {
-                var renderedClips = TimelineClips.Where(c => c.IsRendered && File.Exists(c.OutputPath)).ToList();
+                var renderedClips = TimelineClips
+                    .Where(c => c.IsRendered && !string.IsNullOrEmpty(c.OutputPath) && File.Exists(c.OutputPath))
+                    .OrderBy(c => c.Index)
+                    .ToList();
+
                 if (renderedClips.Count == 0)
                 {
                     AddLog("No rendered clips to join");
                     return;
                 }
 
-                using var lease = await _workflowCoordinator.AcquireAsync("h3_video_editor", CancellationToken.None);
+                AddLog($"Joining {renderedClips.Count} clips with FFmpeg...");
 
-                // Build H3JointRender workflow
-                var workflow = BuildJoinWorkflow(renderedClips);
-                await _comfyUIService.QueuePromptAsync(workflow);
+                // Determine output path
+                var settings = _settingsService.Settings;
+                var outputFolder = settings?.OutputFolderPath ?? Path.GetDirectoryName(renderedClips[0].OutputPath) ?? ".";
+                var projectDir = Path.Combine(outputFolder, "video", ProjectFolder);
+                Directory.CreateDirectory(projectDir);
+                var outputPath = Path.Combine(projectDir, $"joined_{DateTime.Now:yyyyMMdd_HHmmss}.mp4");
 
-                AddLog($"Submitted join workflow for {renderedClips.Count} clips");
-                StatusText = "Join complete";
+                // Use FFmpeg to concatenate the clips
+                await Task.Run(() => JoinClipsWithFFmpeg(renderedClips.Select(c => c.OutputPath!).ToList(), outputPath));
+
+                if (File.Exists(outputPath))
+                {
+                    JoinedVideoPath = outputPath;
+                    PreviewVideoPath = outputPath;
+                    AddLog($"Join complete: {Path.GetFileName(outputPath)}");
+                    StatusText = "Join complete";
+                    UpscaleCommand.NotifyCanExecuteChanged();
+                }
+                else
+                {
+                    throw new Exception("FFmpeg did not produce output file");
+                }
             }
             catch (Exception ex)
             {
@@ -637,52 +659,86 @@ namespace FlipPix.UI.ViewModels.Video
             finally
             {
                 IsJoining = false;
+                JoinClipsCommand.NotifyCanExecuteChanged();
                 UpscaleCommand.NotifyCanExecuteChanged();
             }
         }
 
-        private JsonObject BuildJoinWorkflow(System.Collections.Generic.List<H3TimelineClip> clips)
+        private void JoinClipsWithFFmpeg(List<string> clipPaths, string outputPath)
         {
-            var workflow = new JsonObject();
-
-            // Build the sequence string for H3Timeline
-            var sequence = string.Join("\n", clips.Select(c => c.OutputPath));
-
-            workflow["timeline"] = new JsonObject
+            var ffmpegPath = FindFFmpeg();
+            if (string.IsNullOrEmpty(ffmpegPath))
             {
-                ["class_type"] = "H3Timeline",
-                ["inputs"] = new JsonObject
-                {
-                    ["sequence"] = sequence,
-                    ["base_folder"] = ProjectFolder,
-                    ["preview_filename"] = "obvpm_h3_preview",
-                    ["export_filename_prefix"] = "export",
-                    ["crf"] = Crf,
-                    ["level_lock"] = LevelLock,
-                    ["level_lock_frames"] = LevelLockFrames,
-                    ["level_lock_flicker"] = LevelLockFlicker,
-                    ["crossfade"] = Crossfade,
-                    ["crossfade_frames"] = CrossfadeFrames,
-                    ["audio_declick"] = AudioDeclick
-                }
-            };
+                throw new InvalidOperationException("FFmpeg not found. Please install FFmpeg to join clips.");
+            }
 
-            workflow["render"] = new JsonObject
+            // Create concat list file
+            var listFile = Path.Combine(Path.GetTempPath(), $"h3ve_concat_{Guid.NewGuid():N}.txt");
+            try
             {
-                ["class_type"] = "H3JointRender",
-                ["inputs"] = new JsonObject
+                using (var writer = new StreamWriter(listFile))
                 {
-                    ["base_folder"] = ProjectFolder,
-                    ["filename_prefix"] = "joined",
-                    ["crf"] = Crf,
-                    ["window_seconds"] = 5
+                    foreach (var clipPath in clipPaths)
+                    {
+                        // FFmpeg concat demuxer requires forward slashes and escaped quotes
+                        var escaped = clipPath.Replace("\\", "/").Replace("'", @"'\''");
+                        writer.WriteLine($"file '{escaped}'");
+                    }
                 }
-            };
 
-            return workflow;
+                AddLog($"Concatenating {clipPaths.Count} clips...");
+
+                // Build FFmpeg arguments
+                var args = Crossfade && CrossfadeFrames > 0
+                    ? BuildCrossfadeArgs(clipPaths, outputPath, listFile)
+                    : $"-y -f concat -safe 0 -i \"{listFile}\" -c:v libx264 -crf {Crf} -c:a aac \"{outputPath}\"";
+
+                RunFFmpeg(ffmpegPath, args);
+            }
+            finally
+            {
+                try { File.Delete(listFile); } catch { /* temp file cleanup */ }
+            }
+        }
+
+        private string BuildCrossfadeArgs(List<string> clipPaths, string outputPath, string listFile)
+        {
+            // For crossfade, we need a more complex filter
+            // Simple stream copy with crossfade is complex; for now use basic concat
+            // Advanced crossfade would require xfade filter with re-encoding
+            if (clipPaths.Count <= 1)
+                return $"-y -f concat -safe 0 -i \"{listFile}\" -c:v libx264 -crf {Crf} -c:a aac \"{outputPath}\"";
+
+            // Basic crossfade using xfade filter (re-encodes but produces smooth transitions)
+            var sb = new System.Text.StringBuilder();
+            sb.Append("-y ");
+            foreach (var path in clipPaths)
+                sb.Append($"-i \"{path}\" ");
+
+            // Build xfade filter chain
+            var filterParts = new List<string>();
+            var lastOutput = "[0:v]";
+            for (int i = 1; i < clipPaths.Count; i++)
+            {
+                var nextInput = $"[{i}:v]";
+                var output = i == clipPaths.Count - 1 ? "[outv]" : $"[v{i}]";
+                var crossfadeDuration = CrossfadeFrames / 24.0; // Assuming 24fps
+                filterParts.Add($"{lastOutput}{nextInput}xfade=transition=fade:duration={crossfadeDuration:F2}:offset={5 - crossfadeDuration:F2}{output}");
+                lastOutput = output;
+            }
+
+            var filterComplex = string.Join(";", filterParts);
+            sb.Append($"-filter_complex \"{filterComplex}\" -map \"[outv]\" ");
+
+            // Audio: use amerge or just take first stream
+            sb.Append($"-c:v libx264 -crf {Crf} -c:a aac \"{outputPath}\"");
+
+            return sb.ToString();
         }
 
         // ── Upscale ──────────────────────────────────────────────────────────────────────────────
+
+        private const string UpscaleWorkflowPath = "workflow/video/h3-minimax/h3-seed-upscale.json";
 
         private async Task UpscaleAsync()
         {
@@ -695,11 +751,42 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 using var lease = await _workflowCoordinator.AcquireAsync("h3_video_editor", CancellationToken.None);
 
-                var workflow = BuildUpscaleWorkflow(JoinedVideoPath);
-                await _comfyUIService.QueuePromptAsync(workflow);
+                // Upload the video to ComfyUI input folder
+                AddLog($"Uploading video for upscale: {Path.GetFileName(JoinedVideoPath)}");
+                var uploadedName = await _comfyUIService.UploadVideoAsync(JoinedVideoPath, CancellationToken.None);
+                AddLog($"Uploaded as: {uploadedName}");
 
-                AddLog("Submitted upscale workflow");
+                // Build and execute the upscale workflow
+                var (workflow, saveNodeId) = await BuildUpscaleWorkflowAsync(uploadedName);
+
+                AddLog("Submitting upscale workflow to ComfyUI...");
+                var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(msg =>
+                {
+                    if (msg.Data?.Value != null && msg.Data?.Max != null && msg.Data.Max > 0)
+                    {
+                        var pct = (double)msg.Data.Value / msg.Data.Max * 100;
+                        StatusText = $"Upscaling: {pct:F0}%";
+                        Progress = pct;
+                    }
+                });
+
+                var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progress, CancellationToken.None);
+
+                if (string.IsNullOrEmpty(promptId))
+                {
+                    throw new Exception("ComfyUI returned empty prompt ID");
+                }
+
+                // Get output path
+                var outputPath = await ResolveUpscaleOutputAsync(promptId, saveNodeId);
+                if (!string.IsNullOrEmpty(outputPath))
+                {
+                    PreviewVideoPath = outputPath;
+                    AddLog($"Upscale complete: {Path.GetFileName(outputPath)}");
+                }
+
                 StatusText = "Upscale complete";
+                Progress = 100;
             }
             catch (Exception ex)
             {
@@ -712,43 +799,269 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        private JsonObject BuildUpscaleWorkflow(string inputPath)
+        private async Task<(JsonObject workflow, string saveNodeId)> BuildUpscaleWorkflowAsync(string uploadedVideoName)
         {
-            var workflow = new JsonObject();
+            // Try to load a workflow template, or build one dynamically
+            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, UpscaleWorkflowPath);
+            JsonObject workflow;
+            var saveNodeId = "output";
 
-            workflow["upscale"] = new JsonObject
+            if (File.Exists(workflowPath))
             {
-                ["class_type"] = "MinimaxH3LatentUpscaler3D",
-                ["inputs"] = new JsonObject
+                AddLog($"Loading upscale workflow template...");
+                var json = await File.ReadAllTextAsync(workflowPath);
+                workflow = System.Text.Json.JsonSerializer.Deserialize<JsonObject>(json)!;
+
+                // Patch the video input and output prefix
+                foreach (var node in workflow)
                 {
-                    ["upscale_factor"] = UpscaleFactor,
-                    ["model_name"] = "minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors"
+                    if (node.Value is JsonObject nodeObj &&
+                        nodeObj["class_type"]?.GetValue<string>() is string classType)
+                    {
+                        if (classType == "VHS_LoadVideo" || classType == "VHS_LoadVideoPath")
+                        {
+                            if (nodeObj["inputs"] is JsonObject inputs)
+                            {
+                                inputs["video"] = uploadedVideoName;
+                                AddLog($"Patched video input in node {node.Key}");
+                            }
+                        }
+                        else if (classType == "MinimaxH3LatentUpscaler3D")
+                        {
+                            if (nodeObj["inputs"] is JsonObject inputs)
+                            {
+                                inputs["mode.scale"] = UpscaleFactor;
+                                AddLog($"Patched upscale factor to {UpscaleFactor}x in node {node.Key}");
+                            }
+                        }
+                        else if (classType == "VHS_VideoCombine" || classType == "SaveVideo")
+                        {
+                            saveNodeId = node.Key;
+                            if (nodeObj["inputs"] is JsonObject inputs)
+                            {
+                                inputs["filename_prefix"] = $"video/{ProjectFolder}/upscale";
+                            }
+                        }
+                    }
                 }
+            }
+            else
+            {
+                AddLog("Building H3 Latent Upscale workflow...");
+                // Build a MinimaxH3LatentUpscaler3D workflow
+                // This requires: Load video → VAE Encode → Latent Upscale → VAE Decode → Save
+                workflow = new JsonObject
+                {
+                    // Load the H3 video VAE
+                    ["vae_loader"] = new JsonObject
+                    {
+                        ["class_type"] = "VAELoader",
+                        ["inputs"] = new JsonObject
+                        {
+                            ["vae_name"] = "minimax_h3_video_vae_fp16.safetensors"
+                        }
+                    },
+                    // Load the input video
+                    ["load_video"] = new JsonObject
+                    {
+                        ["class_type"] = "VHS_LoadVideo",
+                        ["inputs"] = new JsonObject
+                        {
+                            ["video"] = uploadedVideoName,
+                            ["force_rate"] = 24,
+                            ["custom_width"] = 0,
+                            ["custom_height"] = 0,
+                            ["frame_load_cap"] = 0,
+                            ["skip_first_frames"] = 0,
+                            ["select_every_nth"] = 1,
+                            ["format"] = "AnimateDiff"
+                        }
+                    },
+                    // Encode to latent
+                    ["vae_encode"] = new JsonObject
+                    {
+                        ["class_type"] = "VAEEncode",
+                        ["inputs"] = new JsonObject
+                        {
+                            ["pixels"] = new JsonArray { "load_video", 0 },
+                            ["vae"] = new JsonArray { "vae_loader", 0 }
+                        }
+                    },
+                    // H3 Latent Upscaler
+                    ["latent_upscale"] = new JsonObject
+                    {
+                        ["class_type"] = "MinimaxH3LatentUpscaler3D",
+                        ["inputs"] = new JsonObject
+                        {
+                            ["latent"] = new JsonArray { "vae_encode", 0 },
+                            ["model_name"] = "minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors",
+                            ["mode"] = "scale by multiplier",
+                            ["mode.scale"] = UpscaleFactor,
+                            ["align"] = 32,
+                            ["enable_temporal_chunking"] = true,
+                            ["force_unload"] = true,
+                            ["device"] = "cuda",
+                            ["precision"] = "fp16"
+                        }
+                    },
+                    // Decode back to pixels
+                    ["vae_decode"] = new JsonObject
+                    {
+                        ["class_type"] = "VAEDecode",
+                        ["inputs"] = new JsonObject
+                        {
+                            ["samples"] = new JsonArray { "latent_upscale", 0 },
+                            ["vae"] = new JsonArray { "vae_loader", 0 }
+                        }
+                    },
+                    // Output video
+                    ["output"] = new JsonObject
+                    {
+                        ["class_type"] = "VHS_VideoCombine",
+                        ["inputs"] = new JsonObject
+                        {
+                            ["images"] = new JsonArray { "vae_decode", 0 },
+                            ["frame_rate"] = 24,
+                            ["loop_count"] = 0,
+                            ["filename_prefix"] = $"video/{ProjectFolder}/upscale",
+                            ["format"] = "video/h264-mp4",
+                            ["pingpong"] = false,
+                            ["save_output"] = true,
+                            ["crf"] = Crf
+                        }
+                    }
+                };
+                saveNodeId = "output";
+            }
+
+            return (workflow, saveNodeId);
+        }
+
+        private async Task<string?> ResolveUpscaleOutputAsync(string promptId, string saveNodeId)
+        {
+            try
+            {
+                var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, CancellationToken.None);
+                if (byNode.TryGetValue(saveNodeId, out var outputs) && outputs.Count > 0)
+                {
+                    return await ResolveVideoToLocalAsync(outputs[0]);
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Warning: Could not resolve upscale output: {ex.Message}");
+            }
+            return null;
+        }
+
+        // ── FFmpeg Helpers ───────────────────────────────────────────────────────────────────────
+
+        private static string? _cachedFFmpegPath;
+        private static bool _ffmpegResolved;
+        private static readonly object _ffmpegLock = new();
+
+        private string? FindFFmpeg()
+        {
+            lock (_ffmpegLock)
+            {
+                if (_ffmpegResolved) return _cachedFFmpegPath;
+                _cachedFFmpegPath = ResolveFFmpegPath();
+                _ffmpegResolved = true;
+                return _cachedFFmpegPath;
+            }
+        }
+
+        private string? ResolveFFmpegPath()
+        {
+            var baseDir = Path.GetDirectoryName(Environment.ProcessPath) ?? AppDomain.CurrentDomain.BaseDirectory;
+
+            var possiblePaths = new[]
+            {
+                @"C:\ffmpeg\bin\ffmpeg.exe",
+                @"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
+                @"C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe",
+                Path.Combine(baseDir, "ffmpeg.exe"),
+                Path.Combine(baseDir, "ffmpeg", "ffmpeg.exe"),
+                Path.Combine(baseDir, "ffmpeg", "bin", "ffmpeg.exe"),
             };
 
-            workflow["refine"] = new JsonObject
+            foreach (var path in possiblePaths)
             {
-                ["class_type"] = "KSampler",
-                ["inputs"] = new JsonObject
+                if (File.Exists(path))
                 {
-                    ["steps"] = (int)(Steps * RefineAmount),
-                    ["denoise"] = RefineAmount,
-                    ["sampler_name"] = SelectedSampler,
-                    ["scheduler"] = SelectedScheduler
+                    AddLog($"Found FFmpeg at: {path}");
+                    return path;
                 }
+            }
+
+            // Search for ffmpeg* directories in C:\
+            try
+            {
+                foreach (var ffmpegDir in Directory.EnumerateDirectories(@"C:\", "ffmpeg*"))
+                {
+                    var binPath = Path.Combine(ffmpegDir, "bin", "ffmpeg.exe");
+                    if (File.Exists(binPath)) return binPath;
+                    var rootPath = Path.Combine(ffmpegDir, "ffmpeg.exe");
+                    if (File.Exists(rootPath)) return rootPath;
+                }
+            }
+            catch { /* Ignore directory access errors */ }
+
+            // Search PATH
+            var pathEnv = Environment.GetEnvironmentVariable("PATH");
+            if (!string.IsNullOrEmpty(pathEnv))
+            {
+                foreach (var dir in pathEnv.Split(';'))
+                {
+                    if (string.IsNullOrWhiteSpace(dir)) continue;
+                    var ffmpegPath = Path.Combine(dir, "ffmpeg.exe");
+                    if (File.Exists(ffmpegPath)) return ffmpegPath;
+                }
+            }
+
+            AddLog("FFmpeg not found - join clips will not work");
+            return null;
+        }
+
+        private void RunFFmpeg(string ffmpegPath, string arguments, int timeoutMs = 600000)
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                Arguments = arguments,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
             };
 
-            workflow["output"] = new JsonObject
-            {
-                ["class_type"] = "SaveVideo",
-                ["inputs"] = new JsonObject
-                {
-                    ["filename_prefix"] = $"{ProjectFolder}/upscale",
-                    ["crf"] = Crf
-                }
-            };
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException($"Failed to start FFmpeg: {ffmpegPath}");
 
-            return workflow;
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            var stderrTask = process.StandardError.ReadToEndAsync();
+
+            if (!process.WaitForExit(timeoutMs))
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                throw new TimeoutException($"FFmpeg did not finish within {timeoutMs / 1000}s and was stopped.");
+            }
+
+            process.WaitForExit(); // Ensure streams are flushed
+
+            var stderr = stderrTask.GetAwaiter().GetResult();
+            _ = stdoutTask.GetAwaiter().GetResult();
+
+            if (process.ExitCode != 0)
+            {
+                var reason = stderr
+                    .Split('\n')
+                    .Select(l => l.Trim())
+                    .LastOrDefault(l => !string.IsNullOrWhiteSpace(l)) ?? "no error output";
+
+                AddLog($"FFmpeg error: {reason}");
+                throw new InvalidOperationException($"FFmpeg failed (exit code {process.ExitCode}): {reason}");
+            }
         }
 
         // ── Generate Prompt from Images ──────────────────────────────────────────────────────────

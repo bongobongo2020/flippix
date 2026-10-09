@@ -211,7 +211,7 @@ namespace FlipPix.UI.ViewModels.Video
                 clipCount = Math.Max(2, Math.Min(60, clipCount)); // Clamp to 2-60 clips
 
                 AddLog($"Analyzing story for {clipCount} clips ({TargetDurationSeconds}s / {clipDuration}s per clip)");
-                StoryStatus = $"Detecting cast (up to 4 characters)...";
+                StoryStatus = "Detecting characters in story...";
 
                 // Step 1: Detect cast from story
                 var castReply = await CastPhotoWorkflows.AskCastAsync(
