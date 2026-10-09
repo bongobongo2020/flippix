@@ -5088,6 +5088,65 @@
                                             </StackPanel>
                                         </Border>
 
+                                        <!-- Story Mode Card -->
+                                        <Border Style="{StaticResource SectionCardStyle}" Margin="0,0,0,12">
+                                            <StackPanel>
+                                                <Grid Margin="0,0,0,10">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Ellipse Width="7" Height="7" Fill="#FF9C27B0" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="STORY MODE" FontSize="12" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                    </StackPanel>
+                                                    <CheckBox Content="Enable" IsChecked="{Binding StoryModeEnabled}" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="10"/>
+                                                </Grid>
+
+                                                <!-- Story Mode Content (visible when enabled) -->
+                                                <StackPanel Visibility="{Binding StoryModeEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <!-- Import buttons -->
+                                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                        <Button Content="📄 Import Story" Command="{Binding ImportStoryCommand}" Height="24" Padding="8,0" FontSize="10" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" Margin="0,0,6,0" ToolTip="Import a .txt story file"/>
+                                                        <Button Content="📁 Folder" Command="{Binding ImportStoryFolderCommand}" Height="24" Padding="8,0" FontSize="10" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" ToolTip="Import all stories from a folder"/>
+                                                        <Button Content="✕" Command="{Binding ClearStoryCommand}" Width="24" Height="24" Padding="0" FontSize="10" Style="{StaticResource DangerButtonStyle}" Cursor="Hand" Margin="6,0,0,0" ToolTip="Clear story" Visibility="{Binding HasStory, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                    </StackPanel>
+
+                                                    <!-- Story file info -->
+                                                    <TextBlock Text="{Binding StoryFileName}" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" Margin="0,0,0,8" Visibility="{Binding HasStory, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                                    <!-- Target Duration -->
+                                                    <StackPanel Margin="0,0,0,8">
+                                                        <TextBlock Text="Target Duration (seconds)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,3"/>
+                                                        <Grid>
+                                                            <Slider Value="{Binding TargetDurationSeconds}" Minimum="10" Maximum="300" TickFrequency="5" IsSnapToTickEnabled="True"/>
+                                                            <Border HorizontalAlignment="Right" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="6,2">
+                                                                <TextBlock Text="{Binding TargetDurationSeconds, StringFormat={}{0:0}s}" FontFamily="Consolas" FontSize="11" FontWeight="Bold" Foreground="#FF9C27B0"/>
+                                                            </Border>
+                                                        </Grid>
+                                                    </StackPanel>
+
+                                                    <!-- Cast Options -->
+                                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                        <CheckBox Content="Auto-gen cast" IsChecked="{Binding AutoGenerateCast}" FontSize="10" VerticalAlignment="Center" ToolTip="Automatically generate cast photos if slots are empty"/>
+                                                        <ComboBox SelectedValue="{Binding CastPhotoEngine}" Width="90" Height="22" FontSize="9" Margin="8,0,0,0" ToolTip="Cast photo generation engine">
+                                                            <sys:String>krea2spicy</sys:String>
+                                                            <sys:String>krea2</sys:String>
+                                                            <sys:String>ideogram</sys:String>
+                                                            <sys:String>qwen</sys:String>
+                                                            <sys:String>klein</sys:String>
+                                                            <sys:String>zimage</sys:String>
+                                                        </ComboBox>
+                                                    </StackPanel>
+
+                                                    <!-- Status -->
+                                                    <TextBlock Text="{Binding StoryStatus}" FontSize="9" Foreground="#FF9C27B0" TextWrapping="Wrap" Margin="0,0,0,8" Visibility="{Binding StoryStatus, Converter={StaticResource StringToVisibilityConverter}}"/>
+
+                                                    <!-- Action buttons -->
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Button Content="🔍 Analyze Story" Command="{Binding AnalyzeStoryCommand}" Height="26" Padding="10,0" FontSize="10" Style="{StaticResource AccentButtonStyle}" Cursor="Hand" Margin="0,0,6,0" ToolTip="Detect characters and break story into beats"/>
+                                                        <Button Content="📋 Populate Timeline" Command="{Binding PopulateTimelineCommand}" Height="26" Padding="10,0" FontSize="10" Style="{StaticResource SuccessButtonStyle}" Cursor="Hand" ToolTip="Generate clips and add to timeline"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+
                                         <!-- Prompt Card -->
                                         <Border Style="{StaticResource SectionCardStyle}" Margin="0,0,0,12">
                                             <StackPanel>
@@ -5181,6 +5240,7 @@
                                     <RowDefinition Height="*"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="150"/>
+                                    <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
@@ -5297,7 +5357,7 @@
                                 </Border>
 
                                 <!-- Action Buttons -->
-                                <Border Grid.Row="4" Background="{StaticResource SurfaceAltBrush}" Padding="12,10" Margin="12,8,12,12">
+                                <Border Grid.Row="4" Background="{StaticResource SurfaceAltBrush}" Padding="12,10" Margin="12,8,12,0">
                                     <Grid>
                                         <StackPanel Orientation="Horizontal">
                                             <Button Content="⚡ Generate Clips" Command="{Binding GenerateClipsCommand}" Height="36" Padding="16,0" FontSize="12" FontWeight="Bold" Style="{StaticResource SuccessButtonStyle}" Cursor="Hand" Margin="0,0,10,0" ToolTip="Generate all pending clips"/>
@@ -5308,6 +5368,37 @@
                                             <ProgressBar Value="{Binding Progress}" Width="150" Height="8" Margin="0,0,12,0" Foreground="{DynamicResource TabAccentBrush}"/>
                                             <Button Content="⏹ Cancel" Command="{Binding CancelCommand}" Height="30" Padding="12,0" FontSize="11" Style="{StaticResource DangerButtonStyle}" Cursor="Hand"/>
                                         </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Log Area -->
+                                <Border Grid.Row="5" Background="{StaticResource SurfaceBrush}" Margin="12,8,12,12" Padding="8" CornerRadius="4">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="100"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid Grid.Row="0" Margin="0,0,0,6">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="📋 LOG" FontSize="10" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding LogMessages.Count, StringFormat=' ({0} entries)'}" FontSize="9" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                <Button Content="📋 Copy" Command="{Binding CopyLogCommand}" Height="20" Padding="8,0" FontSize="9" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" Margin="0,0,6,0" ToolTip="Copy log to clipboard"/>
+                                                <Button Content="🗑 Clear" Command="{Binding ClearLogCommand}" Height="20" Padding="8,0" FontSize="9" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" ToolTip="Clear log"/>
+                                            </StackPanel>
+                                        </Grid>
+                                        <Border Grid.Row="1" Background="{StaticResource PlayerSurfaceBrush}" CornerRadius="4" Padding="4">
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                                <ItemsControl ItemsSource="{Binding LogMessages}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,1"/>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </ScrollViewer>
+                                        </Border>
                                     </Grid>
                                 </Border>
                             </Grid>

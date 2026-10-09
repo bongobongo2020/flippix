@@ -482,6 +482,13 @@ public class H3VideoEditorSettings
     public string ProjectFolder { get; set; } = string.Empty;
     public string LastBrowseFolder { get; set; } = string.Empty;
 
+    // Story Mode settings
+    public bool StoryModeEnabled { get; set; }
+    public double TargetDurationSeconds { get; set; } = 30.0;
+    public string CastPhotoEngine { get; set; } = "krea2spicy";
+    public bool AutoGenerateCast { get; set; } = true;
+    public string LastStoryFolder { get; set; } = string.Empty;
+
     // Custom presets saved by the user
     public List<H3VideoEditorCustomPreset> CustomPresets { get; set; } = new();
 }

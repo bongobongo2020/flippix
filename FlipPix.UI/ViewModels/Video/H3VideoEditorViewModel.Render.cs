@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using FlipPix.UI.Models;
+using FlipPix.UI.Services;
 
 namespace FlipPix.UI.ViewModels.Video
 {
@@ -74,84 +75,254 @@ namespace FlipPix.UI.ViewModels.Video
 
         private async Task GenerateSingleClipAsync(H3TimelineClip clip, CancellationToken ct)
         {
-            // Build the workflow JSON based on h3_obvpm_timeline workflow
-            var workflow = BuildClipWorkflow(clip);
-
-            // Submit to ComfyUI
-            var result = await _comfyUIService.QueuePromptAsync(workflow.ToJsonString(), ct);
-
-            // Note: QueuePromptAsync returns PromptQueueResult, need to wait for completion
-            // For now, we'll just mark as complete - the actual workflow integration
-            // would need to poll for completion or use websocket events
-            AddLog($"Submitted workflow for clip {clip.DisplayIndex}");
-        }
-
-        private JsonObject BuildClipWorkflow(H3TimelineClip clip)
-        {
-            // Build the MiniMaxH3ReferenceToVideo workflow
-            var workflow = new JsonObject();
-
-            // Get resolution from aspect ratio and megapixels
-            var (width, height) = GetResolution(SelectedAspectRatio, Megapixels);
-            var frameCount = (int)(clip.DurationSeconds * 24); // 24 fps
-
-            // Add the main generation node (MiniMaxH3ReferenceToVideo)
-            workflow["1"] = new JsonObject
+            // Upload reference images first
+            var uploadedImages = new string?[4];
+            for (int i = 0; i < Math.Min(4, ReferenceSlots.Count); i++)
             {
-                ["class_type"] = "MiniMaxH3ReferenceToVideo",
-                ["inputs"] = new JsonObject
-                {
-                    ["prompt"] = clip.Prompt,
-                    ["width"] = width,
-                    ["height"] = height,
-                    ["length"] = frameCount,
-                    ["ref_image_size"] = "max"
-                }
-            };
+                var slot = ReferenceSlots[i];
+                if (!slot.HasImages) continue;
 
-            // Add reference images if available
-            int refIndex = 0;
-            foreach (var slot in ReferenceSlots.Where(s => s.HasImages))
-            {
                 var imagePath = slot.Images.FirstOrDefault()?.Path;
-                if (!string.IsNullOrEmpty(imagePath))
+                if (string.IsNullOrEmpty(imagePath) || !File.Exists(imagePath)) continue;
+
+                try
                 {
-                    workflow[$"ref_{refIndex}"] = new JsonObject
-                    {
-                        ["class_type"] = "LoadImage",
-                        ["inputs"] = new JsonObject
-                        {
-                            ["image"] = Path.GetFileName(imagePath)
-                        }
-                    };
-                    refIndex++;
+                    AddLog($"Uploading Picture {i + 1}: {Path.GetFileName(imagePath)}...");
+                    uploadedImages[i] = await _comfyUIService.UploadImageAsync(imagePath, ct);
+                    AddLog($"Uploaded Picture {i + 1}: {uploadedImages[i]}");
+                }
+                catch (Exception ex)
+                {
+                    AddLog($"WARNING: Failed to upload Picture {i + 1}: {ex.Message}");
                 }
             }
 
-            // Add sampling settings
-            workflow["sampler"] = new JsonObject
-            {
-                ["class_type"] = "KSampler",
-                ["inputs"] = new JsonObject
-                {
-                    ["steps"] = Steps,
-                    ["sampler_name"] = SelectedSampler,
-                    ["scheduler"] = SelectedScheduler
-                }
-            };
+            // Build the workflow JSON based on h3_obvpm_timeline workflow
+            AddLog($"Building workflow for clip {clip.DisplayIndex}...");
+            var workflow = await BuildClipWorkflowAsync(clip, uploadedImages);
 
-            // Add output node
-            workflow["output"] = new JsonObject
-            {
-                ["class_type"] = "SaveVideo",
-                ["inputs"] = new JsonObject
-                {
-                    ["filename_prefix"] = $"{ProjectFolder}/clip_{clip.DisplayIndex:D5}",
-                    ["crf"] = Crf
-                }
-            };
+            // Log workflow summary
+            AddLog($"Workflow has {workflow.Count} nodes, {workflow.ToJsonString().Length} chars");
 
-            return workflow;
+            // Submit to ComfyUI - pass the JsonObject directly, not as a string
+            AddLog($"Submitting clip {clip.DisplayIndex} to ComfyUI...");
+            try
+            {
+                var result = await _comfyUIService.QueuePromptAsync(workflow, ct);
+
+                if (string.IsNullOrEmpty(result))
+                {
+                    throw new Exception("ComfyUI returned empty prompt ID - workflow may have errors");
+                }
+
+                AddLog($"Clip {clip.DisplayIndex} queued with prompt ID: {result}");
+
+                // Note: QueuePromptAsync returns the prompt ID
+                // The actual workflow completion would need polling or websocket events
+                // For now, we mark as submitted - actual success depends on ComfyUI execution
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR submitting clip {clip.DisplayIndex}: {ex.Message}");
+                if (ex.InnerException != null)
+                {
+                    AddLog($"  Inner error: {ex.InnerException.Message}");
+                }
+                throw;
+            }
+        }
+
+        // Two workflows: one with reference images, one without (text-to-video)
+        private const string H3RefWorkflowPath = "workflow/video/h3-minimax/video_minimax_h3_r2v.json";
+        private const string H3TextWorkflowPath = "workflow/video/h3-minimax/h3-singularity.json";
+
+        // Node IDs in video_minimax_h3_r2v.json (reference-to-video)
+        private const string RefPromptNodeId = "138";        // PrimitiveStringMultiline - prompt text
+        private const string RefResolutionNodeId = "115";    // ResolutionSelector - aspect ratio, megapixels
+        private const string RefDurationNodeId = "132";      // PrimitiveFloat - duration in seconds
+        private const string RefSaveVideoNodeId = "92";      // SaveVideo - filename_prefix
+        private const string RefSchedulerNodeId = "124";     // BasicScheduler - steps
+        private const string RefSamplerNodeId = "123";       // KSamplerSelect - sampler_name
+        private const string Picture1NodeId = "137";         // LoadImage for Picture 1 (ref_image_0)
+        private const string Picture2NodeId = "139";         // LoadImage for Picture 2 (ref_image_1)
+
+        // Node IDs in h3-singularity.json (text-to-video, no reference images)
+        private const string TextPromptNodeId = "22:11";     // PrimitiveStringMultiline - prompt text
+        private const string TextResolutionNodeId = "22:9";  // ResolutionSelector - aspect ratio, megapixels
+        private const string TextDurationNodeId = "22:23";   // PrimitiveFloat - duration in seconds
+        private const string TextSaveVideoNodeId = "18";     // VHS_VideoCombine - preview_1
+        private const string TextStepsNodeId = "22:8";       // INTConstant - steps
+        private const string TextSamplerNodeId = "22:6";     // KSamplerSelect - sampler_name
+
+        private async Task<JsonObject> BuildClipWorkflowAsync(H3TimelineClip clip, string?[] uploadedImages)
+        {
+            // Determine which workflow to use based on whether we have images
+            bool hasImages = uploadedImages.Any(img => !string.IsNullOrEmpty(img));
+            var workflowFile = hasImages ? H3RefWorkflowPath : H3TextWorkflowPath;
+
+            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, workflowFile);
+            if (!File.Exists(workflowPath))
+            {
+                AddLog($"ERROR: Workflow file not found: {workflowPath}");
+                throw new FileNotFoundException($"Workflow file not found: {workflowFile}");
+            }
+
+            try
+            {
+                var json = await File.ReadAllTextAsync(workflowPath);
+                var workflow = System.Text.Json.JsonSerializer.Deserialize<JsonObject>(json);
+                if (workflow == null)
+                {
+                    throw new Exception("Failed to parse workflow JSON");
+                }
+
+                AddLog($"Loaded {(hasImages ? "reference-to-video" : "text-to-video")} workflow with {workflow.Count} nodes");
+
+                // Patch the workflow with clip-specific values
+                PatchWorkflowForClip(workflow, clip, uploadedImages, hasImages);
+                return workflow;
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR loading workflow: {ex.Message}");
+                throw;
+            }
+        }
+
+        private void PatchWorkflowForClip(JsonObject workflow, H3TimelineClip clip, string?[] uploadedImages, bool hasImages)
+        {
+            if (hasImages)
+            {
+                // Patch reference-to-video workflow (video_minimax_h3_r2v.json)
+                PatchRefWorkflow(workflow, clip, uploadedImages);
+            }
+            else
+            {
+                // Patch text-to-video workflow (h3-singularity.json)
+                PatchTextWorkflow(workflow, clip);
+            }
+        }
+
+        private void PatchRefWorkflow(JsonObject workflow, H3TimelineClip clip, string?[] uploadedImages)
+        {
+            // Patch prompt text
+            if (workflow[RefPromptNodeId] is JsonObject promptNode &&
+                promptNode["inputs"] is JsonObject promptInputs)
+            {
+                promptInputs["value"] = clip.Prompt;
+                AddLog($"Patched prompt in node {RefPromptNodeId}");
+            }
+
+            // Patch resolution
+            if (workflow[RefResolutionNodeId] is JsonObject resNode &&
+                resNode["inputs"] is JsonObject resInputs)
+            {
+                resInputs["aspect_ratio"] = SelectedAspectRatio;
+                resInputs["megapixels"] = Megapixels;
+                AddLog($"Patched resolution: {SelectedAspectRatio}, {Megapixels}MP");
+            }
+
+            // Patch duration
+            if (workflow[RefDurationNodeId] is JsonObject durNode &&
+                durNode["inputs"] is JsonObject durInputs)
+            {
+                durInputs["value"] = clip.DurationSeconds;
+                AddLog($"Patched duration: {clip.DurationSeconds}s");
+            }
+
+            // Patch steps
+            if (workflow[RefSchedulerNodeId] is JsonObject schedNode &&
+                schedNode["inputs"] is JsonObject schedInputs)
+            {
+                schedInputs["steps"] = Steps;
+                AddLog($"Patched steps: {Steps}");
+            }
+
+            // Patch sampler
+            if (workflow[RefSamplerNodeId] is JsonObject sampNode &&
+                sampNode["inputs"] is JsonObject sampInputs)
+            {
+                sampInputs["sampler_name"] = SelectedSampler;
+                AddLog($"Patched sampler: {SelectedSampler}");
+            }
+
+            // Patch save filename
+            if (workflow[RefSaveVideoNodeId] is JsonObject saveNode &&
+                saveNode["inputs"] is JsonObject saveInputs)
+            {
+                saveInputs["filename_prefix"] = $"video/{ProjectFolder}/clip_{clip.DisplayIndex:D5}";
+                AddLog($"Patched filename prefix: video/{ProjectFolder}/clip_{clip.DisplayIndex:D5}");
+            }
+
+            // Patch reference images using the uploaded filenames
+            var pictureNodeIds = new[] { Picture1NodeId, Picture2NodeId };
+
+            for (int i = 0; i < Math.Min(2, uploadedImages.Length); i++)
+            {
+                var uploadedFileName = uploadedImages[i];
+                if (string.IsNullOrEmpty(uploadedFileName)) continue;
+
+                if (workflow[pictureNodeIds[i]] is JsonObject picNode &&
+                    picNode["inputs"] is JsonObject picInputs)
+                {
+                    picInputs["image"] = uploadedFileName;
+                    AddLog($"Patched Picture {i + 1} in node {pictureNodeIds[i]}: {uploadedFileName}");
+                }
+            }
+        }
+
+        private void PatchTextWorkflow(JsonObject workflow, H3TimelineClip clip)
+        {
+            // Patch prompt text
+            if (workflow[TextPromptNodeId] is JsonObject promptNode &&
+                promptNode["inputs"] is JsonObject promptInputs)
+            {
+                promptInputs["value"] = clip.Prompt;
+                AddLog($"Patched prompt in node {TextPromptNodeId}");
+            }
+
+            // Patch resolution
+            if (workflow[TextResolutionNodeId] is JsonObject resNode &&
+                resNode["inputs"] is JsonObject resInputs)
+            {
+                resInputs["aspect_ratio"] = SelectedAspectRatio;
+                resInputs["megapixels"] = Megapixels;
+                AddLog($"Patched resolution: {SelectedAspectRatio}, {Megapixels}MP");
+            }
+
+            // Patch duration
+            if (workflow[TextDurationNodeId] is JsonObject durNode &&
+                durNode["inputs"] is JsonObject durInputs)
+            {
+                durInputs["value"] = clip.DurationSeconds;
+                AddLog($"Patched duration: {clip.DurationSeconds}s");
+            }
+
+            // Patch steps (INTConstant in this workflow)
+            if (workflow[TextStepsNodeId] is JsonObject stepsNode &&
+                stepsNode["inputs"] is JsonObject stepsInputs)
+            {
+                stepsInputs["value"] = Steps;
+                AddLog($"Patched steps: {Steps}");
+            }
+
+            // Patch sampler
+            if (workflow[TextSamplerNodeId] is JsonObject sampNode &&
+                sampNode["inputs"] is JsonObject sampInputs)
+            {
+                sampInputs["sampler_name"] = SelectedSampler;
+                AddLog($"Patched sampler: {SelectedSampler}");
+            }
+
+            // Patch save filename (VHS_VideoCombine in this workflow)
+            if (workflow[TextSaveVideoNodeId] is JsonObject saveNode &&
+                saveNode["inputs"] is JsonObject saveInputs)
+            {
+                saveInputs["filename_prefix"] = $"video/{ProjectFolder}/clip_{clip.DisplayIndex:D5}";
+                AddLog($"Patched filename prefix: video/{ProjectFolder}/clip_{clip.DisplayIndex:D5}");
+            }
+
+            AddLog("Using text-to-video workflow (no reference images)");
         }
 
         private static (int width, int height) GetResolution(string aspectRatio, double megapixels)
@@ -201,7 +372,7 @@ namespace FlipPix.UI.ViewModels.Video
 
                 // Build H3JointRender workflow
                 var workflow = BuildJoinWorkflow(renderedClips);
-                await _comfyUIService.QueuePromptAsync(workflow.ToJsonString());
+                await _comfyUIService.QueuePromptAsync(workflow);
 
                 AddLog($"Submitted join workflow for {renderedClips.Count} clips");
                 StatusText = "Join complete";
@@ -273,7 +444,7 @@ namespace FlipPix.UI.ViewModels.Video
                 using var lease = await _workflowCoordinator.AcquireAsync("h3_video_editor", CancellationToken.None);
 
                 var workflow = BuildUpscaleWorkflow(JoinedVideoPath);
-                await _comfyUIService.QueuePromptAsync(workflow.ToJsonString());
+                await _comfyUIService.QueuePromptAsync(workflow);
 
                 AddLog("Submitted upscale workflow");
                 StatusText = "Upscale complete";

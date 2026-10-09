@@ -53,6 +53,7 @@ namespace FlipPix.UI.ViewModels.Video
             InitializeCommands();
             InitializePresets();
             InitializeTimeline();
+            InitializeStoryCommands();
 
             // Load saved settings
             LoadSettings();
@@ -63,6 +64,8 @@ namespace FlipPix.UI.ViewModels.Video
         // ── Logging ────────────────────────────────────────────────────────────────────────────────
 
         public ObservableCollection<string> LogMessages { get; } = new();
+        public RelayCommand CopyLogCommand { get; private set; } = null!;
+        public RelayCommand ClearLogCommand { get; private set; } = null!;
 
         protected void AddLog(string message)
         {
@@ -72,6 +75,19 @@ namespace FlipPix.UI.ViewModels.Video
                 LogMessages.Insert(0, $"[{timestamp}] {message}");
                 while (LogMessages.Count > 100) LogMessages.RemoveAt(LogMessages.Count - 1);
             });
+        }
+
+        private void CopyLog()
+        {
+            if (LogMessages.Count == 0) return;
+            var logText = string.Join(Environment.NewLine, LogMessages.Reverse());
+            System.Windows.Clipboard.SetText(logText);
+            AddLog("Log copied to clipboard");
+        }
+
+        private void ClearLog()
+        {
+            LogMessages.Clear();
         }
 
         // ── Reference Image Slots (Picture 1-4) ──────────────────────────────────────────────────
@@ -248,6 +264,8 @@ N/A
             CancelCommand = new RelayCommand(Cancel, () => IsGenerating || IsJoining || IsUpscaling);
             BrowseProjectFolderCommand = new RelayCommand(() => _ = BrowseProjectFolderAsync());
             PlayPreviewCommand = new RelayCommand<H3TimelineClip>(PlayClip);
+            CopyLogCommand = new RelayCommand(CopyLog);
+            ClearLogCommand = new RelayCommand(ClearLog);
         }
 
         private async Task BrowseProjectFolderAsync()
@@ -308,6 +326,12 @@ N/A
                 Picture3.AddImage(settings.Picture3Path);
             if (!string.IsNullOrEmpty(settings.Picture4Path) && File.Exists(settings.Picture4Path))
                 Picture4.AddImage(settings.Picture4Path);
+
+            // Load story mode settings
+            StoryModeEnabled = settings.StoryModeEnabled;
+            TargetDurationSeconds = settings.TargetDurationSeconds;
+            CastPhotoEngine = settings.CastPhotoEngine;
+            AutoGenerateCast = settings.AutoGenerateCast;
         }
 
         protected void SaveSettings()
@@ -337,6 +361,12 @@ N/A
             settings.H3VideoEditor.Picture2Path = Picture2.Images.FirstOrDefault()?.Path ?? string.Empty;
             settings.H3VideoEditor.Picture3Path = Picture3.Images.FirstOrDefault()?.Path ?? string.Empty;
             settings.H3VideoEditor.Picture4Path = Picture4.Images.FirstOrDefault()?.Path ?? string.Empty;
+
+            // Save story mode settings
+            settings.H3VideoEditor.StoryModeEnabled = StoryModeEnabled;
+            settings.H3VideoEditor.TargetDurationSeconds = TargetDurationSeconds;
+            settings.H3VideoEditor.CastPhotoEngine = CastPhotoEngine;
+            settings.H3VideoEditor.AutoGenerateCast = AutoGenerateCast;
 
             _settingsService.SaveSettings(settings);
         }
