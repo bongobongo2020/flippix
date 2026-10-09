@@ -5283,7 +5283,7 @@
                                 </Border>
 
                                 <!-- ═══ TRANSPORT & TIMELINE CONTROLS ═══════════════════════════════ -->
-                                <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}" Padding="8,6" Margin="8,4,8,0">
+                                <Border Grid.Row="2" Background="#252525" Padding="8,6" Margin="8,4,8,0" CornerRadius="4,4,0,0">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
@@ -5293,26 +5293,139 @@
 
                                         <!-- Playback controls -->
                                         <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Button Content="|◀" Width="28" Height="24" FontSize="9" FontFamily="Segoe UI Symbol" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" ToolTip="Previous clip" Margin="0,0,2,0"/>
-                                            <Button Content="▶" Width="32" Height="24" FontSize="14" FontFamily="Segoe UI Symbol" Style="{StaticResource AccentButtonStyle}" Cursor="Hand" ToolTip="Play/Pause" Margin="0,0,2,0"/>
-                                            <Button Content="■" Width="28" Height="24" FontSize="10" FontFamily="Segoe UI Symbol" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" ToolTip="Stop" Margin="0,0,2,0"/>
-                                            <Button Content="▶|" Width="28" Height="24" FontSize="9" FontFamily="Segoe UI Symbol" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" ToolTip="Next clip"/>
+                                            <Button Content="|◀" Width="26" Height="22" FontSize="9" FontFamily="Segoe UI Symbol" Background="#3d3d3d" Foreground="#aaa" BorderThickness="0" Cursor="Hand" ToolTip="Previous clip" Margin="0,0,2,0">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="0">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                            <Button Content="▶" Width="30" Height="22" FontSize="12" FontFamily="Segoe UI Symbol" Background="#3d3d3d" Foreground="#ddd" BorderThickness="0" Cursor="Hand" ToolTip="Play/Pause" Margin="0,0,2,0">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="0">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                            <Button Content="■" Width="26" Height="22" FontSize="10" FontFamily="Segoe UI Symbol" Background="#3d3d3d" Foreground="#aaa" BorderThickness="0" Cursor="Hand" ToolTip="Stop" Margin="0,0,2,0">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="0">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                            <Button Content="▶|" Width="26" Height="22" FontSize="9" FontFamily="Segoe UI Symbol" Background="#3d3d3d" Foreground="#aaa" BorderThickness="0" Cursor="Hand" ToolTip="Next clip">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="0">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
                                         </StackPanel>
 
                                         <!-- Timeline info -->
                                         <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding TimelineDurationDisplay}" FontFamily="Consolas" FontSize="12" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                            <TextBlock Text=" • " Foreground="{StaticResource TextMutedBrush}"/>
-                                            <TextBlock Text="{Binding TimelineClips.Count, StringFormat='{}{0} clips'}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="{Binding TimelineDurationDisplay}" FontFamily="Consolas" FontSize="12" FontWeight="Bold" Foreground="#eee"/>
+                                            <TextBlock Text=" • " Foreground="#666"/>
+                                            <TextBlock Text="{Binding TimelineClips.Count, StringFormat='{}{0} clips'}" FontSize="11" Foreground="#999"/>
                                         </StackPanel>
 
                                         <!-- Timeline actions -->
                                         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Button Content="+" Width="26" Height="24" FontSize="16" FontWeight="Bold" Style="{StaticResource SuccessButtonStyle}" Cursor="Hand" Command="{Binding AddClipCommand}" ToolTip="Add clip" Margin="0,0,4,0"/>
-                                            <Button Content="Cut" Width="32" Height="24" FontSize="9" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" Command="{Binding CutClipCommand}" CommandParameter="{Binding SelectedClip}" ToolTip="Cut selected clip" Margin="0,0,4,0"/>
-                                            <Button Content="◀+" Width="28" Height="24" FontSize="9" FontFamily="Segoe UI Symbol" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" Command="{Binding PrependClipCommand}" ToolTip="Insert before" Margin="0,0,4,0"/>
-                                            <Button Content="+▶" Width="28" Height="24" FontSize="9" FontFamily="Segoe UI Symbol" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" Command="{Binding AppendClipCommand}" ToolTip="Insert after" Margin="0,0,4,0"/>
-                                            <Button Content="◀▶" Width="28" Height="24" FontSize="9" FontFamily="Segoe UI Symbol" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" Command="{Binding ExtendClipCommand}" CommandParameter="{Binding SelectedClip}" ToolTip="Extend duration"/>
+                                            <Button Content="+ Add" Height="24" Padding="8,0" FontSize="10" FontWeight="SemiBold" Background="#2d6a4f" Foreground="White" BorderThickness="0" Cursor="Hand" Command="{Binding AddClipCommand}" ToolTip="Add new clip">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                            <Rectangle Width="1" Fill="#444" Margin="6,4"/>
+                                            <Button Content="Cut" Height="24" Padding="8,0" FontSize="10" Background="#3d3d3d" Foreground="#ccc" BorderThickness="0" Cursor="Hand" Command="{Binding CutClipCommand}" CommandParameter="{Binding SelectedClip}" ToolTip="Cut selected clip" Margin="0,0,3,0">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                            <Button Content="+ Before" Height="24" Padding="8,0" FontSize="10" Background="#3d3d3d" Foreground="#ccc" BorderThickness="0" Cursor="Hand" Command="{Binding PrependClipCommand}" ToolTip="Insert clip before selection" Margin="0,0,3,0">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                            <Button Content="+ After" Height="24" Padding="8,0" FontSize="10" Background="#3d3d3d" Foreground="#ccc" BorderThickness="0" Cursor="Hand" Command="{Binding AppendClipCommand}" ToolTip="Insert clip after selection" Margin="0,0,3,0">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                            <Button Content="Extend" Height="24" Padding="8,0" FontSize="10" Background="#3d3d3d" Foreground="#ccc" BorderThickness="0" Cursor="Hand" Command="{Binding ExtendClipCommand}" CommandParameter="{Binding SelectedClip}" ToolTip="Extend clip duration">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
                                         </StackPanel>
                                     </Grid>
                                 </Border>
@@ -5461,17 +5574,108 @@
                                 </Border>
 
                                 <!-- ═══ ACTION BAR (Compact) ════════════════════════════════════════ -->
-                                <Border Grid.Row="4" Background="{StaticResource SurfaceAltBrush}" Padding="8,6" Margin="8,4,8,8">
+                                <Border Grid.Row="4" Background="#252525" Padding="8,6" Margin="8,4,8,8" CornerRadius="4">
                                     <Grid>
                                         <StackPanel Orientation="Horizontal">
-                                            <Button Content="⚡ Generate" Command="{Binding GenerateClipsCommand}" Height="28" Padding="12,0" FontSize="11" FontWeight="Bold" Style="{StaticResource SuccessButtonStyle}" Cursor="Hand" Margin="0,0,6,0" ToolTip="Generate all pending clips"/>
-                                            <Button Content="🔗 Join" Command="{Binding JoinClipsCommand}" Height="28" Padding="12,0" FontSize="11" FontWeight="Bold" Style="{StaticResource AccentButtonStyle}" Cursor="Hand" Margin="0,0,6,0" ToolTip="Join all rendered clips"/>
-                                            <Button Content="📤 Upscale" Command="{Binding UpscaleCommand}" Height="28" Padding="12,0" FontSize="11" FontWeight="Bold" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" ToolTip="Upscale joined video"/>
+                                            <!-- Generate - primary action with subtle green -->
+                                            <Button Content="Generate" Command="{Binding GenerateClipsCommand}" Height="28" Padding="14,0" FontSize="11" FontWeight="SemiBold" Background="#2d6a4f" Foreground="White" BorderThickness="0" Cursor="Hand" Margin="0,0,6,0" ToolTip="Generate all pending clips">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="Bd" Property="Background" Value="#3d8060"/>
+                                                            </Trigger>
+                                                            <Trigger Property="IsEnabled" Value="False">
+                                                                <Setter TargetName="Bd" Property="Background" Value="#3d3d3d"/>
+                                                                <Setter Property="Foreground" Value="#666"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                            <!-- Join - secondary with neutral dark -->
+                                            <Button Content="Join Clips" Command="{Binding JoinClipsCommand}" Height="28" Padding="14,0" FontSize="11" FontWeight="SemiBold" Background="#3d3d3d" Foreground="#ddd" BorderThickness="0" Cursor="Hand" Margin="0,0,6,0" ToolTip="Join all rendered clips into one video">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
+                                                            </Trigger>
+                                                            <Trigger Property="IsEnabled" Value="False">
+                                                                <Setter TargetName="Bd" Property="Background" Value="#2d2d2d"/>
+                                                                <Setter Property="Foreground" Value="#555"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                            <!-- Upscale - tertiary action -->
+                                            <Button Content="Upscale" Command="{Binding UpscaleCommand}" Height="28" Padding="14,0" FontSize="11" Background="#3d3d3d" Foreground="#bbb" BorderThickness="0" Cursor="Hand" ToolTip="Upscale joined video">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
+                                                            </Trigger>
+                                                            <Trigger Property="IsEnabled" Value="False">
+                                                                <Setter TargetName="Bd" Property="Background" Value="#2d2d2d"/>
+                                                                <Setter Property="Foreground" Value="#555"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                            <!-- Collapsible log toggle -->
-                                            <ToggleButton x:Name="LogToggle" Content="📋 Log" Height="24" Padding="8,0" FontSize="10" Cursor="Hand" ToolTip="Toggle log panel"/>
-                                            <Button Content="⏹ Cancel" Command="{Binding CancelCommand}" Height="28" Padding="10,0" FontSize="10" Style="{StaticResource DangerButtonStyle}" Cursor="Hand" Margin="6,0,0,0"/>
+                                            <!-- Progress indicator -->
+                                            <ProgressBar Value="{Binding Progress}" Width="100" Height="4" Margin="0,0,12,0" Background="#333" Foreground="#2d6a4f"/>
+                                            <!-- Log toggle -->
+                                            <ToggleButton x:Name="LogToggle" Content="Log" Height="24" Padding="10,0" FontSize="10" Background="#3d3d3d" Foreground="#aaa" BorderThickness="0" Cursor="Hand" ToolTip="Toggle log panel">
+                                                <ToggleButton.Template>
+                                                    <ControlTemplate TargetType="ToggleButton">
+                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
+                                                            </Trigger>
+                                                            <Trigger Property="IsChecked" Value="True">
+                                                                <Setter TargetName="Bd" Property="Background" Value="#4a4a4a"/>
+                                                                <Setter Property="Foreground" Value="#fff"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </ToggleButton.Template>
+                                            </ToggleButton>
+                                            <!-- Cancel -->
+                                            <Button Content="Cancel" Command="{Binding CancelCommand}" Height="24" Padding="10,0" FontSize="10" Background="#5c3030" Foreground="#eaa" BorderThickness="0" Cursor="Hand" Margin="6,0,0,0" ToolTip="Cancel current operation">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="Bd" Property="Background" Value="#7c4040"/>
+                                                            </Trigger>
+                                                            <Trigger Property="IsEnabled" Value="False">
+                                                                <Setter TargetName="Bd" Property="Background" Value="#3d3d3d"/>
+                                                                <Setter Property="Foreground" Value="#666"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
                                         </StackPanel>
                                     </Grid>
                                 </Border>
