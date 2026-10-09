@@ -214,11 +214,16 @@ namespace FlipPix.UI.ViewModels.Video
                 StoryStatus = "Detecting characters in story...";
 
                 // Step 1: Detect cast from story
+                // Note: maxCharacters is a ceiling, not a target - the LLM should only return
+                // characters that actually exist in the story
                 var castReply = await CastPhotoWorkflows.AskCastAsync(
                     _lmStudioService, model, StoryText,
                     maxCharacters: 4,
-                    personKindsOnly: false,
+                    personKindsOnly: true, // Story mode typically features people
                     token);
+
+                // Log raw reply for debugging character detection issues
+                AddLog($"Cast detection raw reply:\n{castReply}");
 
                 _detectedCast = CastPhotoWorkflows.ParseCastLines(castReply, 4).ToList();
 
@@ -226,6 +231,12 @@ namespace FlipPix.UI.ViewModels.Video
                 {
                     AddLog("WARNING: No characters detected in story. Using generic placeholders.");
                     _detectedCast.Add(("man", "Character 1 - the protagonist"));
+                }
+                else if (_detectedCast.Count > 2)
+                {
+                    AddLog($"NOTE: Detected {_detectedCast.Count} characters. If this seems too many, " +
+                           "verify they all actually appear in your story. The LLM sometimes invents " +
+                           "extra characters. You can manually adjust after populating the timeline.");
                 }
 
                 AddLog($"Detected {_detectedCast.Count} character(s):");
@@ -531,16 +542,17 @@ namespace FlipPix.UI.ViewModels.Video
                 var clipDuration = TargetDurationSeconds / _storyBeats.Count;
                 clipDuration = Math.Max(2.5, Math.Min(15.0, clipDuration)); // Clamp 2.5-15s
 
-                string? previousBody = null;
-
                 for (int i = 0; i < _storyBeats.Count; i++)
                 {
                     var beat = _storyBeats[i];
                     var env = i < _continuityPlan.Count ? _continuityPlan[i] : StoryContinuity.Environment.None;
                     var isLastClip = i == _storyBeats.Count - 1;
 
-                    // Build the prompt for this clip
-                    var prompt = BuildClipPrompt(beat, i, cast, env, previousBody, clipDuration, isLastClip);
+                    // Get previous beat for continuity handoff (null for first clip)
+                    StoryBeatSheet.StoryBeat? previousBeat = i > 0 ? _storyBeats[i - 1] : null;
+
+                    // Build the prompt for this clip with beat-to-beat continuity
+                    var prompt = BuildClipPrompt(beat, i, cast, env, previousBeat, clipDuration, isLastClip);
 
                     // Create the timeline clip
                     var clip = new H3TimelineClip
@@ -552,7 +564,6 @@ namespace FlipPix.UI.ViewModels.Video
                     };
 
                     TimelineClips.Add(clip);
-                    previousBody = prompt; // For handoff to next clip
 
                     AddLog($"Added clip {i + 1}: {beat.Text.Substring(0, Math.Min(50, beat.Text.Length))}...");
                 }
@@ -618,7 +629,7 @@ namespace FlipPix.UI.ViewModels.Video
             int clipIndex,
             List<H3SpecPrompt.CastMember> cast,
             StoryContinuity.Environment env,
-            string? previousBody,
+            StoryBeatSheet.StoryBeat? previousBeat,
             double clipDuration,
             bool isLastClip)
         {
@@ -658,15 +669,12 @@ namespace FlipPix.UI.ViewModels.Video
                 sb.AppendLine($"Continuity of place and time: {sceneSentence}");
             }
 
-            // Add handoff from previous clip
-            if (!string.IsNullOrEmpty(previousBody))
+            // Add beat-to-beat narrative continuity handoff
+            if (previousBeat.HasValue && !string.IsNullOrEmpty(previousBeat.Value.Text))
             {
-                var handoff = H3SpecPrompt.Handoff(previousBody, cast.Count);
-                if (!string.IsNullOrEmpty(handoff))
-                {
-                    sb.AppendLine(handoff);
-                    sb.AppendLine();
-                }
+                sb.AppendLine();
+                sb.AppendLine(BuildBeatContinuityHandoff(previousBeat.Value, beat, cast.Count, clipIndex));
+                sb.AppendLine();
             }
 
             // Generate shot descriptions
@@ -674,7 +682,15 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 if (s == 0)
                 {
-                    sb.Append($"[Shot 1] ");
+                    if (previousBeat.HasValue)
+                    {
+                        // First shot picks up directly from previous beat's ending
+                        sb.Append($"[Shot 1] Picking up immediately from the previous clip: ");
+                    }
+                    else
+                    {
+                        sb.Append($"[Shot 1] ");
+                    }
                 }
                 else
                 {
@@ -704,6 +720,14 @@ namespace FlipPix.UI.ViewModels.Video
 
                 sb.AppendLine(actionPart);
             }
+
+            // Add ending momentum for non-last clips
+            if (!isLastClip)
+            {
+                sb.AppendLine();
+                sb.AppendLine("CLIP ENDING: This clip ends mid-action, with characters in motion and the scene unresolved. The final frame shows momentum carrying forward into the next clip — no pauses, no held poses, no resolution.");
+            }
+
             sb.AppendLine();
 
             // overall_soundscape
@@ -716,6 +740,50 @@ namespace FlipPix.UI.ViewModels.Video
             sb.AppendLine(BuildMusicCue(clipIndex, isLastClip, _storyBeats.Count));
 
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// Builds the beat-to-beat narrative continuity handoff for seamless clip transitions.
+        /// This is used at populate time when we don't have the previous clip's generated content yet.
+        /// </summary>
+        private string BuildBeatContinuityHandoff(StoryBeatSheet.StoryBeat previousBeat, StoryBeatSheet.StoryBeat currentBeat, int castCount, int clipIndex)
+        {
+            var sb = new StringBuilder();
+
+            sb.AppendLine($"NARRATIVE CONTINUITY — This is clip {clipIndex + 1} of a continuous sequence. The viewer just watched:");
+            sb.AppendLine($"  PREVIOUS BEAT: {previousBeat.Text}");
+            sb.AppendLine();
+            sb.AppendLine("This clip picks up IMMEDIATELY from there:");
+            sb.AppendLine("- Same positions, same states, same ongoing actions as the previous beat's ending");
+            sb.AppendLine("- Any motion started in the previous beat continues naturally into this one");
+            sb.AppendLine("- No jump cuts, no time skips, no position resets — this is ONE continuous film");
+
+            // Extract ending state from previous beat for specific handoff
+            var prevEnding = ExtractBeatEnding(previousBeat.Text);
+            if (!string.IsNullOrEmpty(prevEnding))
+            {
+                sb.AppendLine();
+                sb.AppendLine($"The previous clip ended with: {prevEnding}");
+                sb.AppendLine("[Shot 1] must show this state continuing, not restarting.");
+            }
+
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Extracts the likely ending state from a beat's text — the last sentence or action phrase.
+        /// </summary>
+        private string ExtractBeatEnding(string beatText)
+        {
+            if (string.IsNullOrWhiteSpace(beatText)) return string.Empty;
+
+            // Split into sentences and take the last one
+            var sentences = beatText.Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim())
+                .Where(s => s.Length > 5)
+                .ToList();
+
+            return sentences.Count > 0 ? sentences.Last() : beatText.Trim();
         }
 
         private string GetShotAction(string beatText, int shotIndex, int totalShots, bool isLastClip)

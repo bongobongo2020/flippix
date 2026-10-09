@@ -737,29 +737,29 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         // ── Upscale ──────────────────────────────────────────────────────────────────────────────
-
-        private const string UpscaleWorkflowPath = "workflow/video/h3-minimax/h3-seed-upscale.json";
+        // Uses MinimaxH3LatentUpscaler3D for H3-native latent upscaling of the joined video.
+        // This encodes the video to H3 latent space, upscales, then decodes back.
 
         private async Task UpscaleAsync()
         {
             if (!CanUpscale || string.IsNullOrEmpty(JoinedVideoPath)) return;
 
             IsUpscaling = true;
-            StatusText = "Upscaling video...";
+            StatusText = "Upscaling joined video with H3 Latent Upscaler...";
 
             try
             {
                 using var lease = await _workflowCoordinator.AcquireAsync("h3_video_editor", CancellationToken.None);
 
-                // Upload the video to ComfyUI input folder
-                AddLog($"Uploading video for upscale: {Path.GetFileName(JoinedVideoPath)}");
+                // Upload the joined video to ComfyUI input folder
+                AddLog($"Uploading joined video for H3 latent upscale: {Path.GetFileName(JoinedVideoPath)}");
                 var uploadedName = await _comfyUIService.UploadVideoAsync(JoinedVideoPath, CancellationToken.None);
                 AddLog($"Uploaded as: {uploadedName}");
 
-                // Build and execute the upscale workflow
-                var (workflow, saveNodeId) = await BuildUpscaleWorkflowAsync(uploadedName);
+                // Build and execute the H3 latent upscale workflow
+                var (workflow, saveNodeId) = BuildH3LatentUpscaleWorkflow(uploadedName);
 
-                AddLog("Submitting upscale workflow to ComfyUI...");
+                AddLog($"Submitting H3 Latent Upscale workflow ({UpscaleFactor}x) to ComfyUI...");
                 var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(msg =>
                 {
                     if (msg.Data?.Value != null && msg.Data?.Max != null && msg.Data.Max > 0)
@@ -782,7 +782,7 @@ namespace FlipPix.UI.ViewModels.Video
                 if (!string.IsNullOrEmpty(outputPath))
                 {
                     PreviewVideoPath = outputPath;
-                    AddLog($"Upscale complete: {Path.GetFileName(outputPath)}");
+                    AddLog($"H3 Latent Upscale complete: {Path.GetFileName(outputPath)}");
                 }
 
                 StatusText = "Upscale complete";
@@ -799,142 +799,111 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        private async Task<(JsonObject workflow, string saveNodeId)> BuildUpscaleWorkflowAsync(string uploadedVideoName)
+        /// <summary>
+        /// Builds an H3 Latent Upscale workflow that loads the joined video, encodes to H3 latent,
+        /// upscales using MinimaxH3LatentUpscaler3D, decodes back to video, and saves the result.
+        /// Based on the upscale pipeline in h3_obvpm_timeline_r2v workflow.
+        /// </summary>
+        private (JsonObject workflow, string saveNodeId) BuildH3LatentUpscaleWorkflow(string uploadedVideoName)
         {
-            // Try to load a workflow template, or build one dynamically
-            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, UpscaleWorkflowPath);
-            JsonObject workflow;
-            var saveNodeId = "output";
+            AddLog($"Building H3 Latent Upscale workflow for: {uploadedVideoName}");
+            AddLog($"Upscale factor: {UpscaleFactor}x");
 
-            if (File.Exists(workflowPath))
+            // Build the H3 latent upscale workflow:
+            // VHS_LoadVideo → VAEEncode (H3 video VAE) → MinimaxH3LatentUpscaler3D → VAEDecode → VHS_VideoCombine
+            var workflow = new JsonObject
             {
-                AddLog($"Loading upscale workflow template...");
-                var json = await File.ReadAllTextAsync(workflowPath);
-                workflow = System.Text.Json.JsonSerializer.Deserialize<JsonObject>(json)!;
-
-                // Patch the video input and output prefix
-                foreach (var node in workflow)
+                // Load the H3 video VAE
+                ["vae_video"] = new JsonObject
                 {
-                    if (node.Value is JsonObject nodeObj &&
-                        nodeObj["class_type"]?.GetValue<string>() is string classType)
+                    ["class_type"] = "VAELoader",
+                    ["inputs"] = new JsonObject
                     {
-                        if (classType == "VHS_LoadVideo" || classType == "VHS_LoadVideoPath")
-                        {
-                            if (nodeObj["inputs"] is JsonObject inputs)
-                            {
-                                inputs["video"] = uploadedVideoName;
-                                AddLog($"Patched video input in node {node.Key}");
-                            }
-                        }
-                        else if (classType == "MinimaxH3LatentUpscaler3D")
-                        {
-                            if (nodeObj["inputs"] is JsonObject inputs)
-                            {
-                                inputs["mode.scale"] = UpscaleFactor;
-                                AddLog($"Patched upscale factor to {UpscaleFactor}x in node {node.Key}");
-                            }
-                        }
-                        else if (classType == "VHS_VideoCombine" || classType == "SaveVideo")
-                        {
-                            saveNodeId = node.Key;
-                            if (nodeObj["inputs"] is JsonObject inputs)
-                            {
-                                inputs["filename_prefix"] = $"video/{ProjectFolder}/upscale";
-                            }
-                        }
-                    }
+                        ["vae_name"] = "minimax_h3_video_vae_fp16.safetensors"
+                    },
+                    ["_meta"] = new JsonObject { ["title"] = "H3 Video VAE" }
+                },
+                // Load the input video (the joined clips)
+                ["load_video"] = new JsonObject
+                {
+                    ["class_type"] = "VHS_LoadVideo",
+                    ["inputs"] = new JsonObject
+                    {
+                        ["video"] = uploadedVideoName,
+                        ["force_rate"] = 0, // Keep original frame rate
+                        ["custom_width"] = 0,
+                        ["custom_height"] = 0,
+                        ["frame_load_cap"] = 0,
+                        ["skip_first_frames"] = 0,
+                        ["select_every_nth"] = 1,
+                        ["format"] = "None"
+                    },
+                    ["_meta"] = new JsonObject { ["title"] = "Load Joined Video" }
+                },
+                // Encode video frames to H3 latent space
+                ["vae_encode"] = new JsonObject
+                {
+                    ["class_type"] = "VAEEncode",
+                    ["inputs"] = new JsonObject
+                    {
+                        ["pixels"] = new JsonArray { "load_video", 0 },
+                        ["vae"] = new JsonArray { "vae_video", 0 }
+                    },
+                    ["_meta"] = new JsonObject { ["title"] = "Encode to H3 Latent" }
+                },
+                // H3 Latent Upscaler - upscales in latent space
+                ["latent_upscale"] = new JsonObject
+                {
+                    ["class_type"] = "MinimaxH3LatentUpscaler3D",
+                    ["inputs"] = new JsonObject
+                    {
+                        ["latent"] = new JsonArray { "vae_encode", 0 },
+                        ["model_name"] = "minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors",
+                        ["mode"] = "scale by multiplier",
+                        ["mode.scale"] = UpscaleFactor,
+                        ["align"] = 32,
+                        ["enable_temporal_chunking"] = true,
+                        ["force_unload"] = true,
+                        ["device"] = "cuda",
+                        ["precision"] = "fp16"
+                    },
+                    ["_meta"] = new JsonObject { ["title"] = $"H3 Latent Upscale {UpscaleFactor}x" }
+                },
+                // Decode upscaled latent back to video frames
+                ["vae_decode"] = new JsonObject
+                {
+                    ["class_type"] = "VAEDecode",
+                    ["inputs"] = new JsonObject
+                    {
+                        ["samples"] = new JsonArray { "latent_upscale", 0 },
+                        ["vae"] = new JsonArray { "vae_video", 0 }
+                    },
+                    ["_meta"] = new JsonObject { ["title"] = "Decode from H3 Latent" }
+                },
+                // Output video with original audio from loaded video
+                ["output"] = new JsonObject
+                {
+                    ["class_type"] = "VHS_VideoCombine",
+                    ["inputs"] = new JsonObject
+                    {
+                        ["images"] = new JsonArray { "vae_decode", 0 },
+                        ["audio"] = new JsonArray { "load_video", 2 }, // Audio output from VHS_LoadVideo
+                        ["frame_rate"] = 24,
+                        ["loop_count"] = 0,
+                        ["filename_prefix"] = $"video/{ProjectFolder}/upscale",
+                        ["format"] = "video/h264-mp4",
+                        ["pix_fmt"] = "yuv420p",
+                        ["crf"] = Crf,
+                        ["save_metadata"] = false,
+                        ["trim_to_audio"] = false,
+                        ["pingpong"] = false,
+                        ["save_output"] = true
+                    },
+                    ["_meta"] = new JsonObject { ["title"] = "Save Upscaled Video" }
                 }
-            }
-            else
-            {
-                AddLog("Building H3 Latent Upscale workflow...");
-                // Build a MinimaxH3LatentUpscaler3D workflow
-                // This requires: Load video → VAE Encode → Latent Upscale → VAE Decode → Save
-                workflow = new JsonObject
-                {
-                    // Load the H3 video VAE
-                    ["vae_loader"] = new JsonObject
-                    {
-                        ["class_type"] = "VAELoader",
-                        ["inputs"] = new JsonObject
-                        {
-                            ["vae_name"] = "minimax_h3_video_vae_fp16.safetensors"
-                        }
-                    },
-                    // Load the input video
-                    ["load_video"] = new JsonObject
-                    {
-                        ["class_type"] = "VHS_LoadVideo",
-                        ["inputs"] = new JsonObject
-                        {
-                            ["video"] = uploadedVideoName,
-                            ["force_rate"] = 24,
-                            ["custom_width"] = 0,
-                            ["custom_height"] = 0,
-                            ["frame_load_cap"] = 0,
-                            ["skip_first_frames"] = 0,
-                            ["select_every_nth"] = 1,
-                            ["format"] = "AnimateDiff"
-                        }
-                    },
-                    // Encode to latent
-                    ["vae_encode"] = new JsonObject
-                    {
-                        ["class_type"] = "VAEEncode",
-                        ["inputs"] = new JsonObject
-                        {
-                            ["pixels"] = new JsonArray { "load_video", 0 },
-                            ["vae"] = new JsonArray { "vae_loader", 0 }
-                        }
-                    },
-                    // H3 Latent Upscaler
-                    ["latent_upscale"] = new JsonObject
-                    {
-                        ["class_type"] = "MinimaxH3LatentUpscaler3D",
-                        ["inputs"] = new JsonObject
-                        {
-                            ["latent"] = new JsonArray { "vae_encode", 0 },
-                            ["model_name"] = "minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors",
-                            ["mode"] = "scale by multiplier",
-                            ["mode.scale"] = UpscaleFactor,
-                            ["align"] = 32,
-                            ["enable_temporal_chunking"] = true,
-                            ["force_unload"] = true,
-                            ["device"] = "cuda",
-                            ["precision"] = "fp16"
-                        }
-                    },
-                    // Decode back to pixels
-                    ["vae_decode"] = new JsonObject
-                    {
-                        ["class_type"] = "VAEDecode",
-                        ["inputs"] = new JsonObject
-                        {
-                            ["samples"] = new JsonArray { "latent_upscale", 0 },
-                            ["vae"] = new JsonArray { "vae_loader", 0 }
-                        }
-                    },
-                    // Output video
-                    ["output"] = new JsonObject
-                    {
-                        ["class_type"] = "VHS_VideoCombine",
-                        ["inputs"] = new JsonObject
-                        {
-                            ["images"] = new JsonArray { "vae_decode", 0 },
-                            ["frame_rate"] = 24,
-                            ["loop_count"] = 0,
-                            ["filename_prefix"] = $"video/{ProjectFolder}/upscale",
-                            ["format"] = "video/h264-mp4",
-                            ["pingpong"] = false,
-                            ["save_output"] = true,
-                            ["crf"] = Crf
-                        }
-                    }
-                };
-                saveNodeId = "output";
-            }
+            };
 
-            return (workflow, saveNodeId);
+            return (workflow, "output");
         }
 
         private async Task<string?> ResolveUpscaleOutputAsync(string promptId, string saveNodeId)

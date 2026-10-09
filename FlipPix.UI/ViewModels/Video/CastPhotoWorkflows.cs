@@ -775,9 +775,13 @@ namespace FlipPix.UI.ViewModels.Video
             var systemPrompt =
                 "You are a casting director reading a story and listing ONLY the characters who actually " +
                 "appear in it. You reply with nothing but the cast lines — no preamble, no headings, no " +
-                "markdown, no notes, no explanation. CRITICAL: Only list characters that are explicitly " +
-                "mentioned and play a role in the story. Do NOT invent characters. Do NOT pad the list. " +
-                "If the story has only 2 characters, output only 2 lines.";
+                "markdown, no notes, no explanation.\n\n" +
+                "CRITICAL RULES:\n" +
+                "1. ONLY list characters that are EXPLICITLY mentioned BY NAME or ROLE in the story text.\n" +
+                "2. Do NOT invent characters. Do NOT add generic 'extras' or background characters.\n" +
+                "3. If the story has 1 character, output EXACTLY 1 line. If it has 2, output EXACTLY 2 lines.\n" +
+                "4. NEVER pad the list to fill slots. The number of lines = the number of actual characters.\n" +
+                "5. When in doubt, output FEWER characters, not more.";
 
             var kinds = personKindsOnly
                 ? "<kind> is exactly one word from this list: man, woman, boy, girl. This film casts " +
@@ -789,11 +793,12 @@ namespace FlipPix.UI.ViewModels.Video
                   "group for several non-people acting as one (a herd, a flock).";
 
             var userMessage =
-                "Read the story below and list ONLY the characters who actually appear in it. " +
-                $"List at most {maxCharacters}, most important first. " +
-                "IMPORTANT: If the story has fewer characters, list only those — do NOT invent extra " +
-                "characters to fill slots. Background extras, narrators, and characters who never appear " +
-                "in a scene do not belong in the cast.\n\n" +
+                "Read the story below and list ONLY the characters who actually appear and play a role in it.\n\n" +
+                "RULES:\n" +
+                $"- Maximum {maxCharacters} characters, but ONLY if the story actually has that many.\n" +
+                "- If the story has 1 man and 1 woman, output EXACTLY 2 lines (not 3, not 4).\n" +
+                "- Do NOT invent sidekicks, henchmen, crowds, or background characters not in the story.\n" +
+                "- A character must be NAMED or have a DISTINCT ROLE in the story to be listed.\n\n" +
                 "Reply with one line per character, in EXACTLY this format, and nothing else:\n" +
                 "CAST|<kind>|<who>\n\n" +
                 kinds + "\n" +

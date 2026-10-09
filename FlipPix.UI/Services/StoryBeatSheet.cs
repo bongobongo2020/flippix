@@ -275,7 +275,7 @@ namespace FlipPix.UI.Services
                 "new ones.\n" +
                 "- Every beat names who acts and who it lands on, by the tags you were given.\n" +
                 "- One or two sentences per beat. No camera work, no lighting, no style adjectives." +
-                (continuity ? ContinuityRules : string.Empty);
+                (continuity ? ContinuityRules + ActionContinuityRules : string.Empty);
         }
 
         /// <summary>
@@ -302,6 +302,30 @@ namespace FlipPix.UI.Services
             "story told in one evening is 'evening' in every beat.\n" +
             "- Invent no location the story does not contain. Where it never says whether a scene is " +
             "indoors or out, or what hour it is, choose once in beat 1 and keep that choice.";
+
+        /// <summary>
+        /// Rules for action continuity between beats — ensuring smooth narrative flow when beats are
+        /// rendered as consecutive video clips.
+        ///
+        /// <para>This was added to fix disjointed clips: each beat previously described an isolated moment,
+        /// with no instruction on how it picks up from or leads into adjacent beats. When rendered as video,
+        /// the clips cut together poorly — positions reset, momentum vanished, and the story felt like
+        /// separate scenes rather than one continuous sequence.</para>
+        /// </summary>
+        internal const string ActionContinuityRules =
+            "\n- IMPORTANT: Beats are CONSECUTIVE clips in ONE continuous sequence. Each beat must flow " +
+            "directly into the next with no gap, jump, or reset.\n" +
+            "- Every beat (except the first) opens by PICKING UP exactly where the previous beat ended: " +
+            "same positions, same momentum, same state of any ongoing action.\n" +
+            "- Every beat (except the last) ends MID-ACTION, on its way into the next: a character in motion, " +
+            "a gesture not yet complete, a sentence trailing off. Never end on a pause, a rest, or a resolved state.\n" +
+            "- State the TRANSITION clearly: if beat 3 ends with \"CHARACTER 1 reaches for the door handle\", " +
+            "beat 4 must open with the hand on the handle or the door opening, not with the character standing elsewhere.\n" +
+            "- Injuries, damage, and changes PERSIST: what breaks in beat 2 stays broken in beats 3, 4, and beyond. " +
+            "Clothing torn, objects dropped, wounds taken — all carry forward.\n" +
+            "- This is ONE film, not a series of separate scenes. The viewer watches beat 1 cut straight to " +
+            "beat 2 cut straight to beat 3: there is no fade, no time skip, no scene change unless the story " +
+            "explicitly demands one.";
 
         /// <summary>The beat sheet's user message.</summary>
         public static string BuildUser(
