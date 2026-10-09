@@ -5242,10 +5242,10 @@
                             <Grid Grid.Column="1">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="3*" MinHeight="200"/>
+                                    <RowDefinition Height="*" MinHeight="120"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto" MaxHeight="160"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
@@ -5593,7 +5593,7 @@
                                                  Text="{Binding SelectedClip.ClipActions, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  AcceptsReturn="True" TextWrapping="Wrap"
                                                  VerticalScrollBarVisibility="Auto"
-                                                 Height="100" MaxHeight="150"
+                                                 Height="80" MaxHeight="120"
                                                  FontSize="11" FontFamily="Consolas"
                                                  Background="#252525" Foreground="#ccc"
                                                  BorderBrush="#3d3d3d" BorderThickness="1"

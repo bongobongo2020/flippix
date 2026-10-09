@@ -7,6 +7,9 @@
     <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
     <InvariantTimezone>false</InvariantTimezone>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- Suppress ImageSharp vulnerability warnings until license is obtained for v4.x
+         Apply for free Community License at: https://licensing.sixlabors.com/ -->
+    <NoWarn>$(NoWarn);NU1902;NU1903</NoWarn>
   </PropertyGroup>
 
   <!--
