@@ -29,6 +29,11 @@ namespace FlipPix.UI
         {
             base.OnStartup(e);
 
+            // Global exception handlers to catch crashes
+            DispatcherUnhandledException += App_DispatcherUnhandledException;
+            AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
+            TaskScheduler.UnobservedTaskException += TaskScheduler_UnobservedTaskException;
+
             // Set shutdown mode to explicit so the app doesn't close when setup windows close
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
@@ -464,6 +469,54 @@ namespace FlipPix.UI
                     }
                 }
             });
+        }
+
+        private void App_DispatcherUnhandledException(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
+        {
+            var message = $"Unhandled UI Exception:\n\n{e.Exception.Message}\n\nStack trace:\n{e.Exception.StackTrace}";
+            System.Diagnostics.Debug.WriteLine(message);
+            try
+            {
+                var logger = _serviceProvider?.GetService<IAppLogger>();
+                logger?.LogError(e.Exception, "Unhandled UI Exception");
+            }
+            catch { }
+
+            System.Windows.MessageBox.Show(message, "FlipPix Crash", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            e.Handled = true; // Prevent app from closing so user can see the error
+        }
+
+        private void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
+        {
+            var ex = e.ExceptionObject as Exception;
+            var message = $"Unhandled Domain Exception:\n\n{ex?.Message}\n\nStack trace:\n{ex?.StackTrace}";
+            System.Diagnostics.Debug.WriteLine(message);
+            try
+            {
+                var logger = _serviceProvider?.GetService<IAppLogger>();
+                logger?.LogError(ex, "Unhandled Domain Exception");
+            }
+            catch { }
+
+            System.Windows.MessageBox.Show(message, "FlipPix Crash", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+        }
+
+        private void TaskScheduler_UnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+        {
+            var message = $"Unobserved Task Exception:\n\n{e.Exception.Message}\n\nStack trace:\n{e.Exception.StackTrace}";
+            System.Diagnostics.Debug.WriteLine(message);
+            try
+            {
+                var logger = _serviceProvider?.GetService<IAppLogger>();
+                logger?.LogError(e.Exception, "Unobserved Task Exception");
+            }
+            catch { }
+
+            System.Windows.Application.Current?.Dispatcher?.Invoke(() =>
+            {
+                System.Windows.MessageBox.Show(message, "FlipPix Task Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+            });
+            e.SetObserved(); // Prevent app from crashing
         }
 
         protected override void OnExit(ExitEventArgs e)

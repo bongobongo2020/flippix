@@ -52,6 +52,7 @@ namespace FlipPix.UI
             _viewModel.H3VrVM.PropertyChanged += H3VrVM_PropertyChanged;
             _viewModel.H3ExpressVM.PropertyChanged += H3ExpressVM_PropertyChanged;
             _viewModel.SeedUpscaleVM.PropertyChanged += SeedUpscaleVM_PropertyChanged;
+            _viewModel.H3VideoEditorVM.PropertyChanged += H3VideoEditorVM_PropertyChanged;
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
@@ -62,6 +63,7 @@ namespace FlipPix.UI
             ApplyH3VrSource();
             ApplyH3ExpressSource();
             ApplySeedUpscaleSource();
+            ApplyH3EditorSource();
         }
 
         private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -202,6 +204,35 @@ namespace FlipPix.UI
 
         private void SeedUpscalePlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e) =>
             _viewModel.SeedUpscaleVM.ReportPreviewFailed(e.ErrorException?.Message ?? "unknown media error");
+
+        // ────────────────────────────────────────────────────────────────────
+        // H3 Video Editor — main preview player for timeline clips.
+        // ────────────────────────────────────────────────────────────────────
+
+        private void H3VideoEditorVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(ViewModels.Video.H3VideoEditorViewModel.PreviewVideoPath)) return;
+            if (Dispatcher.CheckAccess()) ApplyH3EditorSource();
+            else Dispatcher.Invoke(ApplyH3EditorSource);
+        }
+
+        private void ApplyH3EditorSource() =>
+            ApplySharedPlayerSource(H3EditorVideoPlayer, _viewModel.H3VideoEditorVM.PreviewVideoPath);
+
+        private void H3EditorPlayer_MediaOpened(object sender, RoutedEventArgs e) => H3EditorVideoPlayer.Play();
+
+        private void H3EditorPlayer_MediaEnded(object sender, RoutedEventArgs e)
+        {
+            H3EditorVideoPlayer.Position = System.TimeSpan.FromMilliseconds(1);
+            H3EditorVideoPlayer.Play();
+        }
+
+        private void H3EditorPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e)
+        {
+            // Silently ignore - the video preview area will show the placeholder when no video is loaded
+            System.Diagnostics.Debug.WriteLine($"H3Editor preview failed: {e.ErrorException?.Message ?? "unknown error"}");
+            e.Handled = true;
+        }
 
         /// <summary>Points a seed-board player at a file, as an absolute Uri. Clicking the
         /// same tile twice replays it rather than doing nothing.</summary>
@@ -521,11 +552,26 @@ namespace FlipPix.UI
         // Loop the mini video previews in the timeline by rewinding to start on end.
         private void TimelineClipVideo_MediaEnded(object sender, RoutedEventArgs e)
         {
-            if (sender is System.Windows.Controls.MediaElement player)
+            try
             {
-                player.Position = System.TimeSpan.FromMilliseconds(1);
-                player.Play();
+                if (sender is System.Windows.Controls.MediaElement player && player.Source != null)
+                {
+                    player.Position = System.TimeSpan.FromMilliseconds(1);
+                    player.Play();
+                }
             }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"TimelineClipVideo loop error: {ex.Message}");
+            }
+        }
+
+        private void TimelineClipVideo_MediaFailed(object sender, ExceptionRoutedEventArgs e)
+        {
+            // Silently ignore failed clip previews - they can fail if file is still being written
+            // or if the video codec isn't supported. The thumbnail will still show as fallback.
+            System.Diagnostics.Debug.WriteLine($"TimelineClipVideo failed: {e.ErrorException?.Message}");
+            e.Handled = true;
         }
 
         // (important when only hiding, so the files aren't left locked while the window lingers).
@@ -539,6 +585,7 @@ namespace FlipPix.UI
             H3VrVideoPlayer?.Stop();
             H3ExpressVideoPlayer?.Stop();
             SeedUpscaleVideoPlayer?.Stop();
+            H3EditorVideoPlayer?.Stop();
         }
 
         protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
@@ -563,6 +610,7 @@ namespace FlipPix.UI
 
             _viewModel.Scail2VM.SeekRequested -= OnScail2SeekRequested;
             _viewModel.Scail2VM.PropertyChanged -= Scail2VM_PropertyChanged;
+            _viewModel.H3VideoEditorVM.PropertyChanged -= H3VideoEditorVM_PropertyChanged;
             _viewModel.PlayRequested -= OnPlayRequested;
 
             if (_viewModel is IDisposable disposable)

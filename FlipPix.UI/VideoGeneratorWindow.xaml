@@ -5278,7 +5278,7 @@
                                             <TextBlock Text="Video Preview" Foreground="#444" FontSize="12" HorizontalAlignment="Center" Margin="0,8,0,0"/>
                                         </StackPanel>
                                         <!-- Actual video player -->
-                                        <MediaElement x:Name="H3EditorVideoPlayer" LoadedBehavior="Manual" UnloadedBehavior="Stop" Stretch="Uniform" Visibility="{Binding PreviewVideoPath, Converter={StaticResource StringToVisibilityConverter}}"/>
+                                        <MediaElement x:Name="H3EditorVideoPlayer" LoadedBehavior="Manual" UnloadedBehavior="Stop" Stretch="Uniform" Visibility="{Binding PreviewVideoPath, Converter={StaticResource StringToVisibilityConverter}}" MediaOpened="H3EditorPlayer_MediaOpened" MediaEnded="H3EditorPlayer_MediaEnded" MediaFailed="H3EditorPlayer_MediaFailed"/>
                                     </Grid>
                                 </Border>
 
@@ -5506,7 +5506,7 @@
                                                                 <!-- Thumbnail/Preview area -->
                                                                 <Grid Grid.Row="0" Background="#222">
                                                                     <!-- Video preview loop -->
-                                                                    <MediaElement Source="{Binding PreviewVideoPath}" LoadedBehavior="Play" UnloadedBehavior="Close" Stretch="UniformToFill" IsMuted="True" MediaEnded="TimelineClipVideo_MediaEnded">
+                                                                    <MediaElement Source="{Binding PreviewVideoPath}" LoadedBehavior="Play" UnloadedBehavior="Close" Stretch="UniformToFill" IsMuted="True" MediaEnded="TimelineClipVideo_MediaEnded" MediaFailed="TimelineClipVideo_MediaFailed">
                                                                         <MediaElement.Style>
                                                                             <Style TargetType="MediaElement">
                                                                                 <Setter Property="Visibility" Value="Collapsed"/>
