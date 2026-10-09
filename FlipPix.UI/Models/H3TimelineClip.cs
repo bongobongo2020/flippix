@@ -30,8 +30,8 @@ namespace FlipPix.UI.Models
         [NotifyPropertyChangedFor(nameof(PromptPreview))]
         private string _prompt = string.Empty;
 
-        /// <summary>Shortened prompt for timeline display.</summary>
-        public string PromptPreview => Prompt.Length > 40 ? Prompt[..37] + "..." : Prompt;
+        /// <summary>Shortened prompt for timeline display - shows first 80 chars.</summary>
+        public string PromptPreview => Prompt.Length > 80 ? Prompt[..77] + "..." : Prompt;
 
         /// <summary>Duration of this clip in seconds.</summary>
         [ObservableProperty]

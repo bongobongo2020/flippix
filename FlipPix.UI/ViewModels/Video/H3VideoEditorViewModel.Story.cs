@@ -62,7 +62,7 @@ namespace FlipPix.UI.ViewModels.Video
         private string _storyStatus = string.Empty;
 
         [ObservableProperty]
-        private string _castPhotoEngine = "krea2spicy";
+        private string _castPhotoEngine = "qwen21";
 
         [ObservableProperty]
         private bool _autoGenerateCast = true;

@@ -95,13 +95,24 @@ namespace FlipPix.UI.ViewModels.Video
         private const string KleinLatentNode = "11";        // EmptyLatentImage
         private const string KleinSaveNode = "14";          // SaveImage
 
+        // Qwen Image 2.1 — built programmatically since the workflow file uses subgraphs (UI format).
+        // Node IDs for the generated workflow:
+        private const string Qwen21UnetNode = "1";          // UNETLoader
+        private const string Qwen21ClipNode = "2";          // CLIPLoader
+        private const string Qwen21VaeNode = "3";           // VAELoader
+        private const string Qwen21EncodeNode = "4";        // TextEncodeQwenImage21
+        private const string Qwen21LatentNode = "5";        // EmptyLatentImage
+        private const string Qwen21SamplerNode = "6";       // KSampler
+        private const string Qwen21DecodeNode = "7";        // VAEDecode
+        private const string Qwen21SaveNode = "8";          // SaveImage
+
         /// <summary>
         /// Loads the chosen cast-photo graph and patches it for one portrait: the prompt,
         /// a fresh seed, a portrait canvas where the graph takes one, and a save prefix the caller
         /// can find again. Everything else is left exactly as the graph ships it — for Z-Image that
         /// is the lo-fi mobile-photo look of workflow/image/zimage/simple/Lo-Fi-Mobile.json.
         /// </summary>
-        /// <param name="engine">"zimage", "famegrid", "krea2", "krea2spicy", "qwen", "ideogram" or "klein".</param>
+        /// <param name="engine">"zimage", "famegrid", "krea2", "krea2spicy", "qwen", "qwen21", "ideogram" or "klein".</param>
         /// <param name="prefix">SaveImage filename_prefix — an output-subfolder path ending in a
         /// unique run token, so the caller's disk scan can find the file.</param>
         /// <param name="lora">A LoRA picked from the ✨ menu, or null for the workflow's own. Qwen and
@@ -243,6 +254,109 @@ namespace FlipPix.UI.ViewModels.Video
                     return (PruneToOutput(ParseGraph(json), KleinSaveNode).ToJsonString(), KleinSaveNode);
                 }
 
+                case "qwen21": // Qwen Image 2.1 — built programmatically, 45 steps res_2m/beta57
+                {
+                    // Build the workflow programmatically since the source file uses subgraphs (UI format).
+                    // This mirrors the subgraph structure from qwen21WithPromptEnchancer_v12.json but without
+                    // the prompt enhancer — cast photo prompts are already well-defined.
+                    var root = new JsonObject
+                    {
+                        [Qwen21UnetNode] = new JsonObject
+                        {
+                            ["inputs"] = new JsonObject
+                            {
+                                ["unet_name"] = "qwen_image_2.1_int8_convrot.safetensors",
+                                ["weight_dtype"] = "default"
+                            },
+                            ["class_type"] = "UNETLoader",
+                            ["_meta"] = new JsonObject { ["title"] = "Load Diffusion Model (Qwen 2.1)" }
+                        },
+                        [Qwen21ClipNode] = new JsonObject
+                        {
+                            ["inputs"] = new JsonObject
+                            {
+                                ["clip_name"] = "qwen3vl_8b_fp8_scaled.safetensors",
+                                ["type"] = "qwen_image",
+                                ["device"] = "default"
+                            },
+                            ["class_type"] = "CLIPLoader",
+                            ["_meta"] = new JsonObject { ["title"] = "Load CLIP (Qwen 2.1)" }
+                        },
+                        [Qwen21VaeNode] = new JsonObject
+                        {
+                            ["inputs"] = new JsonObject
+                            {
+                                ["vae_name"] = "qwen_image_2.1_vae_bf16.safetensors"
+                            },
+                            ["class_type"] = "VAELoader",
+                            ["_meta"] = new JsonObject { ["title"] = "Load VAE (Qwen 2.1)" }
+                        },
+                        [Qwen21EncodeNode] = new JsonObject
+                        {
+                            ["inputs"] = new JsonObject
+                            {
+                                ["clip"] = new JsonArray { Qwen21ClipNode, 0 },
+                                ["prompt"] = prompt,
+                                ["negative_prompt"] = "blurry, ugly, deformed, mutation",
+                                ["resolution"] = 1024
+                            },
+                            ["class_type"] = "TextEncodeQwenImage21",
+                            ["_meta"] = new JsonObject { ["title"] = "Encode Prompt (Qwen 2.1)" }
+                        },
+                        [Qwen21LatentNode] = new JsonObject
+                        {
+                            ["inputs"] = new JsonObject
+                            {
+                                ["width"] = 1088,
+                                ["height"] = 1600,
+                                ["batch_size"] = 1
+                            },
+                            ["class_type"] = "EmptyLatentImage",
+                            ["_meta"] = new JsonObject { ["title"] = "Empty Latent Image" }
+                        },
+                        [Qwen21SamplerNode] = new JsonObject
+                        {
+                            ["inputs"] = new JsonObject
+                            {
+                                ["model"] = new JsonArray { Qwen21UnetNode, 0 },
+                                ["positive"] = new JsonArray { Qwen21EncodeNode, 0 },
+                                ["negative"] = new JsonArray { Qwen21EncodeNode, 1 },
+                                ["latent_image"] = new JsonArray { Qwen21LatentNode, 0 },
+                                ["seed"] = seed,
+                                ["control_after_generate"] = "fixed",
+                                ["steps"] = 45,
+                                ["cfg"] = 3.5,
+                                ["sampler_name"] = "res_2m",
+                                ["scheduler"] = "beta57",
+                                ["denoise"] = 1.0
+                            },
+                            ["class_type"] = "KSampler",
+                            ["_meta"] = new JsonObject { ["title"] = "KSampler (Qwen 2.1)" }
+                        },
+                        [Qwen21DecodeNode] = new JsonObject
+                        {
+                            ["inputs"] = new JsonObject
+                            {
+                                ["samples"] = new JsonArray { Qwen21SamplerNode, 0 },
+                                ["vae"] = new JsonArray { Qwen21VaeNode, 0 }
+                            },
+                            ["class_type"] = "VAEDecode",
+                            ["_meta"] = new JsonObject { ["title"] = "VAE Decode" }
+                        },
+                        [Qwen21SaveNode] = new JsonObject
+                        {
+                            ["inputs"] = new JsonObject
+                            {
+                                ["images"] = new JsonArray { Qwen21DecodeNode, 0 },
+                                ["filename_prefix"] = prefix
+                            },
+                            ["class_type"] = "SaveImage",
+                            ["_meta"] = new JsonObject { ["title"] = "Save Image (FlipPix cast photo)" }
+                        }
+                    };
+                    return (root.ToJsonString(), Qwen21SaveNode);
+                }
+
                 case "krea2spicy": // Krea2-Spicy — the famegrid spicy selfie look, LoRAs baked in, nothing to pick
                 {
                     var json = await ReadWorkflowAsync("workflow/image/krea/FameGrid_Krea2_Spicy_CORRECTED (1).json");
@@ -381,6 +495,7 @@ namespace FlipPix.UI.ViewModels.Video
             "krea2" => "Krea2",
             "krea2spicy" => "Krea2-Spicy",
             "qwen" => "Qwen 2.5.1.2",
+            "qwen21" => "Qwen Image 2.1",
             "famegrid" => "Z-Famegrid",
             "ideogram" => "Ideogram 4",
             "klein" => "Klein X3n",

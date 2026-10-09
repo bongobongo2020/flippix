@@ -98,6 +98,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// the photo changes: the sheet is still built from it by Qwen-Image-Edit, which is what keeps the face.</summary>
         public IReadOnlyList<DiffusionModelOption> CastPhotoEngineOptions { get; } = new[]
         {
+            new DiffusionModelOption("qwen21", "Qwen Image 2.1"),
             new DiffusionModelOption(DefaultCastPhotoEngine, "Krea2-Spicy (default)"),
             new DiffusionModelOption("ideogram", "Ideogram 4 NSFW"),
             new DiffusionModelOption("qwen", "Qwen Image 2512"),
@@ -138,6 +139,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         public string CastPhotoEngineSummary => _castPhotoEngine switch
         {
+            "qwen21" => "Qwen Image 2.1 INT8 convrot, 45 steps res_2m/beta57. Native 2K support with high quality output.",
             "ideogram" => "Ideogram 4 (the NSFW graph), 12 steps. Lit and backed as a plain studio reference; the graph's " +
                           "own \"beautiful girl\" aesthetic is left out so a man is photographed as one. A \"blocked by " +
                           "safety filter\" card is retried once on a new seed, then the photo is taken with Krea2-Spicy.",

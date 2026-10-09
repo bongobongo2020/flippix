@@ -165,11 +165,27 @@ N/A
         public RelayCommand InsertTemplateCommand { get; private set; } = null!;
         public RelayCommand GeneratePromptCommand { get; private set; } = null!;
         public RelayCommand ClearPromptCommand { get; private set; } = null!;
+        public RelayCommand ApplyPromptToSelectedCommand { get; private set; } = null!;
 
         private void InsertTemplate()
         {
             PromptText = SpecPromptTemplate;
             AddLog("Inserted spec prompt template");
+        }
+
+        private void ApplyPromptToSelected()
+        {
+            if (SelectedClip == null || string.IsNullOrWhiteSpace(PromptText)) return;
+
+            SelectedClip.Prompt = PromptText;
+            // Reset the clip state so it will be regenerated
+            if (SelectedClip.State == H3ClipState.Rendered || SelectedClip.State == H3ClipState.Failed)
+            {
+                SelectedClip.State = H3ClipState.Pending;
+                SelectedClip.OutputPath = string.Empty;
+                SelectedClip.ThumbnailPath = string.Empty;
+            }
+            AddLog($"Applied prompt to clip {SelectedClip.DisplayIndex}");
         }
 
         // ── Project Settings ─────────────────────────────────────────────────────────────────────
@@ -240,6 +256,8 @@ N/A
 
             if (value?.OutputPath != null && File.Exists(value.OutputPath))
                 PreviewVideoPath = value.OutputPath;
+
+            ApplyPromptToSelectedCommand?.NotifyCanExecuteChanged();
         }
 
         // ── Commands ─────────────────────────────────────────────────────────────────────────────
@@ -250,6 +268,9 @@ N/A
         public RelayCommand CancelCommand { get; private set; } = null!;
         public RelayCommand BrowseProjectFolderCommand { get; private set; } = null!;
         public RelayCommand<H3TimelineClip> PlayPreviewCommand { get; private set; } = null!;
+        public RelayCommand<H3TimelineClip> SelectClipCommand { get; private set; } = null!;
+        public RelayCommand<H3TimelineClip> EditClipPromptCommand { get; private set; } = null!;
+        public RelayCommand<H3TimelineClip> RegenerateClipCommand { get; private set; } = null!;
 
         private void InitializeCommands()
         {
@@ -258,12 +279,16 @@ N/A
             InsertTemplateCommand = new RelayCommand(InsertTemplate);
             GeneratePromptCommand = new RelayCommand(() => _ = GeneratePromptAsync());
             ClearPromptCommand = new RelayCommand(() => PromptText = string.Empty);
+            ApplyPromptToSelectedCommand = new RelayCommand(ApplyPromptToSelected, () => SelectedClip != null && HasPrompt);
             GenerateClipsCommand = new RelayCommand(() => _ = GenerateClipsAsync(), () => CanGenerate);
             JoinClipsCommand = new RelayCommand(() => _ = JoinClipsAsync(), () => CanJoin);
             UpscaleCommand = new RelayCommand(() => _ = UpscaleAsync(), () => CanUpscale);
             CancelCommand = new RelayCommand(Cancel, () => IsGenerating || IsJoining || IsUpscaling);
             BrowseProjectFolderCommand = new RelayCommand(() => _ = BrowseProjectFolderAsync());
             PlayPreviewCommand = new RelayCommand<H3TimelineClip>(PlayClip);
+            SelectClipCommand = new RelayCommand<H3TimelineClip>(SelectClip);
+            EditClipPromptCommand = new RelayCommand<H3TimelineClip>(EditClipPrompt);
+            RegenerateClipCommand = new RelayCommand<H3TimelineClip>(c => _ = RegenerateClipAsync(c), _ => !IsGenerating);
             CopyLogCommand = new RelayCommand(CopyLog);
             ClearLogCommand = new RelayCommand(ClearLog);
         }
@@ -284,6 +309,67 @@ N/A
             {
                 PreviewVideoPath = clip.OutputPath;
                 AddLog($"Playing clip {clip.DisplayIndex}");
+            }
+        }
+
+        private void SelectClip(H3TimelineClip? clip)
+        {
+            if (clip == null) return;
+            SelectedClip = clip;
+            // Also load the clip's prompt into the editor for easy viewing/editing
+            PromptText = clip.Prompt;
+            AddLog($"Selected clip {clip.DisplayIndex}");
+        }
+
+        private void EditClipPrompt(H3TimelineClip? clip)
+        {
+            if (clip == null) return;
+            // Select the clip and load its prompt into the main prompt editor
+            SelectedClip = clip;
+            PromptText = clip.Prompt;
+            AddLog($"Editing prompt for clip {clip.DisplayIndex} - modify in the prompt editor above, then use 'Apply to Selected'");
+        }
+
+        /// <summary>
+        /// Regenerates a specific clip, resetting it to pending and generating it again.
+        /// </summary>
+        private async Task RegenerateClipAsync(H3TimelineClip? clip)
+        {
+            if (clip == null || IsGenerating) return;
+
+            // Reset the clip state
+            clip.State = H3ClipState.Pending;
+            clip.OutputPath = string.Empty;
+            clip.ThumbnailPath = string.Empty;
+
+            AddLog($"Regenerating clip {clip.DisplayIndex}...");
+
+            IsGenerating = true;
+            StatusText = $"Regenerating clip {clip.DisplayIndex}...";
+
+            try
+            {
+                using var cts = new System.Threading.CancellationTokenSource();
+                using var lease = await _workflowCoordinator.AcquireAsync("h3_video_editor", cts.Token);
+
+                clip.State = H3ClipState.Rendering;
+                await GenerateSingleClipAsync(clip, cts.Token);
+                clip.State = H3ClipState.Rendered;
+
+                AddLog($"Clip {clip.DisplayIndex} regenerated successfully");
+                StatusText = "Ready";
+            }
+            catch (Exception ex)
+            {
+                clip.State = H3ClipState.Failed;
+                AddLog($"Regeneration failed: {ex.Message}");
+                StatusText = "Regeneration failed";
+            }
+            finally
+            {
+                IsGenerating = false;
+                GenerateClipsCommand.NotifyCanExecuteChanged();
+                JoinClipsCommand.NotifyCanExecuteChanged();
             }
         }
 

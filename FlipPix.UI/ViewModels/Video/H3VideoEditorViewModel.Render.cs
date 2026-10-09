@@ -99,37 +99,226 @@ namespace FlipPix.UI.ViewModels.Video
 
             // Build the workflow JSON based on h3_obvpm_timeline workflow
             AddLog($"Building workflow for clip {clip.DisplayIndex}...");
-            var workflow = await BuildClipWorkflowAsync(clip, uploadedImages);
+            var (workflow, saveNodeId, thumbnailNodeId) = await BuildClipWorkflowWithSaveNodeAsync(clip, uploadedImages);
 
             // Log workflow summary
             AddLog($"Workflow has {workflow.Count} nodes, {workflow.ToJsonString().Length} chars");
 
-            // Submit to ComfyUI - pass the JsonObject directly, not as a string
+            // Submit to ComfyUI and wait for completion
             AddLog($"Submitting clip {clip.DisplayIndex} to ComfyUI...");
             try
             {
-                var result = await _comfyUIService.QueuePromptAsync(workflow, ct);
+                var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(msg =>
+                {
+                    if (msg.Data?.Value != null && msg.Data?.Max != null && msg.Data.Max > 0)
+                    {
+                        var pct = (double)msg.Data.Value / msg.Data.Max * 100;
+                        StatusText = $"Generating clip {clip.DisplayIndex}: {pct:F0}%";
+                    }
+                });
 
-                if (string.IsNullOrEmpty(result))
+                var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progress, ct);
+
+                if (string.IsNullOrEmpty(promptId))
                 {
                     throw new Exception("ComfyUI returned empty prompt ID - workflow may have errors");
                 }
 
-                AddLog($"Clip {clip.DisplayIndex} queued with prompt ID: {result}");
+                AddLog($"Clip {clip.DisplayIndex} completed with prompt ID: {promptId}");
 
-                // Note: QueuePromptAsync returns the prompt ID
-                // The actual workflow completion would need polling or websocket events
-                // For now, we mark as submitted - actual success depends on ComfyUI execution
+                // Get the output video path from the save node
+                var outputPath = await ResolveClipOutputPathAsync(promptId, saveNodeId, clip.DisplayIndex, ct);
+                if (!string.IsNullOrEmpty(outputPath))
+                {
+                    clip.OutputPath = outputPath;
+                    AddLog($"Clip {clip.DisplayIndex} output: {Path.GetFileName(outputPath)}");
+                }
+
+                // Get the thumbnail from the SaveImage node (generated within ComfyUI, very fast)
+                var thumbnailPath = await ResolveThumbnailPathAsync(promptId, thumbnailNodeId, clip.DisplayIndex, ct);
+                if (!string.IsNullOrEmpty(thumbnailPath))
+                {
+                    clip.ThumbnailPath = thumbnailPath;
+                    AddLog($"Clip {clip.DisplayIndex} thumbnail: {Path.GetFileName(thumbnailPath)}");
+                }
             }
             catch (Exception ex)
             {
-                AddLog($"ERROR submitting clip {clip.DisplayIndex}: {ex.Message}");
+                AddLog($"ERROR generating clip {clip.DisplayIndex}: {ex.Message}");
                 if (ex.InnerException != null)
                 {
                     AddLog($"  Inner error: {ex.InnerException.Message}");
                 }
                 throw;
             }
+        }
+
+        private async Task<string?> ResolveClipOutputPathAsync(string promptId, string saveNodeId, int clipIndex, CancellationToken ct)
+        {
+            try
+            {
+                // Try to get outputs by node from ComfyUI
+                var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, ct);
+                if (byNode.TryGetValue(saveNodeId, out var outputs) && outputs.Count > 0)
+                {
+                    var videoFile = outputs[0];
+                    return await ResolveVideoToLocalAsync(videoFile);
+                }
+
+                // Fallback: look for video file on disk based on naming pattern
+                var expectedPrefix = $"video/{ProjectFolder}/clip_{clipIndex:D5}";
+                return FindVideoOnDisk(expectedPrefix);
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Warning: Could not resolve output path: {ex.Message}");
+                return null;
+            }
+        }
+
+        private async Task<string?> ResolveVideoToLocalAsync(string videoFile)
+        {
+            try
+            {
+                var settings = _settingsService.Settings;
+                if (settings != null)
+                {
+                    // Try local output folder first
+                    var outputFolder = settings.OutputFolderPath;
+                    if (!string.IsNullOrEmpty(outputFolder))
+                    {
+                        var localPath = Path.Combine(outputFolder, videoFile.Replace('/', Path.DirectorySeparatorChar));
+                        if (File.Exists(localPath))
+                        {
+                            await WaitForFileStableAsync(localPath);
+                            return localPath;
+                        }
+                    }
+
+                    // Try remote folder as fallback
+                    var remoteFolder = settings.RemoteOutputFolderPath;
+                    if (!string.IsNullOrEmpty(remoteFolder))
+                    {
+                        var remotePath = Path.Combine(remoteFolder, videoFile.Replace('/', Path.DirectorySeparatorChar));
+                        if (File.Exists(remotePath))
+                        {
+                            await WaitForFileStableAsync(remotePath);
+                            return remotePath;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Warning: ResolveVideoToLocal failed: {ex.Message}");
+            }
+            return null;
+        }
+
+        private string? FindVideoOnDisk(string prefix)
+        {
+            try
+            {
+                var settings = _settingsService.Settings;
+                if (settings == null) return null;
+
+                var folders = new[] { settings.OutputFolderPath, settings.RemoteOutputFolderPath }
+                    .Where(f => !string.IsNullOrEmpty(f) && Directory.Exists(f));
+
+                foreach (var folder in folders)
+                {
+                    var searchPattern = prefix.Replace("/", Path.DirectorySeparatorChar.ToString());
+                    var baseDir = Path.Combine(folder, Path.GetDirectoryName(searchPattern) ?? "");
+                    if (!Directory.Exists(baseDir)) continue;
+
+                    var fileName = Path.GetFileName(searchPattern);
+                    var files = Directory.GetFiles(baseDir, $"{fileName}*")
+                        .Where(f => f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) ||
+                                    f.EndsWith(".webm", StringComparison.OrdinalIgnoreCase))
+                        .OrderByDescending(f => File.GetLastWriteTime(f))
+                        .ToList();
+
+                    if (files.Count > 0)
+                        return files[0];
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Warning: FindVideoOnDisk failed: {ex.Message}");
+            }
+            return null;
+        }
+
+        private async Task WaitForFileStableAsync(string filePath, int maxWaitMs = 5000)
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            long lastSize = -1;
+            while (sw.ElapsedMilliseconds < maxWaitMs)
+            {
+                try
+                {
+                    var fi = new FileInfo(filePath);
+                    if (fi.Exists && fi.Length > 0 && fi.Length == lastSize)
+                        return;
+                    lastSize = fi.Length;
+                }
+                catch { }
+                await Task.Delay(200);
+            }
+        }
+
+        private async Task<string?> ResolveThumbnailPathAsync(string promptId, string thumbnailNodeId, int clipIndex, CancellationToken ct)
+        {
+            try
+            {
+                // Try to get thumbnail output from the SaveImage node we added
+                var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, ct);
+                if (byNode.TryGetValue(thumbnailNodeId, out var outputs) && outputs.Count > 0)
+                {
+                    var imageFile = outputs[0];
+                    return await ResolveImageToLocalAsync(imageFile);
+                }
+
+                // Fallback: look for thumbnail on disk
+                var expectedPrefix = $"video/{ProjectFolder}/clip_{clipIndex:D5}_thumb";
+                return FindImageOnDisk(expectedPrefix);
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Warning: Could not resolve thumbnail: {ex.Message}");
+                return null;
+            }
+        }
+
+        private string? FindImageOnDisk(string prefix)
+        {
+            try
+            {
+                var settings = _settingsService.Settings;
+                if (settings == null) return null;
+
+                var folders = new[] { settings.OutputFolderPath, settings.RemoteOutputFolderPath }
+                    .Where(f => !string.IsNullOrEmpty(f) && Directory.Exists(f));
+
+                foreach (var folder in folders)
+                {
+                    var searchPattern = prefix.Replace("/", Path.DirectorySeparatorChar.ToString());
+                    var baseDir = Path.Combine(folder, Path.GetDirectoryName(searchPattern) ?? "");
+                    if (!Directory.Exists(baseDir)) continue;
+
+                    var fileName = Path.GetFileName(searchPattern);
+                    var files = Directory.GetFiles(baseDir, $"{fileName}*")
+                        .Where(f => f.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
+                                    f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase))
+                        .OrderByDescending(f => File.GetLastWriteTime(f))
+                        .ToList();
+
+                    if (files.Count > 0)
+                        return files[0];
+                }
+            }
+            catch { }
+            return null;
         }
 
         // Two workflows: one with reference images, one without (text-to-video)
@@ -156,9 +345,23 @@ namespace FlipPix.UI.ViewModels.Video
 
         private async Task<JsonObject> BuildClipWorkflowAsync(H3TimelineClip clip, string?[] uploadedImages)
         {
+            var (workflow, _, _) = await BuildClipWorkflowWithSaveNodeAsync(clip, uploadedImages);
+            return workflow;
+        }
+
+        // Node IDs for dynamically added thumbnail extraction
+        private const string ThumbnailExtractNodeId = "h3ve_thumb_extract";
+        private const string ThumbnailSaveNodeId = "h3ve_thumb_save";
+
+        // Source node for images in text-to-video workflow (feeds into VHS_VideoCombine "18")
+        private const string TextImagesSourceNodeId = "176";
+
+        private async Task<(JsonObject workflow, string saveNodeId, string thumbnailNodeId)> BuildClipWorkflowWithSaveNodeAsync(H3TimelineClip clip, string?[] uploadedImages)
+        {
             // Determine which workflow to use based on whether we have images
             bool hasImages = uploadedImages.Any(img => !string.IsNullOrEmpty(img));
             var workflowFile = hasImages ? H3RefWorkflowPath : H3TextWorkflowPath;
+            var saveNodeId = hasImages ? RefSaveVideoNodeId : TextSaveVideoNodeId;
 
             var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, workflowFile);
             if (!File.Exists(workflowPath))
@@ -180,13 +383,58 @@ namespace FlipPix.UI.ViewModels.Video
 
                 // Patch the workflow with clip-specific values
                 PatchWorkflowForClip(workflow, clip, uploadedImages, hasImages);
-                return workflow;
+
+                // Add thumbnail extraction nodes
+                AddThumbnailNodes(workflow, clip, hasImages);
+
+                return (workflow, saveNodeId, ThumbnailSaveNodeId);
             }
             catch (Exception ex)
             {
                 AddLog($"ERROR loading workflow: {ex.Message}");
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Adds nodes to extract and save the first frame as a thumbnail.
+        /// This happens within ComfyUI so it's fast and doesn't require FFmpeg.
+        /// </summary>
+        private void AddThumbnailNodes(JsonObject workflow, H3TimelineClip clip, bool hasImages)
+        {
+            // Determine the source node for images based on workflow type
+            var imagesSourceNode = hasImages ? "176" : TextImagesSourceNodeId; // Both use node 176 for decoded frames
+
+            // Add ImageFromBatch node to extract the first frame
+            // Note: ImageFromBatch uses "image" (singular) as input, and "batch_index" for position
+            workflow[ThumbnailExtractNodeId] = new JsonObject
+            {
+                ["inputs"] = new JsonObject
+                {
+                    ["image"] = new JsonArray { imagesSourceNode, 0 },
+                    ["batch_index"] = 0
+                },
+                ["class_type"] = "ImageFromBatch",
+                ["_meta"] = new JsonObject
+                {
+                    ["title"] = "Extract Thumbnail Frame"
+                }
+            };
+
+            // Add SaveImage node to save the extracted frame
+            workflow[ThumbnailSaveNodeId] = new JsonObject
+            {
+                ["inputs"] = new JsonObject
+                {
+                    ["images"] = new JsonArray { ThumbnailExtractNodeId, 0 },
+                    ["filename_prefix"] = $"video/{ProjectFolder}/clip_{clip.DisplayIndex:D5}_thumb"
+                },
+                ["class_type"] = "SaveImage",
+                ["_meta"] = new JsonObject
+                {
+                    ["title"] = "Save Thumbnail"
+                }
+            };
         }
 
         private void PatchWorkflowForClip(JsonObject workflow, H3TimelineClip clip, string?[] uploadedImages, bool hasImages)

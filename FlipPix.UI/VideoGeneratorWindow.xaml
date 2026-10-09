@@ -5126,12 +5126,14 @@
                                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                                         <CheckBox Content="Auto-gen cast" IsChecked="{Binding AutoGenerateCast}" FontSize="10" VerticalAlignment="Center" ToolTip="Automatically generate cast photos if slots are empty"/>
                                                         <ComboBox SelectedValue="{Binding CastPhotoEngine}" Width="90" Height="22" FontSize="9" Margin="8,0,0,0" ToolTip="Cast photo generation engine">
+                                                            <sys:String>qwen21</sys:String>
                                                             <sys:String>krea2spicy</sys:String>
                                                             <sys:String>krea2</sys:String>
                                                             <sys:String>ideogram</sys:String>
                                                             <sys:String>qwen</sys:String>
                                                             <sys:String>klein</sys:String>
                                                             <sys:String>zimage</sys:String>
+                                                            <sys:String>famegrid</sys:String>
                                                         </ComboBox>
                                                     </StackPanel>
 
@@ -5155,7 +5157,10 @@
                                                         <Ellipse Width="7" Height="7" Fill="{DynamicResource TabAccentBrush}" Margin="0,0,7,0" VerticalAlignment="Center"/>
                                                         <TextBlock Text="PROMPT" FontSize="12" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
                                                     </StackPanel>
-                                                    <Button Content="📝 Template" HorizontalAlignment="Right" Command="{Binding InsertTemplateCommand}" Height="22" Padding="8,0" FontSize="10" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" ToolTip="Insert the spec prompt template"/>
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                        <Button Content="Apply to Selected" Command="{Binding ApplyPromptToSelectedCommand}" Height="22" Padding="8,0" FontSize="10" Style="{StaticResource SuccessButtonStyle}" Cursor="Hand" ToolTip="Apply this prompt to the selected clip" Margin="0,0,6,0"/>
+                                                        <Button Content="📝 Template" Command="{Binding InsertTemplateCommand}" Height="22" Padding="8,0" FontSize="10" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" ToolTip="Insert the spec prompt template"/>
+                                                    </StackPanel>
                                                 </Grid>
                                                 <TextBox Text="{Binding PromptText, UpdateSourceTrigger=PropertyChanged}" Height="140" FontSize="10" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Padding="6" ToolTip="The prompt for video generation. Use the spec format with subject_definitions, detailed_description, etc."/>
                                             </StackPanel>
@@ -5302,7 +5307,7 @@
                                             </ItemsControl.ItemsPanel>
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Border Width="100" Height="130" Margin="4" CornerRadius="6" Cursor="Hand" BorderThickness="2">
+                                                    <Border Width="180" Height="170" Margin="4" CornerRadius="6" Cursor="Hand" BorderThickness="2">
                                                         <Border.Style>
                                                             <Style TargetType="Border">
                                                                 <Setter Property="Background" Value="{StaticResource PlayerSurfaceBrush}"/>
@@ -5319,34 +5324,71 @@
                                                             </Style>
                                                         </Border.Style>
                                                         <Border.InputBindings>
-                                                            <MouseBinding MouseAction="LeftClick" Command="{Binding DataContext.PlayPreviewCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/>
+                                                            <MouseBinding MouseAction="LeftClick" Command="{Binding DataContext.SelectClipCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/>
                                                         </Border.InputBindings>
                                                         <Grid>
                                                             <Grid.RowDefinitions>
+                                                                <RowDefinition Height="80"/>
                                                                 <RowDefinition Height="*"/>
-                                                                <RowDefinition Height="Auto"/>
                                                             </Grid.RowDefinitions>
                                                             <!-- Thumbnail area -->
-                                                            <Border Grid.Row="0" CornerRadius="4,4,0,0" Margin="4,4,4,0">
+                                                            <Border Grid.Row="0" CornerRadius="4,4,0,0" Margin="4,4,4,0" Background="{StaticResource PlayerSurfaceBrush}">
                                                                 <Grid>
-                                                                    <TextBlock Text="{Binding DisplayIndex}" FontSize="24" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                    <!-- Thumbnail image (shown if available) -->
+                                                                    <Image Source="{Binding ThumbnailPath}" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                        <Image.Style>
+                                                                            <Style TargetType="Image">
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding ThumbnailPath}" Value="">
+                                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </Image.Style>
+                                                                    </Image>
+                                                                    <!-- Clip number (shown if no thumbnail) -->
+                                                                    <TextBlock Text="{Binding DisplayIndex}" FontSize="32" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                        <TextBlock.Style>
+                                                                            <Style TargetType="TextBlock">
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding ThumbnailPath}" Value="">
+                                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                                    </DataTrigger>
+                                                                                    <DataTrigger Binding="{Binding ThumbnailPath.Length, FallbackValue=0}" Value="0">
+                                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            </Style>
+                                                                        </TextBlock.Style>
+                                                                    </TextBlock>
+                                                                    <!-- Duration badge -->
                                                                     <Border Background="{StaticResource ScrimBrush}" CornerRadius="4" Padding="4,2" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="2">
                                                                         <TextBlock Text="{Binding DurationDisplay}" FontSize="9" Foreground="White" FontWeight="Bold"/>
                                                                     </Border>
+                                                                    <!-- Status badge -->
                                                                     <Border Background="{StaticResource ScrimBrush}" CornerRadius="4" Padding="4,2" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="2">
                                                                         <TextBlock Text="{Binding StatusText}" FontSize="8" Foreground="White"/>
                                                                     </Border>
                                                                 </Grid>
                                                             </Border>
-                                                            <!-- Info area -->
+                                                            <!-- Info area with prompt and buttons -->
                                                             <Border Grid.Row="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="0,0,4,4" Padding="4">
-                                                                <StackPanel>
-                                                                    <TextBlock Text="{Binding PromptPreview}" FontSize="8" Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" MaxHeight="24" TextWrapping="Wrap"/>
-                                                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                                                        <Button Content="▶" Width="20" Height="16" Padding="0" FontSize="8" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" Command="{Binding DataContext.PlayPreviewCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" ToolTip="Play this clip"/>
-                                                                        <Button Content="✕" Width="20" Height="16" Padding="0" FontSize="8" Margin="4,0,0,0" Style="{StaticResource DangerButtonStyle}" Cursor="Hand" Command="{Binding DataContext.RemoveClipCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" ToolTip="Remove this clip"/>
+                                                                <Grid>
+                                                                    <Grid.RowDefinitions>
+                                                                        <RowDefinition Height="*"/>
+                                                                        <RowDefinition Height="Auto"/>
+                                                                    </Grid.RowDefinitions>
+                                                                    <!-- Prompt text (expanded) -->
+                                                                    <TextBlock Grid.Row="0" Text="{Binding PromptPreview}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" MaxHeight="40" TextWrapping="Wrap" ToolTip="{Binding Prompt}"/>
+                                                                    <!-- Action buttons -->
+                                                                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,4,0,0">
+                                                                        <Button Content="▶" Width="24" Height="18" Padding="0" FontSize="9" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" Command="{Binding DataContext.PlayPreviewCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" ToolTip="Play this clip"/>
+                                                                        <Button Content="✎" Width="24" Height="18" Padding="0" FontSize="9" Margin="4,0,0,0" Style="{StaticResource AccentButtonStyle}" Cursor="Hand" Command="{Binding DataContext.EditClipPromptCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" ToolTip="Edit prompt"/>
+                                                                        <Button Content="⟳" Width="24" Height="18" Padding="0" FontSize="9" Margin="4,0,0,0" Style="{StaticResource SuccessButtonStyle}" Cursor="Hand" Command="{Binding DataContext.RegenerateClipCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" ToolTip="Regenerate this clip"/>
+                                                                        <Button Content="✕" Width="24" Height="18" Padding="0" FontSize="9" Margin="4,0,0,0" Style="{StaticResource DangerButtonStyle}" Cursor="Hand" Command="{Binding DataContext.RemoveClipCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" ToolTip="Remove this clip"/>
                                                                     </StackPanel>
-                                                                </StackPanel>
+                                                                </Grid>
                                                             </Border>
                                                         </Grid>
                                                     </Border>
