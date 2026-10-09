@@ -5246,6 +5246,7 @@
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
                                 <!-- Project Header - Compact -->
@@ -5469,7 +5470,7 @@
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
                                                         <!-- Clip block - width based on duration (12px per second) -->
-                                                        <Border Height="72" Margin="1,2" CornerRadius="3" Cursor="Hand" BorderThickness="1" ToolTip="{Binding Prompt}">
+                                                        <Border Height="72" Margin="1,2" CornerRadius="3" Cursor="Hand" BorderThickness="1" ToolTip="{Binding ClipSummary}">
                                                             <Border.Width>
                                                                 <Binding Path="DurationSeconds">
                                                                     <Binding.Converter>
@@ -5573,8 +5574,36 @@
                                     </Grid>
                                 </Border>
 
+                                <!-- ═══ CLIP ACTIONS EDITOR (Editable text for selected clip) ═══════ -->
+                                <Border Grid.Row="4" Background="#1e1e1e" Margin="8,4,8,0" CornerRadius="4" Padding="8"
+                                        Visibility="{Binding SelectedClip, Converter={StaticResource NotNullToVisibilityConverter}}">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,4">
+                                            <TextBlock Text="Clip " FontSize="10" FontWeight="Bold" Foreground="#888"/>
+                                            <TextBlock Text="{Binding SelectedClip.DisplayIndex}" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource TabAccentBrush}"/>
+                                            <TextBlock Text=" Actions" FontSize="10" FontWeight="Bold" Foreground="#888"/>
+                                            <TextBlock Text=" — " FontSize="10" Foreground="#555"/>
+                                            <TextBlock Text="{Binding SelectedClip.DurationDisplay}" FontSize="10" FontFamily="Consolas" Foreground="#666"/>
+                                        </StackPanel>
+                                        <TextBox Grid.Row="1"
+                                                 Text="{Binding SelectedClip.ClipActions, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 AcceptsReturn="True" TextWrapping="Wrap"
+                                                 VerticalScrollBarVisibility="Auto"
+                                                 Height="100" MaxHeight="150"
+                                                 FontSize="11" FontFamily="Consolas"
+                                                 Background="#252525" Foreground="#ccc"
+                                                 BorderBrush="#3d3d3d" BorderThickness="1"
+                                                 Padding="6"
+                                                 ToolTip="Edit the shot-by-shot actions for this clip. Changes are saved automatically."/>
+                                    </Grid>
+                                </Border>
+
                                 <!-- ═══ ACTION BAR (Compact) ════════════════════════════════════════ -->
-                                <Border Grid.Row="4" Background="#252525" Padding="8,6" Margin="8,4,8,8" CornerRadius="4">
+                                <Border Grid.Row="5" Background="#252525" Padding="8,6" Margin="8,4,8,8" CornerRadius="4">
                                     <Grid>
                                         <StackPanel Orientation="Horizontal">
                                             <!-- Generate - primary action with subtle green -->

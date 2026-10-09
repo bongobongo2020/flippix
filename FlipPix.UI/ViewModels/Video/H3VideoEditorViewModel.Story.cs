@@ -296,12 +296,15 @@ namespace FlipPix.UI.ViewModels.Video
         private string BuildCastBrief(List<(string Kind, string Role)> cast)
         {
             var sb = new StringBuilder();
-            sb.AppendLine("This story features:");
+            sb.AppendLine($"This story features EXACTLY {cast.Count} character(s) — no more, no less:");
             for (int i = 0; i < cast.Count; i++)
             {
                 var (kind, role) = cast[i];
                 sb.AppendLine($"  CHARACTER {i + 1}: {role}");
             }
+            sb.AppendLine();
+            sb.AppendLine($"IMPORTANT: Only use {string.Join(" and ", Enumerable.Range(1, cast.Count).Select(n => $"CHARACTER {n}"))}. " +
+                         "Do NOT invent or reference any other characters. These are the ONLY characters in the story.");
             return sb.ToString();
         }
 

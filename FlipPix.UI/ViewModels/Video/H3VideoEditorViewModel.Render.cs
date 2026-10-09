@@ -339,6 +339,7 @@ namespace FlipPix.UI.ViewModels.Video
         private const string RefSamplerNodeId = "123";       // KSamplerSelect - sampler_name
         private const string Picture1NodeId = "137";         // LoadImage for Picture 1 (ref_image_0)
         private const string Picture2NodeId = "139";         // LoadImage for Picture 2 (ref_image_1)
+        private const string RefSeedNodeId = "129";          // RandomNoise - noise_seed
 
         // Node IDs in h3-singularity.json (text-to-video, no reference images)
         private const string TextPromptNodeId = "22:11";     // PrimitiveStringMultiline - prompt text
@@ -347,6 +348,8 @@ namespace FlipPix.UI.ViewModels.Video
         private const string TextSaveVideoNodeId = "18";     // VHS_VideoCombine - preview_1
         private const string TextStepsNodeId = "22:8";       // INTConstant - steps
         private const string TextSamplerNodeId = "22:6";     // KSamplerSelect - sampler_name
+        // Text workflow has multiple RandomNoise nodes for different passes
+        private static readonly string[] TextSeedNodeIds = { "125:17", "133:128", "143:138", "135:27" };
 
         private async Task<JsonObject> BuildClipWorkflowAsync(H3TimelineClip clip, string?[] uploadedImages)
         {
@@ -523,6 +526,15 @@ namespace FlipPix.UI.ViewModels.Video
                     AddLog($"Patched Picture {i + 1} in node {pictureNodeIds[i]}: {uploadedFileName}");
                 }
             }
+
+            // Randomize seed for different outputs on regeneration
+            var seed = Random.Shared.NextInt64(0, 999_999_999_999_999L);
+            if (workflow[RefSeedNodeId] is JsonObject seedNode &&
+                seedNode["inputs"] is JsonObject seedInputs)
+            {
+                seedInputs["noise_seed"] = seed;
+                AddLog($"Patched seed: {seed}");
+            }
         }
 
         private void PatchTextWorkflow(JsonObject workflow, H3TimelineClip clip)
@@ -575,6 +587,23 @@ namespace FlipPix.UI.ViewModels.Video
                 saveInputs["filename_prefix"] = $"video/{ProjectFolder}/clip_{clip.DisplayIndex:D5}";
                 AddLog($"Patched filename prefix: video/{ProjectFolder}/clip_{clip.DisplayIndex:D5}");
             }
+
+            // Randomize seeds for different outputs on regeneration
+            // Text workflow has multiple RandomNoise nodes for different passes
+            var baseSeed = Random.Shared.NextInt64(0, 999_999_999_999_999L);
+            var seedsPatched = 0;
+            for (int i = 0; i < TextSeedNodeIds.Length; i++)
+            {
+                var nodeId = TextSeedNodeIds[i];
+                if (workflow[nodeId] is JsonObject seedNode &&
+                    seedNode["inputs"] is JsonObject seedInputs)
+                {
+                    seedInputs["noise_seed"] = baseSeed + i;
+                    seedsPatched++;
+                }
+            }
+            if (seedsPatched > 0)
+                AddLog($"Patched {seedsPatched} seed(s) starting at: {baseSeed}");
 
             AddLog("Using text-to-video workflow (no reference images)");
         }

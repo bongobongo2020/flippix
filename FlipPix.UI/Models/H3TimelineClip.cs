@@ -1,4 +1,5 @@
 using System;
+using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace FlipPix.UI.Models
@@ -14,6 +15,16 @@ namespace FlipPix.UI.Models
             Id = Guid.NewGuid().ToString("N");
         }
 
+        /// <summary>Regex to extract the detailed_description section from a prompt.</summary>
+        private static readonly Regex DetailedDescriptionRegex = new(
+            @"detailed_description:\s*\n(.*?)(?=\n\s*(?:overall_soundscape:|non_diegetic_music:|\z))",
+            RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>Regex to extract the summary section from a prompt.</summary>
+        private static readonly Regex SummaryRegex = new(
+            @"summary:\s*\n(.*?)(?=\n\s*(?:retention_analysis:|detailed_description:|\z))",
+            RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
         /// <summary>Stable ID for drag-drop and tracking.</summary>
         public string Id { get; }
 
@@ -28,10 +39,53 @@ namespace FlipPix.UI.Models
         /// <summary>The prompt text for this clip's generation.</summary>
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(PromptPreview))]
+        [NotifyPropertyChangedFor(nameof(ClipActions))]
+        [NotifyPropertyChangedFor(nameof(ClipSummary))]
         private string _prompt = string.Empty;
 
         /// <summary>Shortened prompt for timeline display - shows first 80 chars.</summary>
         public string PromptPreview => Prompt.Length > 80 ? Prompt[..77] + "..." : Prompt;
+
+        /// <summary>
+        /// The detailed_description section of the prompt - the shot-by-shot actions.
+        /// Can be edited directly; changes are written back to the full prompt.
+        /// </summary>
+        public string ClipActions
+        {
+            get
+            {
+                var match = DetailedDescriptionRegex.Match(Prompt);
+                return match.Success ? match.Groups[1].Value.Trim() : string.Empty;
+            }
+            set
+            {
+                var newActions = (value ?? string.Empty).Trim();
+                var match = DetailedDescriptionRegex.Match(Prompt);
+                if (match.Success)
+                {
+                    // Replace the existing detailed_description content
+                    var before = Prompt[..match.Groups[1].Index];
+                    var after = Prompt[(match.Groups[1].Index + match.Groups[1].Length)..];
+                    Prompt = before + newActions + after;
+                }
+                else if (!string.IsNullOrEmpty(newActions))
+                {
+                    // No detailed_description section - append one
+                    Prompt = Prompt.TrimEnd() + "\n\ndetailed_description:\n" + newActions;
+                }
+                OnPropertyChanged(nameof(ClipActions));
+            }
+        }
+
+        /// <summary>The summary section of the prompt - brief description of what happens.</summary>
+        public string ClipSummary
+        {
+            get
+            {
+                var match = SummaryRegex.Match(Prompt);
+                return match.Success ? match.Groups[1].Value.Trim() : string.Empty;
+            }
+        }
 
         /// <summary>Duration of this clip in seconds.</summary>
         [ObservableProperty]
