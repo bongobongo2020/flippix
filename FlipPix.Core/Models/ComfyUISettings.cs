@@ -491,6 +491,22 @@ public class H3VideoEditorSettings
 
     // Custom presets saved by the user
     public List<H3VideoEditorCustomPreset> CustomPresets { get; set; } = new();
+
+    // Timeline state for crash recovery - auto-saved after every change
+    public List<H3TimelineClipState> TimelineClips { get; set; } = new();
+    public string CurrentPromptText { get; set; } = string.Empty;
+}
+
+/// <summary>Serializable state for a timeline clip, used for crash recovery.</summary>
+public class H3TimelineClipState
+{
+    public int Index { get; set; }
+    public string Prompt { get; set; } = string.Empty;
+    public double DurationSeconds { get; set; } = 5.0;
+    public string OutputPath { get; set; } = string.Empty;
+    public string ThumbnailPath { get; set; } = string.Empty;
+    public string State { get; set; } = "Pending"; // Pending, Queued, Rendering, Rendered, Failed
+    public bool UseMotionContext { get; set; } = true;
 }
 
 /// <summary>A user-saved preset for the H3 Video Editor.</summary>

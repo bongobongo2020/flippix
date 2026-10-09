@@ -418,7 +418,74 @@ N/A
             TargetDurationSeconds = settings.TargetDurationSeconds;
             CastPhotoEngine = settings.CastPhotoEngine;
             AutoGenerateCast = settings.AutoGenerateCast;
+
+            // Restore timeline from crash recovery
+            RestoreTimeline(settings);
         }
+
+        /// <summary>Restores timeline clips from saved state (crash recovery).</summary>
+        private void RestoreTimeline(FlipPix.Core.Models.H3VideoEditorSettings settings)
+        {
+            if (settings.TimelineClips == null || settings.TimelineClips.Count == 0)
+                return;
+
+            try
+            {
+                TimelineClips.Clear();
+                int restoredCount = 0;
+
+                foreach (var savedClip in settings.TimelineClips.OrderBy(c => c.Index))
+                {
+                    var clip = new H3TimelineClip
+                    {
+                        Index = savedClip.Index,
+                        Prompt = savedClip.Prompt,
+                        DurationSeconds = savedClip.DurationSeconds,
+                        OutputPath = savedClip.OutputPath,
+                        ThumbnailPath = savedClip.ThumbnailPath,
+                        UseMotionContext = savedClip.UseMotionContext,
+                        State = ParseClipState(savedClip.State)
+                    };
+
+                    // Verify output file still exists
+                    if (!string.IsNullOrEmpty(clip.OutputPath) && !File.Exists(clip.OutputPath))
+                    {
+                        clip.OutputPath = string.Empty;
+                        clip.State = H3ClipState.Pending;
+                    }
+
+                    TimelineClips.Add(clip);
+                    restoredCount++;
+                }
+
+                // Restore prompt text
+                if (!string.IsNullOrEmpty(settings.CurrentPromptText))
+                    PromptText = settings.CurrentPromptText;
+
+                RecalculateTimeline();
+
+                if (restoredCount > 0)
+                {
+                    AddLog($"Restored {restoredCount} clip(s) from previous session");
+                    var renderedCount = TimelineClips.Count(c => c.IsRendered);
+                    if (renderedCount > 0)
+                        AddLog($"  {renderedCount} clip(s) already rendered, {TimelineClips.Count - renderedCount} pending");
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Warning: Could not restore timeline: {ex.Message}");
+            }
+        }
+
+        private static H3ClipState ParseClipState(string state) => state switch
+        {
+            "Queued" => H3ClipState.Queued,
+            "Rendering" => H3ClipState.Pending, // Treat interrupted rendering as pending
+            "Rendered" => H3ClipState.Rendered,
+            "Failed" => H3ClipState.Pending, // Allow retry of failed clips
+            _ => H3ClipState.Pending
+        };
 
         protected void SaveSettings()
         {
@@ -454,7 +521,44 @@ N/A
             settings.H3VideoEditor.CastPhotoEngine = CastPhotoEngine;
             settings.H3VideoEditor.AutoGenerateCast = AutoGenerateCast;
 
+            // Save timeline state for crash recovery
+            SaveTimelineState(settings.H3VideoEditor);
+
             _settingsService.SaveSettings(settings);
+        }
+
+        /// <summary>Saves the current timeline state for crash recovery.</summary>
+        private void SaveTimelineState(FlipPix.Core.Models.H3VideoEditorSettings settings)
+        {
+            settings.TimelineClips.Clear();
+            settings.CurrentPromptText = PromptText;
+
+            foreach (var clip in TimelineClips)
+            {
+                settings.TimelineClips.Add(new FlipPix.Core.Models.H3TimelineClipState
+                {
+                    Index = clip.Index,
+                    Prompt = clip.Prompt,
+                    DurationSeconds = clip.DurationSeconds,
+                    OutputPath = clip.OutputPath,
+                    ThumbnailPath = clip.ThumbnailPath,
+                    State = clip.State.ToString(),
+                    UseMotionContext = clip.UseMotionContext
+                });
+            }
+        }
+
+        /// <summary>Auto-saves the timeline after any change (for crash recovery).</summary>
+        protected void AutoSaveTimeline()
+        {
+            try
+            {
+                SaveSettings();
+            }
+            catch
+            {
+                // Silently ignore auto-save failures to not disrupt workflow
+            }
         }
     }
 }

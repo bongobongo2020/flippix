@@ -50,6 +50,7 @@ namespace FlipPix.UI.ViewModels.Video
                 GenerateClipsCommand.NotifyCanExecuteChanged();
                 JoinClipsCommand.NotifyCanExecuteChanged();
                 ClearTimelineCommand.NotifyCanExecuteChanged();
+                AutoSaveTimeline(); // Auto-save for crash recovery
             };
         }
 

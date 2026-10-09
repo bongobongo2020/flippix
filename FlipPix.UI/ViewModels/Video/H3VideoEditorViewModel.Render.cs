@@ -46,17 +46,20 @@ namespace FlipPix.UI.ViewModels.Video
                         clip.State = H3ClipState.Rendered;
                         completed++;
                         AddLog($"Clip {clip.DisplayIndex} rendered successfully");
+                        AutoSaveTimeline(); // Save progress after each successful clip
                     }
                     catch (OperationCanceledException)
                     {
                         clip.State = H3ClipState.Pending;
                         AddLog($"Clip {clip.DisplayIndex} cancelled");
+                        AutoSaveTimeline(); // Save state on cancel
                         break;
                     }
                     catch (Exception ex)
                     {
                         clip.State = H3ClipState.Failed;
                         AddLog($"Clip {clip.DisplayIndex} failed: {ex.Message}");
+                        AutoSaveTimeline(); // Save state on failure
                     }
                 }
 
@@ -403,7 +406,8 @@ namespace FlipPix.UI.ViewModels.Video
         private void AddThumbnailNodes(JsonObject workflow, H3TimelineClip clip, bool hasImages)
         {
             // Determine the source node for images based on workflow type
-            var imagesSourceNode = hasImages ? "176" : TextImagesSourceNodeId; // Both use node 176 for decoded frames
+            // Ref workflow uses node 122 (VAEDecode), Text workflow uses node 176 (VAEDecode)
+            var imagesSourceNode = hasImages ? "122" : TextImagesSourceNodeId;
 
             // Add ImageFromBatch node to extract the first frame
             // Note: ImageFromBatch uses "image" (singular) as input, and "batch_index" for position
