@@ -324,7 +324,7 @@ namespace FlipPix.UI.ViewModels.Video
 
                 try
                 {
-                    var photoPath = await GenerateCastPhotoAsync(slotIndex, prompt, CancellationToken.None);
+                    var photoPath = await GenerateCastPhotoAsync(slotIndex, prompt, CastPhotoEngine, CancellationToken.None);
                     if (!string.IsNullOrEmpty(photoPath) && File.Exists(photoPath))
                     {
                         ReferenceSlots[slotIndex].AddImage(photoPath);
@@ -338,6 +338,29 @@ namespace FlipPix.UI.ViewModels.Video
                 catch (Exception ex)
                 {
                     AddLog($"ERROR generating Picture {slotIndex + 1}: {ex.Message}");
+
+                    // Try fallback engine if primary failed and isn't already the fallback
+                    if (CastPhotoEngine != CastPhotoWorkflows.SafetyFallbackEngine)
+                    {
+                        AddLog($"Retrying Picture {slotIndex + 1} with fallback engine ({CastPhotoWorkflows.LabelFor(CastPhotoWorkflows.SafetyFallbackEngine)})...");
+                        try
+                        {
+                            var fallbackPath = await GenerateCastPhotoAsync(slotIndex, prompt, CastPhotoWorkflows.SafetyFallbackEngine, CancellationToken.None);
+                            if (!string.IsNullOrEmpty(fallbackPath) && File.Exists(fallbackPath))
+                            {
+                                ReferenceSlots[slotIndex].AddImage(fallbackPath);
+                                AddLog($"Fallback succeeded for Picture {slotIndex + 1}: {Path.GetFileName(fallbackPath)}");
+                            }
+                            else
+                            {
+                                AddLog($"Fallback also failed for Picture {slotIndex + 1}");
+                            }
+                        }
+                        catch (Exception fallbackEx)
+                        {
+                            AddLog($"Fallback engine also failed: {fallbackEx.Message}");
+                        }
+                    }
                 }
             }
         }
@@ -385,16 +408,19 @@ namespace FlipPix.UI.ViewModels.Video
             return sb.ToString();
         }
 
-        private async Task<string?> GenerateCastPhotoAsync(int slotIndex, string prompt, CancellationToken ct)
+        private async Task<string?> GenerateCastPhotoAsync(int slotIndex, string prompt, string engine, CancellationToken ct)
         {
             var ts = DateTime.Now.ToString("yyyyMMddHHmmss");
             var runToken = $"h3_story_cast_{slotIndex + 1}_{ts}";
             var seed = System.Random.Shared.NextInt64(0, 1_000_000_000_000_000L);
 
             var (json, saveNode) = await CastPhotoWorkflows.BuildAsync(
-                CastPhotoEngine, $"h3_story/{runToken}", seed, prompt, AddLog, null);
+                engine, $"h3_story/{runToken}", seed, prompt, AddLog, null);
 
-            AddLog($"Generating cast photo for Character {slotIndex + 1}...");
+            // Parse JSON string to avoid double-encoding when submitting to ComfyUI
+            var workflow = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(json);
+
+            AddLog($"Generating cast photo for Character {slotIndex + 1} using {CastPhotoWorkflows.LabelFor(engine)}...");
 
             // Submit and wait for completion
             var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(msg =>
@@ -406,7 +432,7 @@ namespace FlipPix.UI.ViewModels.Video
                 }
             });
 
-            var promptId = await _comfyUIService.ExecuteWorkflowAsync(json, progress, ct);
+            var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progress, ct);
 
             // Retrieve the output image
             var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, ct);

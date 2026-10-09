@@ -517,6 +517,17 @@ namespace FlipPix.UI
         }
 
         // Stops every media element so the window releases its hold on the underlying video files
+        // ── H3 Video Editor Timeline Clip Previews ──────────────────────────────────
+        // Loop the mini video previews in the timeline by rewinding to start on end.
+        private void TimelineClipVideo_MediaEnded(object sender, RoutedEventArgs e)
+        {
+            if (sender is System.Windows.Controls.MediaElement player)
+            {
+                player.Position = System.TimeSpan.FromMilliseconds(1);
+                player.Play();
+            }
+        }
+
         // (important when only hiding, so the files aren't left locked while the window lingers).
         private void StopAllPlayers()
         {

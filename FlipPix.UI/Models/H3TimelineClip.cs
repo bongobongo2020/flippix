@@ -53,11 +53,19 @@ namespace FlipPix.UI.Models
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(IsRendered))]
         [NotifyPropertyChangedFor(nameof(StatusText))]
+        [NotifyPropertyChangedFor(nameof(PreviewVideoPath))]
+        [NotifyPropertyChangedFor(nameof(HasVideoPreview))]
         private string _outputPath = string.Empty;
 
         /// <summary>Path to a thumbnail image for this clip.</summary>
         [ObservableProperty]
         private string _thumbnailPath = string.Empty;
+
+        /// <summary>Path to the video file for animated timeline preview. Returns OutputPath if video exists.</summary>
+        public string? PreviewVideoPath => IsRendered && System.IO.File.Exists(OutputPath) ? OutputPath : null;
+
+        /// <summary>True if this clip has a video preview available.</summary>
+        public bool HasVideoPreview => !string.IsNullOrEmpty(PreviewVideoPath);
 
         /// <summary>True if this clip has been rendered.</summary>
         public bool IsRendered => !string.IsNullOrEmpty(OutputPath);

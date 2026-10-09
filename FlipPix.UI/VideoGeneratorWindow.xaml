@@ -5334,11 +5334,30 @@
                                                             <!-- Thumbnail area -->
                                                             <Border Grid.Row="0" CornerRadius="4,4,0,0" Margin="4,4,4,0" Background="{StaticResource PlayerSurfaceBrush}">
                                                                 <Grid>
-                                                                    <!-- Thumbnail image (shown if available) -->
+                                                                    <!-- Video preview (shown when video is rendered) -->
+                                                                    <MediaElement Source="{Binding PreviewVideoPath}" LoadedBehavior="Play" UnloadedBehavior="Close" Stretch="UniformToFill" IsMuted="True" MediaEnded="TimelineClipVideo_MediaEnded">
+                                                                        <MediaElement.Style>
+                                                                            <Style TargetType="MediaElement">
+                                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding HasVideoPreview}" Value="True">
+                                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </MediaElement.Style>
+                                                                    </MediaElement>
+                                                                    <!-- Thumbnail image (shown if video not available but thumbnail exists) -->
                                                                     <Image Source="{Binding ThumbnailPath}" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                                         <Image.Style>
                                                                             <Style TargetType="Image">
+                                                                                <Setter Property="Visibility" Value="Visible"/>
                                                                                 <Style.Triggers>
+                                                                                    <!-- Hide if video preview is showing -->
+                                                                                    <DataTrigger Binding="{Binding HasVideoPreview}" Value="True">
+                                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                    </DataTrigger>
+                                                                                    <!-- Hide if no thumbnail -->
                                                                                     <DataTrigger Binding="{Binding ThumbnailPath}" Value="">
                                                                                         <Setter Property="Visibility" Value="Collapsed"/>
                                                                                     </DataTrigger>
@@ -5346,19 +5365,22 @@
                                                                             </Style>
                                                                         </Image.Style>
                                                                     </Image>
-                                                                    <!-- Clip number (shown if no thumbnail) -->
+                                                                    <!-- Clip number (shown if no video or thumbnail) -->
                                                                     <TextBlock Text="{Binding DisplayIndex}" FontSize="32" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                                         <TextBlock.Style>
                                                                             <Style TargetType="TextBlock">
-                                                                                <Style.Triggers>
-                                                                                    <DataTrigger Binding="{Binding ThumbnailPath}" Value="">
-                                                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                                                    </DataTrigger>
-                                                                                    <DataTrigger Binding="{Binding ThumbnailPath.Length, FallbackValue=0}" Value="0">
-                                                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                                                    </DataTrigger>
-                                                                                </Style.Triggers>
+                                                                                <!-- Default visible, hidden by triggers when media exists -->
                                                                                 <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                <Style.Triggers>
+                                                                                    <!-- Show when no video and no thumbnail -->
+                                                                                    <MultiDataTrigger>
+                                                                                        <MultiDataTrigger.Conditions>
+                                                                                            <Condition Binding="{Binding HasVideoPreview}" Value="False"/>
+                                                                                            <Condition Binding="{Binding ThumbnailPath}" Value=""/>
+                                                                                        </MultiDataTrigger.Conditions>
+                                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                                    </MultiDataTrigger>
+                                                                                </Style.Triggers>
                                                                             </Style>
                                                                         </TextBlock.Style>
                                                                     </TextBlock>
