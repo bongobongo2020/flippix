@@ -1,13 +1,16 @@
+using FlipPix.Core;
 using FlipPix.Core.Interfaces;
 using FlipPix.Core.Models;
+using FlipPix.Core.Utilities;
 using FlipPix.ComfyUI.Http;
 using FlipPix.ComfyUI.WebSocket;
 using FlipPix.ComfyUI.Models;
 using FlipPix.ComfyUI.Exceptions;
+using FlipPix.ComfyUI.Interfaces;
 
 namespace FlipPix.ComfyUI.Services;
 
-public class ComfyUIService : IDisposable
+public class ComfyUIService : IComfyUIService
 {
     private readonly ComfyUIHttpClient _httpClient;
     private readonly ComfyUIWebSocketClient _webSocketClient;
@@ -210,53 +213,44 @@ public class ComfyUIService : IDisposable
         return await _processManager.DetectAndRestartComfyUIAsync(statusCallback, cancellationToken);
     }
 
-    public async Task<string> UploadImageAsync(
-        string imagePath,
+    /// <summary>
+    /// Generic file upload method that eliminates duplication across image/video/audio uploads.
+    /// </summary>
+    private async Task<string> UploadFileAsync(
+        string filePath,
+        string fileType,
+        Func<string, string, CancellationToken, Task<string>> uploadFunc,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            _logger.LogInfo("Uploading image to ComfyUI: {ImagePath}", imagePath);
+            _logger.LogInfo("Uploading {FileType} to ComfyUI: {FilePath}", fileType, filePath);
 
-            var uploadedFileName = await RetryAsync(
-                () => _httpClient.UploadImageAsync(imagePath, "input", cancellationToken),
+            var uploadedFileName = await RetryPolicy.ExecuteAsync(
+                () => uploadFunc(filePath, "input", cancellationToken),
                 _settings.MaxRetries,
                 TimeSpan.FromMilliseconds(_settings.RetryDelayMilliseconds),
-                cancellationToken);
+                cancellationToken,
+                _logger);
 
-            _logger.LogInfo("Image uploaded successfully: {FileName}", uploadedFileName);
+            _logger.LogInfo("{FileType} uploaded successfully: {FileName}", fileType, uploadedFileName);
             return uploadedFileName;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to upload image");
+            _logger.LogError(ex, "Failed to upload {FileType}", fileType);
             throw;
         }
     }
 
-    public async Task<string> UploadVideoAsync(
-        string videoPath,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            _logger.LogInfo("Uploading video to ComfyUI: {VideoPath}", videoPath);
+    public Task<string> UploadImageAsync(string imagePath, CancellationToken cancellationToken = default)
+        => UploadFileAsync(imagePath, "image", _httpClient.UploadImageAsync, cancellationToken);
 
-            var uploadedFileName = await RetryAsync(
-                () => _httpClient.UploadVideoAsync(videoPath, "input", cancellationToken),
-                _settings.MaxRetries,
-                TimeSpan.FromMilliseconds(_settings.RetryDelayMilliseconds),
-                cancellationToken);
+    public Task<string> UploadVideoAsync(string videoPath, CancellationToken cancellationToken = default)
+        => UploadFileAsync(videoPath, "video", _httpClient.UploadVideoAsync, cancellationToken);
 
-            _logger.LogInfo("Video uploaded successfully: {FileName}", uploadedFileName);
-            return uploadedFileName;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to upload video");
-            throw;
-        }
-    }
+    public Task<string> UploadAudioAsync(string audioPath, CancellationToken cancellationToken = default)
+        => UploadFileAsync(audioPath, "audio", _httpClient.UploadAudioAsync, cancellationToken);
 
     /// <summary>
     /// Asks ComfyUI to unload models and free VRAM/RAM (POST /free). Best-effort — returns
@@ -264,30 +258,6 @@ public class ComfyUIService : IDisposable
     /// </summary>
     public async Task<bool> FreeMemoryAsync(bool unloadModels = true, bool freeMemory = true, CancellationToken cancellationToken = default)
         => await _httpClient.FreeMemoryAsync(unloadModels, freeMemory, cancellationToken);
-
-    public async Task<string> UploadAudioAsync(
-        string audioPath,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            _logger.LogInfo("Uploading audio to ComfyUI: {AudioPath}", audioPath);
-
-            var uploadedFileName = await RetryAsync(
-                () => _httpClient.UploadAudioAsync(audioPath, "input", cancellationToken),
-                _settings.MaxRetries,
-                TimeSpan.FromMilliseconds(_settings.RetryDelayMilliseconds),
-                cancellationToken);
-
-            _logger.LogInfo("Audio uploaded successfully: {FileName}", uploadedFileName);
-            return uploadedFileName;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to upload audio");
-            throw;
-        }
-    }
 
     public async Task<string> QueuePromptAsync(
         object workflow,
@@ -330,31 +300,19 @@ public class ComfyUIService : IDisposable
         {
             _logger.LogInfo("Uploading files to ComfyUI");
 
-            var uploadedFiles = new Dictionary<string, string>();
+            // Upload all files in parallel for better performance
+            var uploadTasks = new[]
+            {
+                ("video", UploadImageAsync(videoFilePath, cancellationToken)),
+                ("style", UploadImageAsync(styleImagePath, cancellationToken)),
+                ("face", UploadImageAsync(faceImagePath, cancellationToken))
+            };
 
-            // Upload video file
-            var videoFileName = await RetryAsync(
-                () => _httpClient.UploadImageAsync(videoFilePath, "input", cancellationToken),
-                _settings.MaxRetries,
-                TimeSpan.FromMilliseconds(_settings.RetryDelayMilliseconds),
-                cancellationToken);
-            uploadedFiles["video"] = videoFileName;
+            await Task.WhenAll(uploadTasks.Select(t => t.Item2));
 
-            // Upload style reference image
-            var styleFileName = await RetryAsync(
-                () => _httpClient.UploadImageAsync(styleImagePath, "input", cancellationToken),
-                _settings.MaxRetries,
-                TimeSpan.FromMilliseconds(_settings.RetryDelayMilliseconds),
-                cancellationToken);
-            uploadedFiles["style"] = styleFileName;
-
-            // Upload face reference image
-            var faceFileName = await RetryAsync(
-                () => _httpClient.UploadImageAsync(faceImagePath, "input", cancellationToken),
-                _settings.MaxRetries,
-                TimeSpan.FromMilliseconds(_settings.RetryDelayMilliseconds),
-                cancellationToken);
-            uploadedFiles["face"] = faceFileName;
+            var uploadedFiles = uploadTasks.ToDictionary(
+                t => t.Item1,
+                t => t.Item2.Result);
 
             _logger.LogInfo("All files uploaded successfully");
             return uploadedFiles;

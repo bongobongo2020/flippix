@@ -64,24 +64,35 @@ namespace FlipPix.Core.Services
 
         public void SaveSettings(ComfyUISettings settings)
         {
+            // Serialize outside the lock to minimize lock duration
+            var options = new JsonSerializerOptions
+            {
+                WriteIndented = true
+            };
+            var json = JsonSerializer.Serialize(settings, options);
+
             _lock.EnterWriteLock();
             try
             {
                 _settings = settings;
-                var options = new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                };
-                var json = JsonSerializer.Serialize(settings, options);
-                File.WriteAllText(_settingsFilePath, json);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Failed to save settings: {ex.Message}", ex);
             }
             finally
             {
                 _lock.ExitWriteLock();
+            }
+
+            // File I/O outside the lock - settings are already updated in memory
+            try
+            {
+                // Write to temp file first, then rename for atomic operation
+                var tempPath = _settingsFilePath + ".tmp";
+                File.WriteAllText(tempPath, json);
+                File.Move(tempPath, _settingsFilePath, overwrite: true);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Failed to save settings to disk");
+                throw new Exception($"Failed to save settings: {ex.Message}", ex);
             }
         }
 
@@ -120,6 +131,8 @@ namespace FlipPix.Core.Services
         {
             if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder)) return;
 
+            string json;
+
             _lock.EnterWriteLock();
             try
             {
@@ -128,16 +141,24 @@ namespace FlipPix.Core.Services
                     _settings.LastBrowseFolders[key] = folder;
                 _settings.LastBrowseFolders[GlobalBrowseKey] = folder;
 
-                var json = JsonSerializer.Serialize(_settings, new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(_settingsFilePath, json);
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogWarning($"Failed to persist last browse folder: {ex.Message}");
+                // Serialize while holding the lock to capture consistent state
+                json = JsonSerializer.Serialize(_settings, new JsonSerializerOptions { WriteIndented = true });
             }
             finally
             {
                 _lock.ExitWriteLock();
+            }
+
+            // File I/O outside the lock
+            try
+            {
+                var tempPath = _settingsFilePath + ".tmp";
+                File.WriteAllText(tempPath, json);
+                File.Move(tempPath, _settingsFilePath, overwrite: true);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning($"Failed to persist last browse folder: {ex.Message}");
             }
         }
 

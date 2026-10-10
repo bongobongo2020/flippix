@@ -1,7 +1,9 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using FlipPix.Core;
 using FlipPix.Core.Interfaces;
+using FlipPix.Core.Utilities;
 using FlipPix.ComfyUI.Models;
 
 namespace FlipPix.ComfyUI.WebSocket;
@@ -16,8 +18,6 @@ public class ComfyUIWebSocketClient : IDisposable
     private readonly Queue<WebSocketMessage> _messageQueue = new();
     private readonly object _lockObject = new();
     private string? _clientId;
-    private const int _maxReconnectAttempts = 10;
-    private const int _reconnectDelayMs = 2000;
     private bool _isReconnecting = false;
 
     public event EventHandler<WebSocketMessage>? MessageReceived;
@@ -49,8 +49,12 @@ public class ComfyUIWebSocketClient : IDisposable
             _logger.LogInfo("WebSocket connected successfully");
             ConnectionStatusChanged?.Invoke(this, "Connected");
 
-            // Start listening for messages
-            _ = Task.Run(() => ListenForMessagesAsync(_cancellationTokenSource.Token), cancellationToken);
+            // Start listening for messages with proper error handling
+            SafeTask.FireAndForget(
+                () => ListenForMessagesAsync(_cancellationTokenSource.Token),
+                _logger,
+                "WebSocket message listener",
+                cancellationToken);
         }
         catch (Exception ex)
         {
@@ -100,11 +104,11 @@ public class ComfyUIWebSocketClient : IDisposable
 
         try
         {
-            for (int attempt = 1; attempt <= _maxReconnectAttempts; attempt++)
+            for (int attempt = 1; attempt <= Constants.Network.MaxReconnectAttempts; attempt++)
             {
                 try
                 {
-                    _logger.LogInfo("WebSocket reconnection attempt {Attempt}/{MaxAttempts}", attempt, _maxReconnectAttempts);
+                    _logger.LogInfo("WebSocket reconnection attempt {Attempt}/{MaxAttempts}", attempt, Constants.Network.MaxReconnectAttempts);
 
                     // Clean up old connection. Null the field as well as disposing it so a
                     // failure before the replacement is assigned can never leave a disposed
@@ -126,8 +130,12 @@ public class ComfyUIWebSocketClient : IDisposable
                     _logger.LogInfo("WebSocket reconnected successfully on attempt {Attempt}", attempt);
                     ConnectionStatusChanged?.Invoke(this, "Reconnected");
 
-                    // Start listening for messages
-                    _ = Task.Run(() => ListenForMessagesAsync(_cancellationTokenSource.Token), _cancellationTokenSource.Token);
+                    // Start listening for messages with proper error handling
+                    SafeTask.FireAndForget(
+                        () => ListenForMessagesAsync(_cancellationTokenSource.Token),
+                        _logger,
+                        "WebSocket message listener (reconnect)",
+                        _cancellationTokenSource.Token);
 
                     _isReconnecting = false;
                     return;
@@ -136,16 +144,18 @@ public class ComfyUIWebSocketClient : IDisposable
                 {
                     _logger.LogError(ex, "WebSocket reconnection attempt {Attempt} failed", attempt);
 
-                    if (attempt == _maxReconnectAttempts)
+                    if (attempt == Constants.Network.MaxReconnectAttempts)
                     {
-                        _logger.LogError("WebSocket reconnection failed after {MaxAttempts} attempts", _maxReconnectAttempts);
+                        _logger.LogError("WebSocket reconnection failed after {MaxAttempts} attempts", Constants.Network.MaxReconnectAttempts);
                         ConnectionStatusChanged?.Invoke(this, "Failed");
                         _isReconnecting = false;
                         return;
                     }
 
-                    // Exponential backoff: delay = baseDelay * 2^(attempt-1), capped at 30 seconds
-                    var delay = Math.Min(_reconnectDelayMs * (int)Math.Pow(2, attempt - 1), 30000);
+                    // Exponential backoff: delay = baseDelay * 2^(attempt-1), capped at max delay
+                    var delay = Math.Min(
+                        Constants.Network.ReconnectBaseDelayMs * (int)Math.Pow(2, attempt - 1),
+                        Constants.Network.MaxReconnectDelayMs);
                     _logger.LogInfo("Waiting {Delay}ms before next reconnection attempt", delay);
                     await Task.Delay(delay, _cancellationTokenSource?.Token ?? CancellationToken.None);
                 }
@@ -172,7 +182,7 @@ public class ComfyUIWebSocketClient : IDisposable
 
     private async Task ListenForMessagesAsync(CancellationToken cancellationToken)
     {
-        var buffer = new byte[4096];
+        var buffer = new byte[Constants.Network.WebSocketBufferSize];
 
         try
         {
@@ -190,7 +200,7 @@ public class ComfyUIWebSocketClient : IDisposable
                     {
                         _logger.LogInfo("WebSocket closed by server, initiating reconnection");
                         ConnectionStatusChanged?.Invoke(this, "Closed");
-                        _ = Task.Run(() => ReconnectAsync());
+                        SafeTask.FireAndForget(ReconnectAsync, _logger, "WebSocket reconnection after close");
                         return;
                     }
 
@@ -213,7 +223,7 @@ public class ComfyUIWebSocketClient : IDisposable
         {
             _logger.LogError(ex, "Error in WebSocket message listener, initiating reconnection");
             ConnectionStatusChanged?.Invoke(this, "Error");
-            _ = Task.Run(() => ReconnectAsync());
+            SafeTask.FireAndForget(ReconnectAsync, _logger, "WebSocket reconnection after error");
         }
     }
 
