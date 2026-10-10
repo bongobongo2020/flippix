@@ -329,6 +329,12 @@ public class ComfyUISettings
     // where the drafts it upscales are written.
     public string SeedUpscaleFolder { get; set; } = string.Empty;
 
+    // H3 Batch Upscale tab: the folder its scan starts in. Empty means the video output folder.
+    public string H3BatchUpscaleFolder { get; set; } = string.Empty;
+
+    // H3 Batch Upscale settings
+    public H3BatchUpscaleSettings H3BatchUpscale { get; set; } = new H3BatchUpscaleSettings();
+
     // Painter (WAN 2.2 LightX2V) workflow model names — adjust to match your ComfyUI server
     public string PainterHighNoiseModel { get; set; } = @"wan\wan2.2_i2v_high_noise_14B_Q8_0.gguf";
     public string PainterLowNoiseModel { get; set; } = @"wan\wan2.2_i2v_low_noise_14B_Q8_0.gguf";
@@ -526,4 +532,15 @@ public class H3VideoEditorCustomPreset
     public int ShiftAudio { get; set; } = 3;
     public double UpscaleFactor { get; set; } = 2.0;
     public double RefineAmount { get; set; } = 0.2;
+}
+
+// ── H3 Batch Upscale settings ─────────────────────────────────────────────────────────────────
+/// <summary>H3 Batch Upscale: settings for batch latent upscaling of H3 preview videos.</summary>
+public class H3BatchUpscaleSettings
+{
+    public double UpscaleFactor { get; set; } = 2.0;
+    public double RefineAmount { get; set; } = 0.2;
+    public int ShiftVideo { get; set; } = 12;
+    public int ShiftAudio { get; set; } = 3;
+    public int Crf { get; set; } = 19;
 }

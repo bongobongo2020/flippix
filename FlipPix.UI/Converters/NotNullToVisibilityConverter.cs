@@ -18,4 +18,17 @@ namespace FlipPix.UI.Converters
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
             throw new NotImplementedException();
     }
+
+    /// <summary>
+    /// Visible when the bound value is null, Collapsed when it has a value — for placeholder text
+    /// that should disappear once content loads.
+    /// </summary>
+    public class NullToVisibilityConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+            value == null ? Visibility.Visible : Visibility.Collapsed;
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+            throw new NotImplementedException();
+    }
 }

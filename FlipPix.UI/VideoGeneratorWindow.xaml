@@ -17,6 +17,8 @@
 
     <Window.Resources>
         <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <converters:NotNullToVisibilityConverter x:Key="NotNullToVisibilityConverter"/>
+        <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
 
         <!-- A cast card's thumbnail. 92px is enough to tell which picture is loaded and not enough to
              judge a face, so clicking one hands the file to the shell and it opens at full size in
@@ -5028,14 +5030,10 @@
                                                         <Grid>
                                                             <TextBlock Text="＋ Picture 1" Foreground="{StaticResource PlayerTextBrush}" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                             <Image Source="{Binding Picture1.PreviewImage}" Stretch="UniformToFill"/>
-                                                            <Button Content="✕" Width="18" Height="18" Margin="2" Padding="0" FontSize="9" HorizontalAlignment="Right" VerticalAlignment="Top" Background="{StaticResource ScrimBrush}" Foreground="White" BorderThickness="0" Cursor="Hand" Command="{Binding ClearPictureCommand}" Visibility="{Binding Picture1.HasImages, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                                <Button.CommandParameter><sys:Int32>0</sys:Int32></Button.CommandParameter>
-                                                            </Button>
+                                                            <Button Content="✕" Width="18" Height="18" Margin="2" Padding="0" FontSize="9" HorizontalAlignment="Right" VerticalAlignment="Top" Background="{StaticResource ScrimBrush}" Foreground="White" BorderThickness="0" Cursor="Hand" Command="{Binding ClearPictureCommand}" CommandParameter="0" Visibility="{Binding Picture1.HasImages, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                                         </Grid>
                                                         <Border.InputBindings>
-                                                            <MouseBinding MouseAction="LeftClick" Command="{Binding SelectPictureCommand}">
-                                                                <MouseBinding.CommandParameter><sys:Int32>0</sys:Int32></MouseBinding.CommandParameter>
-                                                            </MouseBinding>
+                                                            <MouseBinding MouseAction="LeftClick" Command="{Binding SelectPictureCommand}" CommandParameter="0"/>
                                                         </Border.InputBindings>
                                                     </Border>
                                                     <!-- Picture 2 -->
@@ -5043,14 +5041,10 @@
                                                         <Grid>
                                                             <TextBlock Text="＋ Picture 2" Foreground="{StaticResource PlayerTextBrush}" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                             <Image Source="{Binding Picture2.PreviewImage}" Stretch="UniformToFill"/>
-                                                            <Button Content="✕" Width="18" Height="18" Margin="2" Padding="0" FontSize="9" HorizontalAlignment="Right" VerticalAlignment="Top" Background="{StaticResource ScrimBrush}" Foreground="White" BorderThickness="0" Cursor="Hand" Command="{Binding ClearPictureCommand}" Visibility="{Binding Picture2.HasImages, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                                <Button.CommandParameter><sys:Int32>1</sys:Int32></Button.CommandParameter>
-                                                            </Button>
+                                                            <Button Content="✕" Width="18" Height="18" Margin="2" Padding="0" FontSize="9" HorizontalAlignment="Right" VerticalAlignment="Top" Background="{StaticResource ScrimBrush}" Foreground="White" BorderThickness="0" Cursor="Hand" Command="{Binding ClearPictureCommand}" CommandParameter="1" Visibility="{Binding Picture2.HasImages, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                                         </Grid>
                                                         <Border.InputBindings>
-                                                            <MouseBinding MouseAction="LeftClick" Command="{Binding SelectPictureCommand}">
-                                                                <MouseBinding.CommandParameter><sys:Int32>1</sys:Int32></MouseBinding.CommandParameter>
-                                                            </MouseBinding>
+                                                            <MouseBinding MouseAction="LeftClick" Command="{Binding SelectPictureCommand}" CommandParameter="1"/>
                                                         </Border.InputBindings>
                                                     </Border>
                                                     <!-- Picture 3 -->
@@ -5058,14 +5052,10 @@
                                                         <Grid>
                                                             <TextBlock Text="＋ Picture 3" Foreground="{StaticResource PlayerTextBrush}" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                             <Image Source="{Binding Picture3.PreviewImage}" Stretch="UniformToFill"/>
-                                                            <Button Content="✕" Width="18" Height="18" Margin="2" Padding="0" FontSize="9" HorizontalAlignment="Right" VerticalAlignment="Top" Background="{StaticResource ScrimBrush}" Foreground="White" BorderThickness="0" Cursor="Hand" Command="{Binding ClearPictureCommand}" Visibility="{Binding Picture3.HasImages, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                                <Button.CommandParameter><sys:Int32>2</sys:Int32></Button.CommandParameter>
-                                                            </Button>
+                                                            <Button Content="✕" Width="18" Height="18" Margin="2" Padding="0" FontSize="9" HorizontalAlignment="Right" VerticalAlignment="Top" Background="{StaticResource ScrimBrush}" Foreground="White" BorderThickness="0" Cursor="Hand" Command="{Binding ClearPictureCommand}" CommandParameter="2" Visibility="{Binding Picture3.HasImages, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                                         </Grid>
                                                         <Border.InputBindings>
-                                                            <MouseBinding MouseAction="LeftClick" Command="{Binding SelectPictureCommand}">
-                                                                <MouseBinding.CommandParameter><sys:Int32>2</sys:Int32></MouseBinding.CommandParameter>
-                                                            </MouseBinding>
+                                                            <MouseBinding MouseAction="LeftClick" Command="{Binding SelectPictureCommand}" CommandParameter="2"/>
                                                         </Border.InputBindings>
                                                     </Border>
                                                     <!-- Picture 4 -->
@@ -5073,14 +5063,10 @@
                                                         <Grid>
                                                             <TextBlock Text="＋ Picture 4" Foreground="{StaticResource PlayerTextBrush}" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                             <Image Source="{Binding Picture4.PreviewImage}" Stretch="UniformToFill"/>
-                                                            <Button Content="✕" Width="18" Height="18" Margin="2" Padding="0" FontSize="9" HorizontalAlignment="Right" VerticalAlignment="Top" Background="{StaticResource ScrimBrush}" Foreground="White" BorderThickness="0" Cursor="Hand" Command="{Binding ClearPictureCommand}" Visibility="{Binding Picture4.HasImages, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                                <Button.CommandParameter><sys:Int32>3</sys:Int32></Button.CommandParameter>
-                                                            </Button>
+                                                            <Button Content="✕" Width="18" Height="18" Margin="2" Padding="0" FontSize="9" HorizontalAlignment="Right" VerticalAlignment="Top" Background="{StaticResource ScrimBrush}" Foreground="White" BorderThickness="0" Cursor="Hand" Command="{Binding ClearPictureCommand}" CommandParameter="3" Visibility="{Binding Picture4.HasImages, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                                         </Grid>
                                                         <Border.InputBindings>
-                                                            <MouseBinding MouseAction="LeftClick" Command="{Binding SelectPictureCommand}">
-                                                                <MouseBinding.CommandParameter><sys:Int32>3</sys:Int32></MouseBinding.CommandParameter>
-                                                            </MouseBinding>
+                                                            <MouseBinding MouseAction="LeftClick" Command="{Binding SelectPictureCommand}" CommandParameter="3"/>
                                                         </Border.InputBindings>
                                                     </Border>
                                                 </UniformGrid>
@@ -5744,6 +5730,398 @@
                                     </Border>
                                 </Grid>
                             </Border>
+                        </Grid>
+                    </TabItem>
+
+                    <!-- ════════════════════════════════════════════════════════════════ -->
+                    <!-- Tab: H3 Batch Upscale (batch upscale preview videos)             -->
+                    <!-- ════════════════════════════════════════════════════════════════ -->
+                    <TabItem Header="⬆️ H3 Batch Upscale">
+                        <Grid x:Name="H3BatchUpscaleRoot" DataContext="{Binding H3BatchUpscaleVM}" Style="{StaticResource TabPageStyle}">
+                            <Grid.Resources>
+                                <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource AccentCyanColor}"/>
+                            </Grid.Resources>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="320"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- ═══ Left Panel: Settings ════════════════════════════════════ -->
+                            <Border Grid.Column="0" Style="{StaticResource SectionCardStyle}" Margin="10,8,6,8">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <StackPanel Grid.Row="0" Margin="0,0,0,8">
+                                        <TextBlock Text="⬆️ H3 Batch Upscale" FontWeight="Bold" FontSize="15"
+                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                        <TextBlock Text="Batch upscale H3 preview videos using H3 Latent Upscaler. Select videos from the browser and upscale them all at once."
+                                                   FontSize="10" Foreground="{StaticResource TextMutedBrush}"
+                                                   TextWrapping="Wrap" Margin="0,3,0,0"/>
+                                    </StackPanel>
+
+                                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                        <StackPanel>
+
+                                            <!-- ─── Folder Selection ────────────────────────── -->
+                                            <TextBlock Text="Folder to scan" FontSize="10" FontWeight="SemiBold"
+                                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                            <TextBox Text="{Binding ScanFolder, UpdateSourceTrigger=LostFocus}"
+                                                     FontSize="10" FontFamily="Consolas" Height="26" Padding="6,0"
+                                                     VerticalContentAlignment="Center" Margin="0,0,0,4"
+                                                     ToolTip="Folder containing H3 preview videos (MP4 files). Typically the output folder from H3 Video Editor."/>
+                                            <WrapPanel Margin="0,0,0,6">
+                                                <Button Content="📂 Browse" Command="{Binding BrowseFolderCommand}"
+                                                        Style="{StaticResource SecondaryButtonStyle}"
+                                                        Height="26" Padding="10,0" FontSize="11" Margin="0,0,5,0"/>
+                                                <Button Content="🔄 Rescan" Command="{Binding RescanCommand}"
+                                                        Style="{StaticResource SecondaryButtonStyle}"
+                                                        Height="26" Padding="10,0" FontSize="11" Margin="0,0,5,0"/>
+                                                <Button Content="↗" Command="{Binding OpenScanFolderCommand}"
+                                                        Style="{StaticResource SecondaryButtonStyle}"
+                                                        Width="30" Height="26" Padding="0" FontSize="11"
+                                                        ToolTip="Open this folder in Explorer."/>
+                                            </WrapPanel>
+
+                                            <CheckBox Content="Include subfolders" IsChecked="{Binding IncludeSubfolders}"
+                                                      FontSize="11" Margin="0,0,0,4"
+                                                      Foreground="{StaticResource TextPrimaryBrush}"/>
+                                            <CheckBox Content="Hide already upscaled" IsChecked="{Binding HideAlreadyUpscaled}"
+                                                      FontSize="11" Margin="0,0,0,8"
+                                                      Foreground="{StaticResource TextPrimaryBrush}"/>
+
+                                            <TextBlock Text="Search" FontSize="10" FontWeight="SemiBold"
+                                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                            <TextBox Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged, Delay=250}"
+                                                     FontSize="11" Height="26" Padding="6,0"
+                                                     VerticalContentAlignment="Center" Margin="0,0,0,10"/>
+
+                                            <Separator Margin="0,0,0,10"/>
+
+                                            <!-- ─── Upscale Settings ────────────────────────── -->
+                                            <TextBlock Text="UPSCALE SETTINGS" FontSize="10" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,8"/>
+
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="80"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="Upscale Factor" FontSize="11" VerticalAlignment="Center"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                <TextBox Grid.Column="1" Text="{Binding UpscaleFactor, StringFormat=F1}"
+                                                         FontSize="11" Height="26" Padding="6,0" HorizontalContentAlignment="Center"
+                                                         ToolTip="Scale multiplier (e.g. 2.0 = 2x resolution)"/>
+                                            </Grid>
+
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="80"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="Refine Amount" FontSize="11" VerticalAlignment="Center"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                <TextBox Grid.Column="1" Text="{Binding RefineAmount, StringFormat=F2}"
+                                                         FontSize="11" Height="26" Padding="6,0" HorizontalContentAlignment="Center"
+                                                         ToolTip="Denoise amount for the refine pass (0-1). Lower keeps closer to original."/>
+                                            </Grid>
+
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="80"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="Shift Video" FontSize="11" VerticalAlignment="Center"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                <TextBox Grid.Column="1" Text="{Binding ShiftVideo}"
+                                                         FontSize="11" Height="26" Padding="6,0" HorizontalContentAlignment="Center"/>
+                                            </Grid>
+
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="80"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="Shift Audio" FontSize="11" VerticalAlignment="Center"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                <TextBox Grid.Column="1" Text="{Binding ShiftAudio}"
+                                                         FontSize="11" Height="26" Padding="6,0" HorizontalContentAlignment="Center"/>
+                                            </Grid>
+
+                                            <Grid Margin="0,0,0,10">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="80"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="CRF (Quality)" FontSize="11" VerticalAlignment="Center"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                <TextBox Grid.Column="1" Text="{Binding Crf}"
+                                                         FontSize="11" Height="26" Padding="6,0" HorizontalContentAlignment="Center"
+                                                         ToolTip="Video quality (lower = higher quality). Default: 19"/>
+                                            </Grid>
+
+                                            <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="4"
+                                                    Padding="8" Margin="0,0,0,10">
+                                                <TextBlock Text="{Binding SelectionSummary}" FontSize="10"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                           TextWrapping="Wrap"/>
+                                            </Border>
+
+                                        </StackPanel>
+                                    </ScrollViewer>
+
+                                    <!-- ─── Actions ─────────────────────────────────────────── -->
+                                    <StackPanel Grid.Row="2" Margin="0,8,0,0">
+                                        <ProgressBar Value="{Binding Progress}" Height="4" Margin="0,0,0,8"
+                                                     Visibility="{Binding IsUpscaling, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        <Button Content="⬆️ Upscale Selected"
+                                                Command="{Binding UpscaleSelectedCommand}"
+                                                Style="{StaticResource AccentButtonStyle}"
+                                                Height="34" FontSize="12" FontWeight="Bold" Margin="0,0,0,5"/>
+                                        <Button Content="⏹ Stop"
+                                                Command="{Binding StopUpscaleCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Height="26" FontSize="11"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- ═══ Right Panel: Video Browser ══════════════════════════════ -->
+                            <Grid Grid.Column="1" Margin="0,8,10,8">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- ─── Browser Header ──────────────────────────────────────── -->
+                                <Grid Grid.Row="0" Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="VIDEO BROWSER" FontWeight="Bold" FontSize="12"
+                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                        <TextBlock Text="{Binding ScanStatus}" FontSize="10"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button Content="☑ All" Command="{Binding SelectAllCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Height="26" Padding="10,0" FontSize="11" Margin="0,0,5,0"/>
+                                        <Button Content="☐ None" Command="{Binding SelectNoneCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Height="26" Padding="10,0" FontSize="11" Margin="0,0,5,0"/>
+                                        <Button Content="⇄ Invert" Command="{Binding InvertSelectionCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Height="26" Padding="10,0" FontSize="11" Margin="0,0,10,0"/>
+                                        <Button Content="➖" Command="{Binding ZoomTilesOutCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Width="28" Height="26" Padding="0" FontSize="11" Margin="0,0,4,0"/>
+                                        <Button Content="➕" Command="{Binding ZoomTilesInCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Width="28" Height="26" Padding="0" FontSize="11"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- ─── Video Grid ──────────────────────────────────────────── -->
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="340"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Grid.Column="0" CornerRadius="6" BorderThickness="1"
+                                            BorderBrush="{StaticResource BorderBrush}"
+                                            Background="{StaticResource SurfaceAltBrush}" Margin="0,0,6,0">
+                                        <Grid>
+                                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       TextWrapping="Wrap" TextAlignment="Center" Margin="20,0"
+                                                       FontStyle="Italic" FontSize="11"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       Text="No videos found. Browse to a folder containing H3 preview videos (MP4 files).">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding HasItems}" Value="False">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8"
+                                                          Visibility="{Binding HasItems, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <ItemsControl ItemsSource="{Binding Items}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <WrapPanel/>
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Width="{Binding DataContext.TileSize, ElementName=H3BatchUpscaleRoot}"
+                                                                    Margin="4" CornerRadius="4" Cursor="Hand"
+                                                                    BorderThickness="2"
+                                                                    Background="{StaticResource SurfaceBrush}">
+                                                                <Border.Style>
+                                                                    <Style TargetType="Border">
+                                                                        <Setter Property="BorderBrush" Value="Transparent"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                                <Setter Property="BorderBrush" Value="{StaticResource AccentCyanBrush}"/>
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding HasUpscale}" Value="True">
+                                                                                <Setter Property="BorderBrush" Value="{StaticResource AccentEmeraldBrush}"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Border.Style>
+                                                                <Border.InputBindings>
+                                                                    <MouseBinding MouseAction="LeftClick" Command="{Binding ToggleCommand}"/>
+                                                                    <MouseBinding MouseAction="LeftDoubleClick" Command="{Binding PlayCommand}"/>
+                                                                    <MouseBinding MouseAction="RightClick" Command="{Binding RevealCommand}"/>
+                                                                </Border.InputBindings>
+                                                                <Grid>
+                                                                    <Grid.RowDefinitions>
+                                                                        <RowDefinition Height="Auto"/>
+                                                                        <RowDefinition Height="Auto"/>
+                                                                    </Grid.RowDefinitions>
+
+                                                                    <!-- Thumbnail -->
+                                                                    <Border Grid.Row="0" Height="{Binding DataContext.TileSize, ElementName=H3BatchUpscaleRoot}"
+                                                                            CornerRadius="4,4,0,0" Background="#1a1a1a">
+                                                                        <Grid>
+                                                                            <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"/>
+                                                                            <TextBlock Text="🎬" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                                       Foreground="#444" Visibility="{Binding Thumbnail, Converter={StaticResource NullToVisibilityConverter}}"/>
+                                                                            <Border Background="#80000000" CornerRadius="2" Padding="4,2" Margin="4"
+                                                                                    HorizontalAlignment="Left" VerticalAlignment="Top"
+                                                                                    Visibility="{Binding IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                                <TextBlock Text="✓" FontSize="10" FontWeight="Bold" Foreground="White"/>
+                                                                            </Border>
+                                                                            <Border Background="#80000000" CornerRadius="2" Padding="4,2" Margin="4"
+                                                                                    HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                                                    Visibility="{Binding HasUpscale, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                                <TextBlock Text="⬆️" FontSize="8"/>
+                                                                            </Border>
+                                                                            <Border Background="#80000000" CornerRadius="2" Padding="4,2" Margin="4"
+                                                                                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                                    Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                                <TextBlock Text="{Binding Status}" FontSize="9" Foreground="White"/>
+                                                                            </Border>
+                                                                        </Grid>
+                                                                    </Border>
+
+                                                                    <!-- Info -->
+                                                                    <StackPanel Grid.Row="1" Margin="6,4,6,6">
+                                                                        <TextBlock Text="{Binding Title}" FontSize="10" FontWeight="SemiBold"
+                                                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                                                   TextTrimming="CharacterEllipsis"/>
+                                                                        <TextBlock Text="{Binding Details}" FontSize="9"
+                                                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                                                   TextTrimming="CharacterEllipsis"/>
+                                                                    </StackPanel>
+                                                                </Grid>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </ScrollViewer>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- ─── Preview Player ──────────────────────────────────── -->
+                                    <Border Grid.Column="1" CornerRadius="6" Background="{StaticResource PlayerSurfaceBrush}">
+                                        <Grid>
+                                            <TextBlock Text="Click a video to preview" FontSize="11" FontStyle="Italic"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       Visibility="{Binding ActivePreviewUri, Converter={StaticResource NullToVisibilityConverter}}"/>
+                                            <Grid Visibility="{Binding ActivePreviewUri, Converter={StaticResource NotNullToVisibilityConverter}}">
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="*"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+                                                <MediaElement Grid.Row="0" x:Name="H3BatchUpscalePlayer"
+                                                              Source="{Binding ActivePreviewUri}"
+                                                              LoadedBehavior="Play" UnloadedBehavior="Close"
+                                                              IsMuted="{Binding IsPreviewMuted}" Stretch="Uniform"/>
+                                                <Border Grid.Row="1" Background="#80000000" Padding="8,4">
+                                                    <Grid>
+                                                        <TextBlock Text="{Binding ActivePreviewLabel}" FontSize="10"
+                                                                   Foreground="White" VerticalAlignment="Center"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                        <Button Command="{Binding ToggleMuteCommand}"
+                                                                HorizontalAlignment="Right"
+                                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                                Width="28" Height="24" Padding="0" FontSize="12">
+                                                            <Button.Content>
+                                                                <TextBlock Text="🔇">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Text" Value="🔊"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsPreviewMuted}" Value="True">
+                                                                                    <Setter Property="Text" Value="🔇"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                            </Button.Content>
+                                                        </Button>
+                                                    </Grid>
+                                                </Border>
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
+                                </Grid>
+
+                                <!-- ─── Log Panel ───────────────────────────────────────────── -->
+                                <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}" CornerRadius="4"
+                                        Margin="0,6,0,0" Padding="8" MaxHeight="120">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid Grid.Row="0" Margin="0,0,0,4">
+                                            <TextBlock Text="LOG" FontSize="9" FontWeight="Bold"
+                                                       Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                <Button Content="Copy" Command="{Binding CopyLogCommand}"
+                                                        Height="18" Padding="6,0" FontSize="8"
+                                                        Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,4,0"/>
+                                                <Button Content="Clear" Command="{Binding ClearLogCommand}"
+                                                        Height="18" Padding="6,0" FontSize="8"
+                                                        Style="{StaticResource SecondaryButtonStyle}"/>
+                                            </StackPanel>
+                                        </Grid>
+                                        <Border Grid.Row="1" Background="#1a1a1a" CornerRadius="2" Padding="4">
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="80">
+                                                <ItemsControl ItemsSource="{Binding LogMessages}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="9"
+                                                                       Foreground="#888" TextWrapping="NoWrap" Margin="0,1"/>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </ScrollViewer>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </Grid>
                         </Grid>
                     </TabItem>
 

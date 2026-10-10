@@ -100,8 +100,8 @@ namespace FlipPix.UI.ViewModels.Video
         public H3ReferenceSlot Picture3 => ReferenceSlots.Count > 2 ? ReferenceSlots[2] : new H3ReferenceSlot(3);
         public H3ReferenceSlot Picture4 => ReferenceSlots.Count > 3 ? ReferenceSlots[3] : new H3ReferenceSlot(4);
 
-        public RelayCommand<int> SelectPictureCommand { get; private set; } = null!;
-        public RelayCommand<int> ClearPictureCommand { get; private set; } = null!;
+        public RelayCommand<object?> SelectPictureCommand { get; private set; } = null!;
+        public RelayCommand<object?> ClearPictureCommand { get; private set; } = null!;
 
         private async Task SelectPictureAsync(int slotIndex)
         {
@@ -277,8 +277,8 @@ N/A
 
         private void InitializeCommands()
         {
-            SelectPictureCommand = new RelayCommand<int>(i => _ = SelectPictureAsync(i));
-            ClearPictureCommand = new RelayCommand<int>(ClearPicture);
+            SelectPictureCommand = new RelayCommand<object?>(o => { if (int.TryParse(o?.ToString(), out var i)) _ = SelectPictureAsync(i); });
+            ClearPictureCommand = new RelayCommand<object?>(o => { if (int.TryParse(o?.ToString(), out var i)) ClearPicture(i); });
             InsertTemplateCommand = new RelayCommand(InsertTemplate);
             GeneratePromptCommand = new RelayCommand(() => _ = GeneratePromptAsync());
             ClearPromptCommand = new RelayCommand(() => PromptText = string.Empty);
