@@ -525,11 +525,21 @@ namespace FlipPix.UI.ViewModels.Video
             if (!CanPopulateTimeline) return;
 
             IsPopulating = true;
-            StoryStatus = "Preparing cast photos...";
+            StoryStatus = "Creating project folder...";
 
             try
             {
+                // Auto-create project folder with storyname-date format
+                var storyName = SanitizeProjectName(StoryFileName);
+                var datePrefix = DateTime.Now.ToString("yyyyMMdd_HHmm");
+                ProjectFolder = $"{storyName}_{datePrefix}";
+
+                // Create the physical folder
+                await CreateProjectFolderAsync();
+                AddLog($"Created project folder: {ProjectFolder}");
+
                 // Generate missing cast photos
+                StoryStatus = "Preparing cast photos...";
                 await PrepareCastPhotosAsync();
 
                 StoryStatus = "Populating timeline...";
@@ -592,6 +602,69 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 IsPopulating = false;
             }
+        }
+
+        private string SanitizeProjectName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                return "project";
+
+            // Remove file extension if present
+            var baseName = Path.GetFileNameWithoutExtension(name);
+            if (string.IsNullOrWhiteSpace(baseName))
+                baseName = name;
+
+            // Replace invalid filename characters with underscores
+            var invalidChars = Path.GetInvalidFileNameChars();
+            var sanitized = new StringBuilder(baseName.Length);
+            foreach (var c in baseName)
+            {
+                if (invalidChars.Contains(c) || c == ' ')
+                    sanitized.Append('_');
+                else
+                    sanitized.Append(c);
+            }
+
+            // Remove consecutive underscores and trim
+            var result = sanitized.ToString()
+                .Replace("__", "_")
+                .Trim('_');
+
+            // Limit length to keep folder names reasonable
+            if (result.Length > 40)
+                result = result.Substring(0, 40).TrimEnd('_');
+
+            return string.IsNullOrWhiteSpace(result) ? "project" : result;
+        }
+
+        private async Task CreateProjectFolderAsync()
+        {
+            await Task.Run(() =>
+            {
+                var settings = _settingsService.Settings;
+                if (settings == null) return;
+
+                // Create folder in local output path
+                if (!string.IsNullOrEmpty(settings.OutputFolderPath))
+                {
+                    var localPath = Path.Combine(settings.OutputFolderPath, "video", ProjectFolder);
+                    Directory.CreateDirectory(localPath);
+                }
+
+                // Also create in remote path if configured
+                if (!string.IsNullOrEmpty(settings.RemoteOutputFolderPath))
+                {
+                    var remotePath = Path.Combine(settings.RemoteOutputFolderPath, "video", ProjectFolder);
+                    try
+                    {
+                        Directory.CreateDirectory(remotePath);
+                    }
+                    catch
+                    {
+                        // Remote folder might not be accessible, ignore
+                    }
+                }
+            });
         }
 
         private List<H3SpecPrompt.CastMember> BuildCastMembers()

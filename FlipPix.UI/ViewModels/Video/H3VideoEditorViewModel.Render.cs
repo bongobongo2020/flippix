@@ -220,7 +220,7 @@ namespace FlipPix.UI.ViewModels.Video
             return null;
         }
 
-        private string? FindVideoOnDisk(string prefix)
+        private string? FindVideoOnDisk(string prefix, bool verbose = false)
         {
             try
             {
@@ -228,13 +228,23 @@ namespace FlipPix.UI.ViewModels.Video
                 if (settings == null) return null;
 
                 var folders = new[] { settings.OutputFolderPath, settings.RemoteOutputFolderPath }
-                    .Where(f => !string.IsNullOrEmpty(f) && Directory.Exists(f));
+                    .Where(f => !string.IsNullOrEmpty(f) && Directory.Exists(f))
+                    .ToList();
+
+                if (verbose)
+                    AddLog($"Searching for '{prefix}' in {folders.Count} folder(s)...");
 
                 foreach (var folder in folders)
                 {
                     var searchPattern = prefix.Replace("/", Path.DirectorySeparatorChar.ToString());
                     var baseDir = Path.Combine(folder, Path.GetDirectoryName(searchPattern) ?? "");
-                    if (!Directory.Exists(baseDir)) continue;
+
+                    if (!Directory.Exists(baseDir))
+                    {
+                        if (verbose)
+                            AddLog($"  Directory not found: {baseDir}");
+                        continue;
+                    }
 
                     var fileName = Path.GetFileName(searchPattern);
                     var files = Directory.GetFiles(baseDir, $"{fileName}*")
@@ -243,8 +253,26 @@ namespace FlipPix.UI.ViewModels.Video
                         .OrderByDescending(f => File.GetLastWriteTime(f))
                         .ToList();
 
+                    if (verbose)
+                        AddLog($"  Found {files.Count} matching file(s) in: {baseDir}");
+
                     if (files.Count > 0)
                         return files[0];
+                }
+
+                // Also check the direct ComfyUI output folder without subdirectory
+                foreach (var folder in folders)
+                {
+                    var videoDir = Path.Combine(folder, "video");
+                    if (Directory.Exists(videoDir))
+                    {
+                        // List all subdirectories to help debug
+                        if (verbose)
+                        {
+                            var subdirs = Directory.GetDirectories(videoDir).Select(Path.GetFileName).ToList();
+                            AddLog($"  Subdirs in {videoDir}: [{string.Join(", ", subdirs.Take(5))}{(subdirs.Count > 5 ? "..." : "")}]");
+                        }
+                    }
                 }
             }
             catch (Exception ex)
@@ -774,6 +802,9 @@ namespace FlipPix.UI.ViewModels.Video
             if (!CanUpscale || string.IsNullOrEmpty(JoinedVideoPath)) return;
 
             IsUpscaling = true;
+
+            // Ensure project folder exists in output directories before upscaling
+            await CreateProjectFolderAsync();
             StatusText = "Upscaling joined video with H3 Latent Upscaler...";
 
             try
@@ -807,14 +838,26 @@ namespace FlipPix.UI.ViewModels.Video
                 }
 
                 // Get output path
+                AddLog($"Upscale workflow complete, resolving output path...");
                 var outputPath = await ResolveUpscaleOutputAsync(promptId, saveNodeId);
                 if (!string.IsNullOrEmpty(outputPath))
                 {
                     PreviewVideoPath = outputPath;
-                    AddLog($"H3 Latent Upscale complete: {Path.GetFileName(outputPath)}");
+                    AddLog($"✓ H3 Latent Upscale complete!");
+                    AddLog($"  Saved to: {outputPath}");
+                    StatusText = "Upscale complete";
                 }
-
-                StatusText = "Upscale complete";
+                else
+                {
+                    // Log expected location to help user find the file
+                    var settings = _settingsService.Settings;
+                    var expectedPath = !string.IsNullOrEmpty(settings?.OutputFolderPath)
+                        ? Path.Combine(settings.OutputFolderPath, "video", ProjectFolder, "upscale_00001.mp4")
+                        : $"video/{ProjectFolder}/upscale_00001.mp4";
+                    AddLog($"⚠ Upscale completed but could not resolve output path.");
+                    AddLog($"  Expected location: {expectedPath}");
+                    StatusText = "Upscale complete (path unresolved)";
+                }
                 Progress = 100;
             }
             catch (Exception ex)
@@ -1139,13 +1182,43 @@ namespace FlipPix.UI.ViewModels.Video
                 var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, CancellationToken.None);
                 if (byNode.TryGetValue(saveNodeId, out var outputs) && outputs.Count > 0)
                 {
-                    return await ResolveVideoToLocalAsync(outputs[0]);
+                    AddLog($"ComfyUI returned upscale output: {outputs[0]}");
+                    var resolved = await ResolveVideoToLocalAsync(outputs[0]);
+                    if (!string.IsNullOrEmpty(resolved))
+                    {
+                        return resolved;
+                    }
+                    AddLog($"Could not resolve to local path, searching on disk...");
+                }
+                else
+                {
+                    AddLog($"No outputs found for node {saveNodeId}, searching on disk...");
                 }
             }
             catch (Exception ex)
             {
-                AddLog($"Warning: Could not resolve upscale output: {ex.Message}");
+                AddLog($"Warning: Could not resolve upscale output from ComfyUI: {ex.Message}");
             }
+
+            // Fallback: search for the upscale file on disk with verbose logging
+            var expectedPrefix = $"video/{ProjectFolder}/upscale";
+            var found = FindVideoOnDisk(expectedPrefix, verbose: true);
+            if (!string.IsNullOrEmpty(found))
+            {
+                AddLog($"Found upscale on disk: {found}");
+                return found;
+            }
+
+            // Try searching in the root video folder for any recent upscale file
+            AddLog($"Checking root video folder for upscale files...");
+            var rootUpscale = FindVideoOnDisk("video/upscale", verbose: true);
+            if (!string.IsNullOrEmpty(rootUpscale))
+            {
+                AddLog($"Found upscale in root video folder: {rootUpscale}");
+                return rootUpscale;
+            }
+
+            AddLog($"Warning: Could not find upscaled video. Check ComfyUI output folder manually.");
             return null;
         }
 

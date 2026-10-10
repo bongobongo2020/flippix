@@ -5253,7 +5253,9 @@
                                 <Border Grid.Row="0" Background="{StaticResource SurfaceAltBrush}" Padding="10,6">
                                     <Grid>
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <TextBox Text="{Binding ProjectFolder, UpdateSourceTrigger=PropertyChanged}" Width="140" Height="24" FontSize="10" VerticalContentAlignment="Center" ToolTip="Project folder name"/>
+                                            <Button Content="💾" Command="{Binding SaveProjectCommand}" Width="24" Height="24" Padding="0" FontSize="12" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" ToolTip="Save Project (.h3proj)" Margin="0,0,4,0"/>
+                                            <Button Content="📂" Command="{Binding LoadProjectCommand}" Width="24" Height="24" Padding="0" FontSize="12" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" ToolTip="Load Project (.h3proj)" Margin="0,0,6,0"/>
+                                            <TextBox Text="{Binding ProjectFolder, UpdateSourceTrigger=PropertyChanged}" Width="120" Height="24" FontSize="10" VerticalContentAlignment="Center" ToolTip="Project folder name"/>
                                             <Border Width="1" Background="{StaticResource BorderBrush}" Margin="10,0"/>
                                             <ComboBox ItemsSource="{Binding AspectRatioOptions}" SelectedValue="{Binding SelectedAspectRatio}" Width="130" Height="24" FontSize="10" ToolTip="Aspect ratio"/>
                                             <ComboBox SelectedValue="{Binding Megapixels}" Width="60" Height="24" FontSize="10" Margin="6,0,0,0" ToolTip="Megapixels">
@@ -5555,13 +5557,17 @@
                                                                 </Grid>
 
                                                                 <!-- Bottom info bar -->
-                                                                <Border Grid.Row="1" Background="#252525" Padding="3,1">
+                                                                <Border Grid.Row="1" Background="#252525" Padding="2,1">
                                                                     <Grid>
-                                                                        <TextBlock Text="{Binding DurationDisplay}" FontSize="9" FontFamily="Consolas" Foreground="#888" HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                                                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                                                            <TextBlock Text="{Binding StatusText}" FontSize="8" Foreground="#666" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                                                            <Button Content="↻" Width="16" Height="14" Padding="0" FontSize="10" FontFamily="Segoe UI Symbol" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" Command="{Binding DataContext.RegenerateClipCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" ToolTip="Regenerate" Margin="0,0,2,0"/>
-                                                                            <Button Content="×" Width="16" Height="14" Padding="0" FontSize="12" Style="{StaticResource DangerButtonStyle}" Cursor="Hand" Command="{Binding DataContext.RemoveClipCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" ToolTip="Remove"/>
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="Auto"/>
+                                                                            <ColumnDefinition Width="*"/>
+                                                                            <ColumnDefinition Width="Auto"/>
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <TextBlock Grid.Column="0" Text="{Binding DurationDisplay}" FontSize="8" FontFamily="Consolas" Foreground="#888" VerticalAlignment="Center"/>
+                                                                        <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                                                            <Button Content="↻" Width="14" Height="14" Padding="0" FontSize="9" FontFamily="Segoe UI Symbol" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" Command="{Binding DataContext.RegenerateClipCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" ToolTip="Regenerate" Margin="0,0,1,0"/>
+                                                                            <Button Content="×" Width="14" Height="14" Padding="0" FontSize="10" Style="{StaticResource DangerButtonStyle}" Cursor="Hand" Command="{Binding DataContext.RemoveClipCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" ToolTip="Remove"/>
                                                                         </StackPanel>
                                                                     </Grid>
                                                                 </Border>

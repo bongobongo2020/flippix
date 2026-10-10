@@ -2,6 +2,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -267,6 +268,8 @@ N/A
         public RelayCommand UpscaleCommand { get; private set; } = null!;
         public RelayCommand CancelCommand { get; private set; } = null!;
         public RelayCommand BrowseProjectFolderCommand { get; private set; } = null!;
+        public RelayCommand SaveProjectCommand { get; private set; } = null!;
+        public RelayCommand LoadProjectCommand { get; private set; } = null!;
         public RelayCommand<H3TimelineClip> PlayPreviewCommand { get; private set; } = null!;
         public RelayCommand<H3TimelineClip> SelectClipCommand { get; private set; } = null!;
         public RelayCommand<H3TimelineClip> EditClipPromptCommand { get; private set; } = null!;
@@ -285,6 +288,8 @@ N/A
             UpscaleCommand = new RelayCommand(() => _ = UpscaleAsync(), () => CanUpscale);
             CancelCommand = new RelayCommand(Cancel, () => IsGenerating || IsJoining || IsUpscaling);
             BrowseProjectFolderCommand = new RelayCommand(() => _ = BrowseProjectFolderAsync());
+            SaveProjectCommand = new RelayCommand(() => _ = SaveProjectAsync());
+            LoadProjectCommand = new RelayCommand(() => _ = LoadProjectAsync());
             PlayPreviewCommand = new RelayCommand<H3TimelineClip>(PlayClip);
             SelectClipCommand = new RelayCommand<H3TimelineClip>(SelectClip);
             EditClipPromptCommand = new RelayCommand<H3TimelineClip>(EditClipPrompt);
@@ -558,6 +563,305 @@ N/A
             catch
             {
                 // Silently ignore auto-save failures to not disrupt workflow
+            }
+        }
+
+        // ── Project Save/Load ─────────────────────────────────────────────────────────────────────
+
+        private static readonly JsonSerializerOptions ProjectJsonOptions = new()
+        {
+            WriteIndented = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
+
+        /// <summary>Saves the current project to a .h3proj file.</summary>
+        private async Task SaveProjectAsync()
+        {
+            try
+            {
+                var filter = "H3 Project Files|*.h3proj|All Files|*.*";
+                var defaultName = !string.IsNullOrEmpty(ProjectFolder) ? $"{ProjectFolder}.h3proj" : "project.h3proj";
+
+                var path = await _fileDialogService.SaveFileDialogAsync("Save H3 Project", filter, defaultName);
+                if (string.IsNullOrEmpty(path)) return;
+
+                var project = BuildProjectFromCurrentState();
+                project.Metadata.ProjectName = Path.GetFileNameWithoutExtension(path);
+                project.Metadata.LastModified = DateTime.Now;
+
+                var json = JsonSerializer.Serialize(project, ProjectJsonOptions);
+                await File.WriteAllTextAsync(path, json);
+
+                AddLog($"✓ Project saved: {Path.GetFileName(path)}");
+                AddLog($"  {TimelineClips.Count} clips, {TimelineClips.Count(c => c.IsRendered)} rendered");
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error saving project: {ex.Message}");
+            }
+        }
+
+        /// <summary>Loads a project from a .h3proj file.</summary>
+        private async Task LoadProjectAsync()
+        {
+            try
+            {
+                var filter = "H3 Project Files|*.h3proj|All Files|*.*";
+                var paths = await _fileDialogService.OpenFilesDialogAsync("Load H3 Project", filter);
+                if (paths == null || paths.Length == 0) return;
+
+                var path = paths[0];
+                if (!File.Exists(path))
+                {
+                    AddLog($"Project file not found: {path}");
+                    return;
+                }
+
+                var json = await File.ReadAllTextAsync(path);
+                var project = JsonSerializer.Deserialize<H3Project>(json, ProjectJsonOptions);
+                if (project == null)
+                {
+                    AddLog("Failed to parse project file");
+                    return;
+                }
+
+                RestoreProjectState(project);
+
+                AddLog($"✓ Project loaded: {Path.GetFileName(path)}");
+                AddLog($"  {TimelineClips.Count} clips, {TimelineClips.Count(c => c.IsRendered)} rendered");
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error loading project: {ex.Message}");
+            }
+        }
+
+        /// <summary>Builds an H3Project object from the current ViewModel state.</summary>
+        private H3Project BuildProjectFromCurrentState()
+        {
+            var project = new H3Project
+            {
+                Metadata = new H3ProjectMetadata
+                {
+                    ProjectName = ProjectFolder,
+                    ProjectFolder = ProjectFolder,
+                    CreatedDate = DateTime.Now,
+                    LastModified = DateTime.Now
+                },
+                ReferenceImages = new H3ProjectReferenceImages
+                {
+                    Picture1Path = Picture1.Images.FirstOrDefault()?.Path,
+                    Picture2Path = Picture2.Images.FirstOrDefault()?.Path,
+                    Picture3Path = Picture3.Images.FirstOrDefault()?.Path,
+                    Picture4Path = Picture4.Images.FirstOrDefault()?.Path
+                },
+                Settings = new H3ProjectSettings
+                {
+                    PresetName = SelectedPresetName,
+                    Steps = Steps,
+                    Sampler = SelectedSampler,
+                    Scheduler = SelectedScheduler,
+                    ShiftVideo = ShiftVideo,
+                    ShiftAudio = ShiftAudio,
+                    Attention = SelectedAttention,
+                    SparseAttention = SelectedSparseAttention,
+                    Spectrum = Spectrum,
+                    TurboLoader = SelectedTurboLoader,
+                    TurboLora = TurboLora,
+                    TurboStrength = TurboStrength,
+                    AspectRatio = SelectedAspectRatio,
+                    Megapixels = Megapixels,
+                    DefaultClipDuration = DefaultClipDuration,
+                    ChainClips = ChainClips,
+                    UpscaleFactor = UpscaleFactor,
+                    RefineAmount = RefineAmount,
+                    Crf = Crf,
+                    Crossfade = Crossfade,
+                    LevelLock = LevelLock
+                },
+                JoinedVideoPath = JoinedVideoPath,
+                CurrentPrompt = PromptText
+            };
+
+            // Save timeline clips
+            foreach (var clip in TimelineClips)
+            {
+                project.Clips.Add(new H3ProjectClip
+                {
+                    Id = clip.Id,
+                    Index = clip.Index,
+                    Prompt = clip.Prompt,
+                    DurationSeconds = clip.DurationSeconds,
+                    OutputPath = clip.OutputPath,
+                    ThumbnailPath = clip.ThumbnailPath,
+                    State = clip.State.ToString(),
+                    UseMotionContext = clip.UseMotionContext
+                });
+            }
+
+            // Save story mode state if enabled
+            if (StoryModeEnabled)
+            {
+                project.StoryMode = new H3ProjectStoryMode
+                {
+                    Enabled = StoryModeEnabled,
+                    StoryText = StoryText,
+                    StoryFilePath = StoryFilePath,
+                    StoryFileName = StoryFileName,
+                    StorySetting = StorySetting,
+                    TargetDurationSeconds = TargetDurationSeconds,
+                    IsStoryAnalyzed = IsStoryAnalyzed,
+                    CastPhotoEngine = CastPhotoEngine,
+                    AutoGenerateCast = AutoGenerateCast
+                };
+            }
+
+            return project;
+        }
+
+        /// <summary>Restores ViewModel state from an H3Project object.</summary>
+        private void RestoreProjectState(H3Project project)
+        {
+            // Clear current timeline
+            TimelineClips.Clear();
+
+            // Restore project folder
+            if (!string.IsNullOrEmpty(project.Metadata?.ProjectFolder))
+                ProjectFolder = project.Metadata.ProjectFolder;
+
+            // Restore settings
+            if (project.Settings != null)
+            {
+                SelectedPresetName = project.Settings.PresetName;
+                Steps = project.Settings.Steps;
+                SelectedSampler = project.Settings.Sampler;
+                SelectedScheduler = project.Settings.Scheduler;
+                ShiftVideo = project.Settings.ShiftVideo;
+                ShiftAudio = project.Settings.ShiftAudio;
+                SelectedAttention = project.Settings.Attention;
+                SelectedSparseAttention = project.Settings.SparseAttention;
+                Spectrum = project.Settings.Spectrum;
+                SelectedTurboLoader = project.Settings.TurboLoader;
+                TurboLora = project.Settings.TurboLora;
+                TurboStrength = project.Settings.TurboStrength;
+                SelectedAspectRatio = project.Settings.AspectRatio;
+                Megapixels = project.Settings.Megapixels;
+                DefaultClipDuration = project.Settings.DefaultClipDuration;
+                ChainClips = project.Settings.ChainClips;
+                UpscaleFactor = project.Settings.UpscaleFactor;
+                RefineAmount = project.Settings.RefineAmount;
+                Crf = project.Settings.Crf;
+                Crossfade = project.Settings.Crossfade;
+                LevelLock = project.Settings.LevelLock;
+            }
+
+            // Restore reference images
+            if (project.ReferenceImages != null)
+            {
+                LoadReferenceImageIfExists(0, project.ReferenceImages.Picture1Path);
+                LoadReferenceImageIfExists(1, project.ReferenceImages.Picture2Path);
+                LoadReferenceImageIfExists(2, project.ReferenceImages.Picture3Path);
+                LoadReferenceImageIfExists(3, project.ReferenceImages.Picture4Path);
+            }
+
+            // Restore timeline clips
+            foreach (var savedClip in project.Clips.OrderBy(c => c.Index))
+            {
+                var clip = new H3TimelineClip
+                {
+                    Index = savedClip.Index,
+                    Prompt = savedClip.Prompt,
+                    DurationSeconds = savedClip.DurationSeconds,
+                    OutputPath = savedClip.OutputPath,
+                    ThumbnailPath = savedClip.ThumbnailPath,
+                    UseMotionContext = savedClip.UseMotionContext
+                };
+
+                // Restore state and verify files exist
+                if (Enum.TryParse<H3ClipState>(savedClip.State, out var state))
+                {
+                    if (state == H3ClipState.Rendered)
+                    {
+                        // Verify output file still exists
+                        if (!string.IsNullOrEmpty(savedClip.OutputPath) && File.Exists(savedClip.OutputPath))
+                        {
+                            clip.State = H3ClipState.Rendered;
+                        }
+                        else
+                        {
+                            clip.State = H3ClipState.Pending;
+                            clip.OutputPath = null;
+                            clip.ThumbnailPath = null;
+                            AddLog($"Clip {savedClip.Index + 1}: Output file missing, marked as pending");
+                        }
+                    }
+                    else
+                    {
+                        clip.State = H3ClipState.Pending; // Reset any in-progress states
+                    }
+                }
+
+                TimelineClips.Add(clip);
+            }
+
+            RecalculateTimeline();
+
+            // Restore joined video path if it exists
+            if (!string.IsNullOrEmpty(project.JoinedVideoPath) && File.Exists(project.JoinedVideoPath))
+            {
+                JoinedVideoPath = project.JoinedVideoPath;
+                PreviewVideoPath = project.JoinedVideoPath;
+            }
+
+            // Restore current prompt
+            if (!string.IsNullOrEmpty(project.CurrentPrompt))
+                PromptText = project.CurrentPrompt;
+
+            // Restore story mode state
+            if (project.StoryMode != null)
+            {
+                StoryModeEnabled = project.StoryMode.Enabled;
+                StoryText = project.StoryMode.StoryText ?? string.Empty;
+                StoryFilePath = project.StoryMode.StoryFilePath ?? string.Empty;
+                StoryFileName = project.StoryMode.StoryFileName ?? string.Empty;
+                StorySetting = project.StoryMode.StorySetting ?? string.Empty;
+                TargetDurationSeconds = project.StoryMode.TargetDurationSeconds;
+                IsStoryAnalyzed = project.StoryMode.IsStoryAnalyzed;
+                CastPhotoEngine = project.StoryMode.CastPhotoEngine;
+                AutoGenerateCast = project.StoryMode.AutoGenerateCast;
+            }
+
+            // Select first clip if available
+            if (TimelineClips.Count > 0)
+            {
+                SelectedClip = TimelineClips[0];
+                if (!string.IsNullOrEmpty(TimelineClips[0].OutputPath) && File.Exists(TimelineClips[0].OutputPath))
+                    PreviewVideoPath = TimelineClips[0].OutputPath;
+            }
+
+            // Update UI commands
+            GenerateClipsCommand.NotifyCanExecuteChanged();
+            JoinClipsCommand.NotifyCanExecuteChanged();
+            UpscaleCommand.NotifyCanExecuteChanged();
+        }
+
+        private void LoadReferenceImageIfExists(int slotIndex, string? path)
+        {
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return;
+            if (slotIndex < 0 || slotIndex >= ReferenceSlots.Count) return;
+
+            try
+            {
+                ReferenceSlots[slotIndex].Images.Clear();
+                ReferenceSlots[slotIndex].Images.Add(new H3ReferenceImage
+                {
+                    Path = path,
+                    FileName = Path.GetFileName(path)
+                });
+            }
+            catch
+            {
+                // Ignore errors loading reference images
             }
         }
     }
