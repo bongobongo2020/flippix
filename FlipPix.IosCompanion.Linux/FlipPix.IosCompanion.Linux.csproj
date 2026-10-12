@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    FlipPix iOS Companion for Ubuntu: the same companion as FlipPix.IosCompanion (phone remote narrowed
+    FlipPix Companion for Ubuntu: the same companion as FlipPix.IosCompanion (phone remote narrowed
     to Krea 2 pictures and MiniMax H3 video, every output screened by the content classifier, ComfyUI
     and the writing assistant kept running), headless. It runs as a systemd user service
     ("flippix-companion serve"); "flippix-companion" in a terminal shows the pairing code and status.
@@ -15,7 +15,7 @@
     <LangVersion>latest</LangVersion>
     <AssemblyName>flippix-companion</AssemblyName>
     <RootNamespace>FlipPix.IosCompanion</RootNamespace>
-    <Product>FlipPix iOS Companion</Product>
+    <Product>FlipPix Companion</Product>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 

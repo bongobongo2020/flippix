@@ -494,7 +494,8 @@ namespace FlipPix.UI
             try
             {
                 var logger = _serviceProvider?.GetService<IAppLogger>();
-                logger?.LogError(ex, "Unhandled Domain Exception");
+                if (ex != null)
+                    logger?.LogError(ex, "Unhandled Domain Exception");
             }
             catch { }
 

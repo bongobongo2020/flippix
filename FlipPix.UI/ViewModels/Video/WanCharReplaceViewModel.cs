@@ -1424,17 +1424,6 @@ namespace FlipPix.UI.ViewModels.Video
 
         #endregion
 
-        private static string CleanLLMOutput(string text)
-        {
-            if (string.IsNullOrWhiteSpace(text)) return text;
-            text = text.Replace("**", "");
-            var trimmed = text.TrimStart();
-            var lower = trimmed.ToLowerInvariant();
-            if (lower.StartsWith("prompt:") || lower.StartsWith("prompt :"))
-                trimmed = trimmed[(trimmed.IndexOf(':') + 1)..];
-            return trimmed.Trim();
-        }
-
         protected override void OnCanExecuteChanged()
         {
             base.OnCanExecuteChanged();

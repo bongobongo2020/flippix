@@ -69,7 +69,7 @@ internal static class StatusCommand
         var s = CompanionStatus.Load();
         if (s == null || !s.IsLive())
         {
-            Console.WriteLine("FlipPix iOS Companion isn't running.");
+            Console.WriteLine("FlipPix Companion isn't running.");
             Console.WriteLine("  Start it:   systemctl --user start flippix-companion");
             Console.WriteLine("  Why not:    journalctl --user -u flippix-companion -n 50");
             return 1;
@@ -80,20 +80,20 @@ internal static class StatusCommand
         string Paint(bool? ok, string t) => !color ? t : ok switch { true => $"\e[32m{t}\e[0m", false => $"\e[31m{t}\e[0m", _ => $"\e[33m{t}\e[0m" };
 
         Console.WriteLine();
-        Console.WriteLine(Bold($"FlipPix iOS Companion on {s.Host}"));
+        Console.WriteLine(Bold($"FlipPix Companion on {s.Host}"));
         Console.WriteLine();
         var codeFresh = s.PairingCode.Length > 0 && DateTime.UtcNow - s.CodeIssuedUtc < CodeShownFor;
         if (codeFresh)
         {
             Console.WriteLine($"  Pairing code:  {Bold(s.PairingCode)}");
-            Console.WriteLine($"  On the iPad (same Wi-Fi as this PC), open FlipPix, tap {s.Host} and type this code.");
+            Console.WriteLine($"  On your phone (same Wi-Fi as this PC), open FlipPix, tap {s.Host} and type this code.");
         }
         else if (s.Phone.Ok == true)
         {
             Console.WriteLine("  Pairing code:  expired. Run  flippix-companion code  for a new one.");
         }
         if (s.Address.Length > 0) Console.WriteLine($"  This PC:       {s.Address}");
-        Console.WriteLine(s.PairedDevices == 0 ? "  No iPad paired yet." : $"  Paired:        {s.PairedDevices} device{(s.PairedDevices == 1 ? "" : "s")}");
+        Console.WriteLine(s.PairedDevices == 0 ? "  No phone paired yet." : $"  Paired:        {s.PairedDevices} device{(s.PairedDevices == 1 ? "" : "s")}");
         Console.WriteLine();
         foreach (var (name, row) in new[] { ("Phone link", s.Phone), ("Pictures and video (ComfyUI)", s.Comfy),
                                             ("Writing assistant", s.Llm), ("Content filter", s.Filter) })

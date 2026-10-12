@@ -742,7 +742,7 @@ N/A
                 SelectedSparseAttention = project.Settings.SparseAttention;
                 Spectrum = project.Settings.Spectrum;
                 SelectedTurboLoader = project.Settings.TurboLoader;
-                TurboLora = project.Settings.TurboLora;
+                TurboLora = project.Settings.TurboLora ?? string.Empty;
                 TurboStrength = project.Settings.TurboStrength;
                 SelectedAspectRatio = project.Settings.AspectRatio;
                 Megapixels = project.Settings.Megapixels;
@@ -772,8 +772,8 @@ N/A
                     Index = savedClip.Index,
                     Prompt = savedClip.Prompt,
                     DurationSeconds = savedClip.DurationSeconds,
-                    OutputPath = savedClip.OutputPath,
-                    ThumbnailPath = savedClip.ThumbnailPath,
+                    OutputPath = savedClip.OutputPath ?? string.Empty,
+                    ThumbnailPath = savedClip.ThumbnailPath ?? string.Empty,
                     UseMotionContext = savedClip.UseMotionContext
                 };
 
@@ -790,8 +790,8 @@ N/A
                         else
                         {
                             clip.State = H3ClipState.Pending;
-                            clip.OutputPath = null;
-                            clip.ThumbnailPath = null;
+                            clip.OutputPath = string.Empty;
+                            clip.ThumbnailPath = string.Empty;
                             AddLog($"Clip {savedClip.Index + 1}: Output file missing, marked as pending");
                         }
                     }

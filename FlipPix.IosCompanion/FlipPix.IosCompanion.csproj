@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    FlipPix iOS Companion: the PC side of the FlipPix iPad / iPhone app, and nothing else. It hosts
+    FlipPix Companion: the PC side of the FlipPix mobile app, and nothing else. It hosts
     the phone remote (FlipPix.Remote) narrowed to the two graphs the companion installs (Krea 2
     pictures, MiniMax H3 video), screens every output with an on-device content classifier, and keeps
     ComfyUI and the writing assistant (llama-server) running. Installed by Install-iOS-Companion.bat.
@@ -14,7 +14,7 @@
     <LangVersion>latest</LangVersion>
     <AssemblyName>FlipPix.IosCompanion</AssemblyName>
     <RootNamespace>FlipPix.IosCompanion</RootNamespace>
-    <Product>FlipPix iOS Companion</Product>
+    <Product>FlipPix Companion</Product>
     <ApplicationIcon>..\flippix.ico</ApplicationIcon>
     <!-- Lets the project build (not run) on a Mac or Linux dev box. -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>

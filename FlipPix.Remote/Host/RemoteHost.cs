@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
@@ -136,6 +137,7 @@ public sealed partial class RemoteHost : ObservableObject, IAsyncDisposable
     {
         await StopCoreAsync();
         var port = Port;
+        EnsureFirewallRule(port);
         WebApplication? web = null;
         try
         {
@@ -356,7 +358,7 @@ public sealed partial class RemoteHost : ObservableObject, IAsyncDisposable
     /// </summary>
     public static IReadOnlyList<string> LanAddresses()
     {
-        var skip = new[] { "vEthernet", "VirtualBox", "VMware", "Hyper-V", "WSL", "Loopback", "Bluetooth", "docker", "br-", "virbr", "tailscale", "ZeroTier" };
+        var skip = new[] { "vEthernet", "VirtualBox", "VMware", "Hyper-V", "WSL", "Loopback", "Bluetooth", "docker", "br-", "virbr", "ZeroTier" };
         try
         {
             return NetworkInterface.GetAllNetworkInterfaces()
@@ -378,6 +380,34 @@ public sealed partial class RemoteHost : ObservableObject, IAsyncDisposable
         catch (NetworkInformationException)
         {
             return Array.Empty<string>();
+        }
+    }
+
+    /// <summary>
+    /// Ensures a Windows Firewall rule exists for the phone remote port.
+    /// Runs silently - if it fails (e.g. no admin rights), the user can add the rule manually.
+    /// </summary>
+    private static void EnsureFirewallRule(int port)
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        try
+        {
+            var ruleName = "FlipPix Phone Remote";
+            var psi = new ProcessStartInfo
+            {
+                FileName = "netsh",
+                Arguments = $"advfirewall firewall add rule name=\"{ruleName}\" dir=in action=allow protocol=TCP localport={port}",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+            using var p = Process.Start(psi);
+            p?.WaitForExit(5000);
+        }
+        catch
+        {
+            // Ignore - user may need to add the rule manually
         }
     }
 }

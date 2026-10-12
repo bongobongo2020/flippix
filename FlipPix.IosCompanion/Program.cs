@@ -11,8 +11,8 @@ internal static class Program
         using var single = new Mutex(true, @"Local\FlipPix.IosCompanion", out var first);
         if (!first)
         {
-            MessageBox.Show("FlipPix iOS Companion is already running. Look for its icon next to the clock.",
-                "FlipPix iOS Companion", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show("FlipPix Companion is already running. Look for its icon next to the clock.",
+                "FlipPix Companion", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 

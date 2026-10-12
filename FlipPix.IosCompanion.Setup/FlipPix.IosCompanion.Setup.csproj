@@ -14,7 +14,7 @@
     <LangVersion>latest</LangVersion>
     <AssemblyName>FlipPix-iOS-Companion-Setup</AssemblyName>
     <RootNamespace>FlipPix.IosCompanion.Setup</RootNamespace>
-    <Product>FlipPix iOS Companion Setup</Product>
+    <Product>FlipPix Companion Setup</Product>
     <ApplicationIcon>..\flippix.ico</ApplicationIcon>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>

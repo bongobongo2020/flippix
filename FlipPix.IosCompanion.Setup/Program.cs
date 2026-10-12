@@ -12,7 +12,7 @@ namespace FlipPix.IosCompanion.Setup;
 /// </summary>
 internal static class Program
 {
-    private const string Title = "FlipPix iOS Companion Setup";
+    private const string Title = "FlipPix Companion Setup";
 
     [STAThread]
     private static int Main(string[] args)
@@ -154,7 +154,7 @@ internal sealed class SplashForm : Form
 
     public SplashForm()
     {
-        Text = "FlipPix iOS Companion Setup";
+        Text = "FlipPix Companion Setup";
         ClientSize = new Size(380, 96);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;

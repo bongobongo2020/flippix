@@ -45,7 +45,7 @@ public sealed class CompanionForm : Form
         SuspendLayout();
         AutoScaleDimensions = new SizeF(96f, 96f);
         AutoScaleMode = AutoScaleMode.Dpi;
-        Text = "FlipPix iOS Companion";
+        Text = "FlipPix Companion";
         ClientSize = new Size(460, 410);
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
@@ -69,12 +69,12 @@ public sealed class CompanionForm : Form
                 e.Graphics.DrawIcon(icon, new Rectangle(Px(14), Px(12), Px(32), Px(32)));
             }
             using var title = new Font("MS Sans Serif", 12f, FontStyle.Bold);
-            e.Graphics.DrawString("FlipPix iOS Companion", title, Brushes.White, Px(54), Px(10));
-            e.Graphics.DrawString("Keeps this PC ready for FlipPix on your iPad.", UiFont, Brushes.Gainsboro, Px(56), Px(32));
+            e.Graphics.DrawString("FlipPix Companion", title, Brushes.White, Px(54), Px(10));
+            e.Graphics.DrawString("Keeps this PC ready for FlipPix on your phone.", UiFont, Brushes.Gainsboro, Px(56), Px(32));
         };
         Controls.Add(banner);
 
-        var pair = new GroupBox { Text = "Connect your iPad", Location = new Point(10, 64), Size = new Size(440, 134) };
+        var pair = new GroupBox { Text = "Connect your phone", Location = new Point(10, 64), Size = new Size(440, 134) };
         _code = new Label { Text = "--- ---", Font = CodeFont, Location = new Point(12, 20), Size = new Size(250, 44) };
         var newCode = new Button { Text = "New code", Location = new Point(344, 30), Size = new Size(80, 24) };
         newCode.Click += (_, _) => _host?.NewCodeCommand.Execute(null);
@@ -106,7 +106,7 @@ public sealed class CompanionForm : Form
         ResumeLayout(false);
 
         _tray.Icon = Icon ?? SystemIcons.Application;
-        _tray.Text = "FlipPix iOS Companion";
+        _tray.Text = "FlipPix Companion";
         _tray.Visible = true;
         _tray.DoubleClick += (_, _) => ShowFromTray();
         var menu = new ContextMenuStrip();
@@ -138,6 +138,19 @@ public sealed class CompanionForm : Form
     {
         base.OnLoad(e);
         if (Environment.GetCommandLineArgs().Contains("--tray")) BeginInvoke(() => HideToTray(quiet: true));
+
+        // Check if we need configuration (no companion.json and no FlipPix settings)
+        if (CompanionConfig.NeedsConfiguration(_settings.Settings))
+        {
+            var result = ShowConfigurationDialog();
+            if (!result)
+            {
+                // User cancelled configuration
+                Close();
+                return;
+            }
+        }
+
         try
         {
             await StartAsync();
@@ -147,6 +160,58 @@ public sealed class CompanionForm : Form
             _log.LogError(ex, "The companion failed to start");
             SetRow(_rowPhone, false, "Couldn't start: " + ex.Message);
         }
+    }
+
+    /// <summary>Shows a dialog asking if FlipPix is already running and gets the URL. Returns false if cancelled.</summary>
+    private bool ShowConfigurationDialog()
+    {
+        using var dialog = new Form
+        {
+            Text = "FlipPix Companion Setup",
+            ClientSize = new Size(440, 200),
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            MaximizeBox = false,
+            MinimizeBox = false,
+            StartPosition = FormStartPosition.CenterParent,
+            BackColor = Silver,
+            Font = UiFont,
+        };
+        try { dialog.Icon = Icon; } catch { }
+
+        var label = new Label
+        {
+            Text = "Is FlipPix Desktop already running on this computer or another PC?\n\n" +
+                   "If yes, enter the address below to connect to it.\n" +
+                   "If no, cancel and run the full FlipPix Companion Setup instead.",
+            Location = new Point(16, 16),
+            Size = new Size(408, 64),
+        };
+
+        var urlLabel = new Label { Text = "FlipPix address:", Location = new Point(16, 92), Size = new Size(100, 20) };
+        var urlBox = new TextBox { Text = "http://127.0.0.1:8188", Location = new Point(120, 90), Size = new Size(200, 22) };
+
+        var llmLabel = new Label { Text = "LLM address:", Location = new Point(16, 120), Size = new Size(100, 20) };
+        var llmBox = new TextBox { Text = "http://127.0.0.1:8080", Location = new Point(120, 118), Size = new Size(200, 22) };
+
+        var connectBtn = new Button { Text = "Connect", Location = new Point(240, 158), Size = new Size(90, 26), DialogResult = DialogResult.OK };
+        var cancelBtn = new Button { Text = "Cancel", Location = new Point(336, 158), Size = new Size(90, 26), DialogResult = DialogResult.Cancel };
+
+        dialog.Controls.AddRange(new Control[] { label, urlLabel, urlBox, llmLabel, llmBox, connectBtn, cancelBtn });
+        dialog.AcceptButton = connectBtn;
+        dialog.CancelButton = cancelBtn;
+
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+            return false;
+
+        // Save the configuration
+        var config = new CompanionConfig
+        {
+            UseExternalFlipPix = true,
+            ExternalComfyUrl = urlBox.Text.Trim(),
+            ExternalLlmUrl = llmBox.Text.Trim(),
+        };
+        config.Save();
+        return true;
     }
 
     private async Task StartAsync()
@@ -169,13 +234,16 @@ public sealed class CompanionForm : Form
             LibraryMadeOnly = true,
             Credits = Credits,
         };
+        // Use a different port (47810) so the companion doesn't conflict with FlipPix desktop on 47800
+        var companionConfigPath = Path.Combine(CompanionConfig.AppDataDir, "companion-remote.json");
+        EnsureCompanionPort(companionConfigPath);
         _host = new RemoteHost(() => _settings.Settings, _log, Dispatch,
-            configPath: Path.Combine(CompanionConfig.AppDataDir, "companion-remote.json"),
+            configPath: companionConfigPath,
             dataDir: Path.Combine(CompanionConfig.LocalDir, "remote"),
             options: options);
         _host.PropertyChanged += (_, _) => Dispatch(RefreshUi);
         _host.Devices.CollectionChanged += (_, _) => Dispatch(RefreshUi);
-        await _host.InitializeAsync(alwaysOn: _filter != null);
+        await _host.InitializeAsync(alwaysOn: true);
 
         _supervisor = new Supervisor(_config, () => _settings.Settings, _log);
         _supervisor.Changed += () => Dispatch(RefreshUi);
@@ -195,15 +263,13 @@ public sealed class CompanionForm : Form
         var host = _host;
         var running = host?.IsRunning == true;
         _code.Text = running && !string.IsNullOrEmpty(host!.PairingCode) ? host.PairingCode : "--- ---";
-        _how.Text = $"On the iPad (same Wi-Fi as this PC), open FlipPix, tap {Environment.MachineName} and type this code.";
+        _how.Text = $"On your phone (same Wi-Fi as this PC), open FlipPix, tap {Environment.MachineName} and type this code.";
         _address.Text = running ? "This PC: " + host!.AddressText : "";
         var paired = host?.Devices.Count ?? 0;
-        _devices.Text = paired == 0 ? "No iPad paired yet." : $"Paired: {paired} device{(paired == 1 ? "" : "s")}.";
+        _devices.Text = paired == 0 ? "No phone paired yet." : $"Paired: {paired} device{(paired == 1 ? "" : "s")}.";
         _activity.Text = host?.ActivityText ?? "";
 
-        if (_filter == null)
-            SetRow(_rowPhone, false, "Off until the content filter is installed");
-        else if (host == null)
+        if (host == null)
             SetRow(_rowPhone, null, "Starting...");
         else
             SetRow(_rowPhone, running ? true : host.StatusText.StartsWith("Couldn't") ? false : null, running ? "On" : host.StatusText);
@@ -218,18 +284,37 @@ public sealed class CompanionForm : Form
             SetRow(_rowComfy, null, "Checking...");
             SetRow(_rowLlm, null, "Checking...");
         }
-        SetRow(_rowFilter, _filter != null, _filter != null ? "On: every picture and video is checked" : "Missing. Run Setup again.");
-        _tray.Text = running ? "FlipPix iOS Companion: ready" : "FlipPix iOS Companion";
+        if (_filter != null)
+            SetRow(_rowFilter, true, "On: every picture and video is checked");
+        else
+            SetRow(_rowFilter, null, "Off (optional)");
+        _tray.Text = running ? "FlipPix Companion: ready" : "FlipPix Companion";
     }
 
     private static bool Pending(string status) => status.StartsWith("Starting") || status.StartsWith("Checking");
+
+    /// <summary>Ensures the companion uses port 47810 instead of the default 47800 used by FlipPix desktop.</summary>
+    private static void EnsureCompanionPort(string configPath)
+    {
+        const int companionPort = 47810;
+        try
+        {
+            var config = RemoteConfig.Load(configPath);
+            if (config.Port != companionPort)
+            {
+                config.Port = companionPort;
+                config.Save(configPath);
+            }
+        }
+        catch (Exception) { /* will use default, and fail with address in use - that's fine */ }
+    }
 
     private void HideToTray(bool quiet = false)
     {
         Hide();
         if (quiet || _toldAboutTray) return;
         _toldAboutTray = true;
-        _tray.ShowBalloonTip(4000, "FlipPix iOS Companion", "Still running, so your iPad can connect. Right-click this icon to quit.", ToolTipIcon.Info);
+        _tray.ShowBalloonTip(4000, "FlipPix Companion", "Still running, so your phone can connect. Right-click this icon to quit.", ToolTipIcon.Info);
     }
 
     private void ShowFromTray()

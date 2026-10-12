@@ -46,11 +46,41 @@ public sealed class Supervisor : IDisposable
         while (!_stop.IsCancellationRequested)
         {
             var s = _settings();
-            await KeepAsync(_comfy, Normalize(s.BaseUrl, "http://127.0.0.1:8188") + "/system_stats", StartComfy);
-            await KeepAsync(_llm, Normalize(s.LMStudioSettings?.BaseUrl, "http://127.0.0.1:8080") + "/health", StartLlm);
+            // When using external FlipPix, use the configured URLs and never try to start local processes
+            var comfyUrl = !string.IsNullOrEmpty(_config.ExternalComfyUrl)
+                ? Normalize(_config.ExternalComfyUrl, "http://127.0.0.1:8188")
+                : Normalize(s.BaseUrl, "http://127.0.0.1:8188");
+            var llmUrl = !string.IsNullOrEmpty(_config.ExternalLlmUrl)
+                ? Normalize(_config.ExternalLlmUrl, "http://127.0.0.1:8080")
+                : Normalize(s.LMStudioSettings?.BaseUrl, "http://127.0.0.1:8080");
+
+            if (_config.UseExternalFlipPix)
+            {
+                // External mode: just check if services are reachable, don't try to start them
+                await CheckExternalAsync(_comfy, comfyUrl + "/system_stats");
+                await CheckExternalAsync(_llm, llmUrl + "/health");
+            }
+            else
+            {
+                await KeepAsync(_comfy, comfyUrl + "/system_stats", StartComfy);
+                await KeepAsync(_llm, llmUrl + "/health", StartLlm);
+            }
             Changed?.Invoke();
             try { await Task.Delay(CheckEvery, _stop.Token); }
             catch (OperationCanceledException) { break; }
+        }
+    }
+
+    /// <summary>Just checks if an external service is reachable, without trying to start it.</summary>
+    private async Task CheckExternalAsync(Managed m, string probeUrl)
+    {
+        if (await AnswersAsync(probeUrl))
+        {
+            m.Set(true, "Connected to " + new Uri(probeUrl).GetLeftPart(UriPartial.Authority));
+        }
+        else
+        {
+            m.Set(false, "Not reachable at " + new Uri(probeUrl).GetLeftPart(UriPartial.Authority));
         }
     }
 

@@ -29,7 +29,7 @@ internal static class Service
         }
         catch (IOException)
         {
-            Console.Error.WriteLine("FlipPix iOS Companion is already running. See: flippix-companion status");
+            Console.Error.WriteLine("FlipPix Companion is already running. See: flippix-companion status");
             return 1;
         }
 
