@@ -3667,7 +3667,25 @@
                     <StackPanel Margin="20,20,20,20">
                         <!-- Header -->
                         <TextBlock Text="Camera Angle Generator" FontSize="22" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,10"/>
-                        <TextBlock Text="Generate multiple character angles from a single image using Flux2 models" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,25"/>
+                        <TextBlock Text="Generate multiple character angles from a single image" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,15"/>
+
+                        <!-- Engine Selection -->
+                        <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="15" Margin="0,0,0,20">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="260"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="Engine" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Flux2 Klein generates every angle in one batch. Qwen Image 2.1 runs one submission per angle, slower but a different model." FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <ComboBox Grid.Column="2" ItemsSource="{Binding CameraAngle.Engines}"
+                                          SelectedItem="{Binding CameraAngle.SelectedEngine}"
+                                          FontSize="12" Padding="6,4" VerticalAlignment="Center" VerticalContentAlignment="Center"/>
+                            </Grid>
+                        </Border>
 
                         <!-- Input Section -->
                         <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="15" Margin="0,0,0,20">

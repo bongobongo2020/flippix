@@ -38,6 +38,20 @@ namespace FlipPix.UI.ViewModels
         private const string SelectedModel = "Flux2-Klein-9B"; // Hardcoded to 9B Klein model
         private string _extraPrompt = string.Empty;
 
+        /// <summary>The image-generation engines this tab can drive.</summary>
+        public const string EngineFluxKlein = "Flux2 Klein 9B (1-click batch)";
+        public const string EngineQwenEdit21 = "Qwen Image 2.1 Edit";
+
+        private string _selectedEngine = EngineFluxKlein;
+
+        // Qwen Image 2.1 Edit path: unlike the Klein workflow, this template has no prompt-batcher
+        // node, so one angle means one ComfyUI submission - these are its fixed settings, mirroring
+        // the Qwen Edit 2.1 tab's own defaults.
+        private const string QwenWorkflowFile = "image_qwen_image_2_1_image_edit-changephoto.json";
+        private const string QwenNegativePrompt = "(worst quality, low quality:1.4), (low resolution, blurry, blur:1.2), jpeg artifacts, compression artifacts, poorly drawn, bad anatomy, wrong anatomy, deformed, mutated, disfigured, ugly, disgusting, text, watermark, signature, logo, username, artist name, (cartoon, anime, illustration, painting, drawing, sketch:1.3), 3d render, cgi, digital art, unrealistic, artificial, oversaturated, smooth skin, plastic";
+        private const int QwenSteps = 25;
+        private const double QwenCfg = 3.5;
+
         // The fixed set of camera-angle prompts that will be generated (one image each).
         private static readonly string[] DefaultPrompts =
         {
@@ -317,6 +331,17 @@ namespace FlipPix.UI.ViewModels
         }
 
         // Properties
+
+        /// <summary>The image-generation engines selectable in the dropdown.</summary>
+        public ObservableCollection<string> Engines { get; } = new() { EngineFluxKlein, EngineQwenEdit21 };
+
+        /// <summary>Which engine/workflow will be used for the next generation.</summary>
+        public string SelectedEngine
+        {
+            get => _selectedEngine;
+            set => SetProperty(ref _selectedEngine, value);
+        }
+
         public string InputImagePath
         {
             get => _inputImagePath;
@@ -500,7 +525,6 @@ namespace FlipPix.UI.ViewModels
                 ProcessingStatus = "Preparing workflow...";
                 AddLog($"=== Starting camera angle generation ===");
                 AddLog($"Input image: {Path.GetFileName(InputImagePath)}");
-                AddLog($"Model: {SelectedModel}");
 
                 // Ensure ComfyUI is connected
                 if (!_comfyUIService.IsConnected)
@@ -517,23 +541,7 @@ namespace FlipPix.UI.ViewModels
 
                 _cancellationTokenSource.Token.ThrowIfCancellationRequested();
 
-                // Load workflow
-                var workflowPath = WorkflowLocator.Resolve("workflow", "image", "klein", "FLUX2-DEV-KLEIN_4_and_9B_1_click_multiple_character_angles-v1.0.json");
-                if (!File.Exists(workflowPath))
-                {
-                    AddLog($"ERROR: Workflow file not found: {workflowPath}");
-                    System.Windows.MessageBox.Show($"Workflow file not found: {workflowPath}", "Error",
-                        MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
-                }
-
-                AddLog($"Loading workflow: {workflowPath}");
-                var workflowJson = await File.ReadAllTextAsync(workflowPath, _cancellationTokenSource.Token);
-                var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
-
-                _cancellationTokenSource.Token.ThrowIfCancellationRequested();
-
-                // Upload input image
+                // Upload input image (shared by every engine the branch below can target)
                 ProcessingStatus = "Uploading input image...";
                 ProcessingProgress = 10;
                 AddLog("Uploading input image to ComfyUI...");
@@ -542,46 +550,10 @@ namespace FlipPix.UI.ViewModels
 
                 _cancellationTokenSource.Token.ThrowIfCancellationRequested();
 
-                // Update workflow parameters
-                ProcessingStatus = "Updating workflow parameters...";
-                ProcessingProgress = 20;
-                var updatedWorkflow = UpdateWorkflowParameters(workflow, uploadedImageName);
-
-                // Execute workflow
-                ProcessingStatus = "Generating camera angles...";
-                ProcessingProgress = 30;
-                AddLog("Executing workflow in ComfyUI...");
-
-                var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
-                {
-                    if (progressMsg.Data?.Value != null && progressMsg.Data?.Max != null)
-                    {
-                        var percent = (double)progressMsg.Data.Value / progressMsg.Data.Max * 100;
-                        System.Windows.Application.Current.Dispatcher.Invoke(() =>
-                        {
-                            ProcessingProgress = 30 + (percent * 0.6);
-                            ProcessingStatus = $"Generating: {progressMsg.Data.Value}/{progressMsg.Data.Max}";
-                        });
-                    }
-                });
-
-                var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress, _cancellationTokenSource.Token);
-
-                // Force progress update after workflow completes
-                System.Windows.Application.Current.Dispatcher.Invoke(() =>
-                {
-                    ProcessingProgress = 90;
-                    ProcessingStatus = "Workflow completed, retrieving outputs...";
-                });
-
-                AddLog($"Workflow execution completed with prompt ID: {promptId}");
-
-                // Get output images
-                ProcessingStatus = "Retrieving output images...";
-                ProcessingProgress = 95;
-                AddLog("Looking for generated images...");
-
-                var outputImages = await GetOutputImagesFromComfyUI(promptId);
+                AddLog($"Engine: {SelectedEngine}");
+                var outputImages = SelectedEngine == EngineQwenEdit21
+                    ? await GenerateWithQwenEdit21Async(uploadedImageName, _cancellationTokenSource.Token)
+                    : await GenerateWithFluxKleinAsync(uploadedImageName, _cancellationTokenSource.Token);
 
                 if (outputImages.Any())
                 {
@@ -662,6 +634,169 @@ namespace FlipPix.UI.ViewModels
             {
                 IsProcessing = false;
             }
+        }
+
+        /// <summary>
+        /// Flux2 Klein path: the workflow already batches every prompt into one SimplePromptBatcher
+        /// node, so this is a single ComfyUI submission that returns one image per prompt.
+        /// </summary>
+        private async Task<List<byte[]>> GenerateWithFluxKleinAsync(string uploadedImageName, CancellationToken token)
+        {
+            var workflowPath = WorkflowLocator.Resolve("workflow", "image", "klein", "FLUX2-DEV-KLEIN_4_and_9B_1_click_multiple_character_angles-v1.0.json");
+            if (!File.Exists(workflowPath))
+            {
+                AddLog($"ERROR: Workflow file not found: {workflowPath}");
+                System.Windows.MessageBox.Show($"Workflow file not found: {workflowPath}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+                return new List<byte[]>();
+            }
+
+            AddLog($"Loading workflow: {workflowPath}");
+            var workflowJson = await File.ReadAllTextAsync(workflowPath, token);
+            var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
+
+            token.ThrowIfCancellationRequested();
+
+            ProcessingStatus = "Updating workflow parameters...";
+            ProcessingProgress = 20;
+            var updatedWorkflow = UpdateWorkflowParameters(workflow, uploadedImageName);
+
+            ProcessingStatus = "Generating camera angles...";
+            ProcessingProgress = 30;
+            AddLog("Executing workflow in ComfyUI...");
+
+            var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
+            {
+                if (progressMsg.Data?.Value != null && progressMsg.Data?.Max != null)
+                {
+                    var percent = (double)progressMsg.Data.Value / progressMsg.Data.Max * 100;
+                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        ProcessingProgress = 30 + (percent * 0.6);
+                        ProcessingStatus = $"Generating: {progressMsg.Data.Value}/{progressMsg.Data.Max}";
+                    });
+                }
+            });
+
+            var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress, token);
+
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            {
+                ProcessingProgress = 90;
+                ProcessingStatus = "Workflow completed, retrieving outputs...";
+            });
+
+            AddLog($"Workflow execution completed with prompt ID: {promptId}");
+
+            ProcessingStatus = "Retrieving output images...";
+            ProcessingProgress = 95;
+            AddLog("Looking for generated images...");
+
+            return await GetOutputImagesFromComfyUI(promptId);
+        }
+
+        /// <summary>
+        /// Qwen Image 2.1 Edit path: the template has no prompt-batcher node the way the Klein
+        /// workflow does, so one angle means one ComfyUI submission, run sequentially. Slower than
+        /// the Klein batch for the same prompt count, but it's the only way to drive this workflow
+        /// per-prompt.
+        /// </summary>
+        private async Task<List<byte[]>> GenerateWithQwenEdit21Async(string uploadedImageName, CancellationToken token)
+        {
+            var images = new List<byte[]>();
+
+            var prompts = Prompts.Select(p => p.Text.Trim()).Where(t => !string.IsNullOrEmpty(t)).ToList();
+            var extra = ExtraPrompt?.Trim();
+            if (!string.IsNullOrEmpty(extra))
+            {
+                prompts.Add(extra);
+                AddLog($"Added extra prompt: {extra}");
+            }
+
+            if (prompts.Count == 0)
+            {
+                AddLog("No prompts to generate");
+                return images;
+            }
+
+            var workflowPath = WorkflowLocator.Resolve("workflow", "image", "qwen-edit", QwenWorkflowFile);
+            if (!File.Exists(workflowPath))
+            {
+                AddLog($"ERROR: Workflow file not found: {workflowPath}");
+                System.Windows.MessageBox.Show($"Workflow file not found: {workflowPath}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+                return images;
+            }
+
+            var runId = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            AddLog($"Generating {prompts.Count} camera angle(s) with Qwen Image 2.1 Edit");
+
+            for (int i = 0; i < prompts.Count; i++)
+            {
+                token.ThrowIfCancellationRequested();
+
+                var prompt = prompts[i];
+                var step = i + 1;
+                ProcessingStatus = $"Generating angle {step}/{prompts.Count}...";
+                ProcessingProgress = 15 + (75.0 * i / prompts.Count);
+                AddLog($"[{step}/{prompts.Count}] Prompt: {prompt}");
+
+                var workflowJson = await File.ReadAllTextAsync(workflowPath, token);
+                var filenamePrefix = $"QwenEdit21_camera-angles_{runId}_{step:D2}";
+
+                WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "470", "image", uploadedImageName);
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "459:474", new Dictionary<string, object>
+                {
+                    { "prompt", prompt },
+                    { "negative_prompt", QwenNegativePrompt }
+                });
+                // custom_size stays off: the canvas is taken from the source image, matching how
+                // every other engine on this tab keeps the input's own aspect ratio for a
+                // camera-angle re-shoot. Node 459:468 is the template's custom_size If/Else switch.
+                WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "459:468", "switch", false);
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "459:458", new Dictionary<string, object>
+                {
+                    { "steps", QwenSteps },
+                    { "cfg", QwenCfg },
+                    { "seed", new Random().NextInt64(0, 999_999_999_999_999L) }
+                });
+                WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "461", "filename_prefix", filenamePrefix);
+
+                var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
+
+                var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
+                {
+                    if (progressMsg.Data?.Value != null && progressMsg.Data?.Max != null && progressMsg.Data.Max > 0)
+                    {
+                        var percent = (double)progressMsg.Data.Value / progressMsg.Data.Max * 100;
+                        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            ProcessingStatus = $"Generating angle {step}/{prompts.Count}: {percent:F0}%";
+                        });
+                    }
+                });
+
+                var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progress, token);
+                AddLog($"[{step}/{prompts.Count}] Workflow completed: {promptId}");
+
+                var retrieved = await _imageRetriever.GetOutputImagesAsync(
+                    _comfyUIService.HttpClient, _settingsService, _logger, AddLog,
+                    specificFolder: null, expectedPattern: filenamePrefix, promptId: promptId,
+                    maxRetries: 20, retryDelayMs: 5000, ct: token);
+
+                var bytes = retrieved.FirstOrDefault();
+                if (bytes != null)
+                {
+                    images.Add(bytes);
+                    AddLog($"[{step}/{prompts.Count}] Retrieved {bytes.Length} bytes");
+                }
+                else
+                {
+                    AddLog($"[{step}/{prompts.Count}] WARNING: no output retrieved for this angle");
+                }
+            }
+
+            return images;
         }
 
         private JsonElement UpdateWorkflowParameters(JsonElement workflow, string inputImageName)
