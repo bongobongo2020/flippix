@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -15,6 +15,7 @@ using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
 using FlipPix.Core.Services;
 using FlipPix.UI.Services;
+using FlipPix.UI.ViewModels.Video;
 
 namespace FlipPix.UI.ViewModels
 {
@@ -28,6 +29,11 @@ namespace FlipPix.UI.ViewModels
     {
         private const string WorkflowFile = "workflow/image/qwen-edit/image_qwen_image_2_1_image_edit-changephoto.json";
         private const string SavePrefix = "Qwen_image_2.1";
+
+        // Node 13's own megapixels/multiple widgets, mirrored so the log can name the canvas before the
+        // run. Qwen Image 2.1 is native 2K, so 2 MP is the template's budget.
+        private const double CanvasMegapixels = 2.0;
+        private const int CanvasMultiple = 32;
 
         private readonly ComfyUIService _comfyUIService;
         private readonly SettingsService _settingsService;
@@ -44,19 +50,13 @@ namespace FlipPix.UI.ViewModels
         private string _prompt = string.Empty;
         private string _negativePrompt = "(worst quality, low quality:1.4), (low resolution, blurry, blur:1.2), jpeg artifacts, compression artifacts, poorly drawn, bad anatomy, wrong anatomy, deformed, mutated, disfigured, ugly, disgusting, text, watermark, signature, logo, username, artist name, (cartoon, anime, illustration, painting, drawing, sketch:1.3), 3d render, cgi, digital art, unrealistic, artificial, oversaturated, smooth skin, plastic";
 
-        // Aspect ratio options
-        private readonly ObservableCollection<string> _aspectRatios = new()
-        {
-            "1:1 (Square)",
-            "4:3 (Standard)",
-            "3:4 (Portrait Standard)",
-            "16:9 (Widescreen)",
-            "9:16 (Portrait Widescreen)",
-            "3:2 (Photo)",
-            "2:3 (Portrait Photo)",
-            "21:9 (Cinematic)"
-        };
-        private string _selectedAspectRatio = "9:16 (Portrait Widescreen)";
+        // Aspect ratio options. Taken from H3Canvas rather than spelled out here: these strings are
+        // ResolutionSelector's combo, and the node rejects the whole prompt for any value not in it —
+        // this list used to say "21:9 (Cinematic)" where the node says "21:9 (Ultrawide)", and picking
+        // it failed with prompt_outputs_failed_validation.
+        private readonly ObservableCollection<string> _aspectRatios = new(
+            new[] { H3Canvas.AutoAspect }.Concat(H3Canvas.AspectRatios.Select(a => a.Option)));
+        private string _selectedAspectRatio = H3Canvas.AutoAspect;
 
         // Generation settings
         private int _steps = 25;
@@ -291,7 +291,9 @@ namespace FlipPix.UI.ViewModels
                 Progress = 0;
                 AddLog("=== Generate ===");
                 AddLog($"Prompt: {Prompt}");
-                AddLog($"Aspect Ratio: {SelectedAspectRatio}");
+                AddLog(SelectedAspectRatio == H3Canvas.AutoAspect
+                    ? "Aspect Ratio: matching source image"
+                    : $"Aspect Ratio: {SelectedAspectRatio} -> {DescribeCanvas()}");
 
                 // Serialize against other tabs/queues so we never double-submit to ComfyUI.
                 StatusMessage = "Waiting for other workflows to finish...";
@@ -370,6 +372,13 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        /// <summary>The canvas the ResolutionSelector branch will render at, for the log.</summary>
+        private string DescribeCanvas()
+        {
+            var (w, h) = H3Canvas.Resolve(SelectedAspectRatio, CanvasMegapixels, CanvasMultiple);
+            return $"{w}x{h}";
+        }
+
         // ── Workflow building ───────────────────────────────────────────────────
         private JsonElement BuildWorkflow(string uploadedImage)
         {
@@ -383,8 +392,14 @@ namespace FlipPix.UI.ViewModels
             // Node 470 = LoadImage (source image)
             UpdateNode(dict, "470", inputs => inputs["image"] = uploadedImage);
 
-            // Node 13 = ResolutionSelector (aspect ratio)
-            UpdateNode(dict, "13", inputs => inputs["aspect_ratio"] = SelectedAspectRatio);
+            // Node 13 = ResolutionSelector (aspect ratio), node 459:468 = the template's custom_size
+            // If/Else. Setting node 13 alone does nothing: with the switch off, KSampler takes its latent
+            // from the text encoder (output 2), which is sized from the source image, and the
+            // ResolutionSelector branch is never sampled. An explicit aspect has to turn the switch on.
+            var useCustomSize = SelectedAspectRatio != H3Canvas.AutoAspect;
+            if (useCustomSize)
+                UpdateNode(dict, "13", inputs => inputs["aspect_ratio"] = SelectedAspectRatio);
+            UpdateNode(dict, "459:468", inputs => inputs["switch"] = useCustomSize);
 
             // Node 459:474 = TextEncodeQwenImage21 (prompt + negative prompt)
             UpdateNode(dict, "459:474", inputs =>
