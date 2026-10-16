@@ -1,49 +1,20 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:converters="clr-namespace:FlipPix.UI.Linux.Converters;assembly=FlipPix.UI.Linux">
-
-    <!--
-      Avalonia port of FlipPix.UI/Themes/SharedStyles.xaml.
-
-      The design tokens keep their WPF x:Key names so a tab's XAML transcribes across
-      unchanged. WPF's keyed Styles become ControlThemes, Avalonia's equivalent of a
-      Style with an x:Key: Style="{StaticResource PrimaryButtonStyle}" in the WPF source
-      becomes Theme="{StaticResource PrimaryButtonStyle}" here, BasedOn and all.
-
-      Other mechanical differences when porting a tab across from the WPF file:
-        Visibility="{Binding X, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                          becomes IsVisible="{Binding X}"
-        ToolTip="..."                                     becomes ToolTip.Tip="..."
-        UpdateSourceTrigger=PropertyChanged               is the default; drop it
-        Style.Triggers / DataTrigger                      becomes a converter or IsVisible
-        Image Source (a WPF BitmapSource)                 needs the PathToBitmapConverter
-        MediaElement                                      becomes controls:VideoPreview
-    -->
-
+        xmlns:conv="using:FlipPix.UI.Linux.Converters"
+        xmlns:ctrl="using:FlipPix.UI.Linux.Controls">
     <Styles.Resources>
         <!-- Converters -->
-        <converters:BoolToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
-        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
-        <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
-        <converters:StringToVisibilityConverter x:Key="StringToVisibilityConverter"/>
-        <converters:PathToBitmapConverter x:Key="PathToBitmapConverter"/>
-        <converters:StatusToForegroundConverter x:Key="StatusToForegroundConverter"/>
-        <converters:SubtractConverter x:Key="SubtractConverter"/>
-        <converters:IsNullConverter x:Key="IsNullConverter"/>
-        <converters:IsNotNullConverter x:Key="IsNotNullConverter"/>
-        <converters:EqualsConverter x:Key="EqualsConverter"/>
-        <converters:NotEqualsConverter x:Key="NotEqualsConverter"/>
-
+        <conv:SubtractConverter x:Key="SubtractConverter"/>
         <!-- ============================================================= -->
         <!--  DESIGN TOKENS                                                -->
+        <!--  One accent + neutral ramp + semantic colors. Use these      -->
+        <!--  brushes everywhere instead of ad-hoc hexes.                  -->
         <!-- ============================================================= -->
-
         <!-- Brand / primary accent -->
         <Color x:Key="BrandColor">#FF6B35</Color>
         <SolidColorBrush x:Key="BrandBrush" Color="#FF6B35"/>
         <SolidColorBrush x:Key="BrandHoverBrush" Color="#FF8556"/>
         <SolidColorBrush x:Key="BrandPressedBrush" Color="#E85620"/>
-
         <!-- Neutral ramp -->
         <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F4F5F7"/>
         <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF"/>
@@ -51,52 +22,92 @@
         <SolidColorBrush x:Key="BorderBrush" Color="#E5E7EB"/>
         <SolidColorBrush x:Key="BorderStrongBrush" Color="#D1D5DB"/>
         <Color x:Key="BorderColor">#E5E7EB</Color>
-
-        <!-- Text ramp, all clearing WCAG AA on the light surfaces above -->
+        <!-- Text ramp. Three clearly separated steps, all of which clear WCAG AA (4.5:1)
+         on the light surfaces above — the previous muted grey sat at 2.5:1 on white,
+         which made hints and placeholders hard to read. -->
         <SolidColorBrush x:Key="TextPrimaryBrush" Color="#1F2937"/>
+        <!-- 12.6:1 on white -->
         <SolidColorBrush x:Key="TextSecondaryBrush" Color="#4B5563"/>
+        <!--  7.5:1 on white -->
         <SolidColorBrush x:Key="TextMutedBrush" Color="#656C78"/>
+        <!--  5.2:1 on white, 4.7:1 on the page -->
+        <!-- Non-text greys (icons, rules, decorative dots) may stay lighter. -->
         <SolidColorBrush x:Key="TextFaintBrush" Color="#9CA3AF"/>
-
+        <!-- Secondary action / neutral controls -->
         <SolidColorBrush x:Key="NeutralBrush" Color="#475569"/>
         <SolidColorBrush x:Key="NeutralHoverBrush" Color="#334155"/>
-
-        <!-- Player / media surfaces -->
+        <!-- Video/image players sit on near-black so the frame edge reads cleanly. This is the
+         one dark surface in the app; every player uses it rather than its own shade. -->
         <SolidColorBrush x:Key="PlayerSurfaceBrush" Color="#0C0A09"/>
+        <!-- Busy/hover scrim drawn over a frame; white text sits on top of it. -->
         <SolidColorBrush x:Key="ScrimBrush" Color="#CC0C0A09"/>
+        <!-- Placeholder/caption text drawn ON PlayerSurfaceBrush. The normal text ramp is
+         tuned for light surfaces and drops below AA against near-black, so on-dark text
+         gets its own token (11:1 here) instead of reusing TextSecondary/TextMuted. -->
         <SolidColorBrush x:Key="PlayerTextBrush" Color="#D1D5DB"/>
+        <!-- Chip/badge raised off the player surface (empty-state icons, overlay pills). -->
         <SolidColorBrush x:Key="PlayerSurfaceRaisedBrush" Color="#1F2937"/>
-
         <!-- Semantic -->
+        <!-- Fill for success buttons; dark enough for the bold white label on top. -->
         <SolidColorBrush x:Key="SuccessBrush" Color="#15803D"/>
         <SolidColorBrush x:Key="SuccessHoverBrush" Color="#166534"/>
+        <!-- Green as small TEXT on a light surface needs to go darker still (5.6:1). -->
         <SolidColorBrush x:Key="SuccessTextBrush" Color="#166534"/>
         <SolidColorBrush x:Key="DangerBrush" Color="#DC2626"/>
         <SolidColorBrush x:Key="DangerHoverBrush" Color="#EF4444"/>
         <SolidColorBrush x:Key="DisabledBrush" Color="#CBD5E1"/>
+        <!-- Foreground for disabled controls: dark enough to read on DisabledBrush -->
         <SolidColorBrush x:Key="DisabledTextBrush" Color="#475569"/>
-
-        <!-- Per-tab accents. A tab overrides TabAccentBrush in its own Resources and
-             anything painted with {DynamicResource TabAccentBrush} follows it. -->
+        <!-- ============================================================= -->
+        <!--  PER-TAB ACCENT                                               -->
+        <!--                                                               -->
+        <!--  Every tab shares the same neutral surfaces, cards, spacing   -->
+        <!--  and type. A tab differs only by its accent, which appears in  -->
+        <!--  small doses: the section dots, the intro banner and the       -->
+        <!--  primary action button.                                        -->
+        <!--                                                               -->
+        <!--  A tab claims its identity by overriding TabAccentBrush once,  -->
+        <!--  in its root element's Resources:                              -->
+        <!--                                                               -->
+        <!--      <Grid.Resources>                                          -->
+        <!--          <SolidColorBrush x:Key="TabAccentBrush"               -->
+        <!--                  Color="{StaticResource AccentRoseColor}"/>    -->
+        <!--      </Grid.Resources>                                         -->
+        <!--                                                               -->
+        <!--  The styles below reference it with DynamicResource, not       -->
+        <!--  StaticResource: StaticResource would bind once at the point   -->
+        <!--  the style is DEFINED (here, always the brand orange), while   -->
+        <!--  DynamicResource resolves from where the style is APPLIED and  -->
+        <!--  so picks up each tab's override.                              -->
+        <!--                                                               -->
+        <!--  Every accent is dark enough to carry white text at AA.        -->
+        <!-- ============================================================= -->
         <Color x:Key="AccentVioletColor">#7C3AED</Color>
         <Color x:Key="AccentIndigoColor">#4F46E5</Color>
         <Color x:Key="AccentCyanColor">#0E7490</Color>
+        <Color x:Key="AccentTealColor">#0D9488</Color>
         <Color x:Key="AccentEmeraldColor">#047857</Color>
         <Color x:Key="AccentAmberColor">#B45309</Color>
         <Color x:Key="AccentRoseColor">#E11D48</Color>
-
-        <SolidColorBrush x:Key="AccentVioletBrush" Color="#7C3AED"/>
-        <SolidColorBrush x:Key="AccentIndigoBrush" Color="#4F46E5"/>
-        <SolidColorBrush x:Key="AccentCyanBrush" Color="#0E7490"/>
-        <SolidColorBrush x:Key="AccentEmeraldBrush" Color="#047857"/>
-        <SolidColorBrush x:Key="AccentAmberBrush" Color="#B45309"/>
-        <SolidColorBrush x:Key="AccentRoseBrush" Color="#E11D48"/>
-
+        <!-- Brush forms, for windows that are not tab-based and just need a named accent. -->
+        <SolidColorBrush x:Key="AccentVioletBrush" Color="{StaticResource AccentVioletColor}"/>
+        <SolidColorBrush x:Key="AccentIndigoBrush" Color="{StaticResource AccentIndigoColor}"/>
+        <SolidColorBrush x:Key="AccentCyanBrush" Color="{StaticResource AccentCyanColor}"/>
+        <SolidColorBrush x:Key="AccentTealBrush" Color="{StaticResource AccentTealColor}"/>
+        <SolidColorBrush x:Key="AccentEmeraldBrush" Color="{StaticResource AccentEmeraldColor}"/>
+        <SolidColorBrush x:Key="AccentAmberBrush" Color="{StaticResource AccentAmberColor}"/>
+        <SolidColorBrush x:Key="AccentRoseBrush" Color="{StaticResource AccentRoseColor}"/>
+        <!-- Light variant for success backgrounds -->
+        <SolidColorBrush x:Key="SuccessLightBrush" Color="#DCFCE7"/>
         <!-- Default accent, used by any tab that does not override it. -->
-        <SolidColorBrush x:Key="TabAccentBrush" Color="#FF6B35"/>
-
+        <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource BrandColor}"/>
         <!-- ============================================================= -->
-        <!--  TEXT THEMES                                                  -->
+        <!--  TEXT STYLES                                                  -->
+        <!--                                                               -->
+        <!--  Two heading levels, used consistently:                        -->
+        <!--    HeaderTextStyle  - page/panel heading in a full-width area   -->
+        <!--    SectionHeader    - compact heading inside a side rail        -->
+        <!--                      (the accent-dot + caps control)            -->
         <!-- ============================================================= -->
         <ControlTheme x:Key="HeaderTextStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="15"/>
@@ -104,20 +115,20 @@
             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
             <Setter Property="Margin" Value="0,0,0,10"/>
         </ControlTheme>
-
+        <!-- Label above an input -->
         <ControlTheme x:Key="FieldLabelStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="10"/>
             <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
             <Setter Property="Margin" Value="0,0,0,2"/>
         </ControlTheme>
-
+        <!-- Explanatory note under an input -->
         <ControlTheme x:Key="HintTextStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="9"/>
             <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="Margin" Value="0,4,0,0"/>
         </ControlTheme>
-
+        <!-- "none" / "not built yet" text inside an empty preview frame -->
         <ControlTheme x:Key="PlaceholderTextStyle" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
             <Setter Property="FontStyle" Value="Italic"/>
@@ -125,9 +136,8 @@
             <Setter Property="HorizontalAlignment" Value="Center"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </ControlTheme>
-
         <!-- ============================================================= -->
-        <!--  CONTAINER THEMES                                             -->
+        <!--  CONTAINER STYLES                                             -->
         <!-- ============================================================= -->
         <ControlTheme x:Key="SectionPanelStyle" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
@@ -137,29 +147,29 @@
             <Setter Property="Padding" Value="16"/>
             <Setter Property="Margin" Value="0,0,0,12"/>
         </ControlTheme>
-
+        <!-- Same card, tightened for the narrow side rail of a two-column tab. -->
         <ControlTheme x:Key="SectionCardStyle" TargetType="Border" BasedOn="{StaticResource SectionPanelStyle}">
             <Setter Property="Padding" Value="14"/>
             <Setter Property="Margin" Value="0,0,0,10"/>
         </ControlTheme>
-
+        <!-- Root of a tab page: the one page colour behind every tab. -->
         <ControlTheme x:Key="TabPageStyle" TargetType="Grid">
             <Setter Property="Background" Value="{StaticResource AppBackgroundBrush}"/>
         </ControlTheme>
-
+        <!-- Left input rail of a two-column tab. -->
         <ControlTheme x:Key="TabSideRailStyle" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
             <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="0,0,1,0"/>
         </ControlTheme>
-
+        <!-- Strip that separates a region of the results pane (tiles, toolbars). -->
         <ControlTheme x:Key="ToolStripStyle" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
             <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="0,0,0,1"/>
             <Setter Property="Padding" Value="12,8"/>
         </ControlTheme>
-
+        <!-- Frame around an image/video preview. -->
         <ControlTheme x:Key="PreviewFrameStyle" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
             <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
@@ -167,110 +177,137 @@
             <Setter Property="CornerRadius" Value="6"/>
             <Setter Property="Margin" Value="0,0,0,8"/>
         </ControlTheme>
-
+        <!-- Accent-filled explainer at the top of a tab's side rail. -->
         <ControlTheme x:Key="IntroBannerStyle" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource TabAccentBrush}"/>
             <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="Padding" Value="14,12"/>
             <Setter Property="Margin" Value="0,0,0,10"/>
         </ControlTheme>
-
         <ControlTheme x:Key="IntroTitleStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="14"/>
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="Foreground" Value="White"/>
         </ControlTheme>
-
         <ControlTheme x:Key="IntroBodyStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="Foreground" Value="#E6FFFFFF"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="Margin" Value="0,4,0,0"/>
         </ControlTheme>
-
         <!-- ============================================================= -->
-        <!--  BUTTON THEMES (keyed)                                        -->
+        <!--  BUTTON STYLES (keyed)                                        -->
         <!-- ============================================================= -->
-        <ControlTheme x:Key="FlatButtonBase" TargetType="Button">
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="HorizontalContentAlignment" Value="Center"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Template">
-                <ControlTemplate TargetType="Button">
-                    <Border Name="Bd"
-                            Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="6"
-                            Padding="{TemplateBinding Padding}">
-                        <ContentPresenter Name="PART_ContentPresenter"
-                                          Content="{TemplateBinding Content}"
-                                          ContentTemplate="{TemplateBinding ContentTemplate}"
-                                          Foreground="{TemplateBinding Foreground}"
-                                          HorizontalContentAlignment="Center"
-                                          VerticalContentAlignment="Center"/>
-                    </Border>
-                </ControlTemplate>
-            </Setter>
-        </ControlTheme>
-
-        <ControlTheme x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource FlatButtonBase}">
+        <ControlTheme x:Key="PrimaryButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="{StaticResource BrandBrush}"/>
             <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="20,10"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontSize" Value="14"/>
-            <Style Selector="^:pointerover /template/ Border#Bd">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Content="{TemplateBinding Content}"
+                                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                                              Name="PART_ContentPresenter"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style Selector="^:pointerover">
                 <Setter Property="Background" Value="{StaticResource BrandHoverBrush}"/>
             </Style>
-            <Style Selector="^:pressed /template/ Border#Bd">
+            <Style Selector="^:pressed">
                 <Setter Property="Background" Value="{StaticResource BrandPressedBrush}"/>
             </Style>
             <Style Selector="^:disabled">
-                <Setter Property="Cursor" Value="Arrow"/>
-                <Setter Property="Foreground" Value="{StaticResource DisabledTextBrush}"/>
-            </Style>
-            <Style Selector="^:disabled /template/ Border#Bd">
                 <Setter Property="Background" Value="{StaticResource DisabledBrush}"/>
+                <Setter Property="Foreground" Value="{StaticResource DisabledTextBrush}"/>
+                <Setter Property="Cursor" Value="Arrow"/>
             </Style>
         </ControlTheme>
-
-        <ControlTheme x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource FlatButtonBase}">
+        <!-- Secondary = neutral/outline action (was a clashing green) -->
+        <ControlTheme x:Key="SecondaryButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="{StaticResource NeutralBrush}"/>
             <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="15,8"/>
-            <Style Selector="^:pointerover /template/ Border#Bd">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Content="{TemplateBinding Content}"
+                                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                                              Name="PART_ContentPresenter"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style Selector="^:pointerover">
                 <Setter Property="Background" Value="{StaticResource NeutralHoverBrush}"/>
             </Style>
             <Style Selector="^:disabled">
-                <Setter Property="Cursor" Value="Arrow"/>
-                <Setter Property="Foreground" Value="{StaticResource DisabledTextBrush}"/>
-            </Style>
-            <Style Selector="^:disabled /template/ Border#Bd">
                 <Setter Property="Background" Value="{StaticResource DisabledBrush}"/>
+                <Setter Property="Foreground" Value="{StaticResource DisabledTextBrush}"/>
+                <Setter Property="Cursor" Value="Arrow"/>
             </Style>
         </ControlTheme>
-
-        <ControlTheme x:Key="DangerButtonStyle" TargetType="Button" BasedOn="{StaticResource FlatButtonBase}">
+        <ControlTheme x:Key="DangerButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="{StaticResource DangerBrush}"/>
             <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="15,8"/>
-            <Style Selector="^:pointerover /template/ Border#Bd">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Content="{TemplateBinding Content}"
+                                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                                              Name="PART_ContentPresenter"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style Selector="^:pointerover">
                 <Setter Property="Background" Value="{StaticResource DangerHoverBrush}"/>
             </Style>
             <Style Selector="^:disabled">
-                <Setter Property="Cursor" Value="Arrow"/>
-                <Setter Property="Foreground" Value="{StaticResource DisabledTextBrush}"/>
-            </Style>
-            <Style Selector="^:disabled /template/ Border#Bd">
                 <Setter Property="Background" Value="{StaticResource DisabledBrush}"/>
+                <Setter Property="Foreground" Value="{StaticResource DisabledTextBrush}"/>
+                <Setter Property="Cursor" Value="Arrow"/>
             </Style>
         </ControlTheme>
-
-        <!-- Compact flat action button: keeps its own inline Background/Foreground, and gains a
-             readable disabled state (dark fill, light muted text) rather than near-invisible chrome. -->
-        <ControlTheme x:Key="CompactActionButtonStyle" TargetType="Button" BasedOn="{StaticResource FlatButtonBase}">
+        <!-- Compact flat action button (small toolbar/result buttons that keep their own inline
+         Background/Foreground/size). Adds a rounded flat template and — critically — a readable,
+         on-theme disabled state (dark fill + light muted text) instead of the OS default light-gray
+         disabled chrome that renders near-invisible text on a dark panel. -->
+        <ControlTheme x:Key="CompactActionButtonStyle" TargetType="Button">
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter x:Name="Cp"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Content="{TemplateBinding Content}"
+                                              ContentTemplate="{TemplateBinding ContentTemplate}"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
             <Style Selector="^:pointerover /template/ Border#Bd">
                 <Setter Property="Opacity" Value="0.9"/>
             </Style>
@@ -279,20 +316,37 @@
             </Style>
             <Style Selector="^:disabled">
                 <Setter Property="Cursor" Value="Arrow"/>
-                <Setter Property="Foreground" Value="#CBD5E1"/>
-            </Style>
-            <Style Selector="^:disabled /template/ Border#Bd">
-                <Setter Property="Background" Value="#374151"/>
+                <Style Selector="^ /template/ Border#Bd">
+                    <Setter Property="Background" Value="#374151"/>
+                </Style>
+                <Style Selector="^ /template/ ContentPresenter#Cp">
+                    <Setter Property="TextElement.Foreground" Value="#CBD5E1"/>
+                </Style>
             </Style>
         </ControlTheme>
-
-        <!-- Primary action inside a tab: filled with that tab's own accent. -->
-        <ControlTheme x:Key="AccentButtonStyle" TargetType="Button" BasedOn="{StaticResource FlatButtonBase}">
+        <!-- Primary action inside a tab: same shape as PrimaryButtonStyle but filled with
+         the tab's own accent, so each tab's main verb reads as that tab's colour. -->
+        <ControlTheme x:Key="AccentButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="{DynamicResource TabAccentBrush}"/>
             <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="12,6"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter x:Name="Cp"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Content="{TemplateBinding Content}"
+                                              ContentTemplate="{TemplateBinding ContentTemplate}"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
             <Style Selector="^:pointerover /template/ Border#Bd">
                 <Setter Property="Opacity" Value="0.88"/>
             </Style>
@@ -301,27 +355,42 @@
             </Style>
             <Style Selector="^:disabled">
                 <Setter Property="Cursor" Value="Arrow"/>
-                <Setter Property="Foreground" Value="{StaticResource DisabledTextBrush}"/>
-            </Style>
-            <Style Selector="^:disabled /template/ Border#Bd">
-                <Setter Property="Background" Value="{StaticResource DisabledBrush}"/>
+                <Style Selector="^ /template/ Border#Bd">
+                    <Setter Property="Background" Value="{StaticResource DisabledBrush}"/>
+                </Style>
+                <Style Selector="^ /template/ ContentPresenter#Cp">
+                    <Setter Property="TextElement.Foreground" Value="{StaticResource DisabledTextBrush}"/>
+                </Style>
             </Style>
         </ControlTheme>
-
-        <!-- Terminal/confirming action. Green carries the meaning, so it does not follow the accent. -->
+        <!-- Terminal/confirming action ("Upscale selected", "Finish"). Green carries the meaning
+         here, so it stays fixed rather than following the tab accent. -->
         <ControlTheme x:Key="SuccessButtonStyle" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
             <Setter Property="Background" Value="{StaticResource SuccessBrush}"/>
         </ControlTheme>
-
-        <!-- Quiet companion to AccentButtonStyle: outlined, accent text. -->
-        <ControlTheme x:Key="AccentOutlineButtonStyle" TargetType="Button" BasedOn="{StaticResource FlatButtonBase}">
+        <!-- Quiet companion to AccentButtonStyle: outlined, accent text. For the secondary
+         verb in a pair (Reroll next to Generate, Browse next to Analyze). -->
+        <ControlTheme x:Key="AccentOutlineButtonStyle" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{DynamicResource TabAccentBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource TabAccentBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{DynamicResource TabAccentBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter x:Name="Cp"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Content="{TemplateBinding Content}"
+                                              ContentTemplate="{TemplateBinding ContentTemplate}"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
             <Style Selector="^:pointerover /template/ Border#Bd">
                 <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
             </Style>
@@ -330,76 +399,48 @@
             </Style>
             <Style Selector="^:disabled">
                 <Setter Property="Cursor" Value="Arrow"/>
-                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-            </Style>
-            <Style Selector="^:disabled /template/ Border#Bd">
-                <Setter Property="BorderBrush" Value="{StaticResource DisabledBrush}"/>
+                <Style Selector="^ /template/ Border#Bd">
+                    <Setter Property="BorderBrush" Value="{StaticResource DisabledBrush}"/>
+                </Style>
+                <Style Selector="^ /template/ ContentPresenter#Cp">
+                    <Setter Property="TextElement.Foreground" Value="{StaticResource TextMutedBrush}"/>
+                </Style>
             </Style>
         </ControlTheme>
-
-        <!-- Nav buttons: one consistent neutral pill -->
-        <ControlTheme x:Key="NavButtonStyle" TargetType="Button" BasedOn="{StaticResource FlatButtonBase}">
+        <!-- Nav buttons: one consistent neutral pill, no per-button colors -->
+        <ControlTheme x:Key="NavButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="12,7"/>
             <Setter Property="Margin" Value="0,0,6,0"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Style Selector="^:pointerover /template/ Border#Bd">
-                <Setter Property="Background" Value="#FFFFFF"/>
-            </Style>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Content="{TemplateBinding Content}"
+                                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                                              Name="PART_ContentPresenter"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
             <Style Selector="^:pointerover">
+                <Setter Property="Background" Value="#FFFFFF"/>
                 <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
             </Style>
         </ControlTheme>
-
         <ControlTheme x:Key="ActiveNavButtonStyle" TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
             <Setter Property="Background" Value="#FFFFFF"/>
             <Setter Property="Foreground" Value="{StaticResource BrandBrush}"/>
         </ControlTheme>
-
-        <!-- Two-state toggle inside a tab (Paint mask / Auto-detect, 2x / 4x). Defined in the
-             WPF ImageGeneratorWindow's own resources rather than its SharedStyles; it lives here
-             because the ported tabs are separate files that share nothing else. -->
-        <ControlTheme x:Key="ToggleRadioStyle" TargetType="RadioButton">
-            <Setter Property="Background" Value="#E9ECEF"/>
-            <Setter Property="Foreground" Value="#495057"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush" Value="#DEE2E6"/>
-            <Setter Property="Padding" Value="12,8"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <ControlTemplate TargetType="RadioButton">
-                    <Border Name="Bd"
-                            Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="5"
-                            Padding="{TemplateBinding Padding}">
-                        <ContentPresenter Name="PART_ContentPresenter"
-                                          Content="{TemplateBinding Content}"
-                                          ContentTemplate="{TemplateBinding ContentTemplate}"
-                                          Foreground="{TemplateBinding Foreground}"
-                                          HorizontalContentAlignment="Center"
-                                          VerticalContentAlignment="Center"/>
-                    </Border>
-                </ControlTemplate>
-            </Setter>
-            <Style Selector="^:pointerover /template/ Border#Bd">
-                <Setter Property="Background" Value="#DEE2E6"/>
-            </Style>
-            <Style Selector="^:checked /template/ Border#Bd">
-                <Setter Property="Background" Value="{StaticResource AccentIndigoBrush}"/>
-                <Setter Property="BorderBrush" Value="{StaticResource AccentIndigoBrush}"/>
-            </Style>
-            <Style Selector="^:checked">
-                <Setter Property="Foreground" Value="White"/>
-            </Style>
-        </ControlTheme>
-
-        <!-- Group pill: top-level nav selector (Create / Edit / Advanced). -->
+        <!-- Group pill: top-level nav selector (Create / Edit / Advanced).
+         Quiet by default, solid brand fill when its group is active. -->
         <ControlTheme x:Key="GroupPillStyle" TargetType="RadioButton">
             <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
             <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
@@ -411,99 +452,45 @@
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
-                <ControlTemplate TargetType="RadioButton">
-                    <Border Name="Bd"
-                            Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="18"
-                            Padding="{TemplateBinding Padding}">
-                        <ContentPresenter Name="PART_ContentPresenter"
-                                          Content="{TemplateBinding Content}"
-                                          ContentTemplate="{TemplateBinding ContentTemplate}"
-                                          Foreground="{TemplateBinding Foreground}"
-                                          HorizontalContentAlignment="Center"
-                                          VerticalContentAlignment="Center"/>
-                    </Border>
-                </ControlTemplate>
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="18"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Content="{TemplateBinding Content}"
+                                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                                              Name="PART_ContentPresenter"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
             </Setter>
-            <Style Selector="^:pointerover /template/ Border#Bd">
-                <Setter Property="Background" Value="#F0F1F3"/>
-            </Style>
             <Style Selector="^:pointerover">
+                <Setter Property="Background" Value="#F0F1F3"/>
                 <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
             </Style>
-            <Style Selector="^:checked /template/ Border#Bd">
+            <Style Selector="^:checked">
                 <Setter Property="Background" Value="{StaticResource BrandBrush}"/>
+                <Setter Property="Foreground" Value="White"/>
                 <Setter Property="BorderBrush" Value="{StaticResource BrandBrush}"/>
             </Style>
-            <Style Selector="^:checked">
-                <Setter Property="Foreground" Value="White"/>
-            </Style>
         </ControlTheme>
+        <!-- ============================================================= -->
+        <!--  IMPLICIT CONTROL STYLES (cascade app-wide, no x:Key)         -->
+        <!--  Appearance-only setters; inline attributes still override,   -->
+        <!--  so layout/behavior is preserved.                             -->
+        <!-- ============================================================= -->
+        <!-- TextBox: unify border + padding -->
+        <!-- ComboBox: unify border -->
+        <!-- ProgressBar: brand accent, flat track -->
+        <!-- Expander: quieter, consistent header -->
+        <!-- TabControl: flat; header row scrolls horizontally instead of wrapping
+         into multiple stacked rows (the app has 10-13 tabs per window). -->
+        <!-- TabItem: flat tab with accent underline on selection -->
     </Styles.Resources>
-
-    <!-- ============================================================= -->
-    <!--  CLASS STYLES from the first Avalonia pass, kept so the tabs   -->
-    <!--  written before the design system landed still render.         -->
-    <!-- ============================================================= -->
-    <Style Selector="Button.primary">
-        <Setter Property="Background" Value="#FF6B35"/>
-        <Setter Property="Foreground" Value="White"/>
-        <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Padding" Value="20,10"/>
-        <Setter Property="FontWeight" Value="Bold"/>
-        <Setter Property="FontSize" Value="14"/>
-        <Setter Property="CornerRadius" Value="5"/>
-    </Style>
-    <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
-        <Setter Property="Background" Value="#FF8556"/>
-    </Style>
-    <Style Selector="Button.primary:disabled /template/ ContentPresenter">
-        <Setter Property="Background" Value="#CCC"/>
-    </Style>
-
-    <Style Selector="Button.secondary">
-        <Setter Property="Background" Value="#4CAF50"/>
-        <Setter Property="Foreground" Value="White"/>
-        <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Padding" Value="15,8"/>
-        <Setter Property="CornerRadius" Value="5"/>
-    </Style>
-
-    <Style Selector="Button.danger">
-        <Setter Property="Background" Value="#DC3545"/>
-        <Setter Property="Foreground" Value="White"/>
-        <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Padding" Value="15,8"/>
-        <Setter Property="CornerRadius" Value="5"/>
-    </Style>
-
-    <Style Selector="Button.nav">
-        <Setter Property="Background" Value="#6C757D"/>
-        <Setter Property="Foreground" Value="White"/>
-        <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Padding" Value="12,8"/>
-        <Setter Property="Margin" Value="0,0,8,0"/>
-        <Setter Property="FontSize" Value="12"/>
-        <Setter Property="CornerRadius" Value="5"/>
-    </Style>
-
-    <Style Selector="Button.nav.active">
-        <Setter Property="Background" Value="#FF6B35"/>
-        <Setter Property="FontWeight" Value="Bold"/>
-    </Style>
-
-    <Style Selector="Button.small">
-        <Setter Property="Padding" Value="8,4"/>
-        <Setter Property="FontSize" Value="11"/>
-        <Setter Property="CornerRadius" Value="3"/>
-    </Style>
-
-    <!-- ============================================================= -->
-    <!--  IMPLICIT CONTROL STYLES (appearance only; inline attributes  -->
-    <!--  and local values still win, as they do in WPF)               -->
-    <!-- ============================================================= -->
     <Style Selector="TextBox">
         <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
@@ -513,49 +500,82 @@
         <Setter Property="CaretBrush" Value="{StaticResource BrandBrush}"/>
         <Setter Property="SelectionBrush" Value="{StaticResource BrandBrush}"/>
     </Style>
-
     <Style Selector="ComboBox">
         <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
         <Setter Property="Padding" Value="8,6"/>
     </Style>
-
     <Style Selector="ProgressBar">
         <Setter Property="Foreground" Value="{StaticResource BrandBrush}"/>
         <Setter Property="Background" Value="#EDEFF2"/>
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="Height" Value="8"/>
     </Style>
-
     <Style Selector="Expander">
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="Margin" Value="0,0,0,12"/>
     </Style>
-
-    <!-- The windows carry 10-15 tabs. WPF scrolls the header row; Avalonia's Fluent
-         TabControl would clip it, so wrap onto as many rows as it takes instead. -->
     <Style Selector="TabControl">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Padding" Value="0"/>
-        <Setter Property="ItemsPanel">
-            <ItemsPanelTemplate>
-                <WrapPanel Orientation="Horizontal"/>
-            </ItemsPanelTemplate>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabControl">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Border Grid.Row="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+                            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Focusable="False">
+                                <ItemsPresenter Name="PART_ItemsPresenter">
+                                    <ItemsPresenter.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsPresenter.ItemsPanel>
+                                </ItemsPresenter>
+                            </ScrollViewer>
+                        </Border>
+                        <Border Grid.Row="1" Background="{TemplateBinding Background}">
+                            <ContentPresenter Content="{TemplateBinding SelectedContent}"
+                                              ContentTemplate="{TemplateBinding SelectedContentTemplate}"
+                                              Name="PART_SelectedContentHost"/>
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
         </Setter>
     </Style>
-
     <Style Selector="TabItem">
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
         <Setter Property="FontSize" Value="12"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="Padding" Value="14,6"/>
-        <Setter Property="MinHeight" Value="0"/>
         <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabItem">
+                    <Border x:Name="Root" Background="Transparent" BorderBrush="Transparent" BorderThickness="0,0,0,2" Padding="14,9">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Content="{TemplateBinding Header}"
+                                          ContentTemplate="{TemplateBinding HeaderTemplate}"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style Selector="^:pointerover">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Style Selector="^ /template/ Border#Root">
+                <Setter Property="Background" Value="#F0F1F3"/>
+            </Style>
+        </Style>
+        <Style Selector="^:selected">
+            <Setter Property="Foreground" Value="{StaticResource BrandBrush}"/>
+            <Style Selector="^ /template/ Border#Root">
+                <Setter Property="BorderBrush" Value="{StaticResource BrandBrush}"/>
+            </Style>
+        </Style>
     </Style>
-    <Style Selector="TabItem:selected">
-        <Setter Property="Foreground" Value="{StaticResource BrandBrush}"/>
-    </Style>
-
 </Styles>

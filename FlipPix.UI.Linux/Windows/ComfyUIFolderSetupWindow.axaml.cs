@@ -1,21 +1,28 @@
 using System;
-using Avalonia.Controls;
-using Avalonia.Markup.Xaml;
-using FlipPix.UI.Linux.ViewModels;
-using FlipPix.UI.Linux.Windows;
+using FlipPix.UI.ViewModels;
 
 namespace FlipPix.UI.Linux.Windows;
 
-public partial class ComfyUIFolderSetupWindow : Window
+/// <summary>Port of FlipPix.UI/ComfyUIFolderSetupWindow.xaml.cs.</summary>
+public partial class ComfyUIFolderSetupWindow : DialogWindow
 {
-    public ComfyUIFolderSetupWindow() { InitializeComponent(); }
+    /// <summary>For the XAML loader and previewer only.</summary>
+    public ComfyUIFolderSetupWindow()
+    {
+        InitializeComponent();
+    }
 
     public ComfyUIFolderSetupWindow(ComfyUIFolderSetupViewModel viewModel)
     {
         InitializeComponent();
         DataContext = viewModel;
-        viewModel.CloseRequested += (_, result) => Close(result);
+        viewModel.CloseRequested += (_, result) => DialogResult = result;
     }
 
-    private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
+    protected override void OnClosed(EventArgs e)
+    {
+        if (DataContext is IDisposable disposable) disposable.Dispose();
+        DataContext = null;
+        base.OnClosed(e);
+    }
 }

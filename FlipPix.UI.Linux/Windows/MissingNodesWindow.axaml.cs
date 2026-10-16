@@ -10,7 +10,7 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using FlipPix.Core.Interfaces;
 using FlipPix.Core.Models;
-using FlipPix.UI.Linux.Services;
+using FlipPix.UI.Services;
 
 namespace FlipPix.UI.Linux.Windows
 {

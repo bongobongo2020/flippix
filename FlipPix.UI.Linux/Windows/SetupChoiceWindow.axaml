@@ -1,31 +1,81 @@
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="FlipPix.UI.Linux.SetupChoiceWindow"
-        Title="FlipPix Setup"
-        Width="500" Height="350"
-        CanResize="False"
-        WindowStartupLocation="CenterScreen">
-    <Grid Background="#1E1E2E" Margin="30">
-        <StackPanel Spacing="20">
-            <TextBlock Text="Welcome to FlipPix" FontSize="24" FontWeight="Bold" Foreground="#FF6B35" HorizontalAlignment="Center"/>
-            <TextBlock Text="How is your ComfyUI installed?" FontSize="14" Foreground="#CCCCCC" HorizontalAlignment="Center" TextWrapping="Wrap"/>
-
-            <Border Background="#2D2D3F" CornerRadius="8" Padding="20" Margin="0,10,0,0">
-                <StackPanel Spacing="15">
-                    <Button x:Name="LocalButton" Content="Local Installation" Classes="primary"
-                            HorizontalAlignment="Stretch" Height="50"
-                            Click="LocalButton_Click"/>
-                    <TextBlock Text="ComfyUI is installed on this machine" Foreground="#888" FontSize="12" HorizontalAlignment="Center"/>
-
-                    <Button x:Name="RemoteButton" Content="Remote Server" Classes="nav"
-                            HorizontalAlignment="Stretch" Height="50"
-                            Click="RemoteButton_Click"/>
-                    <TextBlock Text="Connect to ComfyUI on another machine" Foreground="#888" FontSize="12" HorizontalAlignment="Center"/>
-                </StackPanel>
-            </Border>
-
-            <Button Content="Cancel" Classes="danger" HorizontalAlignment="Right"
-                    Click="CancelButton_Click"/>
+<win:DialogWindow xmlns="https://github.com/avaloniaui"
+                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                  xmlns:ctrl="using:FlipPix.UI.Linux.Controls"
+                  xmlns:conv="using:FlipPix.UI.Linux.Converters"
+                  xmlns:win="using:FlipPix.UI.Linux.Windows"
+                  xmlns:vm="using:FlipPix.UI.ViewModels"
+                  xmlns:vmv="using:FlipPix.UI.ViewModels.Video"
+                  xmlns:m="using:FlipPix.UI.Models"
+                  xmlns:svc="using:FlipPix.UI.Services"
+                  xmlns:sys="using:System"
+                  mc:Ignorable="d"
+                  Title="FlipPix Setup"
+                  Height="400"
+                  Width="500"
+                  WindowStartupLocation="CenterScreen"
+                  CanResize="False"
+                  Background="{StaticResource AppBackgroundBrush}"
+                  x:Class="FlipPix.UI.Linux.Windows.SetupChoiceWindow">
+    <Grid Margin="30">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <!-- Title -->
+        <TextBlock Grid.Row="0"
+                   Text="Welcome to FlipPix!"
+                   FontSize="24"
+                   FontWeight="Bold"
+                   Foreground="{StaticResource TextPrimaryBrush}"
+                   HorizontalAlignment="Center"
+                   Margin="0,0,0,30"/>
+        <!-- Question -->
+        <TextBlock Grid.Row="1"
+                   Text="Where is your ComfyUI installed?"
+                   FontSize="16"
+                   FontWeight="SemiBold"
+                   Foreground="{StaticResource TextPrimaryBrush}"
+                   HorizontalAlignment="Center"
+                   Margin="0,0,0,20"/>
+        <!-- Choice Buttons -->
+        <StackPanel Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <!-- Local Option -->
+            <LayoutTransformControl Margin="0,0,0,20">
+                <LayoutTransformControl.LayoutTransform>
+                    <ScaleTransform ScaleX="1.2" ScaleY="1.2"/>
+                </LayoutTransformControl.LayoutTransform>
+                <Button Name="LocalButton"
+                        Content="Local Installation"
+                        FontSize="16"
+                        Padding="40,20"
+                        Theme="{StaticResource PrimaryButtonStyle}"
+                        Cursor="Hand"
+                        Click="LocalButton_Click"/>
+            </LayoutTransformControl>
+            <!-- Remote Option -->
+            <LayoutTransformControl>
+                <LayoutTransformControl.LayoutTransform>
+                    <ScaleTransform ScaleX="1.2" ScaleY="1.2"/>
+                </LayoutTransformControl.LayoutTransform>
+                <Button Name="RemoteButton"
+                        Content="Remote Server"
+                        FontSize="16"
+                        Padding="40,20"
+                        Theme="{StaticResource PrimaryButtonStyle}"
+                        Cursor="Hand"
+                        Click="RemoteButton_Click"/>
+            </LayoutTransformControl>
         </StackPanel>
+        <!-- Info Text -->
+        <TextBlock Grid.Row="3"
+                   Text="Choose Local if ComfyUI is on this computer, or Remote if it's on another machine."
+                   FontSize="12"
+                   Foreground="{StaticResource TextMutedBrush}"
+                   HorizontalAlignment="Center"
+                   TextWrapping="Wrap"/>
     </Grid>
-</Window>
+</win:DialogWindow>

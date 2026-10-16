@@ -1,9 +1,11 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="FlipPix.UI.Linux.App"
+             Name="FlipPix"
              RequestedThemeVariant="Light">
     <Application.Styles>
-        <FluentTheme />
+        <FluentTheme DensityStyle="Compact"/>
+        <StyleInclude Source="avares://FlipPix.UI.Linux/Themes/WpfBaseline.axaml"/>
         <StyleInclude Source="avares://FlipPix.UI.Linux/Themes/SharedStyles.axaml"/>
     </Application.Styles>
 </Application>

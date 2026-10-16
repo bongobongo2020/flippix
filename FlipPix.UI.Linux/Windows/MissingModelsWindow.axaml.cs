@@ -13,7 +13,7 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Platform.Storage;
 using FlipPix.Core.Interfaces;
 using FlipPix.Core.Models;
-using FlipPix.UI.Linux.Services;
+using FlipPix.UI.Services;
 
 namespace FlipPix.UI.Linux.Windows
 {
@@ -246,11 +246,8 @@ namespace FlipPix.UI.Linux.Windows
 
         private async Task ShowInfoAsync(string text, string title)
         {
-            // Keep the dependency surface of this window to the app's message box (MsBox).
-            var box = MsBox.Avalonia.MessageBoxManager.GetMessageBoxStandard(
-                title, text,
-                MessageBox.Avalonia.Enums.ButtonEnum.Ok, MsBox.Avalonia.Enums.Icon.Info);
-            await box.ShowWindowDialogAsync(this);
+            await MessageBoxWindow.ShowAsync(this, text, title,
+                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
         }
 
         /// <summary>StorageProvider folder picker, opening in the last located source folder.</summary>

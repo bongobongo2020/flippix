@@ -1,14 +1,33 @@
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="FlipPix.UI.Linux.Windows.VideoEnhanceWindow"
-        Title="FlipPix - Enhance Video" Height="800" Width="900"
-        WindowStartupLocation="CenterScreen"
-        MinHeight="650" MinWidth="800">
-
-    <Grid RowDefinitions="Auto,*,Auto">
-
+<win:AppWindow xmlns="https://github.com/avaloniaui"
+               xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+               xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+               xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+               xmlns:ctrl="using:FlipPix.UI.Linux.Controls"
+               xmlns:conv="using:FlipPix.UI.Linux.Converters"
+               xmlns:win="using:FlipPix.UI.Linux.Windows"
+               xmlns:vm="using:FlipPix.UI.ViewModels"
+               xmlns:vmv="using:FlipPix.UI.ViewModels.Video"
+               xmlns:m="using:FlipPix.UI.Models"
+               xmlns:svc="using:FlipPix.UI.Services"
+               xmlns:sys="using:System"
+               mc:Ignorable="d"
+               Title="FlipPix - Enhance Video"
+               Height="800"
+               Width="900"
+               WindowStartupLocation="CenterScreen"
+               MinHeight="650"
+               MinWidth="800"
+               x:Class="FlipPix.UI.VideoEnhanceWindow"
+               x:DataType="vmv:VideoEnhanceViewModel"
+               x:CompileBindings="True">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
         <!-- Header -->
-        <Border Grid.Row="0" PointerPressed="Header_PointerPressed" Cursor="SizeAll">
+        <Border Grid.Row="0" PointerPressed="Header_MouseLeftButtonDown" Cursor="SizeAll">
             <Border.Background>
                 <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
                     <GradientStop Color="#1565C0" Offset="0"/>
@@ -17,92 +36,169 @@
             </Border.Background>
             <StackPanel Margin="25,20">
                 <TextBlock Text="Enhance Video" FontSize="28" FontWeight="Bold" Foreground="White"/>
-                <TextBlock Text="Interpolate frames  -  Upscale resolution  -  Rebuild named targets with WAN  -  Re-render an H3 clip at HD"
-                           FontSize="13" Foreground="#E3F2FD" Margin="0,5,0,0"/>
+                <TextBlock Text="Interpolate frames  •  Upscale with RTX Super Resolution or SeedVR2  •  Rebuild named targets with WAN  •  Re-render an H3 clip at HD"
+                           FontSize="13"
+                           Foreground="#E3F2FD"
+                           Margin="0,5,0,0"/>
             </StackPanel>
         </Border>
-
         <!-- Main Content -->
-        <ScrollViewer Grid.Row="1">
-            <StackPanel Margin="20,15,20,15" Spacing="15">
-
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="20,15,20,15">
                 <TabControl>
-
-                    <!-- Tab 1: Interpolate -->
-                    <TabItem Header="Interpolate">
-                        <StackPanel Margin="10,15,10,10" Spacing="15">
-
+                    <!-- ── Tab 1: Interpolate ── -->
+                    <TabItem Header="🎞 Interpolate">
+                        <StackPanel Margin="10,15,10,10">
                             <!-- Input Section -->
-                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
-                                <StackPanel Spacing="8">
-                                    <TextBlock Text="Input Video" FontSize="14" FontWeight="Bold" Foreground="#1565C0"/>
-
-                                    <Grid ColumnDefinitions="*,Auto">
+                            <Border Theme="{StaticResource SectionPanelStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="Input Video"
+                                               FontSize="14"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource AccentIndigoBrush}"
+                                               Margin="0,0,0,10"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
                                         <TextBox Grid.Column="0"
                                                  Text="{Binding InterpolateVideoPath, Mode=TwoWay}"
-                                                 IsReadOnly="True" Padding="8,6" FontSize="12" Height="34"/>
-                                        <Button Grid.Column="1" Content="Browse" Classes="primary"
+                                                 IsReadOnly="True"
+                                                 Padding="8,6"
+                                                 FontSize="12"
+                                                 Background="White"
+                                                 BorderBrush="{StaticResource BorderBrush}"
+                                                 VerticalContentAlignment="Center"
+                                                 Height="34"/>
+                                        <Button Grid.Column="1"
+                                                Content="Browse"
+                                                Theme="{StaticResource PrimaryButtonStyle}"
                                                 Command="{Binding SelectInterpolateVideoCommand}"
-                                                Width="80" Height="34" Margin="8,0,0,0"/>
+                                                Width="80"
+                                                Height="34"
+                                                Margin="8,0,0,0"/>
                                     </Grid>
-
                                     <TextBlock Text="{Binding InterpolateVideoInfo}"
-                                               FontSize="11" Foreground="#6C757D"
+                                               FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="0,6,0,0"
                                                IsVisible="{Binding HasInterpolateVideo}"/>
-
-                                    <Button Content="Add to Queue" Classes="primary"
+                                    <Button Content="Add to Queue"
+                                            Theme="{StaticResource PrimaryButtonStyle}"
                                             Command="{Binding AddInterpolateToQueueCommand}"
-                                            HorizontalAlignment="Left" Width="140" Height="36"/>
+                                            HorizontalAlignment="Left"
+                                            Width="140"
+                                            Height="36"
+                                            Margin="0,12,0,0"/>
                                 </StackPanel>
                             </Border>
-
                             <!-- Queue Section -->
-                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15"
-                                    IsVisible="{Binding HasInterpolateQueueItems}">
-                                <StackPanel Spacing="8">
-                                    <Grid ColumnDefinitions="*,Auto,Auto,Auto">
-                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
-                                            <TextBlock Text="Queue" FontSize="14" FontWeight="Bold" Foreground="#1565C0" VerticalAlignment="Center"/>
+                            <Border Theme="{StaticResource SectionPanelStyle}" IsVisible="{Binding HasInterpolateQueueItems}">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                            <TextBlock Text="Queue"
+                                                       FontSize="14"
+                                                       FontWeight="Bold"
+                                                       Foreground="{StaticResource AccentIndigoBrush}"
+                                                       VerticalAlignment="Center"/>
                                             <TextBlock Text="{Binding InterpolateQueueStatus}"
-                                                       FontSize="11" Foreground="#6C757D" VerticalAlignment="Center"/>
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="10,0,0,0"/>
                                         </StackPanel>
-                                        <Button Grid.Column="1" Content="Retry Failed"
+                                        <Button Grid.Column="1"
+                                                Content="🔄 Retry Failed"
                                                 Command="{Binding ReprocessInterpolateFailedCommand}"
                                                 IsEnabled="{Binding HasInterpolateFailedItems}"
-                                                Height="28" Width="90" FontSize="11" Margin="4,0"
-                                                Background="#FFA500" Foreground="White" BorderThickness="0"/>
-                                        <Button Grid.Column="2" Content="Stop"
+                                                Height="28"
+                                                Width="90"
+                                                FontSize="11"
+                                                Margin="4,0,4,0"
+                                                Background="{StaticResource AccentAmberBrush}"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                FontWeight="SemiBold"/>
+                                        <Button Grid.Column="2"
+                                                Content="⏹ Stop"
                                                 Command="{Binding StopInterpolateQueueCommand}"
                                                 IsEnabled="{Binding IsProcessingInterpolateQueue}"
-                                                Height="28" Width="65" FontSize="11" Margin="0,0,4,0"
-                                                Background="#F59E0B" Foreground="White" BorderThickness="0"/>
-                                        <Button Grid.Column="3" Content="Clear"
+                                                Height="28"
+                                                Width="65"
+                                                FontSize="11"
+                                                Margin="0,0,4,0"
+                                                Background="{StaticResource AccentAmberBrush}"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                FontWeight="SemiBold"/>
+                                        <Button Grid.Column="3"
+                                                Content="🗑️ Clear"
                                                 Command="{Binding ClearInterpolateQueueCommand}"
-                                                Height="28" Width="65" FontSize="11"
-                                                Background="#DC3545" Foreground="White" BorderThickness="0"/>
+                                                Height="28"
+                                                Width="65"
+                                                FontSize="11"
+                                                Background="{StaticResource DangerBrush}"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                FontWeight="SemiBold"/>
                                     </Grid>
-
                                     <ItemsControl ItemsSource="{Binding InterpolateQueue}">
                                         <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border Background="White" BorderBrush="#DEE2E6" BorderThickness="1"
-                                                        CornerRadius="5" Padding="10,8" Margin="0,0,0,6">
-                                                    <Grid ColumnDefinitions="*,Auto,Auto">
+                                            <DataTemplate x:DataType="m:VideoEnhanceQueueItem">
+                                                <Border Background="White"
+                                                        BorderBrush="{StaticResource BorderBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="5"
+                                                        Padding="10,8"
+                                                        Margin="0,0,0,6">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
                                                         <StackPanel Grid.Column="0">
-                                                            <TextBlock Text="{Binding DisplayText}" FontSize="12" FontWeight="SemiBold"/>
-                                                            <TextBlock Text="{Binding StatusDisplay}" FontSize="11"
-                                                                       Foreground="{Binding StatusColor}" Margin="0,2,0,0"/>
-                                                            <TextBlock Text="{Binding ErrorMessage}" FontSize="10"
-                                                                       Foreground="#DC3545" Margin="0,2,0,0"
-                                                                       IsVisible="{Binding ErrorMessage, Converter={StaticResource StringToVisibilityConverter}}"/>
+                                                            <TextBlock Text="{Binding DisplayText}"
+                                                                       FontSize="12"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                            <TextBlock Text="{Binding StatusDisplay}"
+                                                                       FontSize="11"
+                                                                       Foreground="{Binding StatusColor}"
+                                                                       Margin="0,2,0,0"/>
+                                                            <TextBlock Text="{Binding ErrorMessage}"
+                                                                       FontSize="10"
+                                                                       Foreground="{StaticResource DangerBrush}"
+                                                                       Margin="0,2,0,0"
+                                                                       IsVisible="{Binding ErrorMessage}"/>
                                                         </StackPanel>
-                                                        <ProgressBar Grid.Column="1" Value="{Binding Progress}"
-                                                                     Minimum="0" Maximum="100"
-                                                                     Width="80" Height="6" Margin="10,0" VerticalAlignment="Center"/>
-                                                        <Button Grid.Column="2" Content="x" Width="24" Height="24" FontSize="10"
-                                                                Background="Transparent" BorderThickness="0" Foreground="#6C757D"
-                                                                Command="{Binding DataContext.RemoveInterpolateQueueItemCommand,
-                                                                          RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        <ProgressBar Grid.Column="1"
+                                                                     Value="{Binding Progress}"
+                                                                     Minimum="0"
+                                                                     Maximum="100"
+                                                                     Width="80"
+                                                                     Height="6"
+                                                                     Margin="10,0,10,0"
+                                                                     VerticalAlignment="Center"
+                                                                     Foreground="{StaticResource AccentIndigoBrush}"/>
+                                                        <Button Grid.Column="2"
+                                                                Content="✕"
+                                                                Width="24"
+                                                                Height="24"
+                                                                FontSize="10"
+                                                                Background="Transparent"
+                                                                BorderThickness="0"
+                                                                Foreground="{StaticResource TextSecondaryBrush}"
+                                                                Cursor="Hand"
+                                                                Command="{Binding $parent[ItemsControl].((vmv:VideoEnhanceViewModel)DataContext).RemoveInterpolateQueueItemCommand}"
                                                                 CommandParameter="{Binding}"/>
                                                     </Grid>
                                                 </Border>
@@ -113,97 +209,214 @@
                             </Border>
                         </StackPanel>
                     </TabItem>
-
-                    <!-- Tab 2: Upscale -->
-                    <TabItem Header="Upscale">
-                        <StackPanel Margin="10,15,10,10" Spacing="15">
-
+                    <!-- ── Tab 2: Upscale ── -->
+                    <TabItem Header="🔍 Upscale">
+                        <StackPanel Margin="10,15,10,10">
                             <!-- Input Section -->
-                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
-                                <StackPanel Spacing="8">
-                                    <TextBlock Text="Input Video" FontSize="14" FontWeight="Bold" Foreground="#1565C0"/>
-
-                                    <Grid ColumnDefinitions="*,Auto">
+                            <Border Theme="{StaticResource SectionPanelStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="Input Video"
+                                               FontSize="14"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource AccentIndigoBrush}"
+                                               Margin="0,0,0,10"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
                                         <TextBox Grid.Column="0"
                                                  Text="{Binding UpscaleVideoPath, Mode=TwoWay}"
-                                                 IsReadOnly="True" Padding="8,6" FontSize="12" Height="34"/>
-                                        <Button Grid.Column="1" Content="Browse" Classes="primary"
+                                                 IsReadOnly="True"
+                                                 Padding="8,6"
+                                                 FontSize="12"
+                                                 Background="White"
+                                                 BorderBrush="{StaticResource BorderBrush}"
+                                                 VerticalContentAlignment="Center"
+                                                 Height="34"/>
+                                        <Button Grid.Column="1"
+                                                Content="Browse"
+                                                Theme="{StaticResource PrimaryButtonStyle}"
                                                 Command="{Binding SelectUpscaleVideoCommand}"
-                                                Width="80" Height="34" Margin="8,0,0,0"/>
+                                                Width="80"
+                                                Height="34"
+                                                Margin="8,0,0,0"/>
                                     </Grid>
-
                                     <TextBlock Text="{Binding UpscaleVideoInfo}"
-                                               FontSize="11" Foreground="#6C757D"
+                                               FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="0,6,0,0"
                                                IsVisible="{Binding HasUpscaleVideo}"/>
-
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <TextBlock Text="Scale" FontSize="11" Foreground="#6C757D"
-                                                   VerticalAlignment="Center"/>
-                                        <ComboBox ItemsSource="{Binding RtxScaleOptions}"
-                                                  SelectedItem="{Binding RtxScale, Mode=TwoWay}"
-                                                  Width="86" Height="30" FontSize="11"
-                                                  ToolTip.Tip="RTX Video Super Resolution factor (1–4×).">
+                                    <!-- Upscaler engine. Snapshotted onto the queue item, so a mixed queue
+                                         can hold both RTX and SeedVR2 jobs. -->
+                                    <TextBlock Text="Upscaler"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               Margin="0,14,0,6"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <RadioButton Content="RTX Super Resolution"
+                                                     GroupName="UpscaleEngine"
+                                                     IsChecked="{Binding IsRtxSelected, Mode=TwoWay}"
+                                                     FontSize="12"
+                                                     VerticalContentAlignment="Center"
+                                                     Margin="0,0,18,0"
+                                                     ToolTip.Tip="Fast hardware upscale (upscale nvidaAPI.json). No model load."/>
+                                        <RadioButton Content="SeedVR2 7B INT8"
+                                                     GroupName="UpscaleEngine"
+                                                     IsChecked="{Binding IsSeedVr2Selected, Mode=TwoWay}"
+                                                     FontSize="12"
+                                                     VerticalContentAlignment="Center"
+                                                     Margin="0,0,14,0"
+                                                     ToolTip.Tip="Diffusion restore (utility_seedvr2_7b_int8_upscale_video.json): the clip is pre-resized, chunked on the temporal axis and denoised in one step. Reconstructs detail, but loads a 7B model and is far slower."/>
+                                        <!-- Both engines scale, so one picker drives both; the options and
+                                             the remembered value follow whichever engine is selected. -->
+                                        <TextBlock Text="Scale"
+                                                   FontSize="11"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Margin="0,0,6,0"/>
+                                        <ComboBox ItemsSource="{Binding UpscaleScaleOptions}"
+                                                  SelectedItem="{Binding UpscaleScale, Mode=TwoWay}"
+                                                  Width="78"
+                                                  Height="30"
+                                                  FontSize="11"
+                                                  VerticalContentAlignment="Center"
+                                                  ToolTip.Tip="Upscale factor. RTX scales the frame directly (1–4×); SeedVR2 pre-resizes by this much and then restores the detail.">
                                             <ComboBox.ItemTemplate>
-                                                <DataTemplate>
-                                                    <TextBlock Text="{Binding StringFormat='{}{0:0.##}×'}"/>
+                                                <DataTemplate x:DataType="sys:Double">
+                                                    <TextBlock Text="{Binding StringFormat={}{0:0.##}×}"/>
                                                 </DataTemplate>
                                             </ComboBox.ItemTemplate>
                                         </ComboBox>
                                     </StackPanel>
-
-                                    <Button Content="Add to Queue" Classes="primary"
+                                    <TextBlock Text="{Binding UpscaleEngineDescription}"
+                                               FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,6,0,0"/>
+                                    <Button Content="Add to Queue"
+                                            Theme="{StaticResource PrimaryButtonStyle}"
                                             Command="{Binding AddUpscaleToQueueCommand}"
-                                            HorizontalAlignment="Left" Width="140" Height="36"/>
+                                            HorizontalAlignment="Left"
+                                            Width="140"
+                                            Height="36"
+                                            Margin="0,12,0,0"/>
                                 </StackPanel>
                             </Border>
-
                             <!-- Queue Section -->
-                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15"
-                                    IsVisible="{Binding HasUpscaleQueueItems}">
-                                <StackPanel Spacing="8">
-                                    <Grid ColumnDefinitions="*,Auto,Auto,Auto">
-                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
-                                            <TextBlock Text="Queue" FontSize="14" FontWeight="Bold" Foreground="#1565C0" VerticalAlignment="Center"/>
+                            <Border Theme="{StaticResource SectionPanelStyle}" IsVisible="{Binding HasUpscaleQueueItems}">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                            <TextBlock Text="Queue"
+                                                       FontSize="14"
+                                                       FontWeight="Bold"
+                                                       Foreground="{StaticResource AccentIndigoBrush}"
+                                                       VerticalAlignment="Center"/>
                                             <TextBlock Text="{Binding UpscaleQueueStatus}"
-                                                       FontSize="11" Foreground="#6C757D" VerticalAlignment="Center"/>
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="10,0,0,0"/>
                                         </StackPanel>
-                                        <Button Grid.Column="1" Content="Retry Failed"
+                                        <Button Grid.Column="1"
+                                                Content="🔄 Retry Failed"
                                                 Command="{Binding ReprocessUpscaleFailedCommand}"
                                                 IsEnabled="{Binding HasUpscaleFailedItems}"
-                                                Height="28" Width="90" FontSize="11" Margin="4,0"
-                                                Background="#FFA500" Foreground="White" BorderThickness="0"/>
-                                        <Button Grid.Column="2" Content="Stop"
+                                                Height="28"
+                                                Width="90"
+                                                FontSize="11"
+                                                Margin="4,0,4,0"
+                                                Background="{StaticResource AccentAmberBrush}"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                FontWeight="SemiBold"/>
+                                        <Button Grid.Column="2"
+                                                Content="⏹ Stop"
                                                 Command="{Binding StopUpscaleQueueCommand}"
                                                 IsEnabled="{Binding IsProcessingUpscaleQueue}"
-                                                Height="28" Width="65" FontSize="11" Margin="0,0,4,0"
-                                                Background="#F59E0B" Foreground="White" BorderThickness="0"/>
-                                        <Button Grid.Column="3" Content="Clear"
+                                                Height="28"
+                                                Width="65"
+                                                FontSize="11"
+                                                Margin="0,0,4,0"
+                                                Background="{StaticResource AccentAmberBrush}"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                FontWeight="SemiBold"/>
+                                        <Button Grid.Column="3"
+                                                Content="🗑️ Clear"
                                                 Command="{Binding ClearUpscaleQueueCommand}"
-                                                Height="28" Width="65" FontSize="11"
-                                                Background="#DC3545" Foreground="White" BorderThickness="0"/>
+                                                Height="28"
+                                                Width="65"
+                                                FontSize="11"
+                                                Background="{StaticResource DangerBrush}"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                FontWeight="SemiBold"/>
                                     </Grid>
-
                                     <ItemsControl ItemsSource="{Binding UpscaleQueue}">
                                         <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border Background="White" BorderBrush="#DEE2E6" BorderThickness="1"
-                                                        CornerRadius="5" Padding="10,8" Margin="0,0,0,6">
-                                                    <Grid ColumnDefinitions="*,Auto,Auto">
+                                            <DataTemplate x:DataType="m:VideoEnhanceQueueItem">
+                                                <Border Background="White"
+                                                        BorderBrush="{StaticResource BorderBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="5"
+                                                        Padding="10,8"
+                                                        Margin="0,0,0,6">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
                                                         <StackPanel Grid.Column="0">
-                                                            <TextBlock Text="{Binding DisplayText}" FontSize="12" FontWeight="SemiBold"/>
-                                                            <TextBlock Text="{Binding StatusDisplay}" FontSize="11"
-                                                                       Foreground="{Binding StatusColor}" Margin="0,2,0,0"/>
-                                                            <TextBlock Text="{Binding ErrorMessage}" FontSize="10"
-                                                                       Foreground="#DC3545" Margin="0,2,0,0"
-                                                                       IsVisible="{Binding ErrorMessage, Converter={StaticResource StringToVisibilityConverter}}"/>
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <TextBlock Text="{Binding DisplayText}"
+                                                                           FontSize="12"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                                <TextBlock Text="{Binding EngineDisplay}"
+                                                                           FontSize="10"
+                                                                           Foreground="{StaticResource AccentIndigoBrush}"
+                                                                           VerticalAlignment="Center"
+                                                                           Margin="8,0,0,0"/>
+                                                            </StackPanel>
+                                                            <TextBlock Text="{Binding StatusDisplay}"
+                                                                       FontSize="11"
+                                                                       Foreground="{Binding StatusColor}"
+                                                                       Margin="0,2,0,0"/>
+                                                            <TextBlock Text="{Binding ErrorMessage}"
+                                                                       FontSize="10"
+                                                                       Foreground="{StaticResource DangerBrush}"
+                                                                       Margin="0,2,0,0"
+                                                                       IsVisible="{Binding ErrorMessage}"/>
                                                         </StackPanel>
-                                                        <ProgressBar Grid.Column="1" Value="{Binding Progress}"
-                                                                     Minimum="0" Maximum="100"
-                                                                     Width="80" Height="6" Margin="10,0" VerticalAlignment="Center"/>
-                                                        <Button Grid.Column="2" Content="x" Width="24" Height="24" FontSize="10"
-                                                                Background="Transparent" BorderThickness="0" Foreground="#6C757D"
-                                                                Command="{Binding DataContext.RemoveUpscaleQueueItemCommand,
-                                                                          RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        <ProgressBar Grid.Column="1"
+                                                                     Value="{Binding Progress}"
+                                                                     Minimum="0"
+                                                                     Maximum="100"
+                                                                     Width="80"
+                                                                     Height="6"
+                                                                     Margin="10,0,10,0"
+                                                                     VerticalAlignment="Center"
+                                                                     Foreground="{StaticResource AccentIndigoBrush}"/>
+                                                        <Button Grid.Column="2"
+                                                                Content="✕"
+                                                                Width="24"
+                                                                Height="24"
+                                                                FontSize="10"
+                                                                Background="Transparent"
+                                                                BorderThickness="0"
+                                                                Foreground="{StaticResource TextSecondaryBrush}"
+                                                                Cursor="Hand"
+                                                                Command="{Binding $parent[ItemsControl].((vmv:VideoEnhanceViewModel)DataContext).RemoveUpscaleQueueItemCommand}"
                                                                 CommandParameter="{Binding}"/>
                                                     </Grid>
                                                 </Border>
@@ -214,212 +427,460 @@
                             </Border>
                         </StackPanel>
                     </TabItem>
-
-                    <!-- Tab 3: Targeted Wan Enhance
+                    <!-- ── Tab 3: Targeted Wan Enhance ──────────────────────────────────────────
                          SAM3 tracks whatever the user names across every frame; three WanVideo 2.2
                          low-noise passes rebuild only what that mask covers, at falling denoise and
-                         rising resolution, each composited back into the untouched source.
-                         Graph: workflow/video/wan/targeted-wan-enhance.json -->
-                    <TabItem Header="Targeted Wan Enhance">
-                        <StackPanel Margin="10,15,10,10" Spacing="15">
-
+                         rising resolution, and each result is composited back into the untouched
+                         source. Graph: workflow/video/wan/targeted-wan-enhance.json -->
+                    <TabItem Header="🎯 Targeted Wan Enhance">
+                        <StackPanel Margin="10,15,10,10">
                             <!-- Input -->
-                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
-                                <StackPanel Spacing="8">
-                                    <TextBlock Text="Input Video" FontSize="14" FontWeight="Bold" Foreground="#1565C0"/>
-                                    <Grid ColumnDefinitions="*,Auto">
+                            <Border Theme="{StaticResource SectionPanelStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="Input Video"
+                                               FontSize="14"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource AccentIndigoBrush}"
+                                               Margin="0,0,0,10"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
                                         <TextBox Grid.Column="0"
                                                  Text="{Binding TargetedVideoPath, Mode=TwoWay}"
-                                                 IsReadOnly="True" Padding="8,6" FontSize="12" Height="34"/>
-                                        <Button Grid.Column="1" Content="Browse" Classes="primary"
+                                                 IsReadOnly="True"
+                                                 Padding="8,6"
+                                                 FontSize="12"
+                                                 Background="White"
+                                                 BorderBrush="{StaticResource BorderBrush}"
+                                                 VerticalContentAlignment="Center"
+                                                 Height="34"/>
+                                        <Button Grid.Column="1"
+                                                Content="Browse"
+                                                Theme="{StaticResource PrimaryButtonStyle}"
                                                 Command="{Binding SelectTargetedVideoCommand}"
-                                                Width="80" Height="34" Margin="8,0,0,0"/>
+                                                Width="80"
+                                                Height="34"
+                                                Margin="8,0,0,0"/>
                                     </Grid>
                                     <TextBlock Text="{Binding TargetedVideoInfo}"
-                                               FontSize="11" Foreground="#6C757D"
+                                               FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="0,6,0,0"
                                                IsVisible="{Binding HasTargetedVideo}"/>
                                 </StackPanel>
                             </Border>
-
                             <!-- Targets -->
-                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
-                                <StackPanel Spacing="8">
-                                    <TextBlock Text="What to enhance" FontSize="14" FontWeight="Bold" Foreground="#1565C0"/>
+                            <Border Theme="{StaticResource SectionPanelStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="What to enhance"
+                                               FontSize="14"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource AccentIndigoBrush}"
+                                               Margin="0,0,0,4"/>
                                     <TextBlock Text="SAM3 finds these by name and tracks them through the clip. Everything outside the mask is copied straight from the source, so only what you name here is rebuilt. Comma-separate for several: face, hands"
-                                               FontSize="11" Foreground="#6C757D" TextWrapping="Wrap"/>
+                                               FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,8"/>
                                     <TextBox Text="{Binding TargetedTargets, Mode=TwoWay}"
-                                             Padding="8,6" FontSize="13" Height="34"/>
-
-                                    <Grid ColumnDefinitions="140,*,44">
-                                        <TextBlock Grid.Column="0" Text="Detection threshold" FontSize="12"
-                                                   VerticalAlignment="Center"/>
-                                        <Slider Grid.Column="1" Value="{Binding TargetedDetectionThreshold, Mode=TwoWay}"
-                                                Minimum="0.05" Maximum="0.95" TickFrequency="0.05"
-                                                IsSnapToTickEnabled="True" Margin="8,0"
+                                             Padding="8,6"
+                                             FontSize="13"
+                                             Background="White"
+                                             BorderBrush="{StaticResource BorderBrush}"
+                                             VerticalContentAlignment="Center"
+                                             Height="34"/>
+                                    <Grid Margin="0,12,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="Detection threshold"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center"
+                                                   Width="140"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <Slider Grid.Column="1"
+                                                Value="{Binding TargetedDetectionThreshold, Mode=TwoWay}"
+                                                Minimum="0.05"
+                                                Maximum="0.95"
+                                                TickFrequency="0.05"
+                                                IsSnapToTickEnabled="True"
+                                                VerticalAlignment="Center"
+                                                Margin="8,0"
                                                 ToolTip.Tip="Lower catches more of the frame (and more background); higher only keeps confident detections."/>
-                                        <TextBlock Grid.Column="2" Text="{Binding TargetedDetectionThreshold, StringFormat='{}{0:0.00}'}"
-                                                   FontSize="12" VerticalAlignment="Center" Foreground="#6C757D"/>
+                                        <TextBlock Grid.Column="2"
+                                                   Width="40"
+                                                   Text="{Binding TargetedDetectionThreshold, StringFormat={}{0:0.00}}"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
                                     </Grid>
-
-                                    <Grid ColumnDefinitions="140,*,44">
-                                        <TextBlock Grid.Column="0" Text="Mask feather" FontSize="12"
-                                                   VerticalAlignment="Center"/>
-                                        <Slider Grid.Column="1" Value="{Binding TargetedMaskFeather, Mode=TwoWay}"
-                                                Minimum="0" Maximum="32" TickFrequency="1"
-                                                IsSnapToTickEnabled="True" Margin="8,0"
-                                                ToolTip.Tip="Pixels the mask is grown and blurred by before compositing, so the rebuilt region blends instead of showing a cut edge."/>
-                                        <TextBlock Grid.Column="2" Text="{Binding TargetedMaskFeather, StringFormat='{}{0} px'}"
-                                                   FontSize="12" VerticalAlignment="Center" Foreground="#6C757D"/>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="Mask feather"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center"
+                                                   Width="140"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <Slider Grid.Column="1"
+                                                Value="{Binding TargetedMaskFeather, Mode=TwoWay}"
+                                                Minimum="0"
+                                                Maximum="32"
+                                                TickFrequency="1"
+                                                IsSnapToTickEnabled="True"
+                                                VerticalAlignment="Center"
+                                                Margin="8,0"
+                                                ToolTip.Tip="Pixels the mask is grown and blurred by before compositing, so the rebuilt region blends instead of showing a cut edge. Phases two and three widen it as the canvas grows."/>
+                                        <TextBlock Grid.Column="2"
+                                                   Width="40"
+                                                   Text="{Binding TargetedMaskFeather, StringFormat={}{0} px}"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
                                     </Grid>
-
                                     <CheckBox Content="Fill holes in the tracked mask"
                                               IsChecked="{Binding TargetedFillHoles, Mode=TwoWay}"
                                               FontSize="12"
+                                              Margin="0,10,0,0"
                                               ToolTip.Tip="Closes enclosed gaps SAM3 punches through a subject — hair gaps, a hand held in front of a torso."/>
                                 </StackPanel>
                             </Border>
-
                             <!-- Prompt -->
-                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
-                                <StackPanel Spacing="8">
-                                    <TextBlock Text="Enhancement prompt" FontSize="14" FontWeight="Bold" Foreground="#1565C0"/>
+                            <Border Theme="{StaticResource SectionPanelStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="Enhancement prompt"
+                                               FontSize="14"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource AccentIndigoBrush}"
+                                               Margin="0,0,0,4"/>
                                     <TextBlock Text="What the rebuilt region should look like. Describe quality and material, not a new scene — the passes are re-rendering what is already there."
-                                               FontSize="11" Foreground="#6C757D" TextWrapping="Wrap"/>
+                                               FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,8"/>
                                     <TextBox Text="{Binding TargetedPrompt, Mode=TwoWay}"
-                                             AcceptsReturn="True" TextWrapping="Wrap"
-                                             Height="70" Padding="8,6" FontSize="12"/>
+                                             AcceptsReturn="True"
+                                             TextWrapping="Wrap"
+                                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                             Height="70"
+                                             Padding="8,6"
+                                             FontSize="12"
+                                             Background="White"
+                                             BorderBrush="{StaticResource BorderBrush}"/>
                                 </StackPanel>
                             </Border>
-
                             <!-- Passes -->
-                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
-                                <StackPanel Spacing="8">
-                                    <TextBlock Text="Passes" FontSize="14" FontWeight="Bold" Foreground="#1565C0"/>
+                            <Border Theme="{StaticResource SectionPanelStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="Passes"
+                                               FontSize="14"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource AccentIndigoBrush}"
+                                               Margin="0,0,0,4"/>
                                     <TextBlock Text="Three WanVideo passes: a draft that does the work, then two refinements at rising resolution. The last rung is the finished size; the source aspect fills in the other side."
-                                               FontSize="11" Foreground="#6C757D" TextWrapping="Wrap"/>
-
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <TextBlock Text="Detail" FontSize="12" Width="132" VerticalAlignment="Center"/>
+                                               FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,8"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Detail"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center"
+                                                   Width="140"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
                                         <ComboBox ItemsSource="{Binding TargetedDetailOptions}"
                                                   SelectedItem="{Binding TargetedDetail, Mode=TwoWay}"
-                                                  Width="120" Height="30" FontSize="12"
+                                                  Width="120"
+                                                  Height="30"
+                                                  FontSize="12"
+                                                  VerticalContentAlignment="Center"
                                                   ToolTip.Tip="Draft 512→768→1024, Standard 768→1024→1280, High 1024→1280→1536 (long edge)."/>
                                     </StackPanel>
                                     <TextBlock Text="{Binding TargetedDetailDescription}"
-                                               FontSize="11" Foreground="#6C757D" Margin="140,0,0,0"/>
-
-                                    <TextBlock Text="Denoise per pass" FontSize="12" FontWeight="SemiBold" Margin="0,6,0,0"/>
+                                               FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="148,6,0,0"/>
+                                    <TextBlock Text="Denoise per pass"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Margin="0,14,0,2"
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
                                     <TextBlock Text="Pass one is the dial that matters: ~0.35 keeps a face recognisable, ~0.5 cleans up real errors, ~0.75 makes someone new."
-                                               FontSize="11" Foreground="#6C757D" TextWrapping="Wrap"/>
-
-                                    <Grid ColumnDefinitions="140,*,44">
-                                        <TextBlock Grid.Column="0" Text="Pass 1 (draft)" FontSize="12" VerticalAlignment="Center"/>
-                                        <Slider Grid.Column="1" Value="{Binding TargetedDenoise1, Mode=TwoWay}"
-                                                Minimum="0" Maximum="1" TickFrequency="0.05"
-                                                IsSnapToTickEnabled="True" Margin="8,0"/>
-                                        <TextBlock Grid.Column="2" Text="{Binding TargetedDenoise1, StringFormat='{}{0:0.00}'}"
-                                                   FontSize="12" VerticalAlignment="Center" Foreground="#6C757D"/>
+                                               FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,6"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="Pass 1 (draft)"
+                                                   FontSize="12"
+                                                   Width="140"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <Slider Grid.Column="1"
+                                                Value="{Binding TargetedDenoise1, Mode=TwoWay}"
+                                                Minimum="0"
+                                                Maximum="1"
+                                                TickFrequency="0.05"
+                                                IsSnapToTickEnabled="True"
+                                                VerticalAlignment="Center"
+                                                Margin="8,0"/>
+                                        <TextBlock Grid.Column="2"
+                                                   Width="40"
+                                                   Text="{Binding TargetedDenoise1, StringFormat={}{0:0.00}}"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
                                     </Grid>
-                                    <Grid ColumnDefinitions="140,*,44">
-                                        <TextBlock Grid.Column="0" Text="Pass 2" FontSize="12" VerticalAlignment="Center"/>
-                                        <Slider Grid.Column="1" Value="{Binding TargetedDenoise2, Mode=TwoWay}"
-                                                Minimum="0" Maximum="1" TickFrequency="0.05"
-                                                IsSnapToTickEnabled="True" Margin="8,0"/>
-                                        <TextBlock Grid.Column="2" Text="{Binding TargetedDenoise2, StringFormat='{}{0:0.00}'}"
-                                                   FontSize="12" VerticalAlignment="Center" Foreground="#6C757D"/>
+                                    <Grid Margin="0,4,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="Pass 2"
+                                                   FontSize="12"
+                                                   Width="140"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <Slider Grid.Column="1"
+                                                Value="{Binding TargetedDenoise2, Mode=TwoWay}"
+                                                Minimum="0"
+                                                Maximum="1"
+                                                TickFrequency="0.05"
+                                                IsSnapToTickEnabled="True"
+                                                VerticalAlignment="Center"
+                                                Margin="8,0"/>
+                                        <TextBlock Grid.Column="2"
+                                                   Width="40"
+                                                   Text="{Binding TargetedDenoise2, StringFormat={}{0:0.00}}"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
                                     </Grid>
-                                    <Grid ColumnDefinitions="140,*,44">
-                                        <TextBlock Grid.Column="0" Text="Pass 3 (finish)" FontSize="12" VerticalAlignment="Center"/>
-                                        <Slider Grid.Column="1" Value="{Binding TargetedDenoise3, Mode=TwoWay}"
-                                                Minimum="0" Maximum="1" TickFrequency="0.05"
-                                                IsSnapToTickEnabled="True" Margin="8,0"/>
-                                        <TextBlock Grid.Column="2" Text="{Binding TargetedDenoise3, StringFormat='{}{0:0.00}'}"
-                                                   FontSize="12" VerticalAlignment="Center" Foreground="#6C757D"/>
+                                    <Grid Margin="0,4,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="Pass 3 (finish)"
+                                                   FontSize="12"
+                                                   Width="140"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <Slider Grid.Column="1"
+                                                Value="{Binding TargetedDenoise3, Mode=TwoWay}"
+                                                Minimum="0"
+                                                Maximum="1"
+                                                TickFrequency="0.05"
+                                                IsSnapToTickEnabled="True"
+                                                VerticalAlignment="Center"
+                                                Margin="8,0"/>
+                                        <TextBlock Grid.Column="2"
+                                                   Width="40"
+                                                   Text="{Binding TargetedDenoise3, StringFormat={}{0:0.00}}"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
                                     </Grid>
-
-                                    <Expander Header="Advanced" FontSize="12">
-                                        <StackPanel Spacing="6" Margin="0,8,0,0">
-                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <TextBlock Text="Steps" FontSize="12" Width="132" VerticalAlignment="Center"/>
-                                                <TextBox Text="{Binding TargetedSteps, Mode=TwoWay}"
-                                                         Width="80" Height="28" Padding="6,3" FontSize="12"
+                                    <Expander Header="Advanced" Margin="0,12,0,0" FontSize="12">
+                                        <StackPanel Margin="0,8,0,0">
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                                <TextBlock Text="Steps"
+                                                           FontSize="12"
+                                                           Width="140"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                <TextBox Text="{Binding TargetedSteps, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                         Width="80"
+                                                         Height="28"
+                                                         Padding="6,3"
+                                                         FontSize="12"
+                                                         Background="White"
+                                                         BorderBrush="{StaticResource BorderBrush}"
+                                                         VerticalContentAlignment="Center"
                                                          ToolTip.Tip="Sampler steps for all three passes. The 4-step lightning LoRA is already in the stack, so 6 is generous."/>
                                             </StackPanel>
-                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <TextBlock Text="Seed (0 = random)" FontSize="12" Width="132" VerticalAlignment="Center"/>
-                                                <TextBox Text="{Binding TargetedSeed, Mode=TwoWay}"
-                                                         Width="140" Height="28" Padding="6,3" FontSize="12"/>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                                <TextBlock Text="Seed (0 = random)"
+                                                           FontSize="12"
+                                                           Width="140"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                <TextBox Text="{Binding TargetedSeed, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                         Width="140"
+                                                         Height="28"
+                                                         Padding="6,3"
+                                                         FontSize="12"
+                                                         Background="White"
+                                                         BorderBrush="{StaticResource BorderBrush}"
+                                                         VerticalContentAlignment="Center"/>
                                             </StackPanel>
-                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <TextBlock Text="Max frames (0 = all)" FontSize="12" Width="132" VerticalAlignment="Center"/>
-                                                <TextBox Text="{Binding TargetedMaxFrames, Mode=TwoWay}"
-                                                         Width="80" Height="28" Padding="6,3" FontSize="12"
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                                <TextBlock Text="Max frames (0 = all)"
+                                                           FontSize="12"
+                                                           Width="140"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                <TextBox Text="{Binding TargetedMaxFrames, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                         Width="80"
+                                                         Height="28"
+                                                         Padding="6,3"
+                                                         FontSize="12"
+                                                         Background="White"
+                                                         BorderBrush="{StaticResource BorderBrush}"
+                                                         VerticalContentAlignment="Center"
                                                          ToolTip.Tip="Caps how much of the clip is loaded. A 14B model over a long clip is the main way this job runs for hours."/>
                                             </StackPanel>
                                             <CheckBox Content="Restrict pass 2 to the mask"
-                                                      IsChecked="{Binding TargetedMaskPhase2, Mode=TwoWay}" FontSize="12"
+                                                      IsChecked="{Binding TargetedMaskPhase2, Mode=TwoWay}"
+                                                      FontSize="12"
+                                                      Margin="0,4,0,0"
                                                       ToolTip.Tip="Off, pass 2 refines the whole frame: cleaner overall, but the background drifts away from the source."/>
                                             <CheckBox Content="Restrict pass 3 to the mask"
-                                                      IsChecked="{Binding TargetedMaskPhase3, Mode=TwoWay}" FontSize="12"
+                                                      IsChecked="{Binding TargetedMaskPhase3, Mode=TwoWay}"
+                                                      FontSize="12"
+                                                      Margin="0,4,0,0"
                                                       ToolTip.Tip="Off, pass 3 refines the whole frame: cleaner overall, but the background drifts away from the source."/>
                                         </StackPanel>
                                     </Expander>
-
-                                    <Button Content="Add to Queue" Classes="primary"
+                                    <Button Content="Add to Queue"
+                                            Theme="{StaticResource PrimaryButtonStyle}"
                                             Command="{Binding AddTargetedToQueueCommand}"
-                                            HorizontalAlignment="Left" Width="140" Height="36"/>
+                                            HorizontalAlignment="Left"
+                                            Width="140"
+                                            Height="36"
+                                            Margin="0,14,0,0"/>
                                 </StackPanel>
                             </Border>
-
                             <!-- Queue -->
-                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15"
-                                    IsVisible="{Binding HasTargetedQueueItems}">
-                                <StackPanel Spacing="8">
-                                    <Grid ColumnDefinitions="*,Auto,Auto,Auto">
-                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
-                                            <TextBlock Text="Queue" FontSize="14" FontWeight="Bold" Foreground="#1565C0" VerticalAlignment="Center"/>
+                            <Border Theme="{StaticResource SectionPanelStyle}" IsVisible="{Binding HasTargetedQueueItems}">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                            <TextBlock Text="Queue"
+                                                       FontSize="14"
+                                                       FontWeight="Bold"
+                                                       Foreground="{StaticResource AccentIndigoBrush}"
+                                                       VerticalAlignment="Center"/>
                                             <TextBlock Text="{Binding TargetedQueueStatus}"
-                                                       FontSize="11" Foreground="#6C757D" VerticalAlignment="Center"/>
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="10,0,0,0"/>
                                         </StackPanel>
-                                        <Button Grid.Column="1" Content="Retry Failed"
+                                        <Button Grid.Column="1"
+                                                Content="🔄 Retry Failed"
                                                 Command="{Binding ReprocessTargetedFailedCommand}"
                                                 IsEnabled="{Binding HasTargetedFailedItems}"
-                                                Height="28" Width="90" FontSize="11" Margin="4,0"
-                                                Background="#FFA500" Foreground="White" BorderThickness="0"/>
-                                        <Button Grid.Column="2" Content="Stop"
+                                                Height="28"
+                                                Width="90"
+                                                FontSize="11"
+                                                Margin="4,0,4,0"
+                                                Background="{StaticResource AccentAmberBrush}"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                FontWeight="SemiBold"/>
+                                        <Button Grid.Column="2"
+                                                Content="⏹ Stop"
                                                 Command="{Binding StopTargetedQueueCommand}"
                                                 IsEnabled="{Binding IsProcessingTargetedQueue}"
-                                                Height="28" Width="65" FontSize="11" Margin="0,0,4,0"
-                                                Background="#F59E0B" Foreground="White" BorderThickness="0"/>
-                                        <Button Grid.Column="3" Content="Clear"
+                                                Height="28"
+                                                Width="65"
+                                                FontSize="11"
+                                                Margin="0,0,4,0"
+                                                Background="{StaticResource AccentAmberBrush}"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                FontWeight="SemiBold"/>
+                                        <Button Grid.Column="3"
+                                                Content="🗑️ Clear"
                                                 Command="{Binding ClearTargetedQueueCommand}"
-                                                Height="28" Width="65" FontSize="11"
-                                                Background="#DC3545" Foreground="White" BorderThickness="0"/>
+                                                Height="28"
+                                                Width="65"
+                                                FontSize="11"
+                                                Background="{StaticResource DangerBrush}"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                FontWeight="SemiBold"/>
                                     </Grid>
-
                                     <ItemsControl ItemsSource="{Binding TargetedQueue}">
                                         <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border Background="White" BorderBrush="#DEE2E6" BorderThickness="1"
-                                                        CornerRadius="5" Padding="10,8" Margin="0,0,0,6">
-                                                    <Grid ColumnDefinitions="*,Auto,Auto">
+                                            <DataTemplate x:DataType="m:TargetedWanEnhanceQueueItem">
+                                                <Border Background="White"
+                                                        BorderBrush="{StaticResource BorderBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="5"
+                                                        Padding="10,8"
+                                                        Margin="0,0,0,6">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
                                                         <StackPanel Grid.Column="0">
-                                                            <TextBlock Text="{Binding DisplayText}" FontSize="12" FontWeight="SemiBold"/>
-                                                            <TextBlock Text="{Binding TargetsDisplay}" FontSize="10"
-                                                                       Foreground="#1565C0" Margin="0,2,0,0"/>
-                                                            <TextBlock Text="{Binding StatusDisplay}" FontSize="11"
-                                                                       Foreground="{Binding StatusColor}" Margin="0,2,0,0"/>
-                                                            <TextBlock Text="{Binding ErrorMessage}" FontSize="10"
-                                                                       Foreground="#DC3545" TextWrapping="Wrap" Margin="0,2,0,0"
-                                                                       IsVisible="{Binding ErrorMessage, Converter={StaticResource StringToVisibilityConverter}}"/>
+                                                            <TextBlock Text="{Binding DisplayText}"
+                                                                       FontSize="12"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                            <TextBlock Text="{Binding TargetsDisplay}"
+                                                                       FontSize="10"
+                                                                       Foreground="{StaticResource AccentIndigoBrush}"
+                                                                       Margin="0,2,0,0"/>
+                                                            <TextBlock Text="{Binding StatusDisplay}"
+                                                                       FontSize="11"
+                                                                       Foreground="{Binding StatusColor}"
+                                                                       Margin="0,2,0,0"/>
+                                                            <TextBlock Text="{Binding ErrorMessage}"
+                                                                       FontSize="10"
+                                                                       Foreground="{StaticResource DangerBrush}"
+                                                                       TextWrapping="Wrap"
+                                                                       Margin="0,2,0,0"
+                                                                       IsVisible="{Binding ErrorMessage}"/>
                                                         </StackPanel>
-                                                        <ProgressBar Grid.Column="1" Value="{Binding Progress}"
-                                                                     Minimum="0" Maximum="100"
-                                                                     Width="80" Height="6" Margin="10,0" VerticalAlignment="Center"/>
-                                                        <Button Grid.Column="2" Content="x" Width="24" Height="24" FontSize="10"
-                                                                Background="Transparent" BorderThickness="0" Foreground="#6C757D"
-                                                                Command="{Binding DataContext.RemoveTargetedQueueItemCommand,
-                                                                          RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        <ProgressBar Grid.Column="1"
+                                                                     Value="{Binding Progress}"
+                                                                     Minimum="0"
+                                                                     Maximum="100"
+                                                                     Width="80"
+                                                                     Height="6"
+                                                                     Margin="10,0,10,0"
+                                                                     VerticalAlignment="Center"
+                                                                     Foreground="{StaticResource AccentIndigoBrush}"/>
+                                                        <Button Grid.Column="2"
+                                                                Content="✕"
+                                                                Width="24"
+                                                                Height="24"
+                                                                FontSize="10"
+                                                                Background="Transparent"
+                                                                BorderThickness="0"
+                                                                Foreground="{StaticResource TextSecondaryBrush}"
+                                                                Cursor="Hand"
+                                                                Command="{Binding $parent[ItemsControl].((vmv:VideoEnhanceViewModel)DataContext).RemoveTargetedQueueItemCommand}"
                                                                 CommandParameter="{Binding}"/>
                                                     </Grid>
                                                 </Border>
@@ -430,37 +891,66 @@
                             </Border>
                         </StackPanel>
                     </TabItem>
-                    <!-- Tab 4: Enhance HD -->
-                    <TabItem Header="Enhance HD">
-                        <StackPanel Margin="10,15,10,10" Spacing="15">
-
+                    <!-- ── Tab 4: Enhance HD ── -->
+                    <TabItem Header="🌀 Enhance HD">
+                        <StackPanel Margin="10,15,10,10">
                             <!-- Input -->
-                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
-                                <StackPanel Spacing="8">
-                                    <TextBlock Text="H3 Clip to Re-render" FontSize="14" FontWeight="Bold" Foreground="#1565C0"/>
-                                    <TextBlock Text="Not an upscaler: MiniMax H3 re-draws the clip at HD from its own latent, still conditioned on the references and prompt it was made with. It needs a clip H3 rendered - video and audio are sampled as one latent, so a silent clip cannot be re-rendered."
-                                               FontSize="11" Foreground="#6C757D" TextWrapping="Wrap"/>
-                                    <Grid ColumnDefinitions="*,Auto">
+                            <Border Theme="{StaticResource SectionPanelStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="H3 Clip to Re-render"
+                                               FontSize="14"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource AccentIndigoBrush}"
+                                               Margin="0,0,0,6"/>
+                                    <TextBlock Text="Not an upscaler: MiniMax H3 re-draws the clip at HD from its own latent, still conditioned on the references and prompt it was made with. It needs a clip H3 rendered — video and audio are sampled as one latent, so a silent clip cannot be re-rendered."
+                                               FontSize="11"
+                                               FontStyle="Italic"
+                                               TextWrapping="Wrap"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="0,0,0,10"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
                                         <TextBox Grid.Column="0"
                                                  Text="{Binding H3HdVideoPath, Mode=TwoWay}"
-                                                 IsReadOnly="True" Padding="8,6" FontSize="12" Height="34"/>
-                                        <Button Grid.Column="1" Content="Browse" Classes="primary"
+                                                 IsReadOnly="True"
+                                                 Padding="8,6"
+                                                 FontSize="12"
+                                                 Background="White"
+                                                 BorderBrush="{StaticResource BorderBrush}"
+                                                 VerticalContentAlignment="Center"
+                                                 Height="34"/>
+                                        <Button Grid.Column="1"
+                                                Content="Browse"
+                                                Theme="{StaticResource PrimaryButtonStyle}"
                                                 Command="{Binding SelectH3HdVideoCommand}"
-                                                Width="80" Height="34" Margin="8,0,0,0"/>
+                                                Width="80"
+                                                Height="34"
+                                                Margin="8,0,0,0"/>
                                     </Grid>
                                     <TextBlock Text="{Binding H3HdVideoInfo}"
-                                               FontSize="11" Foreground="#6C757D"
+                                               FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="0,8,0,0"
                                                IsVisible="{Binding HasH3HdVideo}"/>
                                 </StackPanel>
                             </Border>
-
                             <!-- Reference pictures -->
-                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
-                                <StackPanel Spacing="8">
-                                    <TextBlock Text="Reference pictures" FontSize="14" FontWeight="Bold" Foreground="#1565C0"/>
-                                    <TextBlock Text="The same stills the clip was generated from, in the same order - &quot;the woman from image 1&quot; has to keep meaning the same picture. They are what holds a face together through the re-render; without them the pass has only the prompt."
-                                               FontSize="11" Foreground="#6C757D" TextWrapping="Wrap"/>
-
+                            <Border Theme="{StaticResource SectionPanelStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="Reference pictures"
+                                               FontSize="14"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource AccentIndigoBrush}"
+                                               Margin="0,0,0,6"/>
+                                    <TextBlock Text="The same stills the clip was generated from, in the same order — &quot;the woman from image 1&quot; has to keep meaning the same picture. They are what holds a face together through the re-render; without them the pass has only the prompt."
+                                               FontSize="11"
+                                               FontStyle="Italic"
+                                               TextWrapping="Wrap"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="0,0,0,10"/>
                                     <ItemsControl ItemsSource="{Binding H3HdReferences}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
@@ -468,34 +958,72 @@
                                             </ItemsPanelTemplate>
                                         </ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border Margin="0,0,6,6" CornerRadius="6" BorderThickness="1"
-                                                        BorderBrush="#DEE2E6" Background="#FAFAFB">
+                                            <DataTemplate x:DataType="m:MiniMaxI2VReference">
+                                                <Border Margin="0,0,6,6"
+                                                        CornerRadius="6"
+                                                        BorderThickness="1"
+                                                        BorderBrush="{StaticResource BorderBrush}"
+                                                        Background="{StaticResource SurfaceAltBrush}">
                                                     <StackPanel>
-                                                        <Panel Height="84">
+                                                        <Grid Height="84">
                                                             <TextBlock Text="empty"
-                                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                                       FontSize="10" Foreground="#656C78"
-                                                                       IsVisible="{Binding !HasImage}"/>
-                                                            <Image Source="{Binding Preview}" Stretch="Uniform" Margin="3"/>
-                                                            <Border VerticalAlignment="Top" HorizontalAlignment="Left"
-                                                                    Margin="4" CornerRadius="3" Padding="5,1"
-                                                                    Background="White" BorderBrush="#D1D5DB" BorderThickness="1">
-                                                                <TextBlock Text="{Binding Label}" FontSize="9" FontWeight="SemiBold"
-                                                                           Foreground="#1565C0"/>
+                                                                       HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center"
+                                                                       FontSize="10"
+                                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                                       Classes="s1"
+                                                                       Classes.s1_0="{Binding HasImage}">
+                                                                <TextBlock.Styles>
+                                                                    <Style Selector="TextBlock.s1.s1_0" x:DataType="m:MiniMaxI2VReference">
+                                                                        <Setter Property="IsVisible" Value="False"/>
+                                                                    </Style>
+                                                                </TextBlock.Styles>
+                                                                <TextBlock.Theme>
+                                                                    <ControlTheme TargetType="TextBlock" x:DataType="m:MiniMaxI2VReference">
+                                                                        <Setter Property="IsVisible" Value="True"/>
+                                                                    </ControlTheme>
+                                                                </TextBlock.Theme>
+                                                            </TextBlock>
+                                                            <Image Source="{Binding Preview, Converter={StaticResource PathToBitmapConverter}}"
+                                                                   Stretch="Uniform"
+                                                                   Margin="3"/>
+                                                            <Border VerticalAlignment="Top"
+                                                                    HorizontalAlignment="Left"
+                                                                    Margin="4"
+                                                                    CornerRadius="3"
+                                                                    Padding="5,1"
+                                                                    Background="{StaticResource SurfaceBrush}"
+                                                                    BorderBrush="{StaticResource BorderStrongBrush}"
+                                                                    BorderThickness="1">
+                                                                <TextBlock Text="{Binding Label}"
+                                                                           FontSize="9"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{StaticResource AccentIndigoBrush}"/>
                                                             </Border>
-                                                        </Panel>
-                                                        <Grid ColumnDefinitions="*,Auto" Margin="4,0,4,4">
-                                                            <Button Grid.Column="0" Content="Browse..." Height="24" FontSize="10" Padding="6,0"
-                                                                    Classes="secondary"
-                                                                    Command="{Binding DataContext.BrowseH3HdReferenceCommand,
-                                                                              RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        </Grid>
+                                                        <Grid Margin="4,0,4,4">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Button Grid.Column="0"
+                                                                    Content="Browse…"
+                                                                    Height="24"
+                                                                    FontSize="10"
+                                                                    Padding="6,0"
+                                                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                                                    Command="{Binding $parent[ItemsControl].((vmv:VideoEnhanceViewModel)DataContext).BrowseH3HdReferenceCommand}"
                                                                     CommandParameter="{Binding}"/>
-                                                            <Button Grid.Column="1" Content="x" Width="24" Height="24" FontSize="9" Padding="0" Margin="4,0,0,0"
-                                                                    Classes="secondary"
+                                                            <Button Grid.Column="1"
+                                                                    Content="✕"
+                                                                    Width="24"
+                                                                    Height="24"
+                                                                    FontSize="9"
+                                                                    Padding="0"
+                                                                    Margin="4,0,0,0"
+                                                                    Theme="{StaticResource SecondaryButtonStyle}"
                                                                     IsVisible="{Binding HasImage}"
-                                                                    Command="{Binding DataContext.ClearH3HdReferenceCommand,
-                                                                              RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                    Command="{Binding $parent[ItemsControl].((vmv:VideoEnhanceViewModel)DataContext).ClearH3HdReferenceCommand}"
                                                                     CommandParameter="{Binding}"/>
                                                         </Grid>
                                                     </StackPanel>
@@ -503,163 +1031,349 @@
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
-
-                                    <TextBlock Text="{Binding H3HdReferenceSummary}" FontSize="11" Foreground="#6C757D"
-                                               TextWrapping="Wrap"/>
-
-                                    <Grid ColumnDefinitions="140,Auto,*">
-                                        <TextBlock Grid.Column="0" Text="Reference encoding" FontSize="12" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding H3HdReferenceSummary}"
+                                               FontSize="11"
+                                               FontStyle="Italic"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="0,2,0,0"/>
+                                    <Grid Margin="0,12,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="Reference encoding"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center"
+                                                   Width="140"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
                                         <ComboBox Grid.Column="1"
                                                   ItemsSource="{Binding H3HdFidelityChoices}"
                                                   SelectedItem="{Binding H3HdFidelity, Mode=TwoWay}"
-                                                  Width="110" Height="28" FontSize="11"/>
+                                                  Width="110"
+                                                  Height="28"
+                                                  FontSize="11"/>
                                         <TextBlock Grid.Column="2"
                                                    Text="max keeps the reference at 2048px for the best likeness; match encodes it at the render canvas and is much faster, because reference tokens ride through every sampling step."
-                                                   FontSize="10" Foreground="#656C78" TextWrapping="Wrap"
-                                                   VerticalAlignment="Center" Margin="10,0,0,0"/>
+                                                   FontSize="10"
+                                                   FontStyle="Italic"
+                                                   TextWrapping="Wrap"
+                                                   VerticalAlignment="Center"
+                                                   Margin="10,0,0,0"
+                                                   Foreground="{StaticResource TextMutedBrush}"/>
                                     </Grid>
                                 </StackPanel>
                             </Border>
-
                             <!-- Prompt -->
-                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
-                                <StackPanel Spacing="8">
-                                    <TextBlock Text="Prompt" FontSize="14" FontWeight="Bold" Foreground="#1565C0"/>
+                            <Border Theme="{StaticResource SectionPanelStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="Prompt"
+                                               FontSize="14"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource AccentIndigoBrush}"
+                                               Margin="0,0,0,6"/>
                                     <TextBlock Text="The clip's original prompt. The pass re-renders what is already in the frames, so a different prompt fights the latent instead of replacing it."
-                                               FontSize="11" Foreground="#6C757D" TextWrapping="Wrap"/>
+                                               FontSize="11"
+                                               FontStyle="Italic"
+                                               TextWrapping="Wrap"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="0,0,0,8"/>
                                     <TextBox Text="{Binding H3HdPrompt, Mode=TwoWay}"
-                                             AcceptsReturn="True" TextWrapping="Wrap"
-                                             Height="72" Padding="8,6" FontSize="12"/>
+                                             AcceptsReturn="True"
+                                             TextWrapping="Wrap"
+                                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                             MinHeight="72"
+                                             Padding="8,6"
+                                             FontSize="12"
+                                             Background="White"
+                                             BorderBrush="{StaticResource BorderBrush}"/>
                                 </StackPanel>
                             </Border>
-
                             <!-- Size -->
-                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
-                                <StackPanel Spacing="8">
-                                    <TextBlock Text="Size" FontSize="14" FontWeight="Bold" Foreground="#1565C0"/>
+                            <Border Theme="{StaticResource SectionPanelStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="Size"
+                                               FontSize="14"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource AccentIndigoBrush}"
+                                               Margin="0,0,0,6"/>
                                     <TextBlock Text="The clip is encoded at the base size, then the H3 latent upscaler lifts it to the finished one. Both keep the source aspect, so nothing is stretched."
-                                               FontSize="11" Foreground="#6C757D" TextWrapping="Wrap"/>
-
-                                    <Grid ColumnDefinitions="140,Auto">
-                                        <TextBlock Grid.Column="0" Text="Detail" FontSize="12" VerticalAlignment="Center"/>
-                                        <ComboBox Grid.Column="1"
-                                                  ItemsSource="{Binding H3HdDetailOptions}"
+                                               FontSize="11"
+                                               FontStyle="Italic"
+                                               TextWrapping="Wrap"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="0,0,0,10"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                        <TextBlock Text="Detail"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center"
+                                                   Width="140"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <ComboBox ItemsSource="{Binding H3HdDetailOptions}"
                                                   SelectedItem="{Binding H3HdDetailLevel, Mode=TwoWay}"
-                                                  Width="140" Height="28" FontSize="11"/>
+                                                  Width="140"
+                                                  Height="28"
+                                                  FontSize="11"/>
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding H3HdDetailDescription}"
+                                               FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="140,0,0,4"/>
+                                    <TextBlock Text="{Binding H3HdSegmentPlan}"
+                                               FontSize="11"
+                                               TextWrapping="Wrap"
+                                               Foreground="{StaticResource AccentAmberBrush}"
+                                               Margin="140,0,0,10"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="Base megapixels"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center"
+                                                   Width="140"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <Slider Grid.Column="1"
+                                                Value="{Binding H3HdBaseMegapixels, Mode=TwoWay}"
+                                                Minimum="0.2"
+                                                Maximum="2.0"
+                                                TickFrequency="0.1"
+                                                IsSnapToTickEnabled="True"
+                                                VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2"
+                                                   Width="60"
+                                                   TextAlignment="Right"
+                                                   Text="{Binding H3HdBaseMegapixels, StringFormat={}{0:0.0} MP}"
+                                                   FontSize="11"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
                                     </Grid>
-                                    <TextBlock Text="{Binding H3HdDetailDescription}" FontSize="11" Foreground="#6C757D"
-                                               Margin="140,0,0,0" TextWrapping="Wrap"/>
-                                    <TextBlock Text="{Binding H3HdSegmentPlan}" FontSize="11" Foreground="#B8860B"
-                                               Margin="140,0,0,0" TextWrapping="Wrap"/>
-
-                                    <Grid ColumnDefinitions="140,*,60">
-                                        <TextBlock Grid.Column="0" Text="Base megapixels" FontSize="12" VerticalAlignment="Center"/>
-                                        <Slider Grid.Column="1" Value="{Binding H3HdBaseMegapixels, Mode=TwoWay}"
-                                                Minimum="0.2" Maximum="2.0" TickFrequency="0.1"
-                                                IsSnapToTickEnabled="True" Margin="8,0"
-                                                ToolTip.Tip="How much real detail the pass starts from. Raising it costs encode time and VRAM but gives the sampler more to work with; the authored graph uses 0.8."/>
-                                        <TextBlock Grid.Column="2" Text="{Binding H3HdBaseMegapixels, StringFormat='{}{0:0.0} MP'}"
-                                                   FontSize="12" VerticalAlignment="Center" Foreground="#6C757D"/>
-                                    </Grid>
+                                    <TextBlock Text="How much real detail the pass starts from. Raising it costs encode time and VRAM but gives the sampler more to work with; the authored graph uses 0.8."
+                                               FontSize="10"
+                                               FontStyle="Italic"
+                                               TextWrapping="Wrap"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Margin="140,4,0,0"/>
                                 </StackPanel>
                             </Border>
-
                             <!-- Sampling -->
-                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
-                                <StackPanel Spacing="8">
-                                    <TextBlock Text="Sampling" FontSize="14" FontWeight="Bold" Foreground="#1565C0"/>
-
-                                    <Grid ColumnDefinitions="140,*,60">
-                                        <TextBlock Grid.Column="0" Text="Denoise" FontSize="12" VerticalAlignment="Center"/>
-                                        <Slider Grid.Column="1" Value="{Binding H3HdDenoise, Mode=TwoWay}"
-                                                Minimum="0.05" Maximum="1.0" TickFrequency="0.05"
-                                                IsSnapToTickEnabled="True" Margin="8,0"
-                                                ToolTip.Tip="How much of the original is thrown away and re-drawn. 0.45 is the authored value; past ~0.6 the pass starts inventing motion rather than sharpening it, and below ~0.3 it barely bites."/>
-                                        <TextBlock Grid.Column="2" Text="{Binding H3HdDenoise, StringFormat='{}{0:0.00}'}"
-                                                   FontSize="12" VerticalAlignment="Center" Foreground="#6C757D"/>
+                            <Border Theme="{StaticResource SectionPanelStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="Sampling"
+                                               FontSize="14"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource AccentIndigoBrush}"
+                                               Margin="0,0,0,6"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="Denoise"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center"
+                                                   Width="140"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <Slider Grid.Column="1"
+                                                Value="{Binding H3HdDenoise, Mode=TwoWay}"
+                                                Minimum="0.05"
+                                                Maximum="1.0"
+                                                TickFrequency="0.05"
+                                                IsSnapToTickEnabled="True"
+                                                VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2"
+                                                   Width="60"
+                                                   TextAlignment="Right"
+                                                   Text="{Binding H3HdDenoise, StringFormat={}{0:0.00}}"
+                                                   FontSize="11"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
                                     </Grid>
-
-                                    <Grid ColumnDefinitions="140,Auto,*">
-                                        <TextBlock Grid.Column="0" Text="Steps" FontSize="12" VerticalAlignment="Center"/>
-                                        <TextBox Grid.Column="1" Text="{Binding H3HdSteps, Mode=TwoWay}"
-                                                 Width="80" Height="28" Padding="6,3" FontSize="11"/>
-                                        <TextBlock Grid.Column="2" Text="the 4-step turbo LoRA is in the stack, so 4 is the design point"
-                                                   FontSize="10" Foreground="#656C78" VerticalAlignment="Center" Margin="10,0,0,0"
-                                                   TextWrapping="Wrap"/>
-                                    </Grid>
-
-                                    <Grid ColumnDefinitions="140,Auto">
-                                        <TextBlock Grid.Column="0" Text="Seed (0 = random)" FontSize="12" VerticalAlignment="Center"/>
-                                        <TextBox Grid.Column="1" Text="{Binding H3HdSeed, Mode=TwoWay}"
-                                                 Width="160" Height="28" Padding="6,3" FontSize="11"/>
-                                    </Grid>
-
-                                    <Grid ColumnDefinitions="140,Auto,*">
-                                        <TextBlock Grid.Column="0" Text="Max frames (0 = all)" FontSize="12" VerticalAlignment="Center"/>
-                                        <TextBox Grid.Column="1" Text="{Binding H3HdMaxFrames, Mode=TwoWay}"
-                                                 Width="80" Height="28" Padding="6,3" FontSize="11"/>
-                                        <TextBlock Grid.Column="2" Text="a 2K H3 pass is long; capping the frames is how you test settings first"
-                                                   FontSize="10" Foreground="#656C78" VerticalAlignment="Center" Margin="10,0,0,0"
-                                                   TextWrapping="Wrap"/>
-                                    </Grid>
-
-                                    <Button Content="Add to Queue" Classes="primary"
+                                    <TextBlock Text="How much of the original is thrown away and re-drawn. 0.45 is the authored value; past ~0.6 the pass starts inventing motion rather than sharpening it, and below ~0.3 it barely bites."
+                                               FontSize="10"
+                                               FontStyle="Italic"
+                                               TextWrapping="Wrap"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Margin="140,4,0,10"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                        <TextBlock Text="Steps"
+                                                   FontSize="12"
+                                                   Width="140"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <TextBox Text="{Binding H3HdSteps, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                 Width="80"
+                                                 Height="28"
+                                                 Padding="6,3"
+                                                 FontSize="11"
+                                                 Background="White"
+                                                 BorderBrush="{StaticResource BorderBrush}"/>
+                                        <TextBlock Text="the 4-step turbo LoRA is in the stack, so 4 is the design point"
+                                                   FontSize="10"
+                                                   FontStyle="Italic"
+                                                   VerticalAlignment="Center"
+                                                   Margin="10,0,0,0"
+                                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                        <TextBlock Text="Seed (0 = random)"
+                                                   FontSize="12"
+                                                   Width="140"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <TextBox Text="{Binding H3HdSeed, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                 Width="160"
+                                                 Height="28"
+                                                 Padding="6,3"
+                                                 FontSize="11"
+                                                 Background="White"
+                                                 BorderBrush="{StaticResource BorderBrush}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Max frames (0 = all)"
+                                                   FontSize="12"
+                                                   Width="140"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <TextBox Text="{Binding H3HdMaxFrames, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                 Width="80"
+                                                 Height="28"
+                                                 Padding="6,3"
+                                                 FontSize="11"
+                                                 Background="White"
+                                                 BorderBrush="{StaticResource BorderBrush}"/>
+                                        <TextBlock Text="a 2K H3 pass is long; capping the frames is how you test settings first"
+                                                   FontSize="10"
+                                                   FontStyle="Italic"
+                                                   VerticalAlignment="Center"
+                                                   Margin="10,0,0,0"
+                                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                    </StackPanel>
+                                    <Button Content="Add to Queue"
+                                            Theme="{StaticResource PrimaryButtonStyle}"
                                             Command="{Binding AddH3HdToQueueCommand}"
-                                            Height="38" FontSize="13" HorizontalAlignment="Stretch"
-                                            HorizontalContentAlignment="Center"/>
+                                            Height="38"
+                                            FontSize="13"
+                                            Margin="0,14,0,0"/>
                                 </StackPanel>
                             </Border>
-
                             <!-- Queue -->
-                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15"
-                                    IsVisible="{Binding HasH3HdQueueItems}">
-                                <StackPanel Spacing="8">
-                                    <Grid ColumnDefinitions="*,Auto,Auto,Auto">
-                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
-                                            <TextBlock Text="Queue" FontSize="14" FontWeight="Bold" Foreground="#1565C0"
+                            <Border Theme="{StaticResource SectionPanelStyle}" IsVisible="{Binding HasH3HdQueueItems}">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                            <TextBlock Text="Queue"
+                                                       FontSize="14"
+                                                       FontWeight="Bold"
+                                                       Foreground="{StaticResource AccentIndigoBrush}"
                                                        VerticalAlignment="Center"/>
-                                            <TextBlock Text="{Binding H3HdQueueStatus}" FontSize="11" Foreground="#6C757D"
-                                                       VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding H3HdQueueStatus}"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="10,0,0,0"/>
                                         </StackPanel>
-                                        <Button Grid.Column="1" Content="Retry Failed"
+                                        <Button Grid.Column="1"
+                                                Content="🔄 Retry Failed"
                                                 Command="{Binding ReprocessH3HdFailedCommand}"
                                                 IsEnabled="{Binding HasH3HdFailedItems}"
-                                                Height="28" Width="90" FontSize="11" Margin="4,0"
-                                                Background="#FFC107" Foreground="White" BorderThickness="0"/>
-                                        <Button Grid.Column="2" Content="Stop"
+                                                Height="28"
+                                                Width="90"
+                                                FontSize="11"
+                                                Margin="4,0,4,0"
+                                                Background="{StaticResource AccentAmberBrush}"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                FontWeight="SemiBold"/>
+                                        <Button Grid.Column="2"
+                                                Content="⏹ Stop"
                                                 Command="{Binding StopH3HdQueueCommand}"
                                                 IsEnabled="{Binding IsProcessingH3HdQueue}"
-                                                Height="28" Width="65" FontSize="11" Margin="0,0,4,0"
-                                                Background="#FFC107" Foreground="White" BorderThickness="0"/>
-                                        <Button Grid.Column="3" Content="Clear"
+                                                Height="28"
+                                                Width="65"
+                                                FontSize="11"
+                                                Margin="0,0,4,0"
+                                                Background="{StaticResource AccentAmberBrush}"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                FontWeight="SemiBold"/>
+                                        <Button Grid.Column="3"
+                                                Content="🗑️ Clear"
                                                 Command="{Binding ClearH3HdQueueCommand}"
-                                                Height="28" Width="65" FontSize="11"
-                                                Background="#DC3545" Foreground="White" BorderThickness="0"/>
+                                                Height="28"
+                                                Width="65"
+                                                FontSize="11"
+                                                Background="{StaticResource DangerBrush}"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                FontWeight="SemiBold"/>
                                     </Grid>
-
                                     <ItemsControl ItemsSource="{Binding H3HdQueue}">
                                         <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border Background="White" BorderBrush="#DEE2E6" BorderThickness="1"
-                                                        CornerRadius="5" Padding="10,8" Margin="0,0,0,6">
-                                                    <Grid ColumnDefinitions="*,Auto,Auto">
+                                            <DataTemplate x:DataType="m:H3HdEnhanceQueueItem">
+                                                <Border Background="White"
+                                                        BorderBrush="{StaticResource BorderBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="5"
+                                                        Padding="10,8"
+                                                        Margin="0,0,0,6">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
                                                         <StackPanel Grid.Column="0">
-                                                            <TextBlock Text="{Binding DisplayText}" FontSize="12" FontWeight="SemiBold"/>
-                                                            <TextBlock Text="{Binding SettingsDisplay}" FontSize="10"
-                                                                       Foreground="#1565C0" Margin="0,2,0,0"/>
-                                                            <TextBlock Text="{Binding StatusDisplay}" FontSize="11"
-                                                                       Foreground="{Binding StatusColor}" Margin="0,2,0,0"/>
-                                                            <TextBlock Text="{Binding ErrorMessage}" FontSize="10"
-                                                                       Foreground="#DC3545" TextWrapping="Wrap" Margin="0,2,0,0"
-                                                                       IsVisible="{Binding ErrorMessage, Converter={StaticResource StringToVisibilityConverter}}"/>
+                                                            <TextBlock Text="{Binding DisplayText}"
+                                                                       FontSize="12"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                            <TextBlock Text="{Binding SettingsDisplay}"
+                                                                       FontSize="10"
+                                                                       Foreground="{StaticResource AccentIndigoBrush}"
+                                                                       Margin="0,2,0,0"/>
+                                                            <TextBlock Text="{Binding StatusDisplay}"
+                                                                       FontSize="11"
+                                                                       Foreground="{Binding StatusColor}"
+                                                                       Margin="0,2,0,0"/>
+                                                            <TextBlock Text="{Binding ErrorMessage}"
+                                                                       FontSize="10"
+                                                                       Foreground="{StaticResource DangerBrush}"
+                                                                       TextWrapping="Wrap"
+                                                                       Margin="0,2,0,0"
+                                                                       IsVisible="{Binding ErrorMessage}"/>
                                                         </StackPanel>
-                                                        <ProgressBar Grid.Column="1" Value="{Binding Progress}"
-                                                                     Minimum="0" Maximum="100"
-                                                                     Width="80" Height="6" Margin="10,0" VerticalAlignment="Center"/>
-                                                        <Button Grid.Column="2" Content="x" Width="24" Height="24" FontSize="10"
-                                                                Background="Transparent" BorderThickness="0" Foreground="#6C757D"
-                                                                Command="{Binding DataContext.RemoveH3HdQueueItemCommand,
-                                                                          RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        <ProgressBar Grid.Column="1"
+                                                                     Value="{Binding Progress}"
+                                                                     Minimum="0"
+                                                                     Maximum="100"
+                                                                     Width="80"
+                                                                     Height="6"
+                                                                     Margin="10,0,10,0"
+                                                                     VerticalAlignment="Center"
+                                                                     Foreground="{StaticResource AccentIndigoBrush}"/>
+                                                        <Button Grid.Column="2"
+                                                                Content="✕"
+                                                                Width="24"
+                                                                Height="24"
+                                                                FontSize="10"
+                                                                Background="Transparent"
+                                                                BorderThickness="0"
+                                                                Foreground="{StaticResource TextSecondaryBrush}"
+                                                                Cursor="Hand"
+                                                                Command="{Binding $parent[ItemsControl].((vmv:VideoEnhanceViewModel)DataContext).RemoveH3HdQueueItemCommand}"
                                                                 CommandParameter="{Binding}"/>
                                                     </Grid>
                                                 </Border>
@@ -671,64 +1385,117 @@
                         </StackPanel>
                     </TabItem>
                 </TabControl>
-
                 <!-- Progress Section -->
-                <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15"
-                        IsVisible="{Binding IsProcessing}">
-                    <StackPanel Spacing="5">
-                        <TextBlock Text="Processing" FontSize="14" FontWeight="Bold" Foreground="#1565C0"/>
-                        <TextBlock Text="{Binding ProcessingStatus}" FontSize="12" Foreground="#495057"/>
-                        <ProgressBar Value="{Binding ProcessingProgress}" Minimum="0" Maximum="100" Height="10"/>
-                        <TextBlock Text="{Binding ProgressPercentage}" FontSize="11" Foreground="#6C757D"
-                                   HorizontalAlignment="Right"/>
+                <Border Theme="{StaticResource SectionPanelStyle}" IsVisible="{Binding IsProcessing}">
+                    <StackPanel>
+                        <TextBlock Text="Processing" FontSize="14" FontWeight="Bold" Foreground="{StaticResource AccentIndigoBrush}" Margin="0,0,0,8"/>
+                        <TextBlock Text="{Binding ProcessingStatus}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6"/>
+                        <ProgressBar Value="{Binding ProcessingProgress}"
+                                     Minimum="0"
+                                     Maximum="100"
+                                     Height="10"
+                                     Foreground="{StaticResource AccentIndigoBrush}"/>
+                        <TextBlock Text="{Binding ProgressPercentage}"
+                                   FontSize="11"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   HorizontalAlignment="Right"
+                                   Margin="0,4,0,0"/>
                     </StackPanel>
                 </Border>
-
                 <!-- Result Section -->
-                <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15"
-                        IsVisible="{Binding HasResult}">
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="Result" FontSize="14" FontWeight="Bold" Foreground="#28A745"/>
-                        <TextBlock Text="{Binding ResultVideoInfo}" FontSize="11" Foreground="#6C757D"/>
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button Content="Play" Classes="primary"
+                <Border Theme="{StaticResource SectionPanelStyle}" IsVisible="{Binding HasResult}">
+                    <StackPanel>
+                        <TextBlock Text="Result" FontSize="14" FontWeight="Bold" Foreground="{StaticResource SuccessBrush}" Margin="0,0,0,8"/>
+                        <ctrl:VideoPreview x:Name="VideoPlayer" Source="{Binding ResultVideoPath}" Stretch="Uniform" MaxHeight="300" Margin="0,0,0,10"/>
+                        <TextBlock Text="{Binding ResultVideoInfo}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,10"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Play"
+                                    Theme="{StaticResource PrimaryButtonStyle}"
                                     Command="{Binding PlayVideoCommand}"
-                                    Width="80" Height="32"/>
-                            <Button Content="Open Folder" Classes="secondary"
+                                    Width="80"
+                                    Height="32"
+                                    Margin="0,0,8,0"/>
+                            <Button Content="Open Folder"
+                                    Theme="{StaticResource SecondaryButtonStyle}"
                                     Command="{Binding OpenResultFolderCommand}"
-                                    Width="100" Height="32"/>
+                                    Width="100"
+                                    Height="32"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>
-
                 <!-- Log Section -->
-                <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
-                    <StackPanel Spacing="5">
-                        <TextBlock Text="Log" FontSize="13" FontWeight="Bold" Foreground="#495057"/>
-                        <ScrollViewer Height="120" Background="White">
-                            <TextBlock Text="{Binding LogOutput}" FontFamily="Monospace"
-                                       FontSize="10" Foreground="#495057" Padding="8" TextWrapping="Wrap"/>
+                <Border Theme="{StaticResource SectionPanelStyle}">
+                    <StackPanel>
+                        <TextBlock Text="Log" FontSize="13" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6"/>
+                        <ScrollViewer Height="120"
+                                      VerticalScrollBarVisibility="Auto"
+                                      Background="White"
+                                      BorderBrush="{StaticResource BorderBrush}"
+                                      BorderThickness="1">
+                            <TextBlock Text="{Binding LogOutput}"
+                                       FontFamily="Consolas, DejaVu Sans Mono, Liberation Mono, monospace"
+                                       FontSize="10"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Padding="8"
+                                       TextWrapping="Wrap"/>
                         </ScrollViewer>
                     </StackPanel>
                 </Border>
-
             </StackPanel>
         </ScrollViewer>
-
         <!-- Status Bar -->
-        <Border Grid.Row="2" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="0,1,0,0" Height="28" Padding="15,0">
-            <DockPanel>
-                <TextBlock Text="{Binding ProcessingStatus}" FontSize="11" Foreground="#495057"
+        <Border Grid.Row="2"
+                Background="{StaticResource SurfaceAltBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="15,6">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           Text="{Binding ProcessingStatus}"
+                           FontSize="11"
+                           Foreground="{StaticResource TextSecondaryBrush}"
                            VerticalAlignment="Center"/>
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="5">
-                    <TextBlock Text="Interpolate: " FontSize="11" Foreground="#6C757D"/>
-                    <TextBlock Text="{Binding IsProcessingInterpolateQueue, StringFormat='{}{0}'}"
-                               FontSize="11" Foreground="{Binding IsProcessingInterpolateQueue, Converter={StaticResource StatusToForegroundConverter}}"/>
-                    <TextBlock Text="  Upscale: " FontSize="11" Foreground="#6C757D"/>
-                    <TextBlock Text="{Binding IsProcessingUpscaleQueue, StringFormat='{}{0}'}"
-                               FontSize="11" Foreground="{Binding IsProcessingUpscaleQueue, Converter={StaticResource StatusToForegroundConverter}}"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <TextBlock Text="Interpolate: " FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                    <TextBlock FontSize="11"
+                               VerticalAlignment="Center"
+                               Margin="0,0,12,0"
+                               Classes="s2"
+                               Classes.s2_0="{Binding IsProcessingInterpolateQueue}">
+                        <TextBlock.Styles>
+                            <Style Selector="TextBlock.s2.s2_0" x:DataType="vmv:VideoEnhanceViewModel">
+                                <Setter Property="Text" Value="Running"/>
+                                <Setter Property="Foreground" Value="#FF6B35"/>
+                            </Style>
+                        </TextBlock.Styles>
+                        <TextBlock.Theme>
+                            <ControlTheme TargetType="TextBlock" x:DataType="vmv:VideoEnhanceViewModel">
+                                <Setter Property="Text" Value="Idle"/>
+                                <Setter Property="Foreground" Value="#6C757D"/>
+                            </ControlTheme>
+                        </TextBlock.Theme>
+                    </TextBlock>
+                    <TextBlock Text="Upscale: " FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                    <TextBlock FontSize="11" VerticalAlignment="Center" Classes="s3" Classes.s3_0="{Binding IsProcessingUpscaleQueue}">
+                        <TextBlock.Styles>
+                            <Style Selector="TextBlock.s3.s3_0" x:DataType="vmv:VideoEnhanceViewModel">
+                                <Setter Property="Text" Value="Running"/>
+                                <Setter Property="Foreground" Value="#FF6B35"/>
+                            </Style>
+                        </TextBlock.Styles>
+                        <TextBlock.Theme>
+                            <ControlTheme TargetType="TextBlock" x:DataType="vmv:VideoEnhanceViewModel">
+                                <Setter Property="Text" Value="Idle"/>
+                                <Setter Property="Foreground" Value="#6C757D"/>
+                            </ControlTheme>
+                        </TextBlock.Theme>
+                    </TextBlock>
                 </StackPanel>
-            </DockPanel>
+            </Grid>
         </Border>
     </Grid>
-</Window>
+</win:AppWindow>

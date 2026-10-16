@@ -1,0 +1,77 @@
+<!--
+  Brings Avalonia's Fluent controls to the metrics of the WPF (Aero2) controls the Windows build
+  is laid out against, so the ported windows fit the same space: 12px text instead of Fluent's
+  14px, check boxes and radio buttons without Fluent's 32px touch-target height, and so on.
+  FlipPix's own look (colours, buttons, tabs) is in SharedStyles.axaml, ported from the WPF theme.
+-->
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:conv="using:FlipPix.UI.Linux.Converters">
+    <Styles.Resources>
+        <conv:PathToBitmapConverter x:Key="PathToBitmapConverter"/>
+        <conv:InverseBoolConverter x:Key="InverseBoolConverter"/>
+        <conv:InverseBoolConverter x:Key="InverseBooleanConverter"/>
+        <!-- WPF's default text size. Fluent reads these for its control templates. -->
+        <FontFamily x:Key="ContentControlThemeFontFamily">avares://FlipPix.UI.Linux/Assets/Fonts#Selawik</FontFamily>
+        <x:Double x:Key="ControlContentThemeFontSize">12</x:Double>
+        <x:Double x:Key="ContentControlFontSize">12</x:Double>
+        <x:Double x:Key="TextControlThemeMinHeight">24</x:Double>
+        <x:Double x:Key="ComboBoxMinHeight">24</x:Double>
+        <x:Double x:Key="CheckBoxSize">16</x:Double>
+        <Thickness x:Key="TextControlThemePadding">6,3,6,3</Thickness>
+        <Thickness x:Key="ComboBoxPadding">8,3,8,3</Thickness>
+        <Thickness x:Key="ButtonPadding">8,3,8,4</Thickness>
+        <x:Double x:Key="ToolTipContentMaxWidth">460</x:Double>
+    </Styles.Resources>
+
+    <Style Selector="Window">
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontFamily" Value="avares://FlipPix.UI.Linux/Assets/Fonts#Selawik"/>
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="Foreground" Value="#1F2937"/>
+    </Style>
+    <Style Selector="TextBlock, SelectableTextBlock">
+        <Setter Property="FontSize" Value="12"/>
+    </Style>
+    <Style Selector="TemplatedControl">
+        <Setter Property="FontSize" Value="12"/>
+    </Style>
+
+    <!-- Fluent sizes these as 32px touch targets; WPF's are text-height. -->
+    <Style Selector="CheckBox, RadioButton">
+        <Setter Property="MinHeight" Value="0"/>
+        <Setter Property="Padding" Value="6,0,0,0"/>
+    </Style>
+    <Style Selector="ComboBox">
+        <Setter Property="MinHeight" Value="24"/>
+    </Style>
+    <Style Selector="TextBox">
+        <Setter Property="MinHeight" Value="24"/>
+    </Style>
+    <Style Selector="Slider">
+        <Setter Property="MinHeight" Value="0"/>
+    </Style>
+    <Style Selector="Slider:horizontal">
+        <Setter Property="Height" Value="NaN"/>
+    </Style>
+    <Style Selector="Expander">
+        <Setter Property="MinHeight" Value="0"/>
+        <Setter Property="Padding" Value="4"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+    </Style>
+    <Style Selector="Expander /template/ ToggleButton#ExpanderHeader">
+        <Setter Property="MinHeight" Value="28"/>
+        <Setter Property="Padding" Value="6,2"/>
+    </Style>
+    <Style Selector="MenuItem">
+        <Setter Property="Padding" Value="10,4"/>
+    </Style>
+    <Style Selector="ToolTip">
+        <Setter Property="FontSize" Value="12"/>
+    </Style>
+    <!-- WPF ScrollViewers show their bars; Fluent's overlay bars hide until hovered. -->
+    <Style Selector="ScrollViewer">
+        <Setter Property="AllowAutoHide" Value="False"/>
+    </Style>
+</Styles>

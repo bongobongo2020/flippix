@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Media;
 using System;
 
 namespace FlipPix.UI.Linux;
@@ -13,8 +14,22 @@ class Program
     {
         var builder = AppBuilder.Configure<App>()
             .UsePlatformDetect()
-            .WithInterFont()
-            .LogToTrace();
+            .With(new FontManagerOptions
+            {
+                // Segoe UI's metrics (the WPF build's font), then colour emoji for the tab and
+                // button labels, then DejaVu for the symbols neither has.
+                DefaultFamilyName = "avares://FlipPix.UI.Linux/Assets/Fonts#Selawik",
+                FontFallbacks = new[]
+                {
+                    new FontFallback { FontFamily = new FontFamily("Noto Color Emoji") },
+                    new FontFallback { FontFamily = new FontFamily("DejaVu Sans") },
+                    new FontFallback { FontFamily = new FontFamily("Noto Sans Symbols 2") },
+                }
+            });
+
+        // FLIPPIX_AVALONIA_LOG=1 prints binding/layout warnings to stderr (porting diagnostics).
+        if (IsEnabled("FLIPPIX_AVALONIA_LOG")) Avalonia.Logging.Logger.Sink = new StderrLogSink();
+        else builder = builder.LogToTrace();
 
         return OperatingSystem.IsLinux() ? ConfigureLinux(builder) : builder;
     }
@@ -60,5 +75,27 @@ class Program
         return !string.IsNullOrWhiteSpace(value)
             && !value.Equals("0", StringComparison.Ordinal)
             && !value.Equals("false", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Avalonia warnings (bindings, properties) to stderr, for FLIPPIX_AVALONIA_LOG=1.</summary>
+    private sealed class StderrLogSink : Avalonia.Logging.ILogSink
+    {
+        public bool IsEnabled(Avalonia.Logging.LogEventLevel level, string area) => level >= Avalonia.Logging.LogEventLevel.Warning;
+
+        public void Log(Avalonia.Logging.LogEventLevel level, string area, object? source, string messageTemplate)
+            => Console.Error.WriteLine($"[{level}] {area}: {messageTemplate} ({source})");
+
+        public void Log(Avalonia.Logging.LogEventLevel level, string area, object? source, string messageTemplate, params object?[] propertyValues)
+        {
+            var text = messageTemplate;
+            foreach (var v in propertyValues)
+            {
+                var start = text.IndexOf('{');
+                var end = start >= 0 ? text.IndexOf('}', start) : -1;
+                if (end < 0) break;
+                text = text[..start] + v + text[(end + 1)..];
+            }
+            Console.Error.WriteLine($"[{level}] {area}: {text} ({source})");
+        }
     }
 }

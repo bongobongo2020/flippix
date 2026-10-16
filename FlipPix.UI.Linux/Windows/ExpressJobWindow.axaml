@@ -1,0 +1,654 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:ctrl="using:FlipPix.UI.Linux.Controls"
+        xmlns:conv="using:FlipPix.UI.Linux.Converters"
+        xmlns:win="using:FlipPix.UI.Linux.Windows"
+        xmlns:vm="using:FlipPix.UI.ViewModels"
+        xmlns:vmv="using:FlipPix.UI.ViewModels.Video"
+        xmlns:m="using:FlipPix.UI.Models"
+        xmlns:svc="using:FlipPix.UI.Services"
+        xmlns:sys="using:System"
+        mc:Ignorable="d"
+        Title="{Binding WindowTitle}"
+        Height="800"
+        Width="1000"
+        MinHeight="560"
+        MinWidth="880"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource AppBackgroundBrush}"
+        x:Class="FlipPix.UI.Linux.Windows.ExpressJobWindow"
+        x:DataType="vmv:ExpressJobViewModel"
+        x:CompileBindings="True">
+    <Window.Resources>
+        <!-- H3 Express's accent. -->
+        <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource AccentVioletColor}"/>
+        <ControlTheme x:Key="JobFieldLabel" TargetType="TextBlock" x:DataType="vmv:ExpressJobViewModel">
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+        </ControlTheme>
+        <ControlTheme x:Key="JobHint" TargetType="TextBlock" x:DataType="vmv:ExpressJobViewModel">
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+        </ControlTheme>
+        <ControlTheme x:Key="JobCheck" TargetType="CheckBox" x:DataType="vmv:ExpressJobViewModel" BasedOn="{StaticResource {x:Type CheckBox}}">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        </ControlTheme>
+        <ControlTheme x:Key="JobRadio" TargetType="RadioButton" x:DataType="vmv:ExpressJobViewModel" BasedOn="{StaticResource {x:Type RadioButton}}">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Margin" Value="0,2,0,2"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        </ControlTheme>
+        <!-- One cast slot: the photo is the button, ✕ clears it, the sex sits under it. -->
+        <DataTemplate x:DataType="m:ExpressCastMember" x:Key="JobCastTemplate">
+            <StackPanel>
+                <Grid Margin="0,0,0,4">
+                    <TextBlock Text="{Binding Heading}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBlock Text="{Binding Tag}"
+                               FontSize="9"
+                               FontFamily="Consolas, DejaVu Sans Mono, Liberation Mono, monospace"
+                               HorizontalAlignment="Right"
+                               VerticalAlignment="Center"
+                               Foreground="{StaticResource TextMutedBrush}"/>
+                </Grid>
+                <Grid>
+                    <Button Command="{Binding BrowseCommand}"
+                            Height="132"
+                            Cursor="Hand"
+                            ToolTip.Tip="The person who plays this part in every story of THIS job. Click to choose or change the photo."
+                            Classes="t1">
+                        <Button.Styles>
+                            <Style Selector="Button.t1:pointerover /template/ Border#Bd">
+                                <Setter Property="BorderBrush" Value="{DynamicResource TabAccentBrush}"/>
+                            </Style>
+                        </Button.Styles>
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Bd"
+                                        CornerRadius="6"
+                                        BorderThickness="1"
+                                        ClipToBounds="True"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        Background="{StaticResource SurfaceAltBrush}">
+                                    <ContentPresenter Content="{TemplateBinding Content}"
+                                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                      Name="PART_ContentPresenter"/>
+                                </Border>
+                            </ControlTemplate>
+                        </Button.Template>
+                        <Button.Theme>
+                            <ControlTheme TargetType="Button"/>
+                        </Button.Theme>
+                        <Grid>
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Classes="s2" Classes.s2_0="{Binding !HasPhoto}">
+                                <StackPanel.Styles>
+                                    <Style Selector="StackPanel.s2.s2_0" x:DataType="m:ExpressCastMember">
+                                        <Setter Property="IsVisible" Value="True"/>
+                                    </Style>
+                                </StackPanel.Styles>
+                                <StackPanel.Theme>
+                                    <ControlTheme TargetType="StackPanel" x:DataType="m:ExpressCastMember">
+                                        <Setter Property="IsVisible" Value="False"/>
+                                    </ControlTheme>
+                                </StackPanel.Theme>
+                                <TextBlock Text="＋" FontSize="22" HorizontalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"/>
+                                <TextBlock Text="Add photo"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           HorizontalAlignment="Center"
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <TextBlock Text="empty: cast from the story"
+                                           FontSize="9"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,2,0,0"
+                                           Foreground="{StaticResource TextMutedBrush}"/>
+                            </StackPanel>
+                            <Image Source="{Binding Preview, Converter={StaticResource PathToBitmapConverter}}" Stretch="UniformToFill"/>
+                        </Grid>
+                    </Button>
+                    <Button Content="✕"
+                            Command="{Binding ClearCommand}"
+                            Width="22"
+                            Height="22"
+                            Margin="0,5,5,0"
+                            FontSize="10"
+                            Cursor="Hand"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Top"
+                            IsVisible="{Binding HasPhoto}"
+                            ToolTip.Tip="Remove this photo — the part is cast from each story again.">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border CornerRadius="11" Background="{StaticResource ScrimBrush}">
+                                    <ContentPresenter HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"
+                                                      Foreground="{StaticResource PlayerTextBrush}"
+                                                      Content="{TemplateBinding Content}"
+                                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                      Name="PART_ContentPresenter"/>
+                                </Border>
+                            </ControlTemplate>
+                        </Button.Template>
+                        <Button.Theme>
+                            <ControlTheme TargetType="Button"/>
+                        </Button.Theme>
+                    </Button>
+                </Grid>
+                <ComboBox ItemsSource="{Binding SexOptions}"
+                          SelectedItem="{Binding Sex, Mode=TwoWay}"
+                          Height="26"
+                          FontSize="11"
+                          Margin="0,6,0,0"
+                          ToolTip.Tip="Who is in the photo. This job's stories call each character he or she by it."/>
+            </StackPanel>
+        </DataTemplate>
+        <!-- What one photographed person wears, for the own-clothes mode. -->
+        <DataTemplate x:DataType="m:ExpressCastMember" x:Key="JobCastOutfitTemplate">
+            <StackPanel Margin="0,8,0,0">
+                <TextBlock Text="{Binding Heading, StringFormat={}{0} wears}"
+                           FontSize="10"
+                           Margin="0,0,0,3"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                <TextBox Text="{Binding Outfit}"
+                         TextWrapping="Wrap"
+                         AcceptsReturn="False"
+                         MinHeight="40"
+                         FontSize="11"
+                         Padding="6,4"
+                         ToolTip.Tip="One sentence naming every garment with its colour and material. Leave it empty and it is read off the photo by the vision model when this job starts."/>
+            </StackPanel>
+        </DataTemplate>
+        <!-- One row of this job's LoRA stack. The rows load in the order they are listed. -->
+        <DataTemplate x:DataType="m:H3ExpressLoraSlot" x:Key="JobLoraRowTemplate">
+            <Grid Margin="0,0,0,6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <ComboBox ItemsSource="{Binding $parent[ItemsControl].((vmv:ExpressJobViewModel)DataContext).LoraOptions}"
+                              DisplayMemberBinding="{ReflectionBinding Label}"
+                              SelectedValueBinding="{ReflectionBinding Value}"
+                              SelectedValue="{Binding Name, Mode=TwoWay}"
+                              Height="28"
+                              FontSize="11"
+                              ToolTip.Tip="A LoRA from loras/H3, applied on top of the model to every clip of this job."/>
+                    <StackPanel IsVisible="{Binding HasLora}">
+                        <Grid Margin="0,3,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding Title}" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="7,0">
+                                <TextBlock Text="{Binding Strength, StringFormat={}{0:0.00}}"
+                                           FontFamily="Consolas, DejaVu Sans Mono, Liberation Mono, monospace"
+                                           FontSize="11"
+                                           FontWeight="Bold"
+                                           Foreground="{DynamicResource TabAccentBrush}"/>
+                            </Border>
+                        </Grid>
+                        <Slider Minimum="0"
+                                Maximum="2"
+                                Value="{Binding Strength}"
+                                TickFrequency="0.05"
+                                IsSnapToTickEnabled="True"
+                                SmallChange="0.05"
+                                LargeChange="0.25"
+                                Foreground="{DynamicResource TabAccentBrush}"
+                                ToolTip.Tip="The LoRA's strength_model. 1.00 is the default; 0 leaves this row out of the graph."/>
+                    </StackPanel>
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Content="✕"
+                        Width="22"
+                        Height="28"
+                        FontSize="10"
+                        Margin="4,0,0,0"
+                        Padding="0"
+                        VerticalAlignment="Top"
+                        Cursor="Hand"
+                        Command="{Binding $parent[ItemsControl].((vmv:ExpressJobViewModel)DataContext).RemoveLoraCommand}"
+                        CommandParameter="{Binding}"
+                        Background="{StaticResource SurfaceAltBrush}"
+                        Foreground="{StaticResource TextMutedBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        ToolTip.Tip="Drop this LoRA."/>
+            </Grid>
+        </DataTemplate>
+    </Window.Resources>
+    <!--
+        ➕ A new ⚡ H3 Express job, composed beside a run that is already going.
+
+        Everything here writes into one ExpressJobViewModel, which holds a *copy* of the job — so Cancel
+        leaves the queue untouched, and the run next door never sees a half-made job. See
+        ExpressJobViewModel for why a job cannot simply be "the rail, later".
+    -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <!-- ═══ Header ═══════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="0"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="20,14">
+            <StackPanel>
+                <TextBlock Text="{Binding HeadingText}" FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                <TextBlock Theme="{StaticResource JobHint}"
+                           Margin="0,3,0,0"
+                           Text="Its own folder, its own cast and its own render settings. It waits its turn behind whatever is already rendering and does not touch it."/>
+            </StackPanel>
+        </Border>
+        <!-- ═══ Body ═════════════════════════════════════════════════════════════ -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0">
+            <Grid Margin="16,14,16,14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MinWidth="360"/>
+                    <ColumnDefinition Width="14"/>
+                    <ColumnDefinition Width="*" MinWidth="360"/>
+                </Grid.ColumnDefinitions>
+                <!-- ─── LEFT: what it renders, and who is in it ──────────────────── -->
+                <StackPanel Grid.Column="0">
+                    <Border Theme="{StaticResource SectionCardStyle}">
+                        <StackPanel>
+                            <ctrl:SectionHeader Title="STORIES" Note="  · every .txt becomes a film" Margin="0,0,0,8"/>
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Button Grid.Column="0"
+                                        Content="Choose folder…"
+                                        Command="{Binding PickFolderCommand}"
+                                        Height="32"
+                                        FontSize="12"
+                                        Margin="0,0,6,0"
+                                        Theme="{StaticResource SecondaryButtonStyle}"
+                                        ToolTip.Tip="The folder this job's stories come from. Every .txt, .md or .text in it becomes one film, in name order."/>
+                                <Button Grid.Column="1"
+                                        Content="⟳"
+                                        Width="32"
+                                        Height="32"
+                                        FontSize="13"
+                                        Command="{Binding RescanCommand}"
+                                        Background="{StaticResource SurfaceAltBrush}"
+                                        Foreground="{DynamicResource TabAccentBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1"
+                                        ToolTip.Tip="Re-read the folder and add anything new."/>
+                            </Grid>
+                            <TextBlock Text="{Binding FolderText}" Theme="{StaticResource JobHint}" TextTrimming="CharacterEllipsis" Margin="0,0,0,8"/>
+                            <Border BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Background="{StaticResource SurfaceAltBrush}"
+                                    MinHeight="90"
+                                    MaxHeight="220">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding Stories}" Margin="6,4">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="m:BatchStory">
+                                                <Grid Margin="0,3">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Ellipse Grid.Column="0"
+                                                             Width="6"
+                                                             Height="6"
+                                                             Margin="0,0,8,0"
+                                                             VerticalAlignment="Center"
+                                                             Fill="{StaticResource TextFaintBrush}"/>
+                                                    <TextBlock Grid.Column="1"
+                                                               Text="{Binding Title}"
+                                                               FontSize="11"
+                                                               VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                    <Button Grid.Column="2"
+                                                            Content="✕"
+                                                            Width="20"
+                                                            Height="20"
+                                                            FontSize="10"
+                                                            Background="Transparent"
+                                                            BorderThickness="0"
+                                                            Foreground="{StaticResource TextMutedBrush}"
+                                                            Command="{Binding $parent[ItemsControl].((vmv:ExpressJobViewModel)DataContext).RemoveStoryCommand}"
+                                                            CommandParameter="{Binding}"
+                                                            ToolTip.Tip="Take this story out of the job. The file is not touched."/>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </Border>
+                            <Grid Margin="0,8,0,0">
+                                <TextBlock Text="{Binding StoriesSummary}" Theme="{StaticResource JobHint}" Margin="0,0,80,0"/>
+                                <Button Content="Clear"
+                                        Command="{Binding ClearStoriesCommand}"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Top"
+                                        Height="22"
+                                        Padding="10,0"
+                                        FontSize="10"
+                                        Theme="{StaticResource SecondaryButtonStyle}"
+                                        ToolTip.Tip="Empty this job's story list and start again."/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                    <Border Theme="{StaticResource SectionCardStyle}">
+                        <StackPanel>
+                            <ctrl:SectionHeader Title="CAST" Note="  · optional · this job's own people" Margin="0,0,0,8"/>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <ContentControl Grid.Column="0" Content="{Binding Cast1}" ContentTemplate="{StaticResource JobCastTemplate}"/>
+                                <ContentControl Grid.Column="2" Content="{Binding Cast2}" ContentTemplate="{StaticResource JobCastTemplate}"/>
+                            </Grid>
+                            <TextBlock Text="What they wear" Theme="{StaticResource JobFieldLabel}"/>
+                            <RadioButton Content="👗 The story's saved wardrobe"
+                                         GroupName="JobCastClothes"
+                                         IsChecked="{Binding CastStoryWardrobe, Mode=TwoWay}"
+                                         Theme="{StaticResource JobRadio}"
+                                         ToolTip.Tip="Your people in each story's own outfits. The character sheets re-dress them; saved clips are used word for word."/>
+                            <RadioButton Content="👕 Their own clothes"
+                                         GroupName="JobCastClothes"
+                                         IsChecked="{Binding CastOwnClothes, Mode=TwoWay}"
+                                         Theme="{StaticResource JobRadio}"
+                                         ToolTip.Tip="Your people in what they wear in their photos. A saved story's clips get a clothing-only rewrite when the job runs."/>
+                            <StackPanel IsVisible="{Binding CastOwnClothes}">
+                                <ContentControl Content="{Binding Cast1}"
+                                                ContentTemplate="{StaticResource JobCastOutfitTemplate}"
+                                                IsVisible="{Binding Cast1.HasPhoto}"/>
+                                <ContentControl Content="{Binding Cast2}"
+                                                ContentTemplate="{StaticResource JobCastOutfitTemplate}"
+                                                IsVisible="{Binding Cast2.HasPhoto}"/>
+                            </StackPanel>
+                            <TextBlock Text="{Binding CastSummary}" Theme="{StaticResource JobHint}" Margin="0,8,0,10"/>
+                            <TextBlock Text="Cast photos (for characters you give no photo)" Theme="{StaticResource JobFieldLabel}"/>
+                            <ComboBox ItemsSource="{Binding CastPhotoEngineOptions}"
+                                      DisplayMemberBinding="{ReflectionBinding Label}"
+                                      SelectedValueBinding="{ReflectionBinding Value}"
+                                      SelectedValue="{Binding CastPhotoEngine}"
+                                      Height="30"
+                                      FontSize="11"
+                                      ToolTip.Tip="The text-to-image workflow that photographs a character this job has no photo of yours for. The character sheet is then built from that photo as always."/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+                <!-- ─── RIGHT: how it renders ────────────────────────────────────── -->
+                <StackPanel Grid.Column="2">
+                    <Border Theme="{StaticResource SectionCardStyle}">
+                        <StackPanel>
+                            <ctrl:SectionHeader Title="RENDER" Note="  · applies to every story in this job" Margin="0,0,0,10"/>
+                            <TextBlock Text="Sampling stack"
+                                       FontSize="10"
+                                       FontWeight="SemiBold"
+                                       Margin="0,0,0,4"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <RadioButton Content="✴️ Singularity"
+                                         GroupName="JobStack"
+                                         IsChecked="{Binding StackIsSingularity, Mode=TwoWay}"
+                                         Theme="{StaticResource JobRadio}"/>
+                            <CheckBox Content="er__sde/beta sampler (keep the sigma shift)"
+                                      IsChecked="{Binding SingularityErSde}"
+                                      IsVisible="{Binding StackIsSingularity}"
+                                      Theme="{StaticResource JobCheck}"
+                                      Margin="20,2,0,2"/>
+                            <RadioButton Content="🍥 TaoMate relay"
+                                         GroupName="JobStack"
+                                         IsChecked="{Binding StackIsTaoMate, Mode=TwoWay}"
+                                         Theme="{StaticResource JobRadio}"/>
+                            <RadioButton Content="🐰 BUNNY (action)"
+                                         GroupName="JobStack"
+                                         IsChecked="{Binding StackIsBunny, Mode=TwoWay}"
+                                         Theme="{StaticResource JobRadio}"/>
+                            <RadioButton Content="🦠 Parasyte (sparse)"
+                                         GroupName="JobStack"
+                                         IsChecked="{Binding StackIsParasyte, Mode=TwoWay}"
+                                         Theme="{StaticResource JobRadio}"/>
+                            <RadioButton Content="🌊 HyperFlow (8-step)"
+                                         GroupName="JobStack"
+                                         IsChecked="{Binding StackIsHyperFlow, Mode=TwoWay}"
+                                         Theme="{StaticResource JobRadio}"/>
+                            <RadioButton Content="🌹 H3 Eros"
+                                         GroupName="JobStack"
+                                         IsChecked="{Binding StackIsEros, Mode=TwoWay}"
+                                         Theme="{StaticResource JobRadio}"/>
+                            <TextBlock Text="{Binding StackSummary}" Theme="{StaticResource JobHint}" Margin="20,2,0,10"/>
+                            <!-- Chained clips: this job's own, because the rail's copy is frozen while a run
+                                 is going and a job queued mid-run must still be able to choose. -->
+                            <CheckBox Content="🔗 Chain clips into one continuous shot"
+                                      IsChecked="{Binding ChainClips}"
+                                      Theme="{StaticResource JobCheck}"
+                                      Margin="0,2,0,2"
+                                      ToolTip.Tip="Render this job's stories as ONE shot instead of separate clips glued together. Clip 2 onward is generated continuing from the last second of the clip before it — the picture and the sound both, carried across as latents by the H3 Motion Context node pack — and the pinned head is trimmed off, so five 5-second clips play as one seamless 25 seconds.&#10;&#10;Needs ComfyUI-H3-Motion-Context (github.com/NikoDemon80/ComfyUI-H3-Motion-Context) installed on the ComfyUI server; without it the run says so and renders every clip on its own.&#10;&#10;New clip prompts are written to open on the previous clip's last moment. Prompts saved before this was on are not — untick Reuse saved prompts to have them rewritten."/>
+                            <CheckBox Content="also pin the upscale pass"
+                                      IsChecked="{Binding ChainPinFinish}"
+                                      IsVisible="{Binding ChainClips}"
+                                      Theme="{StaticResource JobCheck}"
+                                      Margin="20,2,0,2"
+                                      ToolTip.Tip="The finish re-samples the draft from a high noise level, so a join that is only pinned on the draft can be undone by it. With this on, the upscale pass is pinned to the previous clip's FINISHED tail as well (a second latent is saved per clip). Untick it if the finish misbehaves — the draft pass stays chained. 🍥 TaoMate has no upscale pass; both its legs are pinned regardless."/>
+                            <TextBlock Text="{Binding ChainSummary}" Theme="{StaticResource JobHint}" Margin="20,2,0,10"/>
+                            <StackPanel IsVisible="{Binding UsesStepDials}">
+                                <Grid Margin="0,0,0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Sampling steps"
+                                               FontSize="10"
+                                               VerticalAlignment="Center"
+                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="8,1">
+                                        <TextBlock Text="{Binding Steps}"
+                                                   FontFamily="Consolas, DejaVu Sans Mono, Liberation Mono, monospace"
+                                                   FontSize="12"
+                                                   FontWeight="Bold"
+                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                    </Border>
+                                </Grid>
+                                <!-- Minimum and Maximum before Value, as on the rail: a slider still holding its
+                                 0-10 defaults would coerce a 12-step count down to 10 on the way in. -->
+                                <Slider Minimum="{Binding MinSteps}"
+                                        Maximum="30"
+                                        Value="{Binding Steps}"
+                                        TickFrequency="1"
+                                        IsSnapToTickEnabled="True"
+                                        SmallChange="1"
+                                        LargeChange="2"
+                                        Foreground="{DynamicResource TabAccentBrush}"
+                                        Margin="0,0,0,10"/>
+                            </StackPanel>
+                            <TextBlock Text="Aspect ratio" Theme="{StaticResource JobFieldLabel}"/>
+                            <ComboBox ItemsSource="{Binding AspectRatioOptions}"
+                                      SelectedItem="{Binding SelectedAspectRatio}"
+                                      Height="30"
+                                      FontSize="11"
+                                      Margin="0,0,0,10"/>
+                            <TextBlock Text="Quality" Theme="{StaticResource JobFieldLabel}"/>
+                            <ComboBox ItemsSource="{Binding MegapixelOptions}"
+                                      DisplayMemberBinding="{ReflectionBinding Label}"
+                                      SelectedValueBinding="{ReflectionBinding Value}"
+                                      SelectedValue="{Binding Megapixels}"
+                                      Height="30"
+                                      FontSize="11"
+                                      Margin="0,0,0,12"/>
+                            <Grid Margin="0,0,0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Film length" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="8,1">
+                                    <TextBlock Text="{Binding StoryDurationSeconds, StringFormat={}{0:0} s}"
+                                               FontFamily="Consolas, DejaVu Sans Mono, Liberation Mono, monospace"
+                                               FontSize="12"
+                                               FontWeight="Bold"
+                                               Foreground="{DynamicResource TabAccentBrush}"/>
+                                </Border>
+                            </Grid>
+                            <Slider Minimum="5"
+                                    Maximum="{Binding MaxStoryDurationSeconds}"
+                                    Value="{Binding StoryDurationSeconds}"
+                                    TickFrequency="5"
+                                    IsSnapToTickEnabled="True"
+                                    SmallChange="5"
+                                    LargeChange="15"
+                                    Foreground="{DynamicResource TabAccentBrush}"
+                                    Margin="0,0,0,8"/>
+                            <Grid Margin="0,0,0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Clip length" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="8,1">
+                                    <TextBlock Text="{Binding ClipLengthSeconds, StringFormat={}{0:0} s}"
+                                               FontFamily="Consolas, DejaVu Sans Mono, Liberation Mono, monospace"
+                                               FontSize="12"
+                                               FontWeight="Bold"
+                                               Foreground="{DynamicResource TabAccentBrush}"/>
+                                </Border>
+                            </Grid>
+                            <Slider Minimum="4"
+                                    Maximum="15"
+                                    Value="{Binding ClipLengthSeconds}"
+                                    TickFrequency="1"
+                                    IsSnapToTickEnabled="True"
+                                    Foreground="{DynamicResource TabAccentBrush}"
+                                    Margin="0,0,0,4"/>
+                            <TextBlock Text="{Binding ClipPlanSummary}" Theme="{StaticResource JobHint}" Margin="0,0,0,12"/>
+                            <CheckBox Content="📚 Researched prompts"
+                                      IsChecked="{Binding ResearchPrompts}"
+                                      Theme="{StaticResource JobCheck}"
+                                      FontWeight="SemiBold"
+                                      Margin="0,0,0,6"
+                                      ToolTip.Tip="Write this job's clips with the build taken from the MiniMax-H3 guides."/>
+                            <CheckBox Content="📐 Singularity spec prompts"
+                                      IsChecked="{Binding SpecPrompts}"
+                                      Theme="{StaticResource JobCheck}"
+                                      FontWeight="SemiBold"
+                                      Margin="0,0,0,6"
+                                      ToolTip.Tip="Write this job's clips to the six-section Singularity prompt-writing spec. Replaces the 📚 build."/>
+                            <CheckBox Content="♻️ Reuse saved prompts"
+                                      IsChecked="{Binding ReuseSavedPrompts}"
+                                      Theme="{StaticResource JobCheck}"
+                                      FontWeight="SemiBold"
+                                      ToolTip.Tip="A story whose clip prompts were written on an earlier run renders from them, with no clip writer."/>
+                        </StackPanel>
+                    </Border>
+                    <Border Theme="{StaticResource SectionCardStyle}">
+                        <StackPanel>
+                            <ctrl:SectionHeader Title="MORE" Note="  · the dials you set once" Margin="0,0,0,10"/>
+                            <TextBlock Text="Model" Theme="{StaticResource JobFieldLabel}"/>
+                            <ComboBox ItemsSource="{Binding DiffusionModelOptions}"
+                                      DisplayMemberBinding="{ReflectionBinding Label}"
+                                      SelectedValueBinding="{ReflectionBinding Value}"
+                                      SelectedValue="{Binding SelectedDiffusionModel}"
+                                      Height="30"
+                                      FontSize="11"
+                                      Margin="0,0,0,10"
+                                      ToolTip.Tip="The H3 checkpoint this job loads. Picking a stack above moves it to that stack's own; change it afterwards and the choice sticks to this job."/>
+                            <Grid Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="LoRA stack" Theme="{StaticResource JobFieldLabel}" VerticalAlignment="Center"/>
+                                <Button Grid.Column="1"
+                                        Content="＋ Add"
+                                        Height="22"
+                                        Padding="8,0"
+                                        FontSize="10"
+                                        Command="{Binding AddLoraCommand}"
+                                        Theme="{StaticResource AccentOutlineButtonStyle}"
+                                        ToolTip.Tip="Add a LoRA row to this job. Up to five stack on the checkpoint, loading in the order they are listed."/>
+                            </Grid>
+                            <ItemsControl ItemsSource="{Binding Loras}" ItemTemplate="{StaticResource JobLoraRowTemplate}"/>
+                            <TextBlock Text="{Binding LoraSummary}"
+                                       FontSize="10"
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Margin="0,2,0,0"/>
+                            <TextBlock Text="Visual style" Theme="{StaticResource JobFieldLabel}" Margin="0,10,0,4"/>
+                            <ComboBox ItemsSource="{Binding VisualStyleOptions}"
+                                      DisplayMemberBinding="{ReflectionBinding Name}"
+                                      SelectedItem="{Binding VisualStyle, Mode=TwoWay}"
+                                      Height="30"
+                                      FontSize="11"
+                                      Margin="0,0,0,10"/>
+                            <StackPanel IsVisible="{Binding UsesDraftCanvas}">
+                                <TextBlock Text="Composition canvas" Theme="{StaticResource JobFieldLabel}"/>
+                                <ComboBox ItemsSource="{Binding PreviewMegapixelOptions}"
+                                          DisplayMemberBinding="{ReflectionBinding Label}"
+                                          SelectedValueBinding="{ReflectionBinding Value}"
+                                          SelectedValue="{Binding PreviewMegapixels}"
+                                          Height="30"
+                                          FontSize="11"
+                                          Margin="0,0,0,10"/>
+                                <StackPanel IsVisible="{Binding UsesStepDials}">
+                                    <TextBlock Text="Upscale steps" Theme="{StaticResource JobFieldLabel}"/>
+                                    <ComboBox ItemsSource="{Binding UpscaleStepOptions}"
+                                              SelectedItem="{Binding UpscaleSteps}"
+                                              Height="30"
+                                              FontSize="11"
+                                              Margin="0,0,0,10"/>
+                                </StackPanel>
+                            </StackPanel>
+                            <CheckBox Content="RIFE interpolation (24 → 48 fps)" IsChecked="{Binding UseRife}" Theme="{StaticResource JobCheck}"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+        <!-- ═══ Footer ═══════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="2"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="20,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0" Theme="{StaticResource JobHint}" Text="{Binding JobFooterLine}"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button x:Name="CancelButton"
+                            Content="Cancel"
+                            Click="CancelButton_Click"
+                            Height="36"
+                            Padding="18,0"
+                            FontSize="12"
+                            Margin="0,0,8,0"
+                            Theme="{StaticResource SecondaryButtonStyle}"
+                            IsCancel="True"/>
+                    <Button x:Name="ConfirmButton"
+                            Content="{Binding ConfirmText}"
+                            Click="ConfirmButton_Click"
+                            Height="36"
+                            Padding="20,0"
+                            FontSize="13"
+                            IsDefault="True"
+                            IsEnabled="{Binding CanQueue}"
+                            Theme="{StaticResource AccentButtonStyle}"
+                            ToolTip.Tip="Put this job at the end of the queue. It starts when everything ahead of it has finished."/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

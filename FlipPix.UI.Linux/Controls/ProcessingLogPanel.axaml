@@ -1,27 +1,34 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="FlipPix.UI.Linux.Controls.ProcessingLogPanel"
-             x:Name="Root">
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ctrl="using:FlipPix.UI.Linux.Controls"
+             xmlns:conv="using:FlipPix.UI.Linux.Converters"
+             xmlns:win="using:FlipPix.UI.Linux.Windows"
+             xmlns:vm="using:FlipPix.UI.ViewModels"
+             xmlns:vmv="using:FlipPix.UI.ViewModels.Video"
+             xmlns:m="using:FlipPix.UI.Models"
+             xmlns:svc="using:FlipPix.UI.Services"
+             xmlns:sys="using:System"
+             mc:Ignorable="d"
+             x:Name="Root"
+             x:Class="FlipPix.UI.Linux.Controls.ProcessingLogPanel">
     <!--
         Reusable processing-log panel. Each tab binds its own log property:
-            <ctrl:ProcessingLogPanel LogText="{Binding LogOutput}"/>
+            <ctrl:ProcessingLogPanel LogText="{Binding InfiniteTalkLogOutput}"/>
         Optional: Header, IsLogExpanded, MaxLogHeight.
-        Ported from FlipPix.UI/Controls/ProcessingLogPanel.xaml.
     -->
-    <Expander Header="{Binding #Root.Header}"
-              IsExpanded="{Binding #Root.IsLogExpanded}"
-              Margin="0,8,0,0">
+    <Expander Header="{ReflectionBinding Header, ElementName=Root}" IsExpanded="{ReflectionBinding IsLogExpanded, ElementName=Root}" Margin="0,8,0,0">
         <Border Background="{StaticResource SurfaceAltBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="1"
                 CornerRadius="6"
                 Margin="0,6,0,0">
-            <ScrollViewer MaxHeight="{Binding #Root.MaxLogHeight}"
-                          VerticalScrollBarVisibility="Auto">
-                <TextBox Text="{Binding #Root.LogText, Mode=OneWay}"
+            <ScrollViewer MaxHeight="{ReflectionBinding MaxLogHeight, ElementName=Root}" VerticalScrollBarVisibility="Auto">
+                <TextBox Text="{ReflectionBinding LogText, ElementName=Root, Mode=OneWay}"
                          TextWrapping="Wrap"
                          IsReadOnly="True"
-                         FontFamily="Consolas"
+                         FontFamily="Consolas, DejaVu Sans Mono, Liberation Mono, monospace"
                          FontSize="11"
                          Foreground="{StaticResource TextSecondaryBrush}"
                          Background="Transparent"

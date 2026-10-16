@@ -1,43 +1,40 @@
 using System;
-using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Markup.Xaml;
-using FlipPix.UI.Linux.Services;
-using FlipPix.UI.Linux.ViewModels;
+using FlipPix.UI.Linux.Windows;
+using FlipPix.UI.Services;
+using FlipPix.UI.ViewModels;
 
-namespace FlipPix.UI.Linux.Windows;
+namespace FlipPix.UI;
 
-public partial class StoryVideoWindow : Window
+/// <summary>Port of FlipPix.UI/StoryVideoWindow.xaml.cs.</summary>
+public partial class StoryVideoWindow : AppWindow
 {
-    private readonly StoryVideoViewModel? _viewModel;
-    private readonly WindowPositionService? _windowPositionService;
+    private readonly StoryVideoViewModel _viewModel;
+    private readonly WindowPositionService _windowPositionService;
 
+    /// <summary>For the XAML loader and previewer only.</summary>
     public StoryVideoWindow()
     {
         InitializeComponent();
+        _viewModel = null!;
+        _windowPositionService = null!;
     }
 
-    public StoryVideoWindow(StoryVideoViewModel viewModel, WindowPositionService wps) : this()
+    public StoryVideoWindow(StoryVideoViewModel viewModel, WindowPositionService windowPositionService)
     {
-        _viewModel = viewModel;
-        _windowPositionService = wps;
+        InitializeComponent();
         DataContext = viewModel;
-        // Position loaded on startup if needed
+        _viewModel = viewModel;
+        _windowPositionService = windowPositionService ?? throw new ArgumentNullException(nameof(windowPositionService));
+        Opened += (_, _) => EnsureOnScreen();
     }
 
-    private void Header_PointerPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
-            BeginMoveDrag(e);
-    }
+    private void Header_MouseLeftButtonDown(object? sender, PointerPressedEventArgs e) => Header_PointerPressed(sender, e);
 
     protected override void OnClosed(EventArgs e)
     {
-        if (_viewModel is IDisposable disposable)
-            disposable.Dispose();
+        if (_viewModel is IDisposable disposable) disposable.Dispose();
         DataContext = null;
         base.OnClosed(e);
     }
-
-    private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 }

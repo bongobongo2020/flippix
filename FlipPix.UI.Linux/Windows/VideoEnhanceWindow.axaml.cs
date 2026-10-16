@@ -1,43 +1,50 @@
 using System;
-using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Markup.Xaml;
-using FlipPix.UI.Linux.Services;
-using FlipPix.UI.Linux.ViewModels.Video;
+using FlipPix.UI.Linux.Windows;
+using FlipPix.UI.Services;
+using FlipPix.UI.ViewModels.Video;
 
-namespace FlipPix.UI.Linux.Windows;
+namespace FlipPix.UI;
 
-public partial class VideoEnhanceWindow : Window
+/// <summary>Port of FlipPix.UI/VideoEnhanceWindow.xaml.cs.</summary>
+public partial class VideoEnhanceWindow : AppWindow
 {
-    private readonly VideoEnhanceViewModel? _viewModel;
-    private readonly WindowPositionService? _windowPositionService;
+    private readonly VideoEnhanceViewModel _viewModel;
+    private readonly WindowPositionService _windowPositionService;
 
+    /// <summary>For the XAML loader and previewer only.</summary>
     public VideoEnhanceWindow()
     {
         InitializeComponent();
+        _viewModel = null!;
+        _windowPositionService = null!;
     }
 
-    public VideoEnhanceWindow(VideoEnhanceViewModel viewModel, WindowPositionService wps) : this()
+    public VideoEnhanceWindow(VideoEnhanceViewModel viewModel, WindowPositionService windowPositionService)
     {
-        _viewModel = viewModel;
-        _windowPositionService = wps;
+        InitializeComponent();
         DataContext = viewModel;
-        // Position loaded on startup if needed
+        _viewModel = viewModel;
+        _windowPositionService = windowPositionService ?? throw new ArgumentNullException(nameof(windowPositionService));
+        Opened += (_, _) => EnsureOnScreen();
+        _viewModel.PlayRequested += OnPlayRequested;
     }
 
-    private void Header_PointerPressed(object? sender, PointerPressedEventArgs e)
+    private void Header_MouseLeftButtonDown(object? sender, PointerPressedEventArgs e) => Header_PointerPressed(sender, e);
+
+    private void OnPlayRequested(object? sender, EventArgs e)
     {
-        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
-            BeginMoveDrag(e);
+        if (VideoPlayer?.Source == null) return;
+        VideoPlayer.Position = TimeSpan.Zero;
+        VideoPlayer.Play();
     }
 
     protected override void OnClosed(EventArgs e)
     {
-        if (_viewModel is IDisposable disposable)
-            disposable.Dispose();
+        VideoPlayer?.Stop();
+        _viewModel.PlayRequested -= OnPlayRequested;
+        if (_viewModel is IDisposable disposable) disposable.Dispose();
         DataContext = null;
         base.OnClosed(e);
     }
-
-    private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 }

@@ -1,0 +1,14 @@
+VideoGeneratorWindow.xaml:31: EventSetter MouseLeftButtonUp=CastThumbnail_MouseLeftButtonUp on style CastThumbnailStyle: hook up in code-behind
+VideoGeneratorWindow.xaml:3745: Text: binding Delay dropped (not in Avalonia 11.2)
+VideoGeneratorWindow.xaml:5798: Text: binding Delay dropped (not in Avalonia 11.2)
+ImageGeneratorWindow.xaml:84: dropped <Storyboard> (animations are not ported)
+ImageGeneratorWindow.xaml:442: DataTemplate item type unknown - bindings use reflection
+ImageGeneratorWindow.xaml:493: DataTemplate item type unknown - bindings use reflection
+ImageGeneratorWindow.xaml:502: binding {ReflectionBinding DataContext.KreaLoras, RelativeSource={RelativeSource AncestorType=ItemsControl}}: ancestor ItemsControl data type unknown - reflection binding
+ImageGeneratorWindow.xaml:516: binding {ReflectionBinding DataContext.RemoveKreaLoraCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}: ancestor ItemsControl data type unknown - reflection binding
+ImageGeneratorWindow.xaml:4060: InkCanvas → MaskPaintCanvas: wire strokes in code-behind
+ImageGeneratorWindow.xaml:5183: MouseBinding without Command
+ImageGeneratorWindow.xaml:5482: event PreviewMouseLeftButtonUp → PointerReleased (bubbling, not tunnelling)
+ScenePromptLibraryWindow.xaml:93: DataTemplate item type unknown - bindings use reflection
+PhoneRemoteWindow.xaml:95: DataTemplate item type unknown - bindings use reflection
+PhoneRemoteWindow.xaml:109: binding {ReflectionBinding DataContext.RemoveDeviceCommand, RelativeSource={RelativeSource AncestorType=Window}}: ancestor Window data type unknown - reflection binding

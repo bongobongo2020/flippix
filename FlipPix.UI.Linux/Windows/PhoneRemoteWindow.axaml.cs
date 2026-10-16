@@ -1,6 +1,5 @@
 using Avalonia.Controls;
-using Avalonia.Markup.Xaml;
-using FlipPix.UI.Linux.Services;
+using FlipPix.UI.Services;
 
 namespace FlipPix.UI.Linux.Windows;
 
@@ -9,7 +8,7 @@ public partial class PhoneRemoteWindow : Window
 {
     public PhoneRemoteWindow()
     {
-        AvaloniaXamlLoader.Load(this);
+        InitializeComponent();
         DataContext = PhoneRemote.Host;
     }
 }

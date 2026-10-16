@@ -1,143 +1,450 @@
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="FlipPix.UI.Linux.Windows.SettingsWindow"
-        Title="FlipPix Settings"
-        Width="720" Height="780" MinWidth="620" MinHeight="600"
-        WindowStartupLocation="CenterOwner"
-        Background="{StaticResource AppBackgroundBrush}">
-    <ScrollViewer Margin="20">
-        <StackPanel Spacing="15">
-
-            <TextBlock Text="Settings" FontSize="22" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
-            <TextBlock Text="Configure your ComfyUI and application settings" FontSize="13"
-                       Foreground="{StaticResource TextSecondaryBrush}"/>
-
-            <!-- ═══ ComfyUI Configuration ═══ -->
-            <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="8" Padding="20">
-                <StackPanel>
-                    <TextBlock Text="ComfyUI Configuration" FontWeight="Bold" FontSize="16" Margin="0,0,0,15"
-                               Foreground="{StaticResource TextPrimaryBrush}"/>
-
-                    <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto" Margin="0,0,0,15">
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Server URL:" VerticalAlignment="Center" Margin="0,0,10,10"/>
-                        <TextBox Grid.Row="0" Grid.Column="1" x:Name="BaseUrlBox" Margin="0,0,0,10"/>
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Timeout (ms):" VerticalAlignment="Center" Margin="0,0,10,10"/>
-                        <TextBox Grid.Row="1" Grid.Column="1" x:Name="TimeoutBox" Margin="0,0,0,10"/>
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Max Retries:" VerticalAlignment="Center" Margin="0,0,10,10"/>
-                        <TextBox Grid.Row="2" Grid.Column="1" x:Name="MaxRetriesBox" Margin="0,0,0,10"/>
-                    </Grid>
-
-                    <Separator Margin="0,0,0,15"/>
-
-                    <TextBlock Text="ComfyUI Installation Path" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"
-                               Foreground="{StaticResource TextSecondaryBrush}"/>
-                    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,15">
-                        <TextBox Grid.Column="0" x:Name="ComfyUIFolderBox" Margin="0,0,10,0"/>
-                        <Button Grid.Column="1" Content="Browse..." Click="BrowseComfyUIPath_Click" Padding="15,5"/>
-                    </Grid>
-
-                    <!-- Crash Detection & Auto-Restart -->
-                    <Separator Margin="0,0,0,15"/>
-                    <TextBlock Text="Crash Detection &amp; Auto-Restart" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"
-                               Foreground="{StaticResource TextSecondaryBrush}"/>
-                    <CheckBox x:Name="AutoRestartBox"
-                              Content="Auto-start ComfyUI on launch and restart on crash"
-                              Margin="0,0,0,10"/>
-
-                    <!-- VRAM workflow tier -->
-                    <TextBlock Text="GPU VRAM / workflow tier:" FontWeight="SemiBold" FontSize="13" Margin="0,5,0,5"
-                               Foreground="{StaticResource TextSecondaryBrush}"/>
-                    <TextBlock Text="On ~16 GB GPUs FlipPix loads memory-optimized workflows (workflow/16gb) so they fit instead of crashing."
-                               FontSize="11" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,0,0,5"/>
-                    <ComboBox x:Name="VramTierBox" Margin="0,0,0,5" Width="360" HorizontalAlignment="Left"
-                              SelectedIndex="0">
-                        <ComboBoxItem Content="Auto-detect from connected ComfyUI (recommended)"/>
-                        <ComboBoxItem Content="Force 16 GB mode (memory-optimized workflows)"/>
-                        <ComboBoxItem Content="Force full mode (full-size workflows)"/>
-                    </ComboBox>
-                    <TextBlock x:Name="DetectedVramText" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,10"/>
-
-                    <TextBlock Text="ComfyUI Restart Script (.sh):" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,5"
-                               Foreground="{StaticResource TextSecondaryBrush}"/>
-                    <TextBlock Text="Script to restart ComfyUI (e.g., /opt/comfyui/start.sh)" FontSize="11"
-                               Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,5"/>
-                    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,10">
-                        <TextBox Grid.Column="0" x:Name="RestartScriptBox" Margin="0,0,10,0"/>
-                        <Button Grid.Column="1" Content="Browse..." Click="BrowseRestartScript_Click" Padding="15,5"/>
-                    </Grid>
-
-                    <Grid ColumnDefinitions="*,*">
-                        <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                            <TextBlock Text="Restart Delay (sec):" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
-                            <TextBox x:Name="RestartDelayBox"/>
-                        </StackPanel>
-                        <StackPanel Grid.Column="1">
-                            <TextBlock Text="Startup Timeout (sec):" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
-                            <TextBox x:Name="StartupTimeoutBox"/>
-                        </StackPanel>
-                    </Grid>
-
-                    <Separator Margin="0,15,0,15"/>
-
-                    <TextBlock Text="ComfyUI Output Folder" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"
-                               Foreground="{StaticResource TextSecondaryBrush}"/>
-                    <TextBlock Text="This is where ComfyUI saves generated images" FontSize="12"
-                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
-                    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,15">
-                        <TextBox Grid.Column="0" x:Name="OutputFolderBox" Margin="0,0,10,0"/>
-                        <Button Grid.Column="1" Content="Browse..." Click="BrowseOutputPath_Click" Padding="15,5"/>
-                    </Grid>
-
-                    <TextBlock Text="Remote ComfyUI Output Folder" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"
-                               Foreground="{StaticResource TextSecondaryBrush}"/>
-                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"
-                               Text="When the Server URL above is another machine, the app reads generated files from THIS path — the folder above is ignored. Point it at the remote output folder as this PC sees it (e.g., an NFS/SMB mount like /mnt/ai-models/output)."/>
-                    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,5">
-                        <TextBox Grid.Column="0" x:Name="RemoteOutputFolderBox" Margin="0,0,10,0"/>
-                        <Button Grid.Column="1" Content="Browse..." Click="BrowseRemoteOutputPath_Click" Padding="15,5"/>
-                    </Grid>
-                    <TextBlock x:Name="ActiveOutputFolderText" TextWrapping="Wrap" FontSize="12" FontStyle="Italic"
-                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,15"/>
-
-                    <TextBlock Text="Remote LoRA Folder (Optional)" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"
-                               Foreground="{StaticResource TextSecondaryBrush}"/>
-                    <TextBlock Text="Path to the remote ComfyUI LoRA models folder as this PC sees it (e.g., /mnt/ai-models/models/loras)"
-                               FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBox Grid.Column="0" x:Name="RemoteLoraFolderBox" Margin="0,0,10,0"/>
-                        <Button Grid.Column="1" Content="Browse..." Click="BrowseRemoteLoraPath_Click" Padding="15,5"/>
-                    </Grid>
-
-                    <TextBlock Text="Krea2 LoRA Folder (Optional)" FontWeight="SemiBold" FontSize="14" Margin="0,15,0,10"
-                               Foreground="{StaticResource TextSecondaryBrush}"/>
-                    <TextBlock Text="Folder holding the Krea2 LoRAs, used by the Krea2 image workflows (e.g., /mnt/ai-models/models/loras/krea2)"
-                               FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBox Grid.Column="0" x:Name="KreaLoraFolderBox" Margin="0,0,10,0"/>
-                        <Button Grid.Column="1" Content="Browse..." Click="BrowseKreaLoraPath_Click" Padding="15,5"/>
-                    </Grid>
-                </StackPanel>
-            </Border>
-
-            <!-- ═══ LM Studio (Image Analysis) ═══ -->
-            <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="8" Padding="20">
-                <StackPanel Spacing="10">
-                    <TextBlock Text="LM Studio (Image Analysis)" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                    <Grid ColumnDefinitions="140,*,60,80">
-                        <TextBlock Grid.Column="0" Text="Server:" VerticalAlignment="Center"/>
-                        <TextBox Grid.Column="1" x:Name="LMStudioServerBox" Margin="0,0,8,0"/>
-                        <TextBlock Grid.Column="2" Text="Port:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                        <TextBox Grid.Column="3" x:Name="LMStudioPortBox"/>
-                    </Grid>
-                </StackPanel>
-            </Border>
-
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
-                <Button Content="Save" Classes="primary" Click="SaveButton_Click"/>
-                <Button Content="Cancel" Click="CancelButton_Click"/>
+<win:DialogWindow xmlns="https://github.com/avaloniaui"
+                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                  xmlns:ctrl="using:FlipPix.UI.Linux.Controls"
+                  xmlns:conv="using:FlipPix.UI.Linux.Converters"
+                  xmlns:win="using:FlipPix.UI.Linux.Windows"
+                  xmlns:vm="using:FlipPix.UI.ViewModels"
+                  xmlns:vmv="using:FlipPix.UI.ViewModels.Video"
+                  xmlns:m="using:FlipPix.UI.Models"
+                  xmlns:svc="using:FlipPix.UI.Services"
+                  xmlns:sys="using:System"
+                  xmlns:n6="using:FlipPix.Core.Models"
+                  mc:Ignorable="d"
+                  Title="FlipPix - Settings"
+                  Height="500"
+                  Width="600"
+                  WindowStartupLocation="CenterScreen"
+                  CanResize="False"
+                  x:Class="FlipPix.UI.Linux.Windows.SettingsWindow"
+                  x:DataType="n6:ComfyUISettings"
+                  x:CompileBindings="True">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <!-- Header -->
+        <Border Grid.Row="0" Margin="0,0,0,20" Padding="0,0,0,15" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+            <StackPanel>
+                <TextBlock Text="Settings" FontSize="24" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                <TextBlock Text="Configure your ComfyUI and application settings"
+                           FontSize="13"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           Margin="0,5,0,0"/>
             </StackPanel>
+        </Border>
+        <!-- Settings Content -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <!-- ComfyUI Settings -->
+                <Border Background="{StaticResource SurfaceAltBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="20"
+                        Margin="0,0,0,15">
+                    <StackPanel>
+                        <TextBlock Text="ComfyUI Configuration"
+                                   FontWeight="Bold"
+                                   FontSize="16"
+                                   Margin="0,0,0,15"
+                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                        <!-- ComfyUI Server Settings -->
+                        <Grid Margin="0,0,0,15">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="120"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Server URL:" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                            <TextBox Grid.Row="0" Grid.Column="1" x:Name="ServerUrlTextBox" Text="{Binding BaseUrl}" Margin="0,0,0,10"/>
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Timeout (ms):" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                            <TextBox Grid.Row="1" Grid.Column="1" x:Name="TimeoutTextBox" Text="{Binding ConnectionTimeout}" Margin="0,0,0,10"/>
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Max Retries:" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                            <TextBox Grid.Row="2" Grid.Column="1" x:Name="MaxRetriesTextBox" Text="{Binding MaxRetries}" Margin="0,0,0,10"/>
+                        </Grid>
+                        <Separator Margin="0,0,0,15"/>
+                        <!-- ComfyUI Path Settings -->
+                        <TextBlock Text="ComfyUI Installation Path"
+                                   FontWeight="SemiBold"
+                                   FontSize="14"
+                                   Margin="0,0,0,10"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <Grid Margin="0,0,0,15">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0" x:Name="ComfyUIPathTextBox" Text="{Binding ComfyUIFolderPath}" Margin="0,0,10,0"/>
+                            <Button Grid.Column="1" Content="Browse..." Click="BrowseComfyUIPath_Click" Padding="15,5"/>
+                        </Grid>
+                        <!-- Crash Detection & Auto-Restart Settings -->
+                        <Separator Margin="0,0,0,15"/>
+                        <TextBlock Text="Crash Detection &amp; Auto-Restart"
+                                   FontWeight="SemiBold"
+                                   FontSize="14"
+                                   Margin="0,0,0,10"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <CheckBox x:Name="AutoRestartCheckBox"
+                                  Content="Auto-start ComfyUI on launch and restart on crash"
+                                  IsChecked="{Binding AutoRestartComfyUI}"
+                                  Margin="0,0,0,10"/>
+                        <!-- VRAM workflow tier -->
+                        <TextBlock Text="GPU VRAM / workflow tier:"
+                                   FontWeight="SemiBold"
+                                   FontSize="13"
+                                   Margin="0,5,0,5"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock Text="On ~16 GB GPUs FlipPix loads memory-optimized workflows (workflow/16gb) so they fit instead of crashing."
+                                   FontSize="11"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,5"/>
+                        <ComboBox x:Name="VramTierComboBox" Margin="0,0,0,5" Width="320" HorizontalAlignment="Left">
+                            <ComboBoxItem Tag="auto" Content="Auto-detect from connected ComfyUI (recommended)"/>
+                            <ComboBoxItem Tag="16gb" Content="Force 16 GB mode (memory-optimized workflows)"/>
+                            <ComboBoxItem Tag="full" Content="Force full mode (full-size workflows)"/>
+                        </ComboBox>
+                        <TextBlock x:Name="DetectedVramText" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,10"/>
+                        <TextBlock Text="ComfyUI Restart Script (.bat):"
+                                   FontWeight="SemiBold"
+                                   FontSize="13"
+                                   Margin="0,0,0,5"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock Text="Script to restart ComfyUI (e.g., run_nvidia_gpu.bat)"
+                                   FontSize="11"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Margin="0,0,0,5"/>
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0" x:Name="ComfyUIRestartScriptTextBox" Text="{Binding ComfyUIRestartScriptPath}" Margin="0,0,10,0"/>
+                            <Button Grid.Column="1" Content="Browse..." Click="BrowseRestartScript_Click" Padding="15,5"/>
+                        </Grid>
+                        <Grid Margin="0,0,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                <TextBlock Text="Restart Delay (sec):" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                                <TextBox x:Name="RestartDelayTextBox" Text="{Binding ComfyUIRestartDelaySeconds}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="Startup Timeout (sec):"
+                                           FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Margin="0,0,0,5"/>
+                                <TextBox x:Name="StartupTimeoutTextBox" Text="{Binding ComfyUIStartupTimeoutSeconds}"/>
+                            </StackPanel>
+                        </Grid>
+                        <Separator Margin="0,15,0,15"/>
+                        <TextBlock Text="ComfyUI Output Folder"
+                                   FontWeight="SemiBold"
+                                   FontSize="14"
+                                   Margin="0,0,0,10"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock Text="This is where ComfyUI saves generated images"
+                                   FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,0,0,5"/>
+                        <Grid Margin="0,0,0,15">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0" x:Name="OutputPathTextBox" Text="{Binding OutputFolderPath}" Margin="0,0,10,0"/>
+                            <Button Grid.Column="1" Content="Browse..." Click="BrowseOutputPath_Click" Padding="15,5"/>
+                        </Grid>
+                        <TextBlock Text="Remote ComfyUI Output Folder"
+                                   FontWeight="SemiBold"
+                                   FontSize="14"
+                                   Margin="0,0,0,10"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock TextWrapping="Wrap"
+                                   FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,0,0,5"
+                                   Text="When the Server URL above is another machine, the app reads generated files from THIS path — the folder above is ignored. Point it at the remote output folder as this PC sees it (e.g. a mapped drive or \\server\share\output)."/>
+                        <Grid Margin="0,0,0,5">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0" x:Name="RemoteOutputPathTextBox" Text="{Binding RemoteOutputFolderPath}" Margin="0,0,10,0"/>
+                            <Button Grid.Column="1" Content="Browse..." Click="BrowseRemoteOutputPath_Click" Padding="15,5"/>
+                        </Grid>
+                        <TextBlock x:Name="ActiveOutputFolderText"
+                                   TextWrapping="Wrap"
+                                   FontSize="12"
+                                   FontStyle="Italic"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,0,0,15"/>
+                        <TextBlock Text="Remote LoRA Folder (Optional)"
+                                   FontWeight="SemiBold"
+                                   FontSize="14"
+                                   Margin="0,0,0,10"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock Text="Network path to remote ComfyUI LoRA models folder (e.g., \\server\ComfyUI\models\loras)"
+                                   FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,0,0,5"/>
+                        <Grid Margin="0,0,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0" x:Name="RemoteLoraPathTextBox" Text="{Binding RemoteLoraFolderPath}" Margin="0,0,10,0"/>
+                            <Button Grid.Column="1" Content="Browse..." Click="BrowseRemoteLoraPath_Click" Padding="15,5"/>
+                        </Grid>
+                        <TextBlock Text="Krea2 LoRA Folder (Optional)"
+                                   FontWeight="SemiBold"
+                                   FontSize="14"
+                                   Margin="0,15,0,10"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock Text="Folder holding the Krea2 LoRAs, used by the Krea2 image workflows (e.g., \\server\ComfyUI\models\loras\krea2)"
+                                   FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,0,0,5"/>
+                        <Grid Margin="0,0,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0" x:Name="KreaLoraPathTextBox" Text="{Binding KreaLoraFolderPath}" Margin="0,0,10,0"/>
+                            <Button Grid.Column="1" Content="Browse..." Click="BrowseKreaLoraPath_Click" Padding="15,5"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+                <!-- ComfyUI Backup & Restore -->
+                <Border Background="{StaticResource SurfaceAltBrush}"
+                        BorderBrush="{StaticResource AccentVioletBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="20"
+                        Margin="0,0,0,15">
+                    <StackPanel>
+                        <TextBlock Text="ComfyUI Backup &amp; Restore"
+                                   FontWeight="Bold"
+                                   FontSize="16"
+                                   Margin="0,0,0,8"
+                                   Foreground="{StaticResource AccentVioletBrush}"/>
+                        <TextBlock TextWrapping="Wrap"
+                                   FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,0,0,12"
+                                   Text="Set up a ready-to-run ComfyUI in one click (downloads a known-good bundle with all custom nodes, then verifies + extracts it). Or snapshot your current ComfyUI install so you can move/restore it on another same-OS machine."/>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Hugging Face repo:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBox Grid.Column="1"
+                                     x:Name="HfRepoTextBox"
+                                     Text="bongo2k22/flippix-comfyui"
+                                     ToolTip.Tip="The Hugging Face model repo that hosts the ComfyUI bundle (user/repo)."/>
+                        </Grid>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                            <Button x:Name="RestoreComfyUIButton"
+                                    Content="Set up / Restore ComfyUI…"
+                                    Click="RestoreComfyUI_Click"
+                                    Padding="15,8"
+                                    Margin="0,0,10,0"
+                                    Background="{StaticResource AccentVioletBrush}"
+                                    Foreground="White"
+                                    BorderThickness="0"
+                                    FontWeight="SemiBold"/>
+                            <Button x:Name="BackupComfyUIButton"
+                                    Content="Back up this ComfyUI…"
+                                    Click="BackupComfyUI_Click"
+                                    Padding="15,8"
+                                    Background="#8E44AD"
+                                    Foreground="White"
+                                    BorderThickness="0"/>
+                        </StackPanel>
+                        <TextBlock x:Name="BackupRestoreStatus"
+                                   TextWrapping="Wrap"
+                                   FontSize="11"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Text="Restore targets WSL (download a Linux bundle) or a fresh Windows install. Backup uses the path above and Windows' built-in tar; models/outputs are excluded."/>
+                        <Separator Margin="0,14,0,14"/>
+                        <TextBlock Text="Model files for a WSL ComfyUI"
+                                   FontWeight="SemiBold"
+                                   FontSize="13"
+                                   Margin="0,0,0,4"
+                                   Foreground="{StaticResource AccentVioletBrush}"/>
+                        <TextBlock TextWrapping="Wrap"
+                                   FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,0,0,8"
+                                   Text="A WSL ComfyUI ships without weights. Point it at your existing Windows models folder (the one containing checkpoints, loras, vae, unet, ...) and FlipPix writes its extra_model_paths.yaml inside WSL for you (translating E:\ to /mnt/e). Then restart ComfyUI."/>
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0"
+                                     x:Name="WslModelsFolderTextBox"
+                                     Text="{Binding WslModelsFolderPath}"
+                                     Margin="0,0,10,0"
+                                     ToolTip.Tip="Windows models folder, e.g. E:\aimodels\comfyui\models"/>
+                            <Button Grid.Column="1" Content="Browse..." Click="BrowseWslModels_Click" Padding="15,5" Margin="0,0,10,0"/>
+                            <Button Grid.Column="2"
+                                    x:Name="ApplyWslModelsButton"
+                                    Content="Apply to WSL"
+                                    Click="ApplyWslModels_Click"
+                                    Padding="15,5"
+                                    Background="{StaticResource AccentVioletBrush}"
+                                    Foreground="White"
+                                    BorderThickness="0"
+                                    FontWeight="SemiBold"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+                <!-- LM Studio Settings -->
+                <Border Background="{StaticResource SurfaceAltBrush}"
+                        BorderBrush="{StaticResource SuccessBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="20"
+                        Margin="0,0,0,15">
+                    <StackPanel>
+                        <TextBlock Text="LM Studio Configuration"
+                                   FontWeight="Bold"
+                                   FontSize="16"
+                                   Margin="0,0,0,15"
+                                   Foreground="{StaticResource SuccessTextBrush}"/>
+                        <!-- Saved Servers (switch between remote computers) -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="120"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Saved Servers:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <ComboBox Grid.Column="1"
+                                      x:Name="SavedServerComboBox"
+                                      DisplayMemberBinding="{ReflectionBinding ListLabel}"
+                                      Margin="0,0,10,0"
+                                      ToolTip.Tip="Pick a saved server to load its address, friendly name and model below"/>
+                            <Button Grid.Column="2"
+                                    x:Name="RemoveSavedServerButton"
+                                    Content="Remove"
+                                    Click="RemoveSavedServer_Click"
+                                    Padding="15,5"
+                                    ToolTip.Tip="Forget the selected saved server"/>
+                        </Grid>
+                        <!-- LM Studio Server Settings -->
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="120"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Friendly Name:" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                            <TextBox Grid.Row="0"
+                                     Grid.Column="1"
+                                     Grid.ColumnSpan="2"
+                                     x:Name="LMStudioServerNameTextBox"
+                                     Margin="0,0,0,10"
+                                     ToolTip.Tip="What to call this machine in status messages, e.g. &quot;Alien Box&quot;. Leave blank to use the host name."/>
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Server:" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                            <TextBox Grid.Row="1" Grid.Column="1" x:Name="LMStudioServerTextBox" Text="{Binding LMStudioServer}" Margin="0,0,10,10"/>
+                            <Button Grid.Row="1" Grid.Column="2" Content="Test" Click="TestLMStudioConnection_Click" Padding="15,5" Margin="0,0,0,10"/>
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Port:" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                            <TextBox Grid.Row="2" Grid.Column="1" x:Name="LMStudioPortTextBox" Text="{Binding LMStudioPort}" Margin="0,0,0,10"/>
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="AI Model:" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                            <Grid Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ComboBox Grid.Column="0"
+                                          x:Name="LMStudioModelComboBox"
+                                          SelectedValue="{Binding SelectedModel}"
+                                          SelectedValueBinding="{ReflectionBinding Name}"
+                                          DisplayMemberBinding="{ReflectionBinding Name}"
+                                          Margin="0,0,10,0"
+                                          SelectionChanged="LMStudioModelComboBox_SelectionChanged"/>
+                                <Button Grid.Column="1" Content="Refresh" Click="RefreshLMStudioModels_Click" Padding="15,5"/>
+                            </Grid>
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Model Name:" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                            <TextBox Grid.Row="4"
+                                     Grid.Column="1"
+                                     Grid.ColumnSpan="2"
+                                     x:Name="LMStudioModelNameTextBox"
+                                     Margin="0,0,0,10"
+                                     ToolTip.Tip="What to call this model in status messages, e.g. &quot;Qwen2.5-VL 7B&quot;. Leave blank to use the model id."/>
+                        </Grid>
+                        <!-- What the app will actually use -->
+                        <Border Background="{StaticResource SurfaceBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="Default for image analysis" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,4"/>
+                                <TextBlock x:Name="DefaultLlmTargetText"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Text="Not configured yet."/>
+                            </StackPanel>
+                        </Border>
+                        <TextBlock Text="These settings are used for AI image analysis. Saving makes the server and model above the default, and remembers it under its friendly name."
+                                   FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+                <!-- Status Display -->
+                <Border Background="#D1ECF1" BorderBrush="#BEE5EB" BorderThickness="1" CornerRadius="8" Padding="15">
+                    <StackPanel>
+                        <TextBlock Text="Current Configuration Status" FontWeight="SemiBold" FontSize="14" Foreground="#0C5460" Margin="0,0,0,10"/>
+                        <TextBlock x:Name="StatusTextBlock" Text="Checking configuration..." FontSize="12" Foreground="#0C5460" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+        <!-- Buttons -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+            <Button Content="Test Connection"
+                    Click="TestConnection_Click"
+                    Margin="0,0,10,0"
+                    Padding="20,10"
+                    Background="{StaticResource SuccessBrush}"
+                    Foreground="White"
+                    BorderThickness="0"/>
+            <Button Content="Test WebSocket"
+                    Click="TestWebSocket_Click"
+                    Margin="0,0,10,0"
+                    Padding="20,10"
+                    Background="{StaticResource AccentCyanBrush}"
+                    Foreground="White"
+                    BorderThickness="0"/>
+            <Button Content="Cancel" Click="Cancel_Click" Margin="0,0,10,0" Padding="20,10"/>
+            <Button Content="Save"
+                    Click="Save_Click"
+                    Padding="20,10"
+                    Background="{StaticResource BrandBrush}"
+                    Foreground="White"
+                    BorderThickness="0"
+                    FontWeight="Bold"/>
         </StackPanel>
-    </ScrollViewer>
-</Window>
+    </Grid>
+</win:DialogWindow>
