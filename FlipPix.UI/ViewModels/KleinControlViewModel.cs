@@ -1006,6 +1006,7 @@ namespace FlipPix.UI.ViewModels
             Directory.CreateDirectory(outputDir);
             var path = Path.Combine(outputDir, $"klein-control_{DateTime.Now:yyyyMMdd_HHmmss}.png");
             await File.WriteAllBytesAsync(path, bytes, token);
+            await LocalCopyService.CopyImageAsync(path);
             ResultImagePath = path;
             WpfApp.Current?.Dispatcher.Invoke(() => LoadResultImage(path));
             HasResult = true;

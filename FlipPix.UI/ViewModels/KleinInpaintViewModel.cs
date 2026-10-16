@@ -379,6 +379,7 @@ namespace FlipPix.UI.ViewModels
                     var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
                     var outputPath = Path.Combine(outputDir, $"klein-inpaint_{timestamp}.png");
                     await File.WriteAllBytesAsync(outputPath, outputBytes, _cts.Token);
+                    await LocalCopyService.CopyImageAsync(outputPath);
                     AddLog($"Saved: {outputPath}");
 
                     ResultImagePath = outputPath;

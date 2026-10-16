@@ -819,6 +819,7 @@ namespace FlipPix.UI.ViewModels
             var outputDir = Path.GetDirectoryName(outputPath);
             if (!string.IsNullOrEmpty(outputDir)) Directory.CreateDirectory(outputDir);
             await File.WriteAllBytesAsync(outputPath, images[^1], token);
+            await LocalCopyService.CopyImageAsync(outputPath);
             AddLog($"Saved: {outputPath}");
 
             ResultImagePath = outputPath;

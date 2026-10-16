@@ -110,6 +110,8 @@ chmod +x "$PREFIX/explorer.exe"
 
 # ── 5. Launcher, icon, menu entry ───────────────────────────────────────────────
 mkdir -p "$BIN_DIR" "$APPS_DIR" "$ICON_DIR"
+# Local copies of every generated image / video, so browsing results never touches the share.
+mkdir -p "$HOME/flippix" "$HOME/flippix-vids"
 cat > "$BIN_DIR/flippix" <<SH
 #!/usr/bin/env bash
 # FlipPix launcher. Logs go to ~/.local/state/FlipPix/launch.log.
@@ -139,6 +141,8 @@ step "Done"
 cat <<MSG
 FlipPix is installed. Start it from the ChromeOS launcher (Linux apps → FlipPix)
 or run:  flippix
+
+Generated images are copied to ~/flippix and videos to ~/flippix-vids.
 
 First run asks where ComfyUI is. On a Chromebook choose "Remote Server" and enter your
 GPU PC's address, e.g. http://192.168.1.50:8188 — see CHROMEBOOK.md for the output-folder share.

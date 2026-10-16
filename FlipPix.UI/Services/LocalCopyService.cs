@@ -9,11 +9,22 @@ namespace FlipPix.UI.Services;
 /// </summary>
 public static class LocalCopyService
 {
-    private static readonly string ImageDestination = Path.Combine(
+#if FLIPPIX_LINUX
+    // ~/flippix and ~/flippix-vids. On Linux GetFolderPath(MyPictures/MyVideos) returns "" when
+    // ~/Pictures or ~/Videos does not exist (a fresh ChromeOS container), which made these copies
+    // land relative to the working directory, i.e. inside the install folder a reinstall wipes.
+    public static readonly string ImageDestination = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "flippix");
+
+    public static readonly string VideoDestination = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "flippix-vids");
+#else
+    public static readonly string ImageDestination = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "flippix-images");
 
-    private static readonly string VideoDestination = Path.Combine(
+    public static readonly string VideoDestination = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "flippix-vids");
+#endif
 
     /// <summary>
     /// Copies a generated image file to the local pictures folder.
