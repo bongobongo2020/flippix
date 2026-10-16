@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Ports the WPF windows of FlipPix.UI to Avalonia XAML for FlipPix.UI.Linux.
+    Usage: dotnet run -c Release -k -/- see README.md
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>XamlPort</RootNamespace>
+  </PropertyGroup>
+</Project>

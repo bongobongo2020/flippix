@@ -4,7 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
-using FlipPix.UI.Linux.ViewModels;
+using FlipPix.UI.ViewModels;
 
 namespace FlipPix.UI.Linux.Windows;
 

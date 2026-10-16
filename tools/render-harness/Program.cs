@@ -4,7 +4,7 @@
 // smoke-tested separately (FLIPPIX_SMOKE); the VM layer here needs no UI thread.
 //
 // Usage:  dotnet run --project tools/render-harness -c Release -- <stage>
-// Stages: i2v | fflf | character | chain | cast | hybrid | ensemble
+// Stages: i2v | cast | hybrid | ensemble | resolver
 //
 // Asset notes:
 //   i2v / character / cast / hybrid / ensemble reuse kickboxing stills from
@@ -23,9 +23,9 @@ using FlipPix.ComfyUI.WebSocket;
 using FlipPix.Core.Interfaces;
 using FlipPix.Core.Models;
 using FlipPix.Core.Services;
-using FlipPix.UI.Linux.Models;
-using FlipPix.UI.Linux.Services;
-using FlipPix.UI.Linux.ViewModels.Video;
+using FlipPix.UI.Models;
+using FlipPix.UI.Services;
+using FlipPix.UI.ViewModels.Video;
 
 var services = new ServiceCollection();
 ConfigureServices(services);
@@ -45,15 +45,12 @@ var sw = Stopwatch.StartNew();
 switch (stage)
 {
     case "i2v":       await RunI2V(sp, imgA); break;
-    case "fflf":      await RunFflf(sp, imgA, imgB); break;
-    case "character": await RunCharacter(sp, imgA, imgB); break;
-    case "chain":     await RunChain(sp, imgA); break;
     case "cast":      await RunCast(sp, imgA, imgB); break;
     case "hybrid":    await RunHybrid(sp, imgA); break;
     case "ensemble":  await RunEnsemble(sp, imgA); break;
     case "resolver":  await RunResolver(sp); break;
     default:
-        Console.WriteLine("stages: i2v | fflf | character | chain | cast | hybrid | ensemble | resolver");
+        Console.WriteLine("stages: i2v | cast | hybrid | ensemble | resolver");
         return;
 }
 Console.WriteLine($"[harness] {stage} finished in {sw.Elapsed.TotalMinutes:0.0} min");
@@ -83,10 +80,10 @@ static void ConfigureServices(IServiceCollection services)
     services.AddSingleton<GenerationProgressTracker>();
     services.AddSingleton<ChunkPromptCacheService>();
     services.AddSingleton<ScenePromptLibrary>();
-    services.AddSingleton<FlipPix.UI.Linux.Services.ModelInstallerService>();
-    services.AddSingleton<FlipPix.Core.Interfaces.IMissingModelResolver, FlipPix.UI.Linux.Services.MissingModelResolver>();
-    services.AddSingleton<FlipPix.UI.Linux.Services.NodeInstallerService>();
-    services.AddSingleton<FlipPix.Core.Interfaces.IMissingNodeResolver, FlipPix.UI.Linux.Services.MissingNodeResolver>();
+    services.AddSingleton<FlipPix.UI.Services.ModelInstallerService>();
+    services.AddSingleton<FlipPix.Core.Interfaces.IMissingModelResolver, FlipPix.UI.Services.MissingModelResolver>();
+    services.AddSingleton<FlipPix.UI.Services.NodeInstallerService>();
+    services.AddSingleton<FlipPix.Core.Interfaces.IMissingNodeResolver, FlipPix.UI.Services.MissingNodeResolver>();
     services.AddHttpClient<LMStudioService>();
     services.AddHttpClient<OllamaService>();
     services.AddSingleton<IPromptService, PromptService>();
@@ -137,61 +134,6 @@ static async Task RunI2V(IServiceProvider sp, string image)
     await WaitIdle(vm, "i2v", busy: v => v.IsProcessing || v.IsProcessingQueue,
         status: v => v.QueueStatus, minutes: 12);
     Report("i2v", vm);
-}
-
-static async Task RunFflf(IServiceProvider sp, string first, string last)
-{
-    var vm = NewVM<MiniMaxFflfViewModel>(sp);
-    vm.PrimaryReferencePath = first;
-    vm.Clips[0].EndFrame.Path = last;
-    vm.Clips[0].Seconds = 5;
-    vm.Clips[0].Prompt = "The kickboxer steps forward and lands a clean roundhouse kick, gym lights " +
-                         "glinting off the mats, steady camera.";
-    Console.WriteLine($"[fflf] chain: {vm.ChainSummary}  CanGenerate={vm.CanGenerate}");
-    if (!vm.CanGenerate) { Fail("fflf", vm.GenerateBlockedReason); return; }
-
-    vm.GenerateCommand.Execute(null);
-    await WaitIdle(vm, "fflf", busy: v => v.IsProcessing || v.IsProcessingQueue,
-        status: v => v.QueueStatus, minutes: 12);
-    Report("fflf", vm);
-}
-
-static async Task RunCharacter(IServiceProvider sp, string character, string scene)
-{
-    var vm = NewVM<MiniMaxCharacterViewModel>(sp);
-    vm.Character1Path = character;
-    vm.SceneImagePath = scene;   // normally analyzed by the LLM; typed prompt below is equivalent
-    vm.Prompt = "<subject> trains alone in a sunlit gym, throwing sharp combinations at a heavy bag, " +
-                "confident and focused, handheld camera following her movement.";
-    Console.WriteLine($"[character] CanGenerate={vm.CanGenerate}");
-    if (!vm.CanGenerate) { Fail("character", "prompt/character missing"); return; }
-
-    vm.GenerateCommand.Execute(null);
-    await WaitIdle(vm, "character", busy: v => v.IsProcessing || v.IsProcessingQueue,
-        status: v => v.QueueStatus, minutes: 12);
-    Report("character", vm);
-}
-
-static async Task RunChain(IServiceProvider sp, string reference)
-{
-    // No music on this box — synthesize a short tone track so the mux path has a song.
-    var audio = "/tmp/flippix-h3chain-tone.wav";
-    var ffmpeg = WhichFfmpeg();
-    Process.Start(ffmpeg, $"-y -f lavfi -i \"sine=frequency=220:duration=24\" -ar 44100 {audio}")!.WaitForExit();
-    if (!File.Exists(audio)) { Fail("chain", "ffmpeg could not synthesize audio"); return; }
-
-    var vm = NewVM<H3ChainViewModel>(sp);
-    vm.Reference1Path = reference;
-    vm.AudioPath = audio;
-    vm.Prompt = "Segment 1: the athlete stretches and warms up in a quiet gym.\n\n" +
-                "Segment 2: she throws a fast combination of strikes, sweat visible, drive beat.";
-    Console.WriteLine($"[chain] segments={vm.PromptSegmentCount} planned={vm.PlannedSegmentCount} CanGenerate={vm.CanGenerate}");
-    if (!vm.CanGenerate) { Fail("chain", "reference/audio/prompt missing"); return; }
-
-    vm.GenerateCommand.Execute(null);
-    await WaitIdle(vm, "chain", busy: v => v.IsProcessing || v.IsProcessingQueue,
-        status: v => v.QueueStatus, minutes: 20);
-    Report("chain", vm);
 }
 
 static async Task RunCast(IServiceProvider sp, string character, string scene)
@@ -262,7 +204,7 @@ static async Task RunResolver(IServiceProvider sp)
     // through ComfyUI-Manager's map, pack-presence detection, and the headless no-window
     // path (the dialog itself cannot show without a UI - the resolver must log and
     // return false rather than throw).
-    var installer = sp.GetRequiredService<FlipPix.UI.Linux.Services.NodeInstallerService>();
+    var installer = sp.GetRequiredService<FlipPix.UI.Services.NodeInstallerService>();
     var resolver = sp.GetRequiredService<FlipPix.Core.Interfaces.IMissingNodeResolver>();
 
     var info = new FlipPix.Core.Models.MissingNodeInfo { ClassType = "ImpactWildcardProcessor" };

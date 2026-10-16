@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+#if !FLIPPIX_LINUX
 using System.Drawing;
 using System.Drawing.Imaging;
+#endif
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -841,6 +843,42 @@ namespace FlipPix.UI.Services
             }
         }
 
+#if FLIPPIX_LINUX
+        // System.Drawing.Common is Windows-only from .NET 7 on; the Linux build resizes with
+        // ImageSharp to the same result: fit inside the bounds, then JPEG q50 or PNG.
+        private byte[] ResizeImageForVision(string imagePath, int maxWidth, int maxHeight, bool useJpeg = false)
+        {
+            try
+            {
+                using var image = SixLabors.ImageSharp.Image.Load(imagePath);
+                double aspectRatio = (double)image.Width / image.Height;
+                int newWidth = image.Width > image.Height ? maxWidth : (int)(maxHeight * aspectRatio);
+                int newHeight = image.Width > image.Height ? (int)(maxWidth / aspectRatio) : maxHeight;
+                newWidth = Math.Max(1, newWidth);
+                newHeight = Math.Max(1, newHeight);
+
+                SixLabors.ImageSharp.Processing.ProcessingExtensions.Mutate(image, ctx =>
+                    SixLabors.ImageSharp.Processing.ResizeExtensions.Resize(ctx, new SixLabors.ImageSharp.Processing.ResizeOptions
+                    {
+                        Size = new SixLabors.ImageSharp.Size(newWidth, newHeight),
+                        Mode = SixLabors.ImageSharp.Processing.ResizeMode.Stretch,
+                        Sampler = SixLabors.ImageSharp.Processing.KnownResamplers.Bicubic
+                    }));
+
+                using var outputStream = new MemoryStream();
+                if (useJpeg)
+                    image.Save(outputStream, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder { Quality = 50 });
+                else
+                    image.Save(outputStream, new SixLabors.ImageSharp.Formats.Png.PngEncoder());
+                return outputStream.ToArray();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error resizing image {imagePath}: {ex.Message}");
+                return File.ReadAllBytes(imagePath);
+            }
+        }
+#else
         private byte[] ResizeImageForVision(string imagePath, int maxWidth, int maxHeight, bool useJpeg = false)
         {
             try
@@ -903,6 +941,7 @@ namespace FlipPix.UI.Services
                 return File.ReadAllBytes(imagePath);
             }
         }
+#endif
 
         /// <summary>
         /// Returns true for models known to emit chain-of-thought reasoning in plain text.
@@ -1075,6 +1114,7 @@ namespace FlipPix.UI.Services
             return result;
         }
 
+#if !FLIPPIX_LINUX
         private static ImageCodecInfo GetEncoderInfo(string mimeType)
         {
             var codecs = ImageCodecInfo.GetImageEncoders();
@@ -1085,6 +1125,7 @@ namespace FlipPix.UI.Services
             }
             throw new NotSupportedException($"Codec not found for MIME type: {mimeType}");
         }
+#endif
 
         public void Dispose()
         {

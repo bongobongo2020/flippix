@@ -1,35 +1,47 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="FlipPix.UI.Linux.Controls.SectionHeader"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ctrl="using:FlipPix.UI.Linux.Controls"
+             xmlns:conv="using:FlipPix.UI.Linux.Converters"
+             xmlns:win="using:FlipPix.UI.Linux.Windows"
+             xmlns:vm="using:FlipPix.UI.ViewModels"
+             xmlns:vmv="using:FlipPix.UI.ViewModels.Video"
+             xmlns:m="using:FlipPix.UI.Models"
+             xmlns:svc="using:FlipPix.UI.Services"
+             xmlns:sys="using:System"
+             mc:Ignorable="d"
              x:Name="Root"
-             Margin="0,0,0,8">
+             Margin="0,0,0,8"
+             x:Class="FlipPix.UI.Linux.Controls.SectionHeader">
     <!--
         Compact section heading for a tab's side rail:
 
             <ctrl:SectionHeader Title="SOURCE PHOTO"/>
 
-        The dot takes the tab's accent automatically (DynamicResource walks up to whichever
-        TabAccentBrush the enclosing tab defined), so a section header never needs a colour
-        of its own. Ported from FlipPix.UI/Controls/SectionHeader.xaml.
+        The dot takes the tab's accent automatically (DynamicResource walks up to
+        whichever TabAccentBrush the enclosing tab defined), so a section header
+        never needs a colour of its own.
+
+        The default bottom margin sits on the UserControl itself, so a caller that
+        needs different spacing (or Grid.Column placement) just sets it and gets no
+        double gap from the inner panel.
     -->
     <StackPanel Orientation="Horizontal">
-        <Ellipse Width="6" Height="6"
-                 Fill="{DynamicResource TabAccentBrush}"
-                 Margin="0,0,6,0"
-                 VerticalAlignment="Center"/>
-        <TextBlock Text="{Binding #Root.Title}"
+        <Ellipse Width="6" Height="6" Fill="{DynamicResource TabAccentBrush}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+        <TextBlock Text="{ReflectionBinding Title, ElementName=Root}"
                    FontSize="10"
                    FontWeight="Bold"
                    Foreground="{StaticResource TextSecondaryBrush}"
                    VerticalAlignment="Center"/>
         <!-- Optional qualifier ("· required", "· optional"). Hidden when unset so the
              separator never shows up on its own. -->
-        <TextBlock Text="{Binding #Root.Note}"
+        <TextBlock Text="{ReflectionBinding Note, ElementName=Root}"
                    FontSize="10"
                    Foreground="{StaticResource TextMutedBrush}"
                    VerticalAlignment="Center"
                    Margin="5,0,0,0"
                    TextTrimming="CharacterEllipsis"
-                   IsVisible="{Binding #Root.Note, Converter={StaticResource StringToVisibilityConverter}}"/>
+                   IsVisible="{ReflectionBinding Note, ElementName=Root, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
     </StackPanel>
 </UserControl>

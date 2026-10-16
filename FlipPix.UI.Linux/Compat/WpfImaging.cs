@@ -455,7 +455,7 @@ namespace System.Windows.Media.Imaging
         protected override void Encode(Image<Bgra32> image, Stream stream)
         {
             // JPEG has no alpha; flatten onto black the way WPF's encoder does.
-            using var opaque = image.Clone(ctx => ctx.BackgroundColor(Color.Black));
+            using var opaque = image.Clone(ctx => ctx.BackgroundColor(SixLabors.ImageSharp.Color.Black));
             opaque.Save(stream, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder
             {
                 Quality = Math.Clamp(QualityLevel, 1, 100)

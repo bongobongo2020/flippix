@@ -1,151 +1,257 @@
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="FlipPix.UI.Linux.Windows.StoryVideoWindow"
-        Title="FlipPix - Story Video Generator" Height="850" Width="1000"
-        WindowStartupLocation="CenterScreen"
-        MinHeight="700" MinWidth="860">
-
-    <Grid RowDefinitions="Auto,*,Auto">
-
+<win:AppWindow xmlns="https://github.com/avaloniaui"
+               xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+               xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+               xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+               xmlns:ctrl="using:FlipPix.UI.Linux.Controls"
+               xmlns:conv="using:FlipPix.UI.Linux.Converters"
+               xmlns:win="using:FlipPix.UI.Linux.Windows"
+               xmlns:vm="using:FlipPix.UI.ViewModels"
+               xmlns:vmv="using:FlipPix.UI.ViewModels.Video"
+               xmlns:m="using:FlipPix.UI.Models"
+               xmlns:svc="using:FlipPix.UI.Services"
+               xmlns:sys="using:System"
+               mc:Ignorable="d"
+               Title="FlipPix - Story Video Generator"
+               Height="850"
+               Width="1000"
+               WindowStartupLocation="CenterScreen"
+               MinHeight="700"
+               MinWidth="860"
+               x:Class="FlipPix.UI.StoryVideoWindow"
+               x:DataType="vm:StoryVideoViewModel"
+               x:CompileBindings="True">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
         <!-- Header -->
-        <Border Grid.Row="0" PointerPressed="Header_PointerPressed" Cursor="SizeAll">
+        <Border Grid.Row="0" PointerPressed="Header_MouseLeftButtonDown" Cursor="SizeAll">
             <Border.Background>
                 <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
                     <GradientStop Color="#9C27B0" Offset="0"/>
                     <GradientStop Color="#E91E63" Offset="1"/>
                 </LinearGradientBrush>
             </Border.Background>
-            <StackPanel Margin="25,18" Spacing="4">
+            <StackPanel Margin="25,18">
                 <TextBlock Text="Story Video Generator" FontSize="26" FontWeight="Bold" Foreground="White"/>
-                <TextBlock Text="Queue multiple batches — each with its own prompts and workflow"
-                           FontSize="12" Foreground="#FFFAF0"/>
+                <TextBlock Text="Queue multiple batches — each with its own prompts and workflow" FontSize="12" Foreground="#FFFAF0" Margin="0,4,0,0"/>
             </StackPanel>
         </Border>
-
         <!-- Main Content -->
-        <ScrollViewer Grid.Row="1">
-            <StackPanel Margin="20,15,20,15" Spacing="15">
-
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="20,15,20,15">
                 <!-- ═══ Step 1: Configure a Batch ═══ -->
-                <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
-                    <StackPanel Spacing="10">
-                        <TextBlock Text="Step 1: Configure a New Batch"
-                                   FontSize="14" FontWeight="Bold" Foreground="#9C27B0"/>
+                <Border Theme="{StaticResource SectionPanelStyle}">
+                    <StackPanel>
+                        <TextBlock Text="Step 1: Configure a New Batch" Theme="{StaticResource HeaderTextStyle}" Foreground="#9C27B0"/>
                         <TextBlock Text="Load a prompts file (.json or .txt), choose a workflow, then add to the queue."
-                                   FontSize="12" Foreground="#666"/>
-
+                                   FontSize="12"
+                                   Foreground="#666"
+                                   Margin="0,0,0,15"/>
                         <!-- Workflow selector -->
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="Video Workflow" FontWeight="SemiBold" FontSize="12"/>
-                            <ComboBox ItemsSource="{Binding WorkflowNames}"
-                                      SelectedIndex="{Binding SelectedWorkflowIndex, Mode=TwoWay}"
-                                      FontSize="11" HorizontalAlignment="Stretch" Height="34"/>
-                            <TextBlock FontSize="10" Foreground="#999">
-                                <Run Text="Selected: "/>
-                                <Run Text="{Binding SelectedWorkflowName}" Foreground="#4CAF50" FontWeight="SemiBold"/>
-                            </TextBlock>
-                        </StackPanel>
-
+                        <TextBlock Text="Video Workflow" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                        <ComboBox ItemsSource="{Binding WorkflowNames}"
+                                  SelectedIndex="{Binding SelectedWorkflowIndex, Mode=TwoWay}"
+                                  Height="34"
+                                  Padding="10,6"
+                                  Background="White"
+                                  BorderBrush="#CED4DA"
+                                  FontSize="11"
+                                  Margin="0,0,0,4"/>
+                        <TextBlock FontSize="10" Foreground="#999" Margin="0,0,0,15">
+                            <Run Text="Selected: "/>
+                            <Run Text="{Binding SelectedWorkflowName}" Foreground="#4CAF50" FontWeight="SemiBold"/>
+                        </TextBlock>
                         <!-- Load prompts file -->
-                        <Grid ColumnDefinitions="*,Auto">
-                            <Border Grid.Column="0" BorderBrush="#CED4DA" BorderThickness="1" CornerRadius="4"
-                                    Background="#F0F0F0" Padding="10,8">
-                                <TextBlock Text="{Binding PendingBatchSummary}" FontSize="11"
-                                           Foreground="#555" TextWrapping="Wrap"/>
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" BorderBrush="#CED4DA" BorderThickness="1" CornerRadius="4" Background="#F8F9FA" Padding="10,8">
+                                <TextBlock Text="{Binding PendingBatchSummary}"
+                                           FontSize="11"
+                                           Foreground="#555"
+                                           TextWrapping="Wrap"
+                                           VerticalAlignment="Center"/>
                             </Border>
-                            <Button Grid.Column="1" Content="Load Prompts from File"
-                                    Classes="secondary"
-                                    Command="{Binding LoadPromptsCommand}"
-                                    Height="36" Margin="10,0,0,0"/>
+                            <Button Grid.Column="1"
+                                    Content="Load Prompts from File"
+                                    Command="{Binding LoadPromptsCommand, Converter={x:Static conv:WpfConverters.ToAvalonia}}"
+                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                    Height="36"
+                                    Margin="10,0,0,0"
+                                    Padding="14,0"/>
                         </Grid>
-
-                        <!-- Add to Queue button -->
+                        <!-- Add to Queue -->
                         <Button Content="Add to Queue"
-                                Classes="primary"
-                                Command="{Binding AddToBatchQueueCommand}"
-                                Width="180" Height="38" HorizontalAlignment="Left"/>
-
+                                Command="{Binding AddToBatchQueueCommand, Converter={x:Static conv:WpfConverters.ToAvalonia}}"
+                                Theme="{StaticResource PrimaryButtonStyle}"
+                                Width="180"
+                                Height="38"
+                                HorizontalAlignment="Left"/>
                         <TextBlock Text="⚠ Each video clip takes 2–10 min depending on hardware"
-                                   FontSize="11" Foreground="#E91E63" FontWeight="SemiBold"/>
+                                   FontSize="11"
+                                   Foreground="#E91E63"
+                                   FontWeight="SemiBold"
+                                   Margin="0,10,0,0"/>
                     </StackPanel>
                 </Border>
-
                 <!-- ═══ Step 2: Batch Queue ═══ -->
-                <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
-                    <StackPanel Spacing="10">
-
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Grid.Column="0" FontSize="14" FontWeight="Bold" Foreground="#9C27B0">
+                <Border Theme="{StaticResource SectionPanelStyle}">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Theme="{StaticResource HeaderTextStyle}" Foreground="#9C27B0">
                                 <Run Text="Step 2: Batch Queue"/>
-                                <Run Text=" (" Foreground="#999" FontSize="13"/>
-                                <Run Text="{Binding BatchQueue.Count}" Foreground="#999" FontSize="13"/>
-                                <Run Text=" batches)" Foreground="#999" FontSize="13"/>
+                                <Run Text=" (" Foreground="#999" FontSize="13" FontWeight="Normal"/>
+                                <Run Text="{Binding BatchQueue.Count}" Foreground="#999" FontSize="13" FontWeight="Normal"/>
+                                <Run Text=" batches)" Foreground="#999" FontSize="13" FontWeight="Normal"/>
                             </TextBlock>
-                            <Button Grid.Column="1" Content="Clear Completed"
-                                    Classes="secondary"
-                                    Command="{Binding ClearCompletedBatchesCommand}"
-                                    Height="30" FontSize="11"/>
+                            <Button Grid.Column="1"
+                                    Content="Clear Completed"
+                                    Command="{Binding ClearCompletedBatchesCommand, Converter={x:Static conv:WpfConverters.ToAvalonia}}"
+                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                    Height="30"
+                                    Padding="12,0"
+                                    FontSize="11"/>
                         </Grid>
-
                         <!-- Empty state -->
                         <Border IsVisible="{Binding HasNoBatchItems}"
-                                Background="White" BorderBrush="#E0E0E0" BorderThickness="1"
-                                CornerRadius="4" Padding="20">
+                                Background="#F8F9FA"
+                                BorderBrush="#E0E0E0"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="20"
+                                Margin="0,0,0,5">
                             <TextBlock Text="No batches queued yet — configure a batch above and click 'Add to Queue'"
-                                       FontSize="12" Foreground="#999" HorizontalAlignment="Center"/>
+                                       FontSize="12"
+                                       Foreground="#999"
+                                       HorizontalAlignment="Center"/>
                         </Border>
-
                         <!-- Queue header row -->
-                        <Grid IsVisible="{Binding HasBatchItems}" ColumnDefinitions="30,*,130,70,70">
+                        <Grid IsVisible="{Binding HasBatchItems}" Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="30"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="130"/>
+                                <ColumnDefinition Width="70"/>
+                                <ColumnDefinition Width="70"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="" FontSize="10" Foreground="#999"/>
                             <TextBlock Grid.Column="1" Text="BATCH" FontSize="10" Foreground="#999" FontWeight="Bold"/>
                             <TextBlock Grid.Column="2" Text="WORKFLOW" FontSize="10" Foreground="#999" FontWeight="Bold"/>
                             <TextBlock Grid.Column="3" Text="CLIPS" FontSize="10" Foreground="#999" FontWeight="Bold" HorizontalAlignment="Center"/>
+                            <TextBlock Grid.Column="4" Text="" FontSize="10" Foreground="#999"/>
                         </Grid>
-
                         <!-- Batch rows -->
                         <ItemsControl ItemsSource="{Binding BatchQueue}" IsVisible="{Binding HasBatchItems}">
                             <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border BorderBrush="#E8E8E8" BorderThickness="0,0,0,1" Padding="4,7">
-                                        <Border.Background>
-                                            <!-- Highlight rows by status -->
-                                        </Border.Background>
-                                        <Grid ColumnDefinitions="30,*,130,70,70">
-
+                                <DataTemplate x:DataType="m:VideoBatch">
+                                    <Border BorderBrush="#E8E8E8"
+                                            BorderThickness="0,0,0,1"
+                                            Padding="4,7"
+                                            Classes="s1"
+                                            Classes.s1_0="{Binding Status, Converter={x:Static conv:WpfConverters.Equal}, ConverterParameter=Processing}"
+                                            Classes.s1_1="{Binding Status, Converter={x:Static conv:WpfConverters.Equal}, ConverterParameter=Done}"
+                                            Classes.s1_2="{Binding Status, Converter={x:Static conv:WpfConverters.Equal}, ConverterParameter=Failed}">
+                                        <Border.Styles>
+                                            <Style Selector="Border.s1.s1_0" x:DataType="m:VideoBatch">
+                                                <Setter Property="Background" Value="#FFF8E7"/>
+                                            </Style>
+                                            <Style Selector="Border.s1.s1_1" x:DataType="m:VideoBatch">
+                                                <Setter Property="Background" Value="#F1F8F1"/>
+                                            </Style>
+                                            <Style Selector="Border.s1.s1_2" x:DataType="m:VideoBatch">
+                                                <Setter Property="Background" Value="#FFF1F1"/>
+                                            </Style>
+                                        </Border.Styles>
+                                        <Border.Theme>
+                                            <ControlTheme TargetType="Border" x:DataType="m:VideoBatch">
+                                                <Setter Property="Background" Value="Transparent"/>
+                                            </ControlTheme>
+                                        </Border.Theme>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="30"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="130"/>
+                                                <ColumnDefinition Width="70"/>
+                                                <ColumnDefinition Width="70"/>
+                                            </Grid.ColumnDefinitions>
                                             <!-- Status icon -->
-                                            <TextBlock Grid.Column="0" Text="{Binding StatusIcon}"
-                                                       FontSize="14" VerticalAlignment="Center"
-                                                       HorizontalAlignment="Center">
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{Binding StatusIcon}"
+                                                       FontSize="14"
+                                                       VerticalAlignment="Center"
+                                                       HorizontalAlignment="Center"
+                                                       Classes="s2"
+                                                       Classes.s2_0="{Binding Status, Converter={x:Static conv:WpfConverters.Equal}, ConverterParameter=Processing}"
+                                                       Classes.s2_1="{Binding Status, Converter={x:Static conv:WpfConverters.Equal}, ConverterParameter=Done}"
+                                                       Classes.s2_2="{Binding Status, Converter={x:Static conv:WpfConverters.Equal}, ConverterParameter=Failed}">
                                                 <TextBlock.Styles>
-                                                    <Style Selector="TextBlock">
-                                                        <Setter Property="Foreground" Value="#2196F3"/>
+                                                    <Style Selector="TextBlock.s2.s2_0" x:DataType="m:VideoBatch">
+                                                        <Setter Property="Foreground" Value="#FF9800"/>
+                                                    </Style>
+                                                    <Style Selector="TextBlock.s2.s2_1" x:DataType="m:VideoBatch">
+                                                        <Setter Property="Foreground" Value="#4CAF50"/>
+                                                    </Style>
+                                                    <Style Selector="TextBlock.s2.s2_2" x:DataType="m:VideoBatch">
+                                                        <Setter Property="Foreground" Value="#F44336"/>
                                                     </Style>
                                                 </TextBlock.Styles>
+                                                <TextBlock.Theme>
+                                                    <ControlTheme TargetType="TextBlock" x:DataType="m:VideoBatch">
+                                                        <Setter Property="Foreground" Value="#2196F3"/>
+                                                    </ControlTheme>
+                                                </TextBlock.Theme>
                                             </TextBlock>
-
                                             <!-- Batch name -->
-                                            <TextBlock Grid.Column="1" Text="{Binding BatchName}"
-                                                       FontSize="12" VerticalAlignment="Center"
-                                                       TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
-
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding BatchName}"
+                                                       FontSize="12"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Margin="0,0,8,0"/>
                                             <!-- Workflow -->
-                                            <TextBlock Grid.Column="2" Text="{Binding WorkflowName}"
-                                                       FontSize="11" Foreground="#555" VerticalAlignment="Center"
-                                                       TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
-
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding WorkflowName}"
+                                                       FontSize="11"
+                                                       Foreground="#555"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Margin="0,0,8,0"/>
                                             <!-- Progress -->
-                                            <TextBlock Grid.Column="3" Text="{Binding ProgressText}"
-                                                       FontSize="11" VerticalAlignment="Center"
-                                                       HorizontalAlignment="Center" FontWeight="SemiBold"/>
-
-                                            <!-- Remove button (Queued items only) -->
+                                            <TextBlock Grid.Column="3"
+                                                       Text="{Binding ProgressText}"
+                                                       FontSize="11"
+                                                       VerticalAlignment="Center"
+                                                       HorizontalAlignment="Center"
+                                                       FontWeight="SemiBold"/>
+                                            <!-- Remove button (only for Queued items) -->
                                             <Button Grid.Column="4"
                                                     Content="Remove"
-                                                    FontSize="10" Height="24"
-                                                    HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                    IsVisible="{Binding IsQueued}"
-                                                    Command="{Binding $parent[Window].DataContext.RemoveBatchCommand}"
-                                                    CommandParameter="{Binding}"/>
+                                                    FontSize="10"
+                                                    Height="24"
+                                                    Padding="6,0"
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center"
+                                                    Command="{Binding $parent[Window].((vm:StoryVideoViewModel)DataContext).RemoveBatchCommand}"
+                                                    CommandParameter="{Binding}"
+                                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                                    Classes="s3"
+                                                    Classes.s3_0="{Binding !IsQueued}">
+                                                <Button.Styles>
+                                                    <Style Selector="Button.s3.s3_0" x:DataType="m:VideoBatch">
+                                                        <Setter Property="IsVisible" Value="False"/>
+                                                    </Style>
+                                                </Button.Styles>
+                                            </Button>
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
@@ -153,61 +259,73 @@
                         </ItemsControl>
                     </StackPanel>
                 </Border>
-
                 <!-- ═══ Processing Status ═══ -->
-                <Border Background="#FFF9F0" BorderBrush="#FFE0B0" BorderThickness="1" CornerRadius="5" Padding="15"
-                        IsVisible="{Binding IsProcessing}">
-                    <StackPanel Spacing="8">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Grid.Column="0" Text="{Binding ProcessingStatus}"
-                                       FontWeight="SemiBold" FontSize="12" TextWrapping="Wrap"
+                <Border Theme="{StaticResource SectionPanelStyle}" IsVisible="{Binding IsProcessing}">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="{Binding ProcessingStatus}"
+                                       FontWeight="SemiBold"
+                                       FontSize="12"
+                                       TextWrapping="Wrap"
                                        VerticalAlignment="Center"/>
-                            <Button Grid.Column="1" Content="Cancel"
-                                    Classes="secondary"
-                                    Command="{Binding CancelGenerationCommand}"
-                                    Height="30" Margin="12,0,0,0"/>
+                            <Button Grid.Column="1"
+                                    Content="Cancel"
+                                    Command="{Binding CancelGenerationCommand, Converter={x:Static conv:WpfConverters.ToAvalonia}}"
+                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                    Height="30"
+                                    Padding="14,0"
+                                    Margin="12,0,0,0"/>
                         </Grid>
-                        <ProgressBar Value="{Binding ProcessingProgress}" Height="18"/>
+                        <ProgressBar Value="{Binding ProcessingProgress}" Height="18" Foreground="#9C27B0" Margin="0,0,0,4"/>
                         <TextBlock Text="{Binding ProgressPercentage}"
-                                   HorizontalAlignment="Center" FontSize="11"
-                                   FontWeight="Bold" Foreground="#9C27B0"/>
+                                   HorizontalAlignment="Center"
+                                   FontSize="11"
+                                   FontWeight="Bold"
+                                   Foreground="#9C27B0"/>
                     </StackPanel>
                 </Border>
-
                 <!-- ═══ Result ═══ -->
-                <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15"
-                        IsVisible="{Binding HasResultVideo}">
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="Videos Generated Successfully"
-                                   FontWeight="Bold" FontSize="14" Foreground="#4CAF50"/>
-                        <TextBlock Text="{Binding ResultVideoPath}" FontSize="11"
-                                   Foreground="#666" TextWrapping="Wrap"/>
-                        <Button Content="Open Output Folder" Classes="secondary"
-                                Command="{Binding OpenResultFolderCommand}"
-                                Width="180" Height="34" HorizontalAlignment="Left"/>
+                <Border Theme="{StaticResource SectionPanelStyle}" IsVisible="{Binding HasResultVideo}">
+                    <StackPanel>
+                        <TextBlock Text="Videos Generated Successfully" FontWeight="Bold" FontSize="14" Foreground="#4CAF50" Margin="0,0,0,6"/>
+                        <TextBlock Text="{Binding ResultVideoPath}" FontSize="11" Foreground="#666" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                        <Button Content="Open Output Folder"
+                                Command="{Binding OpenResultFolderCommand, Converter={x:Static conv:WpfConverters.ToAvalonia}}"
+                                Theme="{StaticResource SecondaryButtonStyle}"
+                                Width="180"
+                                Height="34"
+                                HorizontalAlignment="Left"/>
                     </StackPanel>
                 </Border>
-
                 <!-- ═══ Log ═══ -->
                 <Expander Header="Processing Log" IsExpanded="True">
                     <Border Background="White" BorderBrush="#DEE2E6" BorderThickness="1" Margin="0,8,0,0">
-                        <ScrollViewer MaxHeight="200">
-                            <TextBox Text="{Binding LogOutput}" TextWrapping="Wrap"
-                                     IsReadOnly="True" FontFamily="Monospace" FontSize="10"
-                                     Background="Transparent" BorderThickness="0" Padding="10"/>
+                        <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto">
+                            <TextBox Text="{Binding LogOutput}"
+                                     TextWrapping="Wrap"
+                                     IsReadOnly="True"
+                                     FontFamily="Consolas, DejaVu Sans Mono, Liberation Mono, monospace"
+                                     FontSize="10"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     Padding="10"/>
                         </ScrollViewer>
                     </Border>
                 </Expander>
-
             </StackPanel>
         </ScrollViewer>
-
         <!-- Status Bar -->
         <Border Grid.Row="2" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="0,1,0,0" Height="28">
-            <DockPanel>
-                <TextBlock Text="{Binding StatusBarMessage}" FontSize="11"
-                           VerticalAlignment="Center" Margin="5,0"/>
+            <DockPanel LastChildFill="False">
+                <ContentControl>
+                    <TextBlock Text="{Binding StatusBarMessage}" FontSize="11"/>
+                </ContentControl>
             </DockPanel>
         </Border>
     </Grid>
-</Window>
+</win:AppWindow>

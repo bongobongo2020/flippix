@@ -1,20 +1,285 @@
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="FlipPix.UI.Linux.Windows.ComfyUIFolderSetupWindow"
-        Title="ComfyUI Setup" Width="600" Height="500" WindowStartupLocation="CenterOwner">
-    <StackPanel Margin="25" Spacing="15">
-        <TextBlock Text="ComfyUI Folder Setup" FontSize="20" FontWeight="Bold"/>
-        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
-            <TextBox Grid.Row="0" Grid.Column="0" Text="{Binding FolderPath}" Watermark="ComfyUI folder path..."/>
-            <Button Grid.Row="0" Grid.Column="1" Content="Browse" Command="{Binding BrowseFolderCommand}" Margin="5,0,0,0"/>
-            <TextBox Grid.Row="1" Grid.Column="0" Text="{Binding ServerUrl}" Watermark="Server URL..." Margin="0,10,0,0"/>
-            <Button Grid.Row="1" Grid.Column="1" Content="Test" Command="{Binding TestConnectionCommand}" Margin="5,10,0,0"/>
+<win:DialogWindow xmlns="https://github.com/avaloniaui"
+                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                  xmlns:ctrl="using:FlipPix.UI.Linux.Controls"
+                  xmlns:conv="using:FlipPix.UI.Linux.Converters"
+                  xmlns:win="using:FlipPix.UI.Linux.Windows"
+                  xmlns:vm="using:FlipPix.UI.ViewModels"
+                  xmlns:vmv="using:FlipPix.UI.ViewModels.Video"
+                  xmlns:m="using:FlipPix.UI.Models"
+                  xmlns:svc="using:FlipPix.UI.Services"
+                  xmlns:sys="using:System"
+                  mc:Ignorable="d"
+                  Title="ComfyUI Setup"
+                  Height="700"
+                  MinHeight="530"
+                  Width="650"
+                  WindowStartupLocation="CenterScreen"
+                  Background="{StaticResource AppBackgroundBrush}"
+                  x:Class="FlipPix.UI.Linux.Windows.ComfyUIFolderSetupWindow"
+                  x:DataType="vm:ComfyUIFolderSetupViewModel"
+                  x:CompileBindings="True">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0">
+        <Grid Margin="20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <!-- Title -->
+            <TextBlock Grid.Row="0"
+                       Text="ComfyUI Setup"
+                       FontSize="20"
+                       FontWeight="Bold"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       Margin="0,0,0,20"/>
+            <!-- Description -->
+            <TextBlock Grid.Row="1" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,20">
+                <Run Text="Please configure your ComfyUI installation by setting the folder path and server address."/>
+                <LineBreak/>
+                <Run Text="The application will test the connection to ensure ComfyUI is accessible."/>
+            </TextBlock>
+            <!-- Folder Path Input -->
+            <Grid Grid.Row="2" Margin="0,0,0,15">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox Grid.Column="0"
+                         x:Name="FolderPathTextBox"
+                         Text="{Binding FolderPath}"
+                         Padding="8"
+                         FontSize="14"
+                         Background="{StaticResource SurfaceAltBrush}"
+                         Foreground="{StaticResource TextPrimaryBrush}"
+                         BorderBrush="{StaticResource BorderBrush}"
+                         BorderThickness="1"/>
+                <Button Grid.Column="1"
+                        Content="Browse..."
+                        Command="{Binding BrowseFolderCommand}"
+                        Margin="10,0,0,0"
+                        Padding="20,8"
+                        Theme="{StaticResource PrimaryButtonStyle}"
+                        Cursor="Hand"/>
+            </Grid>
+            <!-- Server URL Section -->
+            <TextBlock Grid.Row="3"
+                       Text="ComfyUI Server Address:"
+                       FontSize="14"
+                       FontWeight="SemiBold"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       Margin="0,0,0,5"/>
+            <TextBlock Grid.Row="4"
+                       Text="Enter the IP address and port where ComfyUI is running (e.g., localhost:8188)"
+                       FontSize="12"
+                       Foreground="{StaticResource TextMutedBrush}"
+                       Margin="0,0,0,8"/>
+            <!-- Server URL Input -->
+            <Grid Grid.Row="5" Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox Grid.Column="0"
+                         x:Name="ServerUrlTextBox"
+                         Text="{Binding ServerUrl}"
+                         Padding="8"
+                         FontSize="14"
+                         Background="{StaticResource SurfaceAltBrush}"
+                         Foreground="{StaticResource TextPrimaryBrush}"
+                         BorderBrush="{StaticResource BorderBrush}"
+                         BorderThickness="1"
+                         VerticalContentAlignment="Center"/>
+                <Button Grid.Column="1"
+                        Content="Test Connection"
+                        Command="{Binding TestConnectionCommand}"
+                        Margin="10,0,0,0"
+                        Padding="15,8"
+                        Theme="{StaticResource PrimaryButtonStyle}"
+                        Cursor="Hand"/>
+            </Grid>
+            <!-- Server Connection Status -->
+            <Border Grid.Row="6"
+                    Background="{StaticResource SurfaceAltBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="12,8"
+                    Margin="0,0,0,15">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <!-- Connection Status Indicator -->
+                    <Ellipse Grid.Column="0"
+                             Width="12"
+                             Height="12"
+                             Margin="0,0,10,0"
+                             VerticalAlignment="Center"
+                             Classes="s1"
+                             Classes.s1_0="{Binding IsServerConnected}"
+                             Classes.s1_1="{Binding IsTestingConnection}">
+                        <Ellipse.Styles>
+                            <Style Selector="Ellipse.s1.s1_0" x:DataType="vm:ComfyUIFolderSetupViewModel">
+                                <Setter Property="Fill" Value="{StaticResource SuccessTextBrush}"/>
+                            </Style>
+                            <Style Selector="Ellipse.s1.s1_1" x:DataType="vm:ComfyUIFolderSetupViewModel">
+                                <Setter Property="Fill" Value="{StaticResource AccentAmberBrush}"/>
+                            </Style>
+                        </Ellipse.Styles>
+                        <Ellipse.Theme>
+                            <ControlTheme TargetType="Ellipse" x:DataType="vm:ComfyUIFolderSetupViewModel">
+                                <Setter Property="Fill" Value="{StaticResource TextMutedBrush}"/>
+                            </ControlTheme>
+                        </Ellipse.Theme>
+                    </Ellipse>
+                    <!-- Connection Status Text -->
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding ServerConnectionMessage}"
+                               FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               VerticalAlignment="Center"
+                               Classes="s2"
+                               Classes.s2_0="{Binding IsServerConnected}"
+                               Classes.s2_1="{Binding IsTestingConnection}">
+                        <TextBlock.Styles>
+                            <Style Selector="TextBlock.s2.s2_0" x:DataType="vm:ComfyUIFolderSetupViewModel">
+                                <Setter Property="Foreground" Value="{StaticResource SuccessTextBrush}"/>
+                            </Style>
+                            <Style Selector="TextBlock.s2.s2_1" x:DataType="vm:ComfyUIFolderSetupViewModel">
+                                <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
+                            </Style>
+                        </TextBlock.Styles>
+                    </TextBlock>
+                </Grid>
+            </Border>
+            <!-- Remote Output Folder Section -->
+            <TextBlock Grid.Row="7"
+                       Text="Remote ComfyUI Output Folder:"
+                       FontSize="14"
+                       FontWeight="SemiBold"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       Margin="0,0,0,5"/>
+            <TextBlock Grid.Row="8"
+                       Text="Enter the network path to the remote ComfyUI output folder (required for remote servers)"
+                       FontSize="12"
+                       Foreground="{StaticResource TextMutedBrush}"
+                       Margin="0,0,0,8"/>
+            <!-- Remote Output Folder Input -->
+            <Grid Grid.Row="9" Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox Grid.Column="0"
+                         x:Name="RemoteOutputFolderTextBox"
+                         Text="{Binding RemoteOutputFolderPath}"
+                         Padding="8"
+                         FontSize="14"
+                         Background="{StaticResource SurfaceAltBrush}"
+                         Foreground="{StaticResource TextPrimaryBrush}"
+                         BorderBrush="{StaticResource BorderBrush}"
+                         BorderThickness="1"/>
+                <Button Grid.Column="1"
+                        Content="Browse..."
+                        Command="{Binding BrowseRemoteOutputFolderCommand}"
+                        Margin="10,0,0,0"
+                        Padding="20,8"
+                        Theme="{StaticResource PrimaryButtonStyle}"
+                        Cursor="Hand"/>
+            </Grid>
+            <!-- Remote LoRA Folder Section -->
+            <TextBlock Grid.Row="10"
+                       Text="Remote ComfyUI LoRA Folder:"
+                       FontSize="14"
+                       FontWeight="SemiBold"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       Margin="0,0,0,5"/>
+            <TextBlock Grid.Row="11"
+                       Text="Enter the network path to the remote ComfyUI LoRA folder (e.g., Y:\\ai-models\\loras\\zimage)"
+                       FontSize="12"
+                       Foreground="{StaticResource TextMutedBrush}"
+                       Margin="0,0,0,8"/>
+            <!-- Remote LoRA Folder Input -->
+            <Grid Grid.Row="12" Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox Grid.Column="0"
+                         x:Name="RemoteLoraFolderTextBox"
+                         Text="{Binding RemoteLoraFolderPath}"
+                         Padding="8"
+                         FontSize="14"
+                         Background="{StaticResource SurfaceAltBrush}"
+                         Foreground="{StaticResource TextPrimaryBrush}"
+                         BorderBrush="{StaticResource BorderBrush}"
+                         BorderThickness="1"/>
+                <Button Grid.Column="1"
+                        Content="Browse..."
+                        Command="{Binding BrowseRemoteLoraFolderCommand}"
+                        Margin="10,0,0,0"
+                        Padding="20,8"
+                        Theme="{StaticResource PrimaryButtonStyle}"
+                        Cursor="Hand"/>
+            </Grid>
+            <!-- Validation Status -->
+            <TextBlock Grid.Row="13"
+                       x:Name="ValidationTextBlock"
+                       Text="{Binding ValidationMessage}"
+                       Foreground="{Binding ValidationMessageColor, Converter={x:Static conv:WpfConverters.ToAvalonia}}"
+                       FontSize="12"
+                       Margin="0,5,0,10"
+                       TextWrapping="Wrap"/>
+            <!-- Output Folder Info -->
+            <TextBlock Grid.Row="14"
+                       x:Name="OutputFolderTextBlock"
+                       Text="{Binding OutputFolderInfo}"
+                       Foreground="{StaticResource TextMutedBrush}"
+                       FontSize="11"
+                       Margin="0,0,0,20"
+                       TextWrapping="Wrap"
+                       IsVisible="{Binding OutputFolderInfoVisibility, Converter={x:Static conv:WpfConverters.VisibilityToBool}}"/>
+            <!-- Spacer -->
+            <Border Grid.Row="15"/>
+            <!-- Buttons -->
+            <StackPanel Grid.Row="16" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Install minimal ComfyUI now"
+                        Command="{Binding InstallMinimalComfyUICommand}"
+                        Padding="20,10"
+                        Margin="0,0,10,0"
+                        Background="{StaticResource BrandBrush}"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        BorderThickness="0"
+                        Cursor="Hand"
+                        ToolTip.Tip="Installs a stripped-down ComfyUI (image gen + edit) and downloads only the core models. VRAM tier is auto-detected."/>
+                <Button Content="Cancel"
+                        Command="{Binding CancelCommand}"
+                        Padding="30,10"
+                        Margin="0,0,10,0"
+                        Theme="{StaticResource SecondaryButtonStyle}"
+                        Cursor="Hand"/>
+                <Button Content="Save"
+                        Command="{Binding SaveCommand}"
+                        IsEnabled="{Binding CanSave}"
+                        Padding="30,10"
+                        Theme="{StaticResource PrimaryButtonStyle}"
+                        Cursor="Hand"/>
+            </StackPanel>
         </Grid>
-        <TextBlock Text="{Binding ValidationMessage}" TextWrapping="Wrap" Foreground="Orange"/>
-        <TextBlock Text="{Binding ServerConnectionMessage}" FontSize="11" Foreground="#666"/>
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
-            <Button Content="Save" Classes="primary" Command="{Binding SaveCommand}"/>
-            <Button Content="Cancel" Command="{Binding CancelCommand}"/>
-        </StackPanel>
-    </StackPanel>
-</Window>
+    </ScrollViewer>
+</win:DialogWindow>

@@ -2,6 +2,7 @@
 // These replace System.Windows.* APIs with Linux-compatible equivalents
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Avalonia.Threading;
 
@@ -74,37 +75,27 @@ namespace System.Windows
         public static MessageBoxResult Show(string text, string caption)
             => Show(text, caption, MessageBoxButton.OK, MessageBoxImage.None);
 
+        // WPF's owner-first overloads; the owner only decides which window the dialog sits over.
+        public static MessageBoxResult Show(object? owner, string text, string caption, MessageBoxButton button, MessageBoxImage icon)
+            => Show(text, caption, button, icon);
+
+        public static MessageBoxResult Show(object? owner, string text, string caption, MessageBoxButton button)
+            => Show(text, caption, button, MessageBoxImage.None);
+
+        public static MessageBoxResult Show(object? owner, string text, string caption)
+            => Show(text, caption, MessageBoxButton.OK, MessageBoxImage.None);
+
+        public static MessageBoxResult Show(object? owner, string text)
+            => Show(text, "FlipPix", MessageBoxButton.OK, MessageBoxImage.None);
+
         private static async System.Threading.Tasks.Task<MessageBoxResult> ShowAsync(string text, string caption, MessageBoxButton button, MessageBoxImage icon)
         {
             try
             {
-                var mboxIcon = icon switch
-                {
-                    MessageBoxImage.Error => MsBox.Avalonia.Enums.Icon.Error,
-                    MessageBoxImage.Warning => MsBox.Avalonia.Enums.Icon.Warning,
-                    MessageBoxImage.Question => MsBox.Avalonia.Enums.Icon.Question,
-                    MessageBoxImage.Information => MsBox.Avalonia.Enums.Icon.Info,
-                    _ => MsBox.Avalonia.Enums.Icon.None
-                };
-
-                var mboxButton = button switch
-                {
-                    MessageBoxButton.YesNo => global::MessageBox.Avalonia.Enums.ButtonEnum.YesNo,
-                    MessageBoxButton.OKCancel => global::MessageBox.Avalonia.Enums.ButtonEnum.OkCancel,
-                    MessageBoxButton.YesNoCancel => global::MessageBox.Avalonia.Enums.ButtonEnum.YesNoCancel,
-                    _ => global::MessageBox.Avalonia.Enums.ButtonEnum.Ok
-                };
-
-                var box = MsBox.Avalonia.MessageBoxManager.GetMessageBoxStandard(caption, text, mboxButton, mboxIcon);
-                var btnResult = await box.ShowAsync();
-
-                return btnResult switch
-                {
-                    MsBox.Avalonia.Enums.ButtonResult.Yes => MessageBoxResult.Yes,
-                    MsBox.Avalonia.Enums.ButtonResult.No => MessageBoxResult.No,
-                    MsBox.Avalonia.Enums.ButtonResult.Cancel => MessageBoxResult.Cancel,
-                    _ => MessageBoxResult.OK
-                };
+                var owner = Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+                    ? System.Linq.Enumerable.FirstOrDefault(desktop.Windows, w => w.IsActive) ?? desktop.MainWindow
+                    : null;
+                return await FlipPix.UI.Linux.Windows.MessageBoxWindow.ShowAsync(owner, text, caption, button, icon);
             }
             catch
             {
@@ -113,15 +104,18 @@ namespace System.Windows
         }
     }
 
+    /// <summary>WPF's screen metrics, in device-independent units as WPF reports them.</summary>
     public static class SystemParameters
     {
-        public static double PrimaryScreenWidth => Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
-            ? desktop.MainWindow?.Screens.Primary?.WorkingArea.Width ?? 1920
-            : 1920;
+        private static Avalonia.Platform.Screen? Primary =>
+            Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+                ? (desktop.MainWindow ?? System.Linq.Enumerable.FirstOrDefault(desktop.Windows))?.Screens.Primary
+                : null;
 
-        public static double PrimaryScreenHeight => Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
-            ? desktop.MainWindow?.Screens.Primary?.WorkingArea.Height ?? 1080
-            : 1080;
+        public static double PrimaryScreenWidth => Primary is { } s ? s.WorkingArea.Width / s.Scaling : 1920;
+        public static double PrimaryScreenHeight => Primary is { } s ? s.WorkingArea.Height / s.Scaling : 1080;
+        public static double WorkAreaWidth => PrimaryScreenWidth;
+        public static double WorkAreaHeight => PrimaryScreenHeight;
     }
 
     public static class Application
@@ -132,6 +126,9 @@ namespace System.Windows
     public class ApplicationShim
     {
         public DispatcherShim Dispatcher { get; } = new DispatcherShim();
+
+        /// <summary>The open WPF-style dialog facades (Compat/WpfWindow.cs).</summary>
+        public IEnumerable<Window> Windows => Window.OpenWindows;
     }
 
     public class DispatcherShim
@@ -145,6 +142,17 @@ namespace System.Windows
             else
                 Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(action).GetAwaiter().GetResult();
         }
+
+        public void Invoke(Action action, System.Windows.Threading.DispatcherPriority priority) => Invoke(action);
+
+        public T Invoke<T>(Func<T> function)
+        {
+            if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+                return function();
+            return Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(function).GetAwaiter().GetResult();
+        }
+
+        public T Invoke<T>(Func<T> function, System.Windows.Threading.DispatcherPriority priority) => Invoke(function);
 
         public void BeginInvoke(Action action, System.Windows.Threading.DispatcherPriority priority = System.Windows.Threading.DispatcherPriority.Normal)
         {
@@ -164,6 +172,9 @@ namespace System.Windows
 
         public System.Threading.Tasks.Task<T> InvokeAsync<T>(Func<T> function)
             => Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(function).GetTask();
+
+        public System.Threading.Tasks.Task<T> InvokeAsync<T>(Func<T> function, System.Windows.Threading.DispatcherPriority priority)
+            => InvokeAsync(function);
     }
 
     // DispatcherPriority is declared in System.Windows.Threading, as in WPF.
@@ -179,11 +190,11 @@ namespace System.Windows
     {
         public static void SetText(string text)
         {
-            FlipPix.UI.Linux.Services.ClipboardService.SetText(text);
+            FlipPix.UI.Services.ClipboardService.SetText(text);
         }
 
-        public static string? GetText() => string.Empty;
-        public static bool ContainsText() => false;
+        public static string GetText() => FlipPix.UI.Services.ClipboardService.GetText() ?? string.Empty;
+        public static bool ContainsText() => !string.IsNullOrEmpty(FlipPix.UI.Services.ClipboardService.GetText());
     }
 }
 

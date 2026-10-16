@@ -292,7 +292,8 @@ namespace FlipPix.UI.Services
         }
 
         /// <summary>
-        /// Finds the local ComfyUI install's Python interpreter (portable python_embeded, or a venv).
+        /// Finds the local ComfyUI install's Python interpreter (portable python_embeded, or a venv;
+        /// on Linux venv/bin/python, .venv, or the system python3).
         /// Used only for the targeted dependency install above. Null if it can't be located.
         /// </summary>
         private string? ResolveEmbeddedPython()
@@ -306,6 +307,11 @@ namespace FlipPix.UI.Services
                 Path.Combine(comfy, "venv", "Scripts", "python.exe"),
                 portableRoot != null ? Path.Combine(portableRoot, "venv", "Scripts", "python.exe") : null,
                 Path.Combine(comfy, ".venv", "Scripts", "python.exe"),
+                // Linux layouts (the FlipPix Linux build shares this service)
+                Path.Combine(comfy, "venv", "bin", "python"),
+                portableRoot != null ? Path.Combine(portableRoot, "venv", "bin", "python") : null,
+                Path.Combine(comfy, ".venv", "bin", "python"),
+                OperatingSystem.IsLinux() ? "/usr/bin/python3" : null,
             };
             foreach (var c in candidates)
                 if (!string.IsNullOrEmpty(c) && File.Exists(c)) return c;

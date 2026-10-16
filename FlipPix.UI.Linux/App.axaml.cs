@@ -1,33 +1,40 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Markup.Xaml;
 using Avalonia.LogicalTree;
-using System.Linq;
+using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
+using FlipPix.ComfyUI.Http;
+using FlipPix.ComfyUI.Services;
+using FlipPix.ComfyUI.WebSocket;
+using FlipPix.Core.Interfaces;
+using FlipPix.Core.Models;
+using FlipPix.Core.Services;
+using FlipPix.UI.Linux.Windows;
+using FlipPix.UI.Services;
+using FlipPix.UI.ViewModels;
+using FlipPix.UI.ViewModels.Video;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using FlipPix.UI.Linux.ViewModels;
-using FlipPix.UI.Linux.ViewModels.Video;
-using FlipPix.ComfyUI.Services;
-using FlipPix.Core.Interfaces;
-using FlipPix.Core.Services;
-using FlipPix.UI.Linux.Services;
-using FlipPix.ComfyUI.Http;
-using FlipPix.ComfyUI.WebSocket;
-using FlipPix.Core.Models;
-using MsBox.Avalonia;
-using MsBox.Avalonia.Enums;
-using ButtonEnum = MessageBox.Avalonia.Enums.ButtonEnum;
-using ButtonResult = MsBox.Avalonia.Enums.ButtonResult;
-using FlipPix.UI.Linux.Windows;
+using MessageBoxButton = System.Windows.MessageBoxButton;
+using MessageBoxImage = System.Windows.MessageBoxImage;
+using MessageBoxResult = System.Windows.MessageBoxResult;
 
 namespace FlipPix.UI.Linux;
 
+/// <summary>
+/// Startup mirrors FlipPix.UI/App.xaml.cs: DI with the same registrations, first-run setup
+/// (local ComfyUI folder or remote server), a connectivity check with auto-start, then the Image
+/// Generator as the main window. Linux additions: a splash while services spin up, the
+/// Windows-tool shims (ffmpeg.exe etc.) the shared view models look for, and a smoke-test hook.
+/// </summary>
 public partial class App : Application
 {
     private static readonly CancellationTokenSource _shutdownCts = new();
@@ -42,6 +49,20 @@ public partial class App : Application
         if (ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
             return;
 
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            Log(e.ExceptionObject as Exception, "Unhandled domain exception");
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            Log(e.Exception, "Unobserved task exception");
+            e.SetObserved();
+        };
+        Dispatcher.UIThread.UnhandledException += (_, e) =>
+        {
+            Log(e.Exception, "Unhandled UI exception");
+            ShowError("FlipPix Crash", $"Unhandled UI Exception:\n\n{e.Exception.Message}\n\nStack trace:\n{e.Exception.StackTrace}");
+            e.Handled = true; // keep the app alive so the user can see the error, as the WPF app does
+        };
+
         var services = new ServiceCollection();
         ConfigureServices(services);
         _serviceProvider = services.BuildServiceProvider();
@@ -51,9 +72,6 @@ public partial class App : Application
         var settingsService = _serviceProvider.GetRequiredService<SettingsService>();
         settingsService.SetLogger(logger);
 
-        // Let the ComfyUI client offer to install missing models (download / locate folder) or
-        // missing custom-node packs (clone + restart) instead of failing the workflow with a
-        // dead-end error — exactly as the WPF app does at startup.
         try
         {
             var httpClient = _serviceProvider.GetRequiredService<ComfyUIHttpClient>();
@@ -65,226 +83,278 @@ public partial class App : Application
             logger.LogWarning($"Could not wire missing-model/node resolver: {ex.Message}");
         }
 
-        // Resolve the VRAM tier up-front from saved settings so workflow routing is correct even
-        // before (or without) a successful ComfyUI connection. CheckServerConnectivityAsync refines
-        // DetectedVramGb from /system_stats when the server answers (same as the WPF app).
         VramContext.Configure(settingsService.Settings.VramTier, settingsService.Settings.DetectedVramGb);
         logger.LogInfo($"VRAM tier: {VramContext.EffectiveTier} (setting={settingsService.Settings.VramTier}, detected={settingsService.Settings.DetectedVramGb:0.#} GB)");
 
-        logger.LogInfo("FlipPix Linux starting up");
+        logger.LogInfo($"FlipPix (Linux) starting up — {Environment.OSVersion}, {(DesktopIntegration.IsChromeOS ? "ChromeOS Linux container" : "desktop Linux")}");
         ConfigureMediaTooling(logger);
+        Controls.Menus.Initialize();
+        WindowsToolShims.Install(logger);
 
-        // The phone remote: listens only if it was left on; its config loads off the UI thread.
-        PhoneRemote.Start(settingsService, logger);
-        desktop.Exit += (_, _) => PhoneRemote.Stop();
+        desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        desktop.Exit += (_, _) =>
+        {
+            PhoneRemote.Stop();
+            _shutdownCts.Cancel();
+        };
 
         var splash = new SplashWindow();
         desktop.MainWindow = splash;
         splash.Show();
 
-        Task.Run(async () =>
-        {
-            await StartupFlowAsync(desktop, settingsService, logger, splash);
-        });
+        Dispatcher.UIThread.Post(async () => await StartupFlowAsync(desktop, settingsService, logger, splash));
 
         base.OnFrameworkInitializationCompleted();
     }
 
-    private async Task StartupFlowAsync(
-        IClassicDesktopStyleApplicationLifetime desktop,
-        SettingsService settingsService,
-        IAppLogger logger,
-        Window splash)
+    private void Log(Exception? ex, string what)
     {
         try
         {
-            // First launch after install: auto-detect the ComfyUI install so the user isn't
-            // forced to browse for a folder whose location we can usually figure out.
+            var logger = _serviceProvider?.GetService<IAppLogger>();
+            if (ex != null) logger?.LogError(ex, what);
+        }
+        catch { }
+    }
+
+    private static void ShowError(string caption, string message) =>
+        System.Windows.MessageBox.Show(message, caption, MessageBoxButton.OK, MessageBoxImage.Error);
+
+    private async Task StartupFlowAsync(
+        IClassicDesktopStyleApplicationLifetime desktop, SettingsService settingsService, IAppLogger logger, Window splash)
+    {
+        try
+        {
+            logger.LogInfo("OnStartup - Checking if ComfyUI is configured");
             if (!settingsService.IsComfyUIFolderConfigured())
             {
                 var detected = settingsService.TryAutoDetectComfyUIFolder();
                 if (detected != null && settingsService.ValidateAndSetComfyUIFolder(detected))
-                {
                     logger.LogInfo($"Auto-configured ComfyUI folder: {detected}");
-                }
             }
 
             if (!settingsService.IsComfyUIFolderConfigured())
             {
-                logger.LogInfo("ComfyUI not configured. Showing setup.");
+                logger.LogInfo("ComfyUI not configured. Showing choice window.");
+                splash.Hide();
 
-                await Dispatcher.UIThread.InvokeAsync(() =>
+                var choice = new SetupChoiceWindow();
+                if (await ShowModalAsync(choice) != true)
                 {
-                    var setupWin = new SetupChoiceWindow();
-                    desktop.MainWindow = setupWin;
-                    // Prevent the default OnLastWindowClose shutdown from killing the app
-                    // while we transition between setup windows and the main window
-                    // (those transitions are async and lose the race otherwise).
-                    desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
-                    setupWin.Show();
-                    splash.Close();
+                    logger.LogInfo("User cancelled choice. Shutting down application.");
+                    desktop.Shutdown();
+                    return;
+                }
 
-                    setupWin.Closed += (_, _) =>
+                if (choice.IsLocalSelected)
+                {
+                    var setupViewModel = _serviceProvider!.GetRequiredService<ComfyUIFolderSetupViewModel>();
+                    if (await ShowModalAsync(new ComfyUIFolderSetupWindow(setupViewModel)) != true)
                     {
-                        if (!setupWin.UserConfirmed)
-                        {
-                            desktop.Shutdown();
-                            return;
-                        }
-
-                        if (setupWin.IsLocalSelected)
-                        {
-                            // Show folder picker to configure local ComfyUI path
-                            var setupViewModel = _serviceProvider?.GetRequiredService<ComfyUIFolderSetupViewModel>();
-                            if (setupViewModel == null) { desktop.Shutdown(); return; }
-                            var folderWin = new ComfyUIFolderSetupWindow(setupViewModel);
-                            desktop.MainWindow = folderWin;
-                            folderWin.Show();
-                            folderWin.Closed += (_, _) => _ = ShowMainWindowAsync(desktop, null);
-                        }
-                        else if (setupWin.IsRemoteSelected)
-                        {
-                            // Show remote server URL entry
-                            var settingsService = _serviceProvider?.GetRequiredService<SettingsService>();
-                            if (settingsService == null) { desktop.Shutdown(); return; }
-                            var remoteWin = new RemoteSetupWindow(settingsService);
-                            desktop.MainWindow = remoteWin;
-                            remoteWin.Show();
-                            remoteWin.Closed += (_, _) => _ = ShowMainWindowAsync(desktop, null);
-                        }
-                        else
-                        {
-                            _ = ShowMainWindowAsync(desktop, null);
-                        }
-                    };
-                });
+                        desktop.Shutdown();
+                        return;
+                    }
+                }
+                else if (choice.IsRemoteSelected)
+                {
+                    if (await ShowModalAsync(new RemoteSetupWindow(settingsService)) != true)
+                    {
+                        desktop.Shutdown();
+                        return;
+                    }
+                }
+                logger.LogInfo("Setup completed successfully. Proceeding to main window.");
             }
             else
             {
+                logger.LogInfo($"ComfyUI folder already configured: {settingsService.Settings.ComfyUIFolderPath}");
                 await CheckServerConnectivityAsync(settingsService, logger);
-                await ShowMainWindowAsync(desktop, splash);
             }
+
+            ShowMainWindow(desktop, settingsService, logger);
+            splash.Close();
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error during startup");
-            await Dispatcher.UIThread.InvokeAsync(async () =>
-            {
-                splash.Close();
-                var box = MessageBoxManager.GetMessageBoxStandard(
-                    "Startup Error",
-                    $"FlipPix failed to start:\n{ex.Message}",
-                    ButtonEnum.Ok, Icon.Error);
-                await box.ShowAsync();
-                desktop.Shutdown();
-            });
+            splash.Close();
+            ShowError("FlipPix Error", $"FlipPix failed to start:\n\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}");
+            desktop.Shutdown();
         }
     }
 
-    private async Task ShowMainWindowAsync(IClassicDesktopStyleApplicationLifetime desktop, Window? closePrev)
+    /// <summary>Shows a setup window on its own (there is no owner yet) and waits for its result.</summary>
+    private static Task<bool?> ShowModalAsync(Window window)
     {
-        try
+        var tcs = new TaskCompletionSource<bool?>();
+        window.Closed += (_, _) => tcs.TrySetResult((window as DialogWindow)?.DialogResult);
+        window.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        window.Show();
+        return tcs.Task;
+    }
+
+    private void ShowMainWindow(IClassicDesktopStyleApplicationLifetime desktop, SettingsService settingsService, IAppLogger logger)
+    {
+        logger.LogInfo("Creating and showing Image Generator window as default");
+        var imageGeneratorViewModel = _serviceProvider!.GetRequiredService<ImageGeneratorViewModel>();
+        var windowPositionService = _serviceProvider!.GetRequiredService<WindowPositionService>();
+        var mainWindow = new ImageGeneratorWindow(imageGeneratorViewModel, settingsService, windowPositionService);
+
+        if (VramContext.IsLowVram)
         {
-            await Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                if (_serviceProvider == null) return;
-                var imageGeneratorViewModel = _serviceProvider.GetRequiredService<ImageGeneratorViewModel>();
-                var settingsService = _serviceProvider.GetRequiredService<SettingsService>();
-                var windowPositionService = _serviceProvider.GetRequiredService<WindowPositionService>();
-                var mainWindow = new Windows.ImageGeneratorWindow(imageGeneratorViewModel, settingsService, windowPositionService);
-                desktop.MainWindow = mainWindow;
-                mainWindow.Show();
-                closePrev?.Close();
-
-                // Smoke-test hook (CI / headless verification): FLIPPIX_SMOKE=1 opens every
-                // main window, logs the tab census of each, and shuts down cleanly. A XAML or
-                // resource error in either window throws here and is logged as a failure
-                // instead of waiting for a user to click the nav button.
-                if (Environment.GetEnvironmentVariable("FLIPPIX_SMOKE") == "1")
-                {
-                    try
-                    {
-                        var videoVm = _serviceProvider.GetRequiredService<VideoGeneratorViewModel>();
-                        var wps = _serviceProvider.GetRequiredService<WindowPositionService>();
-                        var videoWindow = new VideoGeneratorWindow(videoVm, wps);
-                        videoWindow.Show();
-
-                        LogTabCensus(mainWindow, "ImageGeneratorWindow");
-                        LogTabCensus(videoWindow, "VideoGeneratorWindow");
-
-                        // The Phase 3 dialogs: constructed (not just shown) so a XAML or resource
-                        // error in either fails loudly here rather than at first missing model/node.
-                        var modelInstaller = _serviceProvider.GetRequiredService<Services.ModelInstallerService>();
-                        var nodeInstaller = _serviceProvider.GetRequiredService<Services.NodeInstallerService>();
-                        var smokeLogger = _serviceProvider.GetRequiredService<IAppLogger>();
-                        var missingModels = new List<Core.Models.MissingModelInfo>
-                        {
-                            new() { Name = "test/smoke_model.safetensors", Category = "loras" },
-                        };
-                        var missingNodes = new List<Core.Models.MissingNodeInfo>
-                        {
-                            new() { ClassType = "SmokeTestNode", PackName = "smoke-pack", RepoUrl = "" },
-                        };
-                        var mm = new Windows.MissingModelsWindow(missingModels, modelInstaller, smokeLogger);
-                        var mn = new Windows.MissingNodesWindow(missingNodes, nodeInstaller, smokeLogger);
-                        var st = new Windows.SettingsWindow(settingsService);
-                        smokeLogger.LogInfo("SMOKE: resolver dialogs + settings window constructed OK");
-                    }
-                    catch (Exception ex)
-                    {
-                        Services?.GetRequiredService<IAppLogger>()?.LogError(ex, "SMOKE: failed to open windows");
-                    }
-                    finally
-                    {
-                        Task.Delay(3000).ContinueWith(_ => Dispatcher.UIThread.Post(() => desktop.Shutdown()));
-                    }
-                }
-                // Back to normal lifecycle: closing the last window exits the app.
-                desktop.ShutdownMode = ShutdownMode.OnLastWindowClose;
-            });
+            var vramNote = VramContext.DetectedVramGb > 0 ? $"16 GB mode ({VramContext.DetectedVramGb:0.#} GB)" : "16 GB mode";
+            mainWindow.Title += $"  —  {vramNote}";
         }
-        catch (Exception ex)
-        {
-            // This method is often invoked fire-and-forget; never let the failure be silent.
-            _serviceProvider?.GetRequiredService<IAppLogger>()?.LogError(ex, "Failed to show main window");
-            await Dispatcher.UIThread.InvokeAsync(async () =>
-            {
-                var box = MessageBoxManager.GetMessageBoxStandard(
-                    "Startup Error",
-                    $"FlipPix failed to open the main window:\n{ex.Message}",
-                    ButtonEnum.Ok, Icon.Error);
-                await box.ShowAsync();
-                desktop.Shutdown();
-            });
-        }
+
+        desktop.MainWindow = mainWindow;
+        mainWindow.Show();
+        // Closing the Image Generator ends the app, as on Windows (OnMainWindowClose).
+        desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
+        logger.LogInfo("Main Image Generator window shown successfully");
+
+        PhoneRemote.Start(settingsService, logger);
+
+        if (Environment.GetEnvironmentVariable("FLIPPIX_SMOKE") == "1")
+            RunSmokeTest(desktop, mainWindow, logger);
     }
 
     /// <summary>
-    /// Points FFMpegCore at the ffmpeg/ffprobe this machine actually has. Its default is to
-    /// look beside the executable, which never matches a distro package such as Arch's
-    /// /usr/bin/ffmpeg, so video analysis would fail with a confusing "not found".
+    /// FLIPPIX_SMOKE=1: opens every window and tab once, logs the tab census, then exits. A XAML,
+    /// binding or resource error anywhere throws here and lands in the log instead of waiting for
+    /// someone to click through.
     /// </summary>
+    private void RunSmokeTest(IClassicDesktopStyleApplicationLifetime desktop, Window mainWindow, IAppLogger logger)
+    {
+        async Task Run()
+        {
+            try
+            {
+                await WalkTabsAsync(mainWindow, "ImageGeneratorWindow", logger);
+
+                var video = _serviceProvider!.GetRequiredService<VideoGeneratorWindow>();
+                video.Show();
+                await WalkTabsAsync(video, "VideoGeneratorWindow", logger);
+
+                // Playback: load a clip into a real player, play, seek, and record what happened.
+                if (Environment.GetEnvironmentVariable("FLIPPIX_SMOKE_VIDEO") is { Length: > 0 } clip)
+                {
+                    var player = video.GetLogicalDescendants().OfType<Controls.VideoPreview>()
+                        .FirstOrDefault(p => p.Name == "H3EditorVideoPlayer");
+                    var tabs = video.GetLogicalDescendants().OfType<TabControl>().First();
+                    tabs.SelectedIndex = 5;
+                    await Task.Delay(400);
+                    player ??= video.GetLogicalDescendants().OfType<Controls.VideoPreview>().FirstOrDefault(p => p.Name == "H3EditorVideoPlayer");
+                    if (player == null) logger.LogWarning("SMOKE: video player not found");
+                    else
+                    {
+                        var opened = false;
+                        player.MediaOpened += (_, _) => opened = true;
+                        player.IsVisible = true;
+                        player.Source = clip;
+                        await Task.Delay(2500);
+                        SaveShot(video, "Playback-1-opened");
+                        var t0 = player.Position;
+                        player.Play();
+                        await Task.Delay(1500);
+                        var t1 = player.Position;
+                        player.Pause();
+                        player.Position = TimeSpan.FromSeconds(3);
+                        await Task.Delay(800);
+                        SaveShot(video, "Playback-2-seek3s");
+                        logger.LogInfo($"SMOKE: playback libvlc={Controls.VideoPreview.PlaybackAvailable} opened={opened} " +
+                                       $"duration={(player.NaturalDuration.HasTimeSpan ? player.NaturalDuration.TimeSpan.TotalSeconds : -1):0.00}s " +
+                                       $"size={player.NaturalVideoWidth}x{player.NaturalVideoHeight} pos {t0.TotalSeconds:0.00}s→{t1.TotalSeconds:0.00}s after 1.5s play, after seek {player.Position.TotalSeconds:0.00}s");
+                        player.Source = null;
+                    }
+                }
+
+                var enhance = _serviceProvider!.GetRequiredService<VideoEnhanceWindow>();
+                enhance.Show();
+                await WalkTabsAsync(enhance, "VideoEnhanceWindow", logger);
+
+                var settings = _serviceProvider!.GetRequiredService<SettingsService>();
+                var dialogs = new (string Name, Window Window)[]
+                {
+                    ("Settings", new SettingsWindow(settings)),
+                    ("SetupChoice", new SetupChoiceWindow()),
+                    ("RemoteSetup", new RemoteSetupWindow(settings)),
+                    ("ComfyUIFolderSetup", new ComfyUIFolderSetupWindow(_serviceProvider!.GetRequiredService<ComfyUIFolderSetupViewModel>())),
+                    ("PhoneRemote", new PhoneRemoteWindow()),
+                    ("MissingModels", new MissingModelsWindow(new List<MissingModelInfo> { new() { Name = "test/smoke_model.safetensors", Category = "loras" } },
+                        _serviceProvider!.GetRequiredService<ModelInstallerService>(), logger)),
+                    ("MissingNodes", new MissingNodesWindow(new List<MissingNodeInfo> { new() { ClassType = "SmokeTestNode", PackName = "smoke-pack", RepoUrl = "" } },
+                        _serviceProvider!.GetRequiredService<NodeInstallerService>(), logger)),
+                };
+                foreach (var (dialogName, dialog) in dialogs)
+                {
+                    dialog.Show();
+                    await Task.Delay(400);
+                    SaveShot(dialog, "Dialog-" + dialogName);
+                    dialog.Close();
+                }
+                logger.LogInfo("SMOKE: all windows constructed OK");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "SMOKE: failed");
+            }
+            finally
+            {
+                await Task.Delay(2000);
+                desktop.Shutdown();
+            }
+        }
+        Dispatcher.UIThread.Post(() => _ = Run(), DispatcherPriority.Background);
+    }
+
+    private static async Task WalkTabsAsync(Window window, string name, IAppLogger logger)
+    {
+        await Task.Delay(500);
+        foreach (var tabs in window.GetLogicalDescendants().OfType<TabControl>().ToList())
+        {
+            var headers = tabs.Items.OfType<TabItem>().Select(t => t.Header?.ToString()).ToList();
+            logger.LogInfo($"SMOKE: {name} tabs={headers.Count}: {string.Join(" | ", headers)}");
+            for (var i = 0; i < tabs.ItemCount; i++)
+            {
+                tabs.SelectedIndex = i;
+                await Task.Delay(250);
+                SaveShot(window, $"{name}-{i:00}");
+            }
+            tabs.SelectedIndex = 0;
+        }
+    }
+
+    /// <summary>FLIPPIX_SMOKE_SHOTS=dir: a PNG of the window as it stands, for checking layouts.</summary>
+    private static void SaveShot(Window window, string name)
+    {
+        var dir = Environment.GetEnvironmentVariable("FLIPPIX_SMOKE_SHOTS");
+        if (string.IsNullOrEmpty(dir)) return;
+        try
+        {
+            Directory.CreateDirectory(dir);
+            var size = new PixelSize((int)Math.Max(1, window.Bounds.Width), (int)Math.Max(1, window.Bounds.Height));
+            using var rtb = new Avalonia.Media.Imaging.RenderTargetBitmap(size);
+            rtb.Render(window);
+            rtb.Save(Path.Combine(dir, name + ".png"));
+        }
+        catch (Exception ex)
+        {
+            Services?.GetService<IAppLogger>()?.LogWarning($"SMOKE: screenshot {name} failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>Points FFMpegCore at this machine's ffmpeg/ffprobe.</summary>
     private static void ConfigureMediaTooling(IAppLogger logger)
     {
         var binaryFolder = MediaTools.BinaryFolder;
         if (binaryFolder is null)
         {
-            logger.LogWarning("ffmpeg was not found on PATH. Install it (pacman -S ffmpeg) "
+            logger.LogWarning("ffmpeg was not found on PATH. Install it (sudo apt install ffmpeg) "
                             + "or set FLIPPIX_FFMPEG; video features stay disabled until then.");
             return;
         }
-
         FFMpegCore.GlobalFFOptions.Configure(options => options.BinaryFolder = binaryFolder);
         logger.LogInfo($"Using ffmpeg from {binaryFolder}");
-    }
-
-    /// <summary>Logs how many TabItems each window's top-level TabControl holds (smoke test evidence).</summary>
-    private static void LogTabCensus(Window window, string name)
-    {
-        var logger = Services?.GetRequiredService<IAppLogger>();
-        var tabs = window.GetLogicalDescendants().OfType<TabControl>().FirstOrDefault();
-        var headers = tabs?.Items.OfType<TabItem>().Select(t => t.Header?.ToString()).ToList();
-        logger?.LogInfo($"SMOKE: {name} tabs={headers?.Count ?? -1}: {string.Join(" | ", headers ?? new List<string?>())}");
     }
 
     private void ConfigureServices(IServiceCollection services)
@@ -304,7 +374,6 @@ public partial class App : Application
         services.AddSingleton<IAppLogger, FileLogger>();
         services.AddSingleton<VideoAnalysisService>();
         services.AddSingleton<ImageAnalysisService>();
-        services.AddHttpClient<OllamaService>();
         services.AddSingleton<IFileDialogService, FileDialogService>();
         services.AddSingleton<INavigationService, NavigationService>();
         services.AddSingleton<WindowPositionService>();
@@ -314,110 +383,84 @@ public partial class App : Application
         services.AddSingleton<IMissingModelResolver, MissingModelResolver>();
         services.AddSingleton<NodeInstallerService>();
         services.AddSingleton<IMissingNodeResolver, MissingNodeResolver>();
+        services.AddHttpClient<OllamaService>();
 
         services.AddSingleton<LMStudioService>(provider =>
         {
-            var httpClientFactory = provider.GetRequiredService<IHttpClientFactory>();
-            var httpClient = httpClientFactory.CreateClient();
+            var httpClient = provider.GetRequiredService<IHttpClientFactory>().CreateClient();
             var logger = provider.GetRequiredService<IAppLogger>();
             var settingsService = provider.GetRequiredService<SettingsService>();
-            return new LMStudioService(httpClient, logger, () => settingsService.Settings.LMStudioSettings?.BaseUrl ?? "http://localhost:8080");
+            return new LMStudioService(
+                httpClient,
+                logger,
+                () => settingsService.Settings.LMStudioSettings?.BaseUrl ?? "http://alien:8080",
+                () => settingsService.Settings.LMStudioSettings);
         });
 
         services.AddSingleton<IPromptService, PromptService>();
         services.AddSingleton<ComfyUISettings>(p => p.GetRequiredService<SettingsService>().Settings);
         services.AddSingleton<ComfyUIHttpClient>(provider =>
         {
-            var httpClientFactory = provider.GetRequiredService<IHttpClientFactory>();
-            var httpClient = httpClientFactory.CreateClient(nameof(ComfyUIHttpClient));
-            var logger = provider.GetRequiredService<IAppLogger>();
-            var settings = provider.GetRequiredService<ComfyUISettings>();
-            return new ComfyUIHttpClient(httpClient, logger, settings);
+            var httpClient = provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(ComfyUIHttpClient));
+            return new ComfyUIHttpClient(httpClient, provider.GetRequiredService<IAppLogger>(), provider.GetRequiredService<ComfyUISettings>());
         });
         services.AddSingleton<ComfyUIWebSocketClient>(provider =>
-        {
-            var logger = provider.GetRequiredService<IAppLogger>();
-            var settings = provider.GetRequiredService<ComfyUISettings>();
-            return new ComfyUIWebSocketClient(logger, settings.BaseUrl);
-        });
+            new ComfyUIWebSocketClient(provider.GetRequiredService<IAppLogger>(), provider.GetRequiredService<ComfyUISettings>().BaseUrl));
         services.AddSingleton<FlipPix.ComfyUI.Services.ComfyUIService>();
         services.AddSingleton<WorkflowQueueCoordinator>();
 
-        // ViewModels
-        services.AddTransient<FlipPixViewModel>(provider =>
-        {
-            var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
-            var logger = provider.GetRequiredService<IAppLogger>();
-            var settingsService = provider.GetRequiredService<SettingsService>();
-            var promptService = provider.GetRequiredService<IPromptService>();
-            var fileDialogService = provider.GetRequiredService<IFileDialogService>();
-            return new FlipPixViewModel(comfyUIService, logger, settingsService, provider, promptService, fileDialogService);
-        });
-        services.AddTransient<VideoGeneratorViewModel>(provider =>
-        {
-            var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
-            var lmStudioService = provider.GetRequiredService<LMStudioService>();
-            var logger = provider.GetRequiredService<IAppLogger>();
-            var settingsService = provider.GetRequiredService<SettingsService>();
-            var fileDialogService = provider.GetRequiredService<IFileDialogService>();
-            return new VideoGeneratorViewModel(comfyUIService, lmStudioService, logger, settingsService, provider, fileDialogService);
-        });
-        services.AddTransient<ImageGeneratorViewModel>(provider =>
-        {
-            var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
-            var logger = provider.GetRequiredService<IAppLogger>();
-            var settingsService = provider.GetRequiredService<SettingsService>();
-            var promptService = provider.GetRequiredService<IPromptService>();
-            return new ImageGeneratorViewModel(comfyUIService, logger, settingsService, provider, promptService);
-        });
-        services.AddTransient<ImageAnalyzerViewModel>(provider =>
-        {
-            var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
-            var lmStudioService = provider.GetRequiredService<LMStudioService>();
-            var logger = provider.GetRequiredService<IAppLogger>();
-            var settingsService = provider.GetRequiredService<SettingsService>();
-            var workflowCoordinator = provider.GetRequiredService<WorkflowQueueCoordinator>();
-            var fileDialogService = provider.GetRequiredService<IFileDialogService>();
-            var promptService = provider.GetRequiredService<IPromptService>();
-            return new ImageAnalyzerViewModel(comfyUIService, lmStudioService, logger, settingsService, workflowCoordinator, fileDialogService, promptService);
-        });
-        services.AddTransient<StoryVideoViewModel>(provider =>
-        {
-            var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
-            var logger = provider.GetRequiredService<IAppLogger>();
-            var settingsService = provider.GetRequiredService<SettingsService>();
-            var fileDialogService = provider.GetRequiredService<IFileDialogService>();
-            return new StoryVideoViewModel(comfyUIService, logger, settingsService, fileDialogService);
-        });
-        services.AddTransient<OllamaViewModel>(provider =>
-        {
-            var ollamaService = provider.GetRequiredService<OllamaService>();
-            var logger = provider.GetRequiredService<IAppLogger>();
-            return new OllamaViewModel(ollamaService, logger, provider);
-        });
-        services.AddTransient<ComfyUIFolderSetupViewModel>(provider =>
-        {
-            var settingsService = provider.GetRequiredService<SettingsService>();
-            var fileDialogService = provider.GetRequiredService<IFileDialogService>();
-            return new ComfyUIFolderSetupViewModel(settingsService, fileDialogService);
-        });
-        services.AddTransient<I2V2AViewModel>(provider =>
-        {
-            var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
-            var logger = provider.GetRequiredService<IAppLogger>();
-            var settingsService = provider.GetRequiredService<SettingsService>();
-            var fileDialogService = provider.GetRequiredService<IFileDialogService>();
-            return new I2V2AViewModel(comfyUIService, logger, settingsService, provider, fileDialogService);
-        });
-        services.AddTransient<VideoEnhanceViewModel>(provider =>
-        {
-            var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
-            var logger = provider.GetRequiredService<IAppLogger>();
-            var settingsService = provider.GetRequiredService<SettingsService>();
-            var fileDialogService = provider.GetRequiredService<IFileDialogService>();
-            var workflowCoordinator = provider.GetRequiredService<WorkflowQueueCoordinator>();
-            return new VideoEnhanceViewModel(comfyUIService, logger, settingsService, provider, workflowCoordinator, fileDialogService);
-        });
+        // View models — the same factories as the WPF app.
+        services.AddTransient<VideoGeneratorViewModel>(provider => new VideoGeneratorViewModel(
+            provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>(),
+            provider.GetRequiredService<LMStudioService>(),
+            provider.GetRequiredService<IAppLogger>(),
+            provider.GetRequiredService<SettingsService>(),
+            provider,
+            provider.GetRequiredService<IFileDialogService>()));
+        services.AddTransient<ImageGeneratorViewModel>(provider => new ImageGeneratorViewModel(
+            provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>(),
+            provider.GetRequiredService<IAppLogger>(),
+            provider.GetRequiredService<SettingsService>(),
+            provider,
+            provider.GetRequiredService<IPromptService>()));
+        services.AddTransient<ComfyUIFolderSetupViewModel>(provider => new ComfyUIFolderSetupViewModel(
+            provider.GetRequiredService<SettingsService>(),
+            provider.GetRequiredService<IFileDialogService>()));
+        services.AddTransient<VideoEnhanceViewModel>(provider => new VideoEnhanceViewModel(
+            provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>(),
+            provider.GetRequiredService<IAppLogger>(),
+            provider.GetRequiredService<SettingsService>(),
+            provider,
+            provider.GetRequiredService<WorkflowQueueCoordinator>(),
+            provider.GetRequiredService<IFileDialogService>()));
+
+        // Windows — singleton Video Generator (closing hides it), as on Windows.
+        services.AddSingleton<VideoGeneratorWindow>(provider => new VideoGeneratorWindow(
+            provider.GetRequiredService<VideoGeneratorViewModel>(),
+            provider.GetRequiredService<WindowPositionService>()));
+        services.AddTransient<ImageGeneratorWindow>(provider => new ImageGeneratorWindow(
+            provider.GetRequiredService<ImageGeneratorViewModel>(),
+            provider.GetRequiredService<SettingsService>(),
+            provider.GetRequiredService<WindowPositionService>()));
+        services.AddTransient<VideoEnhanceWindow>(provider => new VideoEnhanceWindow(
+            provider.GetRequiredService<VideoEnhanceViewModel>(),
+            provider.GetRequiredService<WindowPositionService>()));
+    }
+
+    private static bool IsRemoteServer(string? baseUrl) =>
+        Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri)
+        && uri.Host is not ("127.0.0.1" or "localhost" or "::1" or "[::1]");
+
+    private static double TryParseVramGb(string systemStatsJson)
+    {
+        using var doc = System.Text.Json.JsonDocument.Parse(systemStatsJson);
+        if (!doc.RootElement.TryGetProperty("devices", out var devices) || devices.ValueKind != System.Text.Json.JsonValueKind.Array)
+            return 0;
+        long maxBytes = 0;
+        foreach (var device in devices.EnumerateArray())
+            if (device.TryGetProperty("vram_total", out var vram) && vram.TryGetInt64(out var bytes) && bytes > maxBytes)
+                maxBytes = bytes;
+        return maxBytes > 0 ? maxBytes / 1024.0 / 1024.0 / 1024.0 : 0;
     }
 
     private async Task CheckServerConnectivityAsync(SettingsService settingsService, IAppLogger logger)
@@ -433,6 +476,24 @@ public partial class App : Application
             if (response.IsSuccessStatusCode)
             {
                 logger.LogInfo("ComfyUI server connection successful");
+                try
+                {
+                    var vramGb = TryParseVramGb(await response.Content.ReadAsStringAsync());
+                    if (vramGb > 0)
+                    {
+                        VramContext.Configure(settings.VramTier, vramGb);
+                        logger.LogInfo($"Detected {vramGb:0.#} GB VRAM from /system_stats — tier: {VramContext.EffectiveTier}");
+                        if (Math.Abs(settings.DetectedVramGb - vramGb) > 0.1)
+                        {
+                            settings.DetectedVramGb = vramGb;
+                            settingsService.SaveSettings(settings);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning($"Could not parse VRAM from /system_stats: {ex.Message}");
+                }
                 return;
             }
             logger.LogWarning($"ComfyUI server returned status {response.StatusCode}");
@@ -442,29 +503,23 @@ public partial class App : Application
             logger.LogWarning($"Server connectivity check failed: {ex.Message}");
         }
 
-        // If this is a local install whose launch script we haven't recorded yet, find it now
-        // so we can auto-start instead of forcing the user to hunt for ComfyUI.
         if (settings.AutoRestartComfyUI)
-        {
             settingsService.EnsureRestartScriptConfigured();
-        }
 
         if (settings.AutoRestartComfyUI
             && !string.IsNullOrEmpty(settings.ComfyUIRestartScriptPath)
-            && System.IO.File.Exists(settings.ComfyUIRestartScriptPath))
+            && File.Exists(settings.ComfyUIRestartScriptPath))
         {
+            logger.LogInfo($"ComfyUI not running. Auto-starting using: {settings.ComfyUIRestartScriptPath}");
             var processManager = new ComfyUIProcessManager(logger, settings);
             try
             {
-                var started = await processManager.StartComfyUIAsync(
-                    status => logger.LogInfo($"[AutoStart] {status}"),
-                    _shutdownCts.Token);
-                if (started)
+                if (await processManager.StartComfyUIAsync(status => logger.LogInfo($"[AutoStart] {status}"), _shutdownCts.Token))
                 {
                     logger.LogInfo("ComfyUI auto-started successfully");
                     return;
                 }
-                logger.LogWarning("ComfyUI auto-start failed");
+                logger.LogWarning("ComfyUI auto-start failed — falling back to manual dialog");
             }
             catch (Exception ex)
             {
@@ -472,13 +527,25 @@ public partial class App : Application
             }
         }
 
-        await Dispatcher.UIThread.InvokeAsync(async () =>
+        var result = System.Windows.MessageBox.Show(
+            $"Cannot connect to ComfyUI server at {serverUrl}\n\n" +
+            "Please ensure:\n" +
+            "• ComfyUI is running\n" +
+            "• The server address is correct\n" +
+            "• No firewall is blocking the connection\n\n" +
+            "Would you like to reconfigure the server settings?",
+            "ComfyUI Server Connection Failed",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (result == MessageBoxResult.Yes && _serviceProvider != null)
         {
-            var box = MessageBoxManager.GetMessageBoxStandard(
-                "ComfyUI Server Connection Failed",
-                $"Cannot connect to ComfyUI server at {serverUrl}\n\nPlease ensure ComfyUI is running.",
-                ButtonEnum.Ok, Icon.Warning);
-            await box.ShowAsync();
-        });
+            // A remote server (the usual Chromebook setup) is fixed in the remote dialog; a local
+            // install in the folder dialog — the same choice the first-run flow offers.
+            if (IsRemoteServer(settingsService.Settings.BaseUrl))
+                await ShowModalAsync(new RemoteSetupWindow(settingsService));
+            else
+                await ShowModalAsync(new ComfyUIFolderSetupWindow(_serviceProvider.GetRequiredService<ComfyUIFolderSetupViewModel>()));
+        }
     }
 }

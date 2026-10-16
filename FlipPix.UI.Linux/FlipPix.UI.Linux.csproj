@@ -3,6 +3,7 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ImplicitUsings>enable</ImplicitUsings>
     <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
     <InvariantTimezone>false</InvariantTimezone>
@@ -29,19 +30,41 @@
     <DebugType>portable</DebugType>
   </PropertyGroup>
 
+  <!--
+    Shared code. The view models, models and services are the Windows app's own sources,
+    compiled here unchanged, so every tab behaves identically on both platforms. WPF-only APIs
+    they touch are provided by Compat/*.cs; the few genuinely platform-specific services live
+    in Platform/ and replace their Windows counterparts below.
+  -->
+  <PropertyGroup>
+    <DefineConstants>$(DefineConstants);FLIPPIX_LINUX</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\FlipPix.UI\ViewModels\**\*.cs" Link="Shared\ViewModels\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\FlipPix.UI\Models\**\*.cs" Link="Shared\Models\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\FlipPix.UI\Services\**\*.cs" Link="Shared\Services\%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- Platform services: the Linux implementations in Platform/ stand in for these. -->
+    <Compile Remove="..\FlipPix.UI\Services\FileDialogService.cs" />
+    <Compile Remove="..\FlipPix.UI\Services\NavigationService.cs" />
+    <Compile Remove="..\FlipPix.UI\Services\INavigationService.cs" />
+    <Compile Remove="..\FlipPix.UI\Services\WindowPositionService.cs" />
+    <Compile Remove="..\FlipPix.UI\Services\MissingModelResolver.cs" />
+    <Compile Remove="..\FlipPix.UI\Services\MissingNodeResolver.cs" />
+    <Compile Remove="..\FlipPix.UI\Services\KeyboardShortcutService.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\FlipPix.Core\FlipPix.Core.csproj" />
     <ProjectReference Include="..\FlipPix.ComfyUI\FlipPix.ComfyUI.csproj" />
     <!-- Aliased: FlipPix.Remote compiles its own copies of the story-chain sources (namespace
          FlipPix.UI.Services); only Services/PhoneRemote.cs names its types. -->
-    <ProjectReference Include="..\FlipPix.Remote\FlipPix.Remote.csproj" Aliases="remote" />
+    <ProjectReference Include="..\FlipPix.Remote\FlipPix.Remote.csproj" Aliases="remote" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.2.7" />
     <PackageReference Include="Avalonia.Desktop" Version="11.2.7" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.7" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.2.7" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
@@ -50,8 +73,15 @@
     <PackageReference Include="FFMpegCore" Version="5.0.2" />
     <PackageReference Include="YamlDotNet" Version="15.1.2" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
-    <PackageReference Include="MsBox.Avalonia" Version="3.0.0-rc2" />
     <PackageReference Include="System.Text.Json" Version="9.0.10" />
+    <!-- In-app video playback (the WPF MediaElement). Uses the system libvlc (apt: libvlc5 vlc-plugin-base). -->
+    <PackageReference Include="LibVLCSharp" Version="3.9.4" />
+  </ItemGroup>
+
+  <!-- Selawik: Microsoft's open-source (OFL) font with Segoe UI's metrics, so the ported layouts
+       fit their text exactly as on Windows. -->
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
   </ItemGroup>
 
   <ItemGroup>
