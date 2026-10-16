@@ -171,6 +171,7 @@ public partial class App : Application
                 await CheckServerConnectivityAsync(settingsService, logger);
             }
 
+            EnsureLocalWorkingOutputFolder(settingsService, logger);
             ShowMainWindow(desktop, settingsService, logger);
             splash.Close();
         }
@@ -445,6 +446,61 @@ public partial class App : Application
         services.AddTransient<VideoEnhanceWindow>(provider => new VideoEnhanceWindow(
             provider.GetRequiredService<VideoEnhanceViewModel>(),
             provider.GetRequiredService<WindowPositionService>()));
+    }
+
+    /// <summary>
+    /// With a remote ComfyUI, <see cref="ComfyUISettings.OutputFolderPath"/> is where the tabs save
+    /// what they download (OutputFolderPath/&lt;Tab&gt;/…) and later list it from. Pointed at the
+    /// network share — easy to do on a Chromebook, where both folder fields get the same path —
+    /// every save and gallery refresh crosses SMB-over-9p, which takes seconds per directory.
+    /// Move it to a local folder; the share stays configured as RemoteOutputFolderPath.
+    /// </summary>
+    private static void EnsureLocalWorkingOutputFolder(SettingsService settingsService, IAppLogger logger)
+    {
+        var settings = settingsService.Settings;
+        if (!IsRemoteServer(settings.BaseUrl)) return;
+
+        var current = settings.OutputFolderPath;
+        if (!string.IsNullOrWhiteSpace(current) && !IsOnNetworkShare(current)
+            && !SameFolder(current, settings.RemoteOutputFolderPath))
+            return;
+
+        var local = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FlipPix", "output");
+        try
+        {
+            Directory.CreateDirectory(local);
+            settings.OutputFolderPath = local;
+            settingsService.SaveSettings(settings);
+            logger.LogInfo($"Remote ComfyUI: working output folder moved from '{current}' to local '{local}'");
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning($"Could not set up local working output folder {local}: {ex.Message}");
+        }
+    }
+
+    // Only string and symlink inspection here: probing the share itself can block for seconds.
+    private static string Canonical(string path)
+    {
+        var full = Path.GetFullPath(path).TrimEnd('/');
+        try
+        {
+            var target = new DirectoryInfo(full).ResolveLinkTarget(returnFinalTarget: true);
+            if (target != null) full = target.FullName.TrimEnd('/');
+        }
+        catch { /* not a link, or unreadable: compare as typed */ }
+        return full;
+    }
+
+    private static bool SameFolder(string a, string? b) =>
+        !string.IsNullOrWhiteSpace(b) && Canonical(a) == Canonical(b);
+
+    private static bool IsOnNetworkShare(string path)
+    {
+        var p = Canonical(path);
+        return p.StartsWith("/mnt/chromeos/", StringComparison.Ordinal)
+            || p.StartsWith("/mnt/shared/", StringComparison.Ordinal);
     }
 
     private static bool IsRemoteServer(string? baseUrl) =>

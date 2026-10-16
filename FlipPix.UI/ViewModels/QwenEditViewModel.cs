@@ -1000,6 +1000,7 @@ namespace FlipPix.UI.ViewModels
             var tag = string.IsNullOrEmpty(label) ? string.Empty : $"_{label}";
             var path = Path.Combine(outputDir, $"qwen-edit{tag}_{DateTime.Now:yyyyMMdd_HHmmss}.png");
             await File.WriteAllBytesAsync(path, bytes, token);
+            await LocalCopyService.CopyImageAsync(path);
             ResultImagePath = path;
             WpfApp.Current?.Dispatcher.Invoke(() => LoadResultImage(path));
             HasResult = true;
