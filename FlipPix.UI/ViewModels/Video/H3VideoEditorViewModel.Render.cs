@@ -183,6 +183,7 @@ namespace FlipPix.UI.ViewModels.Video
                 {
                     clip.OutputPath = outputPath;
                     AddLog($"Clip {clip.DisplayIndex} output: {Path.GetFileName(outputPath)}");
+                    await LocalCopyService.CopyVideoAsync(outputPath);
                 }
 
                 // Get the thumbnail from the SaveImage node (generated within ComfyUI, very fast)
@@ -746,6 +747,7 @@ namespace FlipPix.UI.ViewModels.Video
                     JoinedVideoPath = outputPath;
                     PreviewVideoPath = outputPath;
                     AddLog($"Join complete: {Path.GetFileName(outputPath)}");
+                    await LocalCopyService.CopyVideoAsync(outputPath);
                     StatusText = "Join complete";
                     UpscaleCommand.NotifyCanExecuteChanged();
                 }
@@ -891,6 +893,7 @@ namespace FlipPix.UI.ViewModels.Video
                     PreviewVideoPath = outputPath;
                     AddLog($"✓ H3 Latent Upscale complete!");
                     AddLog($"  Saved to: {outputPath}");
+                    await LocalCopyService.CopyVideoAsync(outputPath);
                     StatusText = "Upscale complete";
                 }
                 else
