@@ -128,6 +128,7 @@ public partial class ImageGeneratorWindow : AppWindow
         try
         {
             await new SettingsWindow(_settingsService).ShowDialog(this);
+            _viewModel.RefreshComfyUIEndpoint();
         }
         catch (Exception ex)
         {

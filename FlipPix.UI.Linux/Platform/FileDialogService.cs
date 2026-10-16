@@ -11,8 +11,6 @@ namespace FlipPix.UI.Services;
 
 public class FileDialogService : IFileDialogService
 {
-    private static TopLevel? _topLevel;
-
     private readonly FlipPix.Core.Services.SettingsService _settingsService;
 
     public FileDialogService(FlipPix.Core.Services.SettingsService settingsService)
@@ -20,7 +18,15 @@ public class FileDialogService : IFileDialogService
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
     }
 
-    public static void SetTopLevel(TopLevel topLevel) => _topLevel = topLevel;
+    /// <summary>
+    /// The window a dialog belongs to, resolved per call: the focused window, else the main
+    /// window. Resolving it here (rather than having each window register itself) means no
+    /// window can be left out and silently turn every browse button into a no-op.
+    /// </summary>
+    private static TopLevel? _topLevel
+        => Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+            ? desktop.Windows.FirstOrDefault(w => w.IsActive) ?? desktop.MainWindow
+            : null;
 
     /// <summary>
     /// Where a browse button should open. The folder last used for this <paramref name="persistKey"/>
