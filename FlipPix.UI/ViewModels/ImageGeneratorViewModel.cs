@@ -117,6 +117,9 @@ namespace FlipPix.UI.ViewModels
             // Load default prompt from settings
             _imagePrompt = settingsService.Settings.DefaultImagePrompt;
 
+            // Status bar shows the configured ComfyUI server, not the field defaults
+            RefreshComfyUIEndpoint();
+
             // Get IFileDialogService, LoraManager, and ComfyUIImageRetriever from service provider
             var fileDialogService = serviceProvider?.GetRequiredService<IFileDialogService>() ?? throw new InvalidOperationException("IFileDialogService is required");
             var loraManager = serviceProvider?.GetRequiredService<LoraManager>() ?? throw new InvalidOperationException("LoraManager is required");
@@ -375,6 +378,15 @@ namespace FlipPix.UI.ViewModels
                 _comfyUIPort = value;
                 OnPropertyChanged();
             }
+        }
+
+        /// <summary>Re-reads the ComfyUI address from settings into the status bar (call after Settings closes).</summary>
+        public void RefreshComfyUIEndpoint()
+        {
+            var baseUrl = _settingsService.Settings?.BaseUrl;
+            if (string.IsNullOrWhiteSpace(baseUrl) || !Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri)) return;
+            ComfyUIServer = uri.Host;
+            ComfyUIPort = uri.Port.ToString();
         }
 
         public string StatusBarMessage
