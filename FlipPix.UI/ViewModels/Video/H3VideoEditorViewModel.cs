@@ -120,6 +120,7 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 slot.AddImage(path);
             }
+            _autoCastSlots.Remove(slotIndex); // the user's pick now, so a story batch keeps it
 
             SaveSettings();
             AddLog($"Loaded {paths.Length} image(s) to {slot.Label}");
@@ -381,6 +382,7 @@ N/A
         private void Cancel()
         {
             _renderCts?.Cancel();
+            _storyBatchCancelled = true; // also stop a queued story batch from moving on
             AddLog("Cancellation requested");
         }
 

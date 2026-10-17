@@ -76,6 +76,16 @@ namespace FlipPix.UI.ViewModels.Video
         private List<StoryContinuity.Environment> _continuityPlan = new();
         private List<(string Kind, string Role)> _detectedCast = new();
 
+        // Story files from a folder import, run in order by Analyze. Empty for a single-file import.
+        private List<string> _storyQueue = new();
+
+        // Picture slots filled by cast auto-generation (not by the user), cleared between queued
+        // stories so the next story generates its own cast instead of reusing this one's.
+        private readonly HashSet<int> _autoCastSlots = new();
+
+        // Set by Cancel so a queued batch stops instead of moving on to the next story.
+        private bool _storyBatchCancelled;
+
         // ── Commands ──────────────────────────────────────────────────────────────────────────────
 
         public IRelayCommand ImportStoryCommand { get; private set; } = null!;
@@ -110,12 +120,8 @@ namespace FlipPix.UI.ViewModels.Video
                     return;
                 }
 
-                StoryText = await File.ReadAllTextAsync(path);
-                StoryFilePath = path;
-                StoryFileName = Path.GetFileName(path);
-                IsStoryAnalyzed = false;
-                _storyBeats.Clear();
-                _detectedCast.Clear();
+                _storyQueue = new List<string>(); // a single import replaces any queued folder
+                await LoadStoryFileAsync(path);
 
                 AddLog($"Imported story: {StoryFileName} ({StoryText.Length} chars)");
                 StoryStatus = $"Loaded: {StoryFileName}";
@@ -143,24 +149,17 @@ namespace FlipPix.UI.ViewModels.Video
                     return;
                 }
 
-                // Combine all stories or use first one
-                var combinedStory = new StringBuilder();
+                // Each file is its own story: Analyze runs them one after another, each through
+                // analyze → populate → generate. The first is loaded now so the panel shows it.
+                _storyQueue = files;
+                await LoadStoryFileAsync(files[0]);
+
+                AddLog($"Queued {files.Count} stories from folder: {folder}");
                 foreach (var file in files)
-                {
-                    var content = await File.ReadAllTextAsync(file);
-                    if (combinedStory.Length > 0) combinedStory.AppendLine().AppendLine("---").AppendLine();
-                    combinedStory.Append(content);
-                }
-
-                StoryText = combinedStory.ToString();
-                StoryFilePath = folder;
-                StoryFileName = $"{files.Count} stories from {Path.GetFileName(folder)}";
-                IsStoryAnalyzed = false;
-                _storyBeats.Clear();
-                _detectedCast.Clear();
-
-                AddLog($"Imported {files.Count} stories from folder: {folder}");
-                StoryStatus = $"Loaded: {files.Count} stories";
+                    AddLog($"  {Path.GetFileName(file)}");
+                StoryStatus = files.Count == 1
+                    ? $"Loaded: {StoryFileName}"
+                    : $"Queued {files.Count} stories — Analyze runs them in order";
             }
             catch (Exception ex)
             {
@@ -168,8 +167,21 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
+        /// <summary>Makes <paramref name="path"/> the current story and drops the previous story's analysis.</summary>
+        private async Task LoadStoryFileAsync(string path)
+        {
+            StoryText = await File.ReadAllTextAsync(path);
+            StoryFilePath = path;
+            StoryFileName = Path.GetFileName(path);
+            IsStoryAnalyzed = false;
+            _storyBeats.Clear();
+            _detectedCast.Clear();
+            _continuityPlan.Clear();
+        }
+
         private void ClearStory()
         {
+            _storyQueue = new List<string>();
             StoryText = string.Empty;
             StoryFilePath = string.Empty;
             StoryFileName = string.Empty;
@@ -184,12 +196,69 @@ namespace FlipPix.UI.ViewModels.Video
 
         // ── Story Analysis ────────────────────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// Analyze button. A single story runs analyze → populate → generate once; a queued folder runs
+        /// that whole chain for each story in turn, starting the next only after the previous one's
+        /// clips have all been generated.
+        /// </summary>
         private async Task AnalyzeStoryAsync()
         {
             if (!CanAnalyzeStory) return;
+            _storyBatchCancelled = false;
 
+            if (_storyQueue.Count <= 1)
+            {
+                await RunCurrentStoryAsync();
+                return;
+            }
+
+            var queue = _storyQueue.ToList();
+            for (int i = 0; i < queue.Count; i++)
+            {
+                if (_storyBatchCancelled)
+                {
+                    AddLog($"Story batch cancelled — {queue.Count - i} story(ies) not run.");
+                    break;
+                }
+
+                var file = queue[i];
+                AddLog($"══ Story {i + 1}/{queue.Count}: {Path.GetFileName(file)} ══");
+
+                try
+                {
+                    // The first file was loaded at import; reload anyway so a later story never
+                    // inherits the previous one's analysis.
+                    await LoadStoryFileAsync(file);
+                }
+                catch (Exception ex)
+                {
+                    AddLog($"Could not read {Path.GetFileName(file)}: {ex.Message} — skipping.");
+                    continue;
+                }
+
+                if (!HasStory)
+                {
+                    AddLog($"{Path.GetFileName(file)} is empty — skipping.");
+                    continue;
+                }
+
+                if (i > 0) ClearAutoGeneratedCast();
+
+                await RunCurrentStoryAsync();
+            }
+
+            StoryStatus = _storyBatchCancelled
+                ? "Story batch cancelled"
+                : $"Story batch finished: {queue.Count} stories";
+            AddLog(StoryStatus);
+        }
+
+        /// <summary>Runs the current story through analyze → populate timeline → generate clips.</summary>
+        private async Task RunCurrentStoryAsync()
+        {
             IsAnalyzing = true;
             StoryStatus = "Analyzing story...";
+            var analyzed = false; // this run's result; IsStoryAnalyzed may still be true from a previous story
 
             try
             {
@@ -279,8 +348,9 @@ namespace FlipPix.UI.ViewModels.Video
                     AddLog(line);
 
                 IsStoryAnalyzed = true;
+                analyzed = true;
                 StoryStatus = $"Analyzed: {_detectedCast.Count} characters, {_storyBeats.Count} beats";
-                AddLog("Story analysis complete. Ready to populate timeline.");
+                AddLog("Story analysis complete. Populating timeline...");
             }
             catch (Exception ex)
             {
@@ -291,6 +361,22 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 IsAnalyzing = false;
             }
+
+            // Analyze → Populate → Generate runs as one pass. This sits after the finally because
+            // CanPopulateTimeline requires IsAnalyzing to be false.
+            if (!analyzed || _storyBeats.Count == 0) return;
+
+            await PopulateTimelineAsync();
+
+            // Populate swallows its own errors, so confirm it actually produced the clips.
+            if (TimelineClips.Count != _storyBeats.Count)
+            {
+                AddLog("Timeline was not fully populated — not starting generation.");
+                return;
+            }
+
+            AddLog("Starting clip generation...");
+            await GenerateClipsAsync();
         }
 
         private string BuildCastBrief(List<(string Kind, string Role)> cast)
@@ -342,6 +428,7 @@ namespace FlipPix.UI.ViewModels.Video
                     if (!string.IsNullOrEmpty(photoPath) && File.Exists(photoPath))
                     {
                         ReferenceSlots[slotIndex].AddImage(photoPath);
+                        _autoCastSlots.Add(slotIndex);
                         AddLog($"Generated Picture {slotIndex + 1}: {Path.GetFileName(photoPath)}");
                     }
                     else
@@ -363,6 +450,7 @@ namespace FlipPix.UI.ViewModels.Video
                             if (!string.IsNullOrEmpty(fallbackPath) && File.Exists(fallbackPath))
                             {
                                 ReferenceSlots[slotIndex].AddImage(fallbackPath);
+                                _autoCastSlots.Add(slotIndex);
                                 AddLog($"Fallback succeeded for Picture {slotIndex + 1}: {Path.GetFileName(fallbackPath)}");
                             }
                             else
@@ -377,6 +465,18 @@ namespace FlipPix.UI.ViewModels.Video
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Empties the Picture slots cast auto-generation filled, so the next queued story generates
+        /// its own cast. Pictures the user picked are left alone.
+        /// </summary>
+        private void ClearAutoGeneratedCast()
+        {
+            if (_autoCastSlots.Count == 0) return;
+            foreach (var slotIndex in _autoCastSlots.OrderBy(i => i))
+                ClearPicture(slotIndex);
+            _autoCastSlots.Clear();
         }
 
         private string BuildCastPhotoPrompt(string kind, string role, int slotIndex)
