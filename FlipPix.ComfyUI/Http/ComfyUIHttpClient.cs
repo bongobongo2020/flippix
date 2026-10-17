@@ -530,6 +530,14 @@ public class ComfyUIHttpClient : IDisposable
                 throw new HttpRequestException($"Prompt submission failed with status {response.StatusCode}: {errorContent}");
             }
         }
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Our own ConnectionTimeout fired (ComfyUI busy loading models / slow to accept), not the
+            // caller's token. Surface it as a timeout so callers don't mistake it for a user cancel
+            // and abort a whole batch.
+            _logger.LogError(ex, "Failed to submit workflow: /prompt did not respond within {Timeout}ms", _settings.ConnectionTimeout);
+            throw new TimeoutException($"ComfyUI did not accept the prompt within {_settings.ConnectionTimeout}ms.", ex);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to submit workflow");

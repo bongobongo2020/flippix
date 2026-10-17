@@ -380,7 +380,7 @@ N/A
 
         private void Cancel()
         {
-            // TODO: Implement cancellation
+            _renderCts?.Cancel();
             AddLog("Cancellation requested");
         }
 

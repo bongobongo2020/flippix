@@ -65,12 +65,13 @@ public static class LocalCopyService
     /// <summary>
     /// Copies a generated video file to the local videos folder.
     /// </summary>
-    public static async Task CopyVideoAsync(string sourcePath)
+    /// <param name="fileName">Optional destination file name; defaults to the source file's name.</param>
+    public static async Task CopyVideoAsync(string sourcePath, string? fileName = null)
     {
         try
         {
             Directory.CreateDirectory(VideoDestination);
-            var destPath = Path.Combine(VideoDestination, Path.GetFileName(sourcePath));
+            var destPath = Path.Combine(VideoDestination, fileName ?? Path.GetFileName(sourcePath));
             destPath = GetUniqueFilePath(destPath);
             await Task.Run(() => File.Copy(sourcePath, destPath, true));
         }

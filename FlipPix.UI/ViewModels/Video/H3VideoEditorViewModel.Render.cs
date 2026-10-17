@@ -27,7 +27,8 @@ namespace FlipPix.UI.ViewModels.Video
 
             try
             {
-                var pendingClips = TimelineClips.Where(c => c.State == H3ClipState.Pending).ToList();
+                // Failed clips are retried on the next Generate rather than left behind.
+                var pendingClips = TimelineClips.Where(c => c.State is H3ClipState.Pending or H3ClipState.Failed).ToList();
                 int total = pendingClips.Count;
                 int completed = 0;
 
@@ -50,8 +51,11 @@ namespace FlipPix.UI.ViewModels.Video
                         AddLog($"Clip {clip.DisplayIndex} rendered successfully");
                         AutoSaveTimeline(); // Save progress after each successful clip
                     }
-                    catch (OperationCanceledException)
+                    catch (OperationCanceledException) when (_renderCts.Token.IsCancellationRequested)
                     {
+                        // Only a real user cancel stops the batch. An internal HTTP/WebSocket timeout
+                        // also surfaces as OperationCanceledException and falls through to the
+                        // failure branch below, so the remaining clips still render.
                         clip.State = H3ClipState.Pending;
                         AddLog($"Clip {clip.DisplayIndex} cancelled");
                         AutoSaveTimeline(); // Save state on cancel
@@ -137,6 +141,7 @@ namespace FlipPix.UI.ViewModels.Video
                 {
                     clip.OutputPath = outputPath;
                     AddLog($"Clip {clip.DisplayIndex} output: {Path.GetFileName(outputPath)}");
+                    await CopyToLocalVideosAsync(outputPath);
                 }
 
                 // Get the thumbnail from the SaveImage node (generated within ComfyUI, very fast)
@@ -156,6 +161,20 @@ namespace FlipPix.UI.ViewModels.Video
                 }
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Copies a finished video to Videos\flippix-vids, prefixed with the project folder so
+        /// every project's clip_00001.mp4 doesn't collide.
+        /// </summary>
+        private async Task CopyToLocalVideosAsync(string videoPath)
+        {
+            if (!File.Exists(videoPath)) return;
+            var name = string.IsNullOrEmpty(ProjectFolder)
+                ? Path.GetFileName(videoPath)
+                : $"{ProjectFolder}_{Path.GetFileName(videoPath)}";
+            await LocalCopyService.CopyVideoAsync(videoPath, name);
+            AddLog($"Copied to {Path.Combine(LocalCopyService.VideoDestination, name)}");
         }
 
         private async Task<string?> ResolveClipOutputPathAsync(string promptId, string saveNodeId, int clipIndex, CancellationToken ct)
@@ -699,6 +718,7 @@ namespace FlipPix.UI.ViewModels.Video
                 {
                     JoinedVideoPath = outputPath;
                     PreviewVideoPath = outputPath;
+                    await CopyToLocalVideosAsync(outputPath);
                     AddLog($"Join complete: {Path.GetFileName(outputPath)}");
                     StatusText = "Join complete";
                     UpscaleCommand.NotifyCanExecuteChanged();
@@ -845,6 +865,7 @@ namespace FlipPix.UI.ViewModels.Video
                     PreviewVideoPath = outputPath;
                     AddLog($"✓ H3 Latent Upscale complete!");
                     AddLog($"  Saved to: {outputPath}");
+                    await CopyToLocalVideosAsync(outputPath);
                     StatusText = "Upscale complete";
                 }
                 else
