@@ -1,0 +1,51 @@
+name: windows-release
+
+# Builds FlipPix-Setup.zip on a GitHub runner and attaches it to an existing
+# release (draft or published). Exists because uploading the ~95 MB zip from the
+# dev machine's network fails with TLS "bad record MAC"; building it here means
+# nothing large ever leaves that connection.
+#
+#   gh workflow run windows-release.yml -f tag=v1.3.0
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build and attach to (e.g. v1.3.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      # make-release.ps1 ships 7zr.exe for the starter engine when it is cached
+      # locally; on a runner, fetch it the way build-starter.ps1 does.
+      - name: Fetch 7zr.exe
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release\comfyui-starter\cache | Out-Null
+          Invoke-WebRequest https://www.7-zip.org/a/7zr.exe -OutFile release\comfyui-starter\cache\7zr.exe
+
+      - name: Build release package
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts\make-release.ps1
+
+      - name: Attach to release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          (Get-FileHash release\FlipPix-Setup.zip -Algorithm SHA256).Hash
+          gh release upload ${{ inputs.tag }} release\FlipPix-Setup.zip --clobber
