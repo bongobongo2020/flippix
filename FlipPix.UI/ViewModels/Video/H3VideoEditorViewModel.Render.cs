@@ -415,6 +415,7 @@ namespace FlipPix.UI.ViewModels.Video
         private const string Picture1NodeId = "137";         // LoadImage for Picture 1 (ref_image_0)
         private const string Picture2NodeId = "139";         // LoadImage for Picture 2 (ref_image_1)
         private const string RefSeedNodeId = "129";          // RandomNoise - noise_seed
+        private const string RefNodeId = "136";              // MiniMaxH3ReferenceToVideo - ref_images inputs
 
         // Node IDs in h3-singularity.json (text-to-video, no reference images)
         private const string TextPromptNodeId = "22:11";     // PrimitiveStringMultiline - prompt text
@@ -586,19 +587,29 @@ namespace FlipPix.UI.ViewModels.Video
                 AddLog($"Patched filename prefix: video/{ProjectFolder}/clip_{clip.DisplayIndex:D5}");
             }
 
-            // Patch reference images using the uploaded filenames
+            // Patch reference images using the uploaded filenames. Images fill the
+            // ref slots in order; unused slots are removed so ComfyUI doesn't try to
+            // load the template's placeholder image (which won't exist on the server).
             var pictureNodeIds = new[] { Picture1NodeId, Picture2NodeId };
+            var images = uploadedImages.Take(2).Where(img => !string.IsNullOrEmpty(img)).ToList();
+            var refNodeInputs = (workflow[RefNodeId] as JsonObject)?["inputs"] as JsonObject;
 
-            for (int i = 0; i < Math.Min(2, uploadedImages.Length); i++)
+            for (int i = 0; i < pictureNodeIds.Length; i++)
             {
-                var uploadedFileName = uploadedImages[i];
-                if (string.IsNullOrEmpty(uploadedFileName)) continue;
-
-                if (workflow[pictureNodeIds[i]] is JsonObject picNode &&
-                    picNode["inputs"] is JsonObject picInputs)
+                if (i < images.Count)
                 {
-                    picInputs["image"] = uploadedFileName;
-                    AddLog($"Patched Picture {i + 1} in node {pictureNodeIds[i]}: {uploadedFileName}");
+                    if (workflow[pictureNodeIds[i]] is JsonObject picNode &&
+                        picNode["inputs"] is JsonObject picInputs)
+                    {
+                        picInputs["image"] = images[i];
+                        AddLog($"Patched Picture {i + 1} in node {pictureNodeIds[i]}: {images[i]}");
+                    }
+                }
+                else
+                {
+                    workflow.Remove(pictureNodeIds[i]);
+                    refNodeInputs?.Remove($"ref_images.ref_image_{i}");
+                    AddLog($"Removed unused reference image node {pictureNodeIds[i]}");
                 }
             }
 
