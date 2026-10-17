@@ -21,30 +21,56 @@ namespace FlipPix.UI.ViewModels.Video
         {
             if (!CanGenerate) return;
 
+            // Failed clips are retried along with pending ones.
+            var pendingClips = TimelineClips
+                .Where(c => c.State == H3ClipState.Pending || c.State == H3ClipState.Failed)
+                .ToList();
+            IsLogOpen = true;
+            if (pendingClips.Count == 0)
+            {
+                StatusText = "Nothing to generate — all clips are rendered";
+                AddLog("All clips are already rendered. Use ↻ on a clip to regenerate it.");
+                return;
+            }
+
             IsGenerating = true;
-            StatusText = "Generating clips...";
+            Progress = 0;
             _renderCts = new CancellationTokenSource();
+            int total = pendingClips.Count;
+            int completed = 0;
+            int failed = 0;
+            AddLog($"▶ Generating {total} clip(s)...");
 
             try
             {
-                var pendingClips = TimelineClips.Where(c => c.State == H3ClipState.Pending).ToList();
-                int total = pendingClips.Count;
-                int completed = 0;
+                foreach (var clip in pendingClips)
+                    clip.State = H3ClipState.Queued;
 
-                // Acquire workflow lease
+                // Acquire workflow lease (waits if another tab is using ComfyUI)
+                var busyWith = _workflowCoordinator.CurrentWorkflowType;
+                if (busyWith != null)
+                {
+                    StatusText = $"Waiting for {busyWith} to finish...";
+                    AddLog($"Waiting for another job ({busyWith}) to finish before starting...");
+                }
+                else
+                {
+                    StatusText = "Starting...";
+                }
                 using var lease = await _workflowCoordinator.AcquireAsync("h3_video_editor", _renderCts.Token);
 
-                foreach (var clip in pendingClips)
+                for (int i = 0; i < pendingClips.Count; i++)
                 {
+                    var clip = pendingClips[i];
                     if (_renderCts.Token.IsCancellationRequested) break;
 
                     clip.State = H3ClipState.Rendering;
-                    StatusText = $"Generating clip {clip.DisplayIndex}/{TimelineClips.Count}...";
-                    Progress = (double)completed / total * 100;
+                    StatusText = $"Generating clip {clip.DisplayIndex} ({i + 1}/{total})...";
+                    Progress = (double)i / total * 100;
 
                     try
                     {
-                        await GenerateSingleClipAsync(clip, _renderCts.Token);
+                        await GenerateSingleClipAsync(clip, _renderCts.Token, i, total);
                         clip.State = H3ClipState.Rendered;
                         completed++;
                         AddLog($"Clip {clip.DisplayIndex} rendered successfully");
@@ -60,16 +86,33 @@ namespace FlipPix.UI.ViewModels.Video
                     catch (Exception ex)
                     {
                         clip.State = H3ClipState.Failed;
+                        failed++;
                         AddLog($"Clip {clip.DisplayIndex} failed: {ex.Message}");
                         AutoSaveTimeline(); // Save state on failure
                     }
                 }
 
                 Progress = 100;
-                StatusText = $"Completed {completed}/{total} clips";
+                StatusText = failed > 0
+                    ? $"Completed {completed}/{total} clips ({failed} failed — see log)"
+                    : $"Completed {completed}/{total} clips";
+            }
+            catch (OperationCanceledException)
+            {
+                StatusText = "Cancelled";
+                AddLog("Generation cancelled");
+            }
+            catch (Exception ex)
+            {
+                StatusText = "Generation failed — see log";
+                AddLog($"ERROR: {ex.Message}");
             }
             finally
             {
+                // Anything still queued (cancelled/aborted before it started) goes back to pending.
+                foreach (var clip in pendingClips.Where(c => c.State is H3ClipState.Queued or H3ClipState.Rendering))
+                    clip.State = H3ClipState.Pending;
+
                 IsGenerating = false;
                 _renderCts?.Dispose();
                 _renderCts = null;
@@ -78,7 +121,7 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        private async Task GenerateSingleClipAsync(H3TimelineClip clip, CancellationToken ct)
+        private async Task GenerateSingleClipAsync(H3TimelineClip clip, CancellationToken ct, int batchIndex = 0, int batchTotal = 1)
         {
             // Upload reference images first
             var uploadedImages = new string?[4];
@@ -118,7 +161,10 @@ namespace FlipPix.UI.ViewModels.Video
                     if (msg.Data?.Value != null && msg.Data?.Max != null && msg.Data.Max > 0)
                     {
                         var pct = (double)msg.Data.Value / msg.Data.Max * 100;
-                        StatusText = $"Generating clip {clip.DisplayIndex}: {pct:F0}%";
+                        StatusText = batchTotal > 1
+                            ? $"Generating clip {clip.DisplayIndex} ({batchIndex + 1}/{batchTotal}): {pct:F0}%"
+                            : $"Generating clip {clip.DisplayIndex}: {pct:F0}%";
+                        Progress = (batchIndex + pct / 100) / batchTotal * 100;
                     }
                 });
 
@@ -137,6 +183,7 @@ namespace FlipPix.UI.ViewModels.Video
                 {
                     clip.OutputPath = outputPath;
                     AddLog($"Clip {clip.DisplayIndex} output: {Path.GetFileName(outputPath)}");
+                    await LocalCopyService.CopyVideoAsync(outputPath);
                 }
 
                 // Get the thumbnail from the SaveImage node (generated within ComfyUI, very fast)
@@ -368,6 +415,7 @@ namespace FlipPix.UI.ViewModels.Video
         private const string Picture1NodeId = "137";         // LoadImage for Picture 1 (ref_image_0)
         private const string Picture2NodeId = "139";         // LoadImage for Picture 2 (ref_image_1)
         private const string RefSeedNodeId = "129";          // RandomNoise - noise_seed
+        private const string RefNodeId = "136";              // MiniMaxH3ReferenceToVideo - ref_images inputs
 
         // Node IDs in h3-singularity.json (text-to-video, no reference images)
         private const string TextPromptNodeId = "22:11";     // PrimitiveStringMultiline - prompt text
@@ -539,19 +587,29 @@ namespace FlipPix.UI.ViewModels.Video
                 AddLog($"Patched filename prefix: video/{ProjectFolder}/clip_{clip.DisplayIndex:D5}");
             }
 
-            // Patch reference images using the uploaded filenames
+            // Patch reference images using the uploaded filenames. Images fill the
+            // ref slots in order; unused slots are removed so ComfyUI doesn't try to
+            // load the template's placeholder image (which won't exist on the server).
             var pictureNodeIds = new[] { Picture1NodeId, Picture2NodeId };
+            var images = uploadedImages.Take(2).Where(img => !string.IsNullOrEmpty(img)).ToList();
+            var refNodeInputs = (workflow[RefNodeId] as JsonObject)?["inputs"] as JsonObject;
 
-            for (int i = 0; i < Math.Min(2, uploadedImages.Length); i++)
+            for (int i = 0; i < pictureNodeIds.Length; i++)
             {
-                var uploadedFileName = uploadedImages[i];
-                if (string.IsNullOrEmpty(uploadedFileName)) continue;
-
-                if (workflow[pictureNodeIds[i]] is JsonObject picNode &&
-                    picNode["inputs"] is JsonObject picInputs)
+                if (i < images.Count)
                 {
-                    picInputs["image"] = uploadedFileName;
-                    AddLog($"Patched Picture {i + 1} in node {pictureNodeIds[i]}: {uploadedFileName}");
+                    if (workflow[pictureNodeIds[i]] is JsonObject picNode &&
+                        picNode["inputs"] is JsonObject picInputs)
+                    {
+                        picInputs["image"] = images[i];
+                        AddLog($"Patched Picture {i + 1} in node {pictureNodeIds[i]}: {images[i]}");
+                    }
+                }
+                else
+                {
+                    workflow.Remove(pictureNodeIds[i]);
+                    refNodeInputs?.Remove($"ref_images.ref_image_{i}");
+                    AddLog($"Removed unused reference image node {pictureNodeIds[i]}");
                 }
             }
 
@@ -700,6 +758,7 @@ namespace FlipPix.UI.ViewModels.Video
                     JoinedVideoPath = outputPath;
                     PreviewVideoPath = outputPath;
                     AddLog($"Join complete: {Path.GetFileName(outputPath)}");
+                    await LocalCopyService.CopyVideoAsync(outputPath);
                     StatusText = "Join complete";
                     UpscaleCommand.NotifyCanExecuteChanged();
                 }
@@ -845,6 +904,7 @@ namespace FlipPix.UI.ViewModels.Video
                     PreviewVideoPath = outputPath;
                     AddLog($"✓ H3 Latent Upscale complete!");
                     AddLog($"  Saved to: {outputPath}");
+                    await LocalCopyService.CopyVideoAsync(outputPath);
                     StatusText = "Upscale complete";
                 }
                 else

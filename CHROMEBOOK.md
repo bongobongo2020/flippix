@@ -57,12 +57,15 @@ First launch asks *Where is your ComfyUI installed?* → choose **Remote Server*
 Pictures and videos you want to use as inputs need to be somewhere Linux can see: the Linux files
 folder, or any Files folder you **Share with Linux**.
 
-Every finished image is copied to `~/flippix` and every video to `~/flippix-vids` (both in the
-Linux files folder), so you can browse and reuse results without going through the network
-share, which is slow from the Linux container. The share is still used while a job runs,
-to pick up ComfyUI's output. FlipPix's own working files (the per-tab result folders) live in
-`~/.local/share/FlipPix/output`. With a remote server, FlipPix moves its *Output folder*
-setting there automatically if it points at the share.
+Every finished image and video is copied to **My files → flippix**. Create that folder in the
+Files app, right-click it and choose **Share with Linux** (sharing all of My files works too).
+Results then open straight from Files, without going through the Linux files folder, which
+ChromeOS browses slowly. Until the folder is shared, copies go to `~/flippix` (images) and
+`~/flippix-vids` (videos) in the Linux files folder instead.
+
+The network share is still used while a job runs, to pick up ComfyUI's output. FlipPix's own
+working files (the per-tab result folders) live in `~/.local/share/FlipPix/output`. With a remote
+server, FlipPix moves its *Output folder* setting there automatically if it points at the share.
 
 ## Notes
 

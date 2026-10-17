@@ -10,13 +10,23 @@ namespace FlipPix.UI.Services;
 public static class LocalCopyService
 {
 #if FLIPPIX_LINUX
-    // ~/flippix and ~/flippix-vids. On Linux GetFolderPath(MyPictures/MyVideos) returns "" when
-    // ~/Pictures or ~/Videos does not exist (a fresh ChromeOS container), which made these copies
-    // land relative to the working directory, i.e. inside the install folder a reinstall wipes.
-    public static readonly string ImageDestination = Path.Combine(
+    // On ChromeOS, a "flippix" folder in My files (or My files itself) that is shared with Linux
+    // appears under /mnt/chromeos/MyFiles, or /mnt/shared/MyFiles on some ChromeOS versions.
+    // Saving there puts results straight into the Files app, instead of in the Linux files folder,
+    // which ChromeOS browses over a slow SFTP bridge. Resolved on every copy so sharing the folder
+    // takes effect without restarting FlipPix.
+    private static readonly string[] ChromeOsMyFilesRoots = { "/mnt/chromeos/MyFiles", "/mnt/shared/MyFiles" };
+
+    private static string? ChromeOsDestination =>
+        Array.Find(ChromeOsMyFilesRoots, Directory.Exists) is { } root ? Path.Combine(root, "flippix") : null;
+
+    // Otherwise ~/flippix and ~/flippix-vids. On Linux GetFolderPath(MyPictures/MyVideos) returns ""
+    // when ~/Pictures or ~/Videos does not exist (a fresh ChromeOS container), which made these
+    // copies land relative to the working directory, i.e. inside the install folder a reinstall wipes.
+    public static string ImageDestination => ChromeOsDestination ?? Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "flippix");
 
-    public static readonly string VideoDestination = Path.Combine(
+    public static string VideoDestination => ChromeOsDestination ?? Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "flippix-vids");
 #else
     public static readonly string ImageDestination = Path.Combine(
