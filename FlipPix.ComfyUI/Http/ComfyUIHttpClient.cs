@@ -1214,10 +1214,15 @@ public class ComfyUIHttpClient : IDisposable
         var result = new Dictionary<string, List<string>>();
         try
         {
-            var response = await _httpClient.GetAsync("/history", cancellationToken);
+            // Bounded like HasHistoryEntryAsync: an infinite-timeout client would otherwise hang here on a
+            // dropped connection. Longer budget since this pulls the whole run history.
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(60));
+
+            var response = await _httpClient.GetAsync("/history", cts.Token);
             if (!response.IsSuccessStatusCode) return result;
 
-            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            var content = await response.Content.ReadAsStringAsync(cts.Token);
             var history = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(content);
             if (history == null || !history.TryGetValue(promptId, out var entry)) return result;
 
@@ -1265,11 +1270,17 @@ public class ComfyUIHttpClient : IDisposable
     {
         try
         {
+            // Per-request timeout: the HttpClient's own timeout is infinite, so a connection a remote
+            // server silently dropped would hang this one poll until the OS gave up (~20+ min), with the
+            // job long finished. A timed-out poll just returns false and the next one retries.
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(15));
+
             // The per-prompt route avoids pulling (and parsing) the entire run history every 5 seconds.
-            var response = await _httpClient.GetAsync($"/history/{Uri.EscapeDataString(promptId)}", cancellationToken);
+            var response = await _httpClient.GetAsync($"/history/{Uri.EscapeDataString(promptId)}", cts.Token);
             if (!response.IsSuccessStatusCode) return false;
 
-            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            var content = await response.Content.ReadAsStringAsync(cts.Token);
             using var doc = JsonDocument.Parse(content);
             return doc.RootElement.ValueKind == JsonValueKind.Object &&
                    doc.RootElement.TryGetProperty(promptId, out _);
