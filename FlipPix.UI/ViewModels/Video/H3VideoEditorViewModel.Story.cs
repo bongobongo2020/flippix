@@ -377,6 +377,30 @@ namespace FlipPix.UI.ViewModels.Video
 
             AddLog("Starting clip generation...");
             await GenerateClipsAsync();
+
+            // Then join and upscale this story before the batch moves on — unless the user cancelled.
+            if (_storyBatchCancelled) return;
+
+            var rendered = TimelineClips.Count(c => c.IsRendered);
+            if (rendered == 0)
+            {
+                AddLog("No clips rendered — skipping join and upscale.");
+                return;
+            }
+            if (rendered < TimelineClips.Count)
+                AddLog($"Joining the {rendered} of {TimelineClips.Count} clips that rendered.");
+
+            // Cleared first so a failed join can't fall through to upscaling the previous story's video.
+            JoinedVideoPath = string.Empty;
+            await JoinClipsAsync();
+            if (string.IsNullOrEmpty(JoinedVideoPath))
+            {
+                AddLog("Join did not produce a video — skipping upscale.");
+                return;
+            }
+
+            if (_storyBatchCancelled) return;
+            await UpscaleAsync();
         }
 
         private string BuildCastBrief(List<(string Kind, string Role)> cast)

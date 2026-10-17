@@ -5128,7 +5128,7 @@
 
                                                     <!-- Action buttons -->
                                                     <StackPanel Orientation="Horizontal">
-                                                        <Button Content="🔍 Analyze Story" Command="{Binding AnalyzeStoryCommand}" Height="26" Padding="10,0" FontSize="10" Style="{StaticResource AccentButtonStyle}" Cursor="Hand" Margin="0,0,6,0" ToolTip="Detect characters, break the story into beats, then populate the timeline and generate every clip"/>
+                                                        <Button Content="🔍 Analyze Story" Command="{Binding AnalyzeStoryCommand}" Height="26" Padding="10,0" FontSize="10" Style="{StaticResource AccentButtonStyle}" Cursor="Hand" Margin="0,0,6,0" ToolTip="Detect characters, break the story into beats, then populate the timeline, generate every clip, join and upscale. A queued folder runs each story in turn."/>
                                                         <Button Content="📋 Populate Timeline" Command="{Binding PopulateTimelineCommand}" Height="26" Padding="10,0" FontSize="10" Style="{StaticResource SuccessButtonStyle}" Cursor="Hand" ToolTip="Generate clips and add to timeline"/>
                                                     </StackPanel>
                                                 </StackPanel>
