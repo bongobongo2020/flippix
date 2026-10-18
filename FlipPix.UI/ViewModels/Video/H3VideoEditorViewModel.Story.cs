@@ -378,29 +378,27 @@ namespace FlipPix.UI.ViewModels.Video
             AddLog("Starting clip generation...");
             await GenerateClipsAsync();
 
-            // Then join and upscale this story before the batch moves on — unless the user cancelled.
+            // Then upscale each clip and join the upscaled clips before the batch moves on — unless the
+            // user cancelled. Clips are upscaled one at a time rather than the joined video, which
+            // grows with the story's length and runs ComfyUI out of memory on long stories.
             if (_storyBatchCancelled) return;
 
             var rendered = TimelineClips.Count(c => c.IsRendered);
             if (rendered == 0)
             {
-                AddLog("No clips rendered — skipping join and upscale.");
+                AddLog("No clips rendered — skipping upscale and join.");
                 return;
             }
             if (rendered < TimelineClips.Count)
-                AddLog($"Joining the {rendered} of {TimelineClips.Count} clips that rendered.");
+                AddLog($"Upscaling and joining the {rendered} of {TimelineClips.Count} clips that rendered.");
 
-            // Cleared first so a failed join can't fall through to upscaling the previous story's video.
-            JoinedVideoPath = string.Empty;
-            await JoinClipsAsync();
-            if (string.IsNullOrEmpty(JoinedVideoPath))
-            {
-                AddLog("Join did not produce a video — skipping upscale.");
-                return;
-            }
-
+            var toJoin = await UpscaleClipsAsync();
             if (_storyBatchCancelled) return;
-            await UpscaleAsync();
+
+            JoinedVideoPath = string.Empty;
+            await JoinClipsAsync(toJoin);
+            if (string.IsNullOrEmpty(JoinedVideoPath))
+                AddLog("Join did not produce a video.");
         }
 
         private string BuildCastBrief(List<(string Kind, string Role)> cast)

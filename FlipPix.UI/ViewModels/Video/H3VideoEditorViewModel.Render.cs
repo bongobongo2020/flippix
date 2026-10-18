@@ -682,7 +682,9 @@ namespace FlipPix.UI.ViewModels.Video
 
         // ── Join Clips ───────────────────────────────────────────────────────────────────────────
 
-        private async Task JoinClipsAsync()
+        /// <param name="clipPaths">Files to join in order (e.g. the upscaled clips); null joins the
+        /// timeline's rendered clips.</param>
+        private async Task JoinClipsAsync(IReadOnlyList<string>? clipPaths = null)
         {
             if (!CanJoin) return;
 
@@ -691,28 +693,36 @@ namespace FlipPix.UI.ViewModels.Video
 
             try
             {
-                var renderedClips = TimelineClips
-                    .Where(c => c.IsRendered && !string.IsNullOrEmpty(c.OutputPath) && File.Exists(c.OutputPath))
-                    .OrderBy(c => c.Index)
+                var paths = (clipPaths ?? TimelineClips
+                        .Where(c => c.IsRendered && !string.IsNullOrEmpty(c.OutputPath))
+                        .OrderBy(c => c.Index)
+                        .Select(c => c.OutputPath!)
+                        .ToList())
+                    .Where(File.Exists)
                     .ToList();
 
-                if (renderedClips.Count == 0)
+                if (paths.Count == 0)
                 {
                     AddLog("No rendered clips to join");
                     return;
                 }
 
-                AddLog($"Joining {renderedClips.Count} clips with FFmpeg...");
+                AddLog($"Joining {paths.Count} clips with FFmpeg...");
 
                 // Determine output path
+                // OutputFolderPath is "" (not null) when ComfyUI is remote, and a ?? fallback would then
+                // build a relative "video\<project>" under the app's working directory. Without a local
+                // output folder, write the joined video next to the clips (the project folder on the share).
                 var settings = _settingsService.Settings;
-                var outputFolder = settings?.OutputFolderPath ?? Path.GetDirectoryName(renderedClips[0].OutputPath) ?? ".";
-                var projectDir = Path.Combine(outputFolder, "video", ProjectFolder);
+                var projectDir = !string.IsNullOrEmpty(settings?.OutputFolderPath)
+                    ? Path.Combine(settings.OutputFolderPath, "video", ProjectFolder)
+                    : TimelineClips.Select(c => c.OutputPath).Where(p => !string.IsNullOrEmpty(p))
+                        .Select(Path.GetDirectoryName).FirstOrDefault() ?? Path.GetDirectoryName(paths[0]) ?? ".";
                 Directory.CreateDirectory(projectDir);
                 var outputPath = Path.Combine(projectDir, $"joined_{DateTime.Now:yyyyMMdd_HHmmss}.mp4");
 
                 // Use FFmpeg to concatenate the clips
-                await Task.Run(() => JoinClipsWithFFmpeg(renderedClips.Select(c => c.OutputPath!).ToList(), outputPath));
+                await Task.Run(() => JoinClipsWithFFmpeg(paths, outputPath));
 
                 if (File.Exists(outputPath))
                 {
@@ -831,35 +841,7 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 using var lease = await _workflowCoordinator.AcquireAsync("h3_video_editor", CancellationToken.None);
 
-                // Upload the joined video to ComfyUI input folder
-                AddLog($"Uploading joined video for H3 latent upscale: {Path.GetFileName(JoinedVideoPath)}");
-                var uploadedName = await _comfyUIService.UploadVideoAsync(JoinedVideoPath, CancellationToken.None);
-                AddLog($"Uploaded as: {uploadedName}");
-
-                // Build and execute the H3 latent upscale workflow
-                var (workflow, saveNodeId) = BuildH3LatentUpscaleWorkflow(uploadedName);
-
-                AddLog($"Submitting H3 Latent Upscale workflow ({UpscaleFactor}x) to ComfyUI...");
-                var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(msg =>
-                {
-                    if (msg.Data?.Value != null && msg.Data?.Max != null && msg.Data.Max > 0)
-                    {
-                        var pct = (double)msg.Data.Value / msg.Data.Max * 100;
-                        StatusText = $"Upscaling: {pct:F0}%";
-                        Progress = pct;
-                    }
-                });
-
-                var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progress, CancellationToken.None);
-
-                if (string.IsNullOrEmpty(promptId))
-                {
-                    throw new Exception("ComfyUI returned empty prompt ID");
-                }
-
-                // Get output path
-                AddLog($"Upscale workflow complete, resolving output path...");
-                var outputPath = await ResolveUpscaleOutputAsync(promptId, saveNodeId);
+                var outputPath = await UpscaleVideoFileAsync(JoinedVideoPath, null, "joined video", CancellationToken.None);
                 if (!string.IsNullOrEmpty(outputPath))
                 {
                     PreviewVideoPath = outputPath;
@@ -893,6 +875,105 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>
+        /// Uploads <paramref name="inputPath"/>, runs the H3 latent upscale + refine on it and returns
+        /// the local path of the result (null if it ran but the file couldn't be found). Throws on
+        /// failure. The caller holds the workflow lease.
+        /// </summary>
+        /// <param name="filenamePrefix">ComfyUI output prefix; null for the default "video/&lt;project&gt;/upscale".</param>
+        private async Task<string?> UpscaleVideoFileAsync(string inputPath, string? filenamePrefix, string label, CancellationToken ct)
+        {
+            AddLog($"Uploading {label} for H3 latent upscale: {Path.GetFileName(inputPath)}");
+            var uploadedName = await _comfyUIService.UploadVideoAsync(inputPath, ct);
+            AddLog($"Uploaded as: {uploadedName}");
+
+            var (workflow, saveNodeId) = BuildH3LatentUpscaleWorkflow(uploadedName, filenamePrefix);
+
+            AddLog($"Submitting H3 Latent Upscale workflow ({UpscaleFactor}x) for {label}...");
+            var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(msg =>
+            {
+                if (msg.Data?.Value != null && msg.Data?.Max != null && msg.Data.Max > 0)
+                {
+                    var pct = (double)msg.Data.Value / msg.Data.Max * 100;
+                    StatusText = $"Upscaling {label}: {pct:F0}%";
+                    Progress = pct;
+                }
+            });
+
+            var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progress, ct);
+            if (string.IsNullOrEmpty(promptId))
+                throw new Exception("ComfyUI returned empty prompt ID");
+
+            AddLog($"Upscale of {label} complete, resolving output path...");
+            return await ResolveUpscaleOutputAsync(promptId, saveNodeId, filenamePrefix);
+        }
+
+        /// <summary>
+        /// Upscales every rendered clip on its own (memory stays one clip's worth, unlike upscaling the
+        /// joined video) and returns the paths to join, in timeline order. A clip whose upscale fails
+        /// keeps its original render so the story still joins complete.
+        /// </summary>
+        private async Task<List<string>> UpscaleClipsAsync()
+        {
+            var clips = TimelineClips
+                .Where(c => c.IsRendered && !string.IsNullOrEmpty(c.OutputPath) && File.Exists(c.OutputPath))
+                .OrderBy(c => c.Index)
+                .ToList();
+            var paths = new List<string>();
+            if (clips.Count == 0) return paths;
+
+            IsUpscaling = true;
+            int upscaled = 0;
+            try
+            {
+                using var lease = await _workflowCoordinator.AcquireAsync("h3_video_editor", CancellationToken.None);
+
+                for (int i = 0; i < clips.Count; i++)
+                {
+                    var clip = clips[i];
+                    if (_storyBatchCancelled)
+                    {
+                        AddLog("Upscale cancelled — remaining clips keep their original render.");
+                        paths.AddRange(clips.Skip(i).Select(c => c.OutputPath!));
+                        break;
+                    }
+
+                    StatusText = $"Upscaling clip {i + 1}/{clips.Count}...";
+                    string? result = null;
+                    try
+                    {
+                        // Own subfolder: the on-disk fallback for an original clip searches "clip_00001*",
+                        // which would otherwise also match an upscaled file beside it.
+                        result = await UpscaleVideoFileAsync(
+                            clip.OutputPath!, $"video/{ProjectFolder}/up/clip_{clip.DisplayIndex:D5}",
+                            $"clip {clip.DisplayIndex}", CancellationToken.None);
+                    }
+                    catch (Exception ex)
+                    {
+                        AddLog($"Upscale of clip {clip.DisplayIndex} failed: {ex.Message}");
+                    }
+
+                    if (!string.IsNullOrEmpty(result) && File.Exists(result))
+                    {
+                        paths.Add(result);
+                        upscaled++;
+                    }
+                    else
+                    {
+                        AddLog($"Clip {clip.DisplayIndex}: using the original render in the join.");
+                        paths.Add(clip.OutputPath!);
+                    }
+                }
+            }
+            finally
+            {
+                IsUpscaling = false;
+            }
+
+            AddLog($"Upscaled {upscaled}/{clips.Count} clips.");
+            return paths;
+        }
+
+        /// <summary>
         /// Builds an H3 Latent Upscale + Refine workflow that:
         /// 1. Loads the joined video and encodes to H3 latent space
         /// 2. Upscales using MinimaxH3LatentUpscaler3D
@@ -900,8 +981,9 @@ namespace FlipPix.UI.ViewModels.Video
         /// 4. Decodes back to video and saves the result
         /// Based on the h3-seed-upscale.json workflow and OBVPM H3 Upscale / Refine Engine.
         /// </summary>
-        private (JsonObject workflow, string saveNodeId) BuildH3LatentUpscaleWorkflow(string uploadedVideoName)
+        private (JsonObject workflow, string saveNodeId) BuildH3LatentUpscaleWorkflow(string uploadedVideoName, string? filenamePrefix = null)
         {
+            filenamePrefix ??= $"video/{ProjectFolder}/upscale";
             AddLog($"Building H3 Latent Upscale + Refine workflow for: {uploadedVideoName}");
             AddLog($"Upscale factor: {UpscaleFactor}x, Refine amount: {RefineAmount}");
 
@@ -1180,7 +1262,7 @@ namespace FlipPix.UI.ViewModels.Video
                         ["audio"] = new JsonArray { "vae_decode_audio", 0 },
                         ["frame_rate"] = 24,
                         ["loop_count"] = 0,
-                        ["filename_prefix"] = $"video/{ProjectFolder}/upscale",
+                        ["filename_prefix"] = filenamePrefix,
                         ["format"] = "video/h264-mp4",
                         ["pix_fmt"] = "yuv420p",
                         ["crf"] = Crf,
@@ -1196,8 +1278,10 @@ namespace FlipPix.UI.ViewModels.Video
             return (workflow, "output");
         }
 
-        private async Task<string?> ResolveUpscaleOutputAsync(string promptId, string saveNodeId)
+        private async Task<string?> ResolveUpscaleOutputAsync(string promptId, string saveNodeId, string? filenamePrefix = null)
         {
+            var isDefaultPrefix = filenamePrefix == null;
+            filenamePrefix ??= $"video/{ProjectFolder}/upscale";
             try
             {
                 var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, CancellationToken.None);
@@ -1222,13 +1306,16 @@ namespace FlipPix.UI.ViewModels.Video
             }
 
             // Fallback: search for the upscale file on disk with verbose logging
-            var expectedPrefix = $"video/{ProjectFolder}/upscale";
-            var found = FindVideoOnDisk(expectedPrefix, verbose: true);
+            var found = FindVideoOnDisk(filenamePrefix, verbose: true);
             if (!string.IsNullOrEmpty(found))
             {
                 AddLog($"Found upscale on disk: {found}");
                 return found;
             }
+
+            // A per-clip upscale must not fall back to "any recent upscale" — that would hand back
+            // another clip's file.
+            if (!isDefaultPrefix) return null;
 
             // Try searching in the root video folder for any recent upscale file
             AddLog($"Checking root video folder for upscale files...");
@@ -1272,11 +1359,14 @@ namespace FlipPix.UI.ViewModels.Video
                 Path.Combine(baseDir, "ffmpeg.exe"),
                 Path.Combine(baseDir, "ffmpeg", "ffmpeg.exe"),
                 Path.Combine(baseDir, "ffmpeg", "bin", "ffmpeg.exe"),
+                // The installer puts FFmpeg at <setup root>\App\ffmpeg\bin and records the root here,
+                // so a dev/publish build run from elsewhere still finds the installed copy.
+                InstalledFFmpegPath(),
             };
 
             foreach (var path in possiblePaths)
             {
-                if (File.Exists(path))
+                if (!string.IsNullOrEmpty(path) && File.Exists(path))
                 {
                     AddLog($"Found FFmpeg at: {path}");
                     return path;
@@ -1310,6 +1400,23 @@ namespace FlipPix.UI.ViewModels.Video
 
             AddLog("FFmpeg not found - join clips will not work");
             return null;
+        }
+
+        /// <summary>FFmpeg from the FlipPix installer (see scripts/flippix-installer.ps1), or null.</summary>
+        private static string? InstalledFFmpegPath()
+        {
+            try
+            {
+                var rootFile = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FlipPix", "setup-root.txt");
+                if (!File.Exists(rootFile)) return null;
+                var root = File.ReadAllText(rootFile).Trim();
+                return string.IsNullOrEmpty(root) ? null : Path.Combine(root, "App", "ffmpeg", "bin", "ffmpeg.exe");
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private void RunFFmpeg(string ffmpegPath, string arguments, int timeoutMs = 600000)

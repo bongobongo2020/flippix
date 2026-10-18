@@ -39,10 +39,11 @@ public class ComfyUIHttpClient : IDisposable
 
     // Short-lived cache of the full /object_info response, used by pre-submit validation.
     // ComfyUI's object_info can be several MB; caching avoids refetching it for every submit
-    // (e.g. batch/seed reruns). TTL is short so newly-added models are picked up quickly.
+    // (e.g. batch/seed reruns). 5 min outlasts one clip render (a 60s TTL refetched it before every
+    // clip of a batch); the model resolver calls InvalidateObjectInfoCache after installing a model.
     private string? _objectInfoCacheJson;
     private DateTime _objectInfoCacheUtc;
-    private static readonly TimeSpan ObjectInfoCacheTtl = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan ObjectInfoCacheTtl = TimeSpan.FromMinutes(5);
 
     // Model-weight file extensions whose subfolder separator must match the host OS.
     private static readonly string[] ModelFileExtensions =
@@ -532,11 +533,11 @@ public class ComfyUIHttpClient : IDisposable
         }
         catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
-            // Our own ConnectionTimeout fired (ComfyUI busy loading models / slow to accept), not the
-            // caller's token. Surface it as a timeout so callers don't mistake it for a user cancel
-            // and abort a whole batch.
-            _logger.LogError(ex, "Failed to submit workflow: /prompt did not respond within {Timeout}ms", _settings.ConnectionTimeout);
-            throw new TimeoutException($"ComfyUI did not accept the prompt within {_settings.ConnectionTimeout}ms.", ex);
+            // One of our own per-request timeouts fired (the pre-submit checks or the /prompt POST
+            // itself, while ComfyUI was busy), not the caller's token. Surface it as a timeout so
+            // callers don't mistake it for a user cancel and abort a whole batch.
+            _logger.LogError(ex, "Failed to submit workflow: ComfyUI did not respond in time");
+            throw new TimeoutException("ComfyUI did not respond in time while the prompt was being submitted.", ex);
         }
         catch (Exception ex)
         {
@@ -1609,18 +1610,31 @@ public class ComfyUIHttpClient : IDisposable
         if (_objectInfoCacheJson != null && (DateTime.UtcNow - _objectInfoCacheUtc) < ObjectInfoCacheTtl)
             return _objectInfoCacheJson;
 
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        cts.CancelAfter(TimeSpan.FromSeconds(20));
-        var response = await _httpClient.GetAsync("/object_info", cts.Token);
-        if (!response.IsSuccessStatusCode)
+        try
         {
-            _logger.LogWarning($"GetObjectInfoJsonAsync: /object_info returned {response.StatusCode}");
-            return null;
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(20));
+            var response = await _httpClient.GetAsync("/object_info", cts.Token);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning($"GetObjectInfoJsonAsync: /object_info returned {response.StatusCode}");
+                return _objectInfoCacheJson;
+            }
+            var json = await response.Content.ReadAsStringAsync(cts.Token);
+            _objectInfoCacheJson = json;
+            _objectInfoCacheUtc = DateTime.UtcNow;
+            return json;
         }
-        var json = await response.Content.ReadAsStringAsync(cts.Token);
-        _objectInfoCacheJson = json;
-        _objectInfoCacheUtc = DateTime.UtcNow;
-        return json;
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            // ComfyUI builds /object_info on every request and it can take >20s while the server is
+            // busy. Everything that reads it is optional pre-submit validation, so a slow or failed
+            // fetch must not block the job: fall back to the last good copy, else null (= skip checks).
+            // Only a real caller cancel propagates.
+            _logger.LogWarning($"GetObjectInfoJsonAsync: /object_info fetch failed ({ex.Message}); " +
+                (_objectInfoCacheJson != null ? "using the previous copy." : "skipping pre-submit validation."));
+            return _objectInfoCacheJson;
+        }
     }
 
     /// <summary>
