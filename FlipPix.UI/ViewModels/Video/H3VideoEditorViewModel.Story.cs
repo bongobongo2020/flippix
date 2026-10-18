@@ -76,6 +76,11 @@ namespace FlipPix.UI.ViewModels.Video
         private List<StoryContinuity.Environment> _continuityPlan = new();
         private List<(string Kind, string Role)> _detectedCast = new();
 
+        // One outfit per character, written once per story ("Character 1 (<Picture 1>, a man) wears: …"
+        // lines). Stamped into every clip and into the auto-generated cast photos, so clothing can't be
+        // re-invented each 5-second clip. Empty when it couldn't be derived.
+        private string _storyWardrobe = string.Empty;
+
         // Story files from a folder import, run in order by Analyze. Empty for a single-file import.
         private List<string> _storyQueue = new();
 
@@ -177,6 +182,7 @@ namespace FlipPix.UI.ViewModels.Video
             _storyBeats.Clear();
             _detectedCast.Clear();
             _continuityPlan.Clear();
+            _storyWardrobe = string.Empty;
         }
 
         private void ClearStory()
@@ -191,6 +197,7 @@ namespace FlipPix.UI.ViewModels.Video
             _storyBeats.Clear();
             _detectedCast.Clear();
             _continuityPlan.Clear();
+            _storyWardrobe = string.Empty;
             AddLog("Story cleared");
         }
 
@@ -315,6 +322,20 @@ namespace FlipPix.UI.ViewModels.Video
                     AddLog($"  Character {i + 1}: {kind} - {role}");
                 }
 
+                // One wardrobe for the whole story, decided before any clip is written.
+                StoryStatus = "Deciding each character's outfit...";
+                _storyWardrobe = await DeriveStoryWardrobeAsync(model, token);
+                if (_storyWardrobe.Length > 0)
+                {
+                    AddLog("Wardrobe (locked for every clip):");
+                    foreach (var line in _storyWardrobe.Split('\n'))
+                        AddLog($"  {line}");
+                }
+                else
+                {
+                    AddLog("WARNING: Could not derive a wardrobe — clothing may vary between clips.");
+                }
+
                 StoryStatus = $"Breaking story into {clipCount} beats...";
 
                 // Step 2: Build cast brief for beat sheet
@@ -399,6 +420,61 @@ namespace FlipPix.UI.ViewModels.Video
             await JoinClipsAsync(toJoin);
             if (string.IsNullOrEmpty(JoinedVideoPath))
                 AddLog("Join did not produce a video.");
+        }
+
+        /// <summary>
+        /// Asks the LLM for one outfit per detected character, normalized to the shared wardrobe-block
+        /// shape (<see cref="CastPromptStamp.NormalizeWardrobe"/>). Same brief as the H3 Cast tab's wardrobe
+        /// pass. Empty on failure — never throws, since a story without a wardrobe can still render.
+        /// </summary>
+        private async Task<string> DeriveStoryWardrobeAsync(string model, CancellationToken token)
+        {
+            if (_detectedCast.Count == 0) return string.Empty;
+
+            var roles = _detectedCast
+                .Take(4)
+                .Select((c, i) => new CastPromptStamp.CastRole(i + 1, c.Kind))
+                .ToList();
+
+            const string systemPrompt =
+                "You are a costume supervisor writing the wardrobe bible for a short film. You reply with " +
+                "nothing but the wardrobe lines you were asked for — no preamble, no headings, no markdown, " +
+                "no notes, no explanation.";
+
+            var shape = string.Join("\n", roles.Select(r => $"CHARACTER {r.Index} ({r.Noun}): <outfit>"));
+            var who = string.Join("; ", _detectedCast.Take(4).Select((c, i) => $"Character {i + 1} is {c.Role}"));
+
+            var userMessage =
+                "The story below is the only source: take each character's clothing from it where it describes " +
+                "clothing, and where it does not, dress them in what the period, place and situation plainly " +
+                "call for.\n" +
+                $"The cast: {who}.\n" +
+                $"The story:\n{StoryText.Trim()}\n\n" +
+                "Decide the outfit each character wears for the whole video. Reply with exactly these lines and " +
+                "nothing else:\n" + shape + "\n\n" +
+                "Each <outfit> is ONE sentence of at most 45 words naming every visible garment and worn item — " +
+                "top, bottom or dress, outer layer, footwear, headwear, gloves, eyewear, jewellery, bag, belt — " +
+                "each with its colour and its material. Write only clothing and worn accessories: no face, hair, " +
+                "skin, build, age, name, pose, expression, background, weather or action. The outfit must be " +
+                "practical for everything the character does in the story and must stay wearable from beginning " +
+                "to end, because they will wear it in every shot of the finished video.";
+
+            try
+            {
+                var reply = await _lmStudioService.SendTextChatAsync(
+                    model, systemPrompt, userMessage, maxTokens: 600, cancellationToken: token);
+                var cleaned = (reply ?? string.Empty).Replace("**", "").Trim();
+                return CastPromptStamp.NormalizeWardrobe(cleaned, roles, roles);
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Wardrobe pass failed: {ex.Message}");
+                return string.Empty;
+            }
         }
 
         private string BuildCastBrief(List<(string Kind, string Role)> cast)
@@ -540,7 +616,14 @@ namespace FlipPix.UI.ViewModels.Video
                 }
             }
 
-            sb.Append(". Professional studio lighting, neutral background, standing pose, looking at camera.");
+            // Dressed in the story's locked outfit, so the reference photo and every clip's text describe
+            // the same clothes — a photo in other clothes would pull the clips away from the wardrobe.
+            var outfit = StoryOutfitFor(slotIndex);
+            if (outfit.Length > 0)
+                sb.Append($", wearing {outfit}");
+
+            sb.Append(". Professional studio lighting, neutral background, standing pose, looking at camera, " +
+                      "whole outfit clearly visible from head to shoes.");
             return sb.ToString();
         }
 
@@ -795,12 +878,18 @@ namespace FlipPix.UI.ViewModels.Video
             for (int i = 0; i < Math.Min(4, _detectedCast.Count); i++)
             {
                 var (kind, role) = _detectedCast[i];
-                // Extract outfit from role if mentioned
-                var outfit = ExtractOutfitFromRole(role);
+                // The story's locked wardrobe first: the same words in every clip are what keep the
+                // clothes from changing clip to clip. The role's own "wearing …" phrase is the fallback.
+                var outfit = StoryOutfitFor(i);
+                if (outfit.Length == 0) outfit = ExtractOutfitFromRole(role);
                 members.Add(new H3SpecPrompt.CastMember(i + 1, kind, outfit));
             }
             return members;
         }
+
+        /// <summary>Character <paramref name="slotIndex"/>'s (0-based) outfit from the story wardrobe, or "".</summary>
+        private string StoryOutfitFor(int slotIndex) =>
+            CastPromptStamp.OutfitFor(_storyWardrobe, slotIndex + 1).Trim().TrimEnd('.');
 
         private string ExtractOutfitFromRole(string role)
         {
