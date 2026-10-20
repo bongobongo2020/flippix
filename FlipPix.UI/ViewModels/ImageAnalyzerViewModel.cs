@@ -2230,7 +2230,7 @@ namespace FlipPix.UI.ViewModels
                         break;
 
                     case TextGeneratorWorkflow.Moss:
-                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "moss-serenity-API.json");
+                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "moss-serenity-API2.json");
                         _logger.LogInfo($"Using MOSS Serenity workflow");
                         break;
 
@@ -3140,7 +3140,7 @@ namespace FlipPix.UI.ViewModels
                         }
                         else if (selectedWorkflow == TextGeneratorWorkflow.Moss)
                         {
-                            // moss-serenity-API.json (see ImageGeneratorViewModel.UpdateMossWorkflow):
+                            // moss-serenity-API2.json (see ImageGeneratorViewModel.UpdateMossWorkflow):
                             //    9 = EmptyFlux2LatentImage → width / height   [set here]
                             //   12 = SaveImage → filename_prefix              [set here]
                             var (mossWidth, mossHeight) = ImageGeneratorViewModel.MossResolution(AspectRatioIndex);
@@ -3273,8 +3273,8 @@ namespace FlipPix.UI.ViewModels
                     }
                     else if (selectedWorkflow == TextGeneratorWorkflow.Moss)
                     {
-                        // moss-serenity-API.json: node 10 = KSampler. Seed only — steps 12 / cfg 4 /
-                        // res_2m / bong_tangent are the workflow's own and are left alone.
+                        // moss-serenity-API2.json: node 10 = KSampler. Seed only — steps 12 / cfg 3 /
+                        // dpmpp_sde / simple are the workflow's own and are left alone.
                         UpdateNodeInputs(workflow, "10", nodeInputs => nodeInputs["seed"] = randomSeed);
                         _logger.LogInfo($"✓ Updated MOSS sampler node 10 with seed: {randomSeed}");
                     }

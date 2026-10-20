@@ -52,7 +52,7 @@ namespace FlipPix.UI.ViewModels
         /// <summary>Krea2 two-reference identity edit mode (workflow/image/krea/krea2_edit_two_ref.json).</summary>
         public const string Krea2EditMode = "krea2-edit";
 
-        /// <summary>MOSS Serenity text-to-image mode (workflow/image/moss-serenity-API.json).</summary>
+        /// <summary>MOSS Serenity text-to-image mode (workflow/image/moss-serenity-API2.json).</summary>
         public const string MossMode = "Moss";
 
         public static readonly IReadOnlyList<string> WorkflowModes = new[] { "Qwen", "Klein", "FireRed", "StoryImageZ", "Krea2", "krea2-edit", MossMode };
@@ -74,7 +74,7 @@ namespace FlipPix.UI.ViewModels
                     else if (value == Krea2EditMode)
                         Steps = 12; // Krea2 Edit (turbo LoRA + identity edit LoRA)
                     else if (value == MossMode)
-                        Steps = 12; // as authored in moss-serenity-API.json (display only)
+                        Steps = 12; // as authored in moss-serenity-API2.json (display only)
                     else
                         Steps = DefaultSteps;
 
@@ -982,7 +982,7 @@ namespace FlipPix.UI.ViewModels
         /// </summary>
         private async Task<string> ProcessMossQueueItemAsync(StoryPromptItem item, string jsonFileName, CancellationToken cancellationToken)
         {
-            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "moss-serenity-API.json");
+            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "moss-serenity-API2.json");
             AddLog("Using MOSS Serenity workflow (text-to-image)");
 
             if (!File.Exists(workflowPath))

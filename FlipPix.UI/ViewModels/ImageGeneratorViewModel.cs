@@ -37,7 +37,7 @@ namespace FlipPix.UI.ViewModels
         // enhancer in front of it: a Qwen3-VL 8B TextGenerate pass rewrites the prompt
         // before it reaches the encoder, behind an on/off switch (UsePromptEnhancer).
         Qwen21Enhancer,
-        // MOSS-Image Serenity finetune + DMD 8-step LoRA (moss-serenity-API.json). Sampler settings
+        // MOSS-Image Serenity finetune + DMD 8-step LoRA (moss-serenity-API2.json). Sampler settings
         // are the workflow's own, so only prompt, seed and canvas size are injected.
         Moss
     }
@@ -854,7 +854,7 @@ namespace FlipPix.UI.ViewModels
                         break;
 
                     case TextGeneratorWorkflow.Moss:
-                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "moss-serenity-API.json");
+                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "moss-serenity-API2.json");
                         AddLog("Using MOSS Serenity workflow");
                         break;
 
@@ -2705,13 +2705,13 @@ namespace FlipPix.UI.ViewModels
         }
 
         /// <summary>
-        /// Fills moss-serenity-API.json. Shared with the Image Analyzer and the Story Image tab.
+        /// Fills moss-serenity-API2.json. Shared with the Image Analyzer and the Story Image tab.
         /// Node map:
         ///   7  = CLIPTextEncode (positive prompt) → inputs.text                 [set here]
         ///   9  = EmptyFlux2LatentImage → inputs.width / height                  [set here]
         ///   10 = KSampler → inputs.seed                                         [set here]
         ///   12 = SaveImage → inputs.filename_prefix                             [set here]
-        ///   10 = steps 12 / cfg 4 / res_2m / bong_tangent                       [as authored]
+        ///   10 = steps 12 / cfg 3 / dpmpp_sde / simple                          [as authored]
         ///   5  = MOSS DMD 8-step LoRA, 6 = skip-layer guidance (block 22)       [as authored]
         /// The tab's Steps / CFG / Denoise / LoRA controls do not apply: edit the JSON to change them.
         /// </summary>
@@ -4179,7 +4179,7 @@ namespace FlipPix.UI.ViewModels
                         break;
 
                     case TextGeneratorWorkflow.Moss:
-                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "moss-serenity-API.json");
+                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "moss-serenity-API2.json");
                         AddLog("Using MOSS Serenity workflow");
                         break;
 

@@ -82,7 +82,7 @@
   },
   "7": {
     "inputs": {
-      "text": "photo of a woman, cinematic still from a gritty HBO medieval fantasy drama, a woman standing on a muddy hillside below a grey stone castle, medium shot from the waist up, wearing battered, dented steel plate armour over a torn and stained blue gambeson, short cropped blonde hair matted with sweat, dirt and dried blood smeared across her face, a small cut on her cheek, looking off-camera with a steady, serious expression, cold overcast light, drifting mist, desaturated muted colour grade with cool blue-grey tones, blurred castle walls and towers behind, shallow depth of field, anamorphic lens, subtle film grain, 2.39:1 widescreen frame",
+      "text": "A middle-aged South Asian woman with shoulder-length black hair parted in the center sits on a brown upholstered sofa with a dark pattern. Her face features an oval head shape with defined cheekbones, a straight nose bridge, and a chin that points upward. She gazes intently into the upper left distance with a focused, slightly upward expression. Her attire consists of a white, semi-sheer lace tunic with short sleeves and a V-neckline that sits open at the top, revealing a white inner garment. She wears a thick gold cuff bracelet on her right wrist and rings on her ring fingers. Her pose is relaxed but attentive; her legs are crossed at the ankles and knees with her right leg resting over her left, and her arms are bent with both hands clasped loosely together on her lap, her right hand over her left. The framing is a low-angle shot looking up at the subject, capturing a waist-up view that cuts off at the upper thighs and leaves the top of the head and the top of the sofa back cropped by the top of the frame, leaving a narrow strip of plain wall visible at the top.",
       "clip": [
         "2",
         0
@@ -119,11 +119,11 @@
   },
   "10": {
     "inputs": {
-      "seed": 634643150157838,
+      "seed": 72980766046965,
       "steps": 12,
-      "cfg": 4,
-      "sampler_name": "res_2m",
-      "scheduler": "bong_tangent",
+      "cfg": 3,
+      "sampler_name": "dpmpp_sde",
+      "scheduler": "simple",
       "denoise": 1,
       "model": [
         "6",
