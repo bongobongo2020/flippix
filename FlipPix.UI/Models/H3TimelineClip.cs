@@ -129,10 +129,12 @@ namespace FlipPix.UI.Models
         [NotifyPropertyChangedFor(nameof(StatusText))]
         [NotifyPropertyChangedFor(nameof(IsQueued))]
         [NotifyPropertyChangedFor(nameof(IsRendering))]
+        [NotifyPropertyChangedFor(nameof(IsFailed))]
         private H3ClipState _state = H3ClipState.Pending;
 
         public bool IsQueued => State == H3ClipState.Queued;
         public bool IsRendering => State == H3ClipState.Rendering;
+        public bool IsFailed => State == H3ClipState.Failed;
 
         public string StatusText => State switch
         {

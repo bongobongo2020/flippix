@@ -220,7 +220,22 @@ N/A
         [NotifyPropertyChangedFor(nameof(CanGenerate))]
         [NotifyPropertyChangedFor(nameof(CanJoin))]
         [NotifyPropertyChangedFor(nameof(StatusText))]
+        [NotifyPropertyChangedFor(nameof(GenerateButtonText))]
         private bool _isGenerating;
+
+        public string GenerateButtonText => IsGenerating ? "Generating..." : "Generate";
+
+        partial void OnIsGeneratingChanged(bool value)
+        {
+            // Commands are created after field initialisation; guard the early calls.
+            GenerateClipsCommand?.NotifyCanExecuteChanged();
+            RegenerateClipCommand?.NotifyCanExecuteChanged();
+            CancelCommand?.NotifyCanExecuteChanged();
+        }
+
+        /// <summary>Whether the log panel is open; generation opens it so progress is visible.</summary>
+        [ObservableProperty]
+        private bool _isLogOpen;
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(CanJoin))]
@@ -348,22 +363,31 @@ N/A
             clip.OutputPath = string.Empty;
             clip.ThumbnailPath = string.Empty;
 
+            IsLogOpen = true;
             AddLog($"Regenerating clip {clip.DisplayIndex}...");
 
             IsGenerating = true;
+            Progress = 0;
             StatusText = $"Regenerating clip {clip.DisplayIndex}...";
+            _renderCts = new System.Threading.CancellationTokenSource();
 
             try
             {
-                using var cts = new System.Threading.CancellationTokenSource();
-                using var lease = await _workflowCoordinator.AcquireAsync("h3_video_editor", cts.Token);
+                using var lease = await _workflowCoordinator.AcquireAsync("h3_video_editor", _renderCts.Token);
 
                 clip.State = H3ClipState.Rendering;
-                await GenerateSingleClipAsync(clip, cts.Token);
+                await GenerateSingleClipAsync(clip, _renderCts.Token);
                 clip.State = H3ClipState.Rendered;
+                Progress = 100;
 
                 AddLog($"Clip {clip.DisplayIndex} regenerated successfully");
                 StatusText = "Ready";
+            }
+            catch (OperationCanceledException)
+            {
+                clip.State = H3ClipState.Pending;
+                AddLog($"Clip {clip.DisplayIndex} cancelled");
+                StatusText = "Cancelled";
             }
             catch (Exception ex)
             {
@@ -374,6 +398,8 @@ N/A
             finally
             {
                 IsGenerating = false;
+                _renderCts?.Dispose();
+                _renderCts = null;
                 GenerateClipsCommand.NotifyCanExecuteChanged();
                 JoinClipsCommand.NotifyCanExecuteChanged();
             }
@@ -381,9 +407,11 @@ N/A
 
         private void Cancel()
         {
-            _renderCts?.Cancel();
             _storyBatchCancelled = true; // also stop a queued story batch from moving on
+            if (_renderCts == null) return;
             AddLog("Cancellation requested");
+            StatusText = "Cancelling...";
+            _renderCts.Cancel();
         }
 
         // ── Settings Persistence ─────────────────────────────────────────────────────────────────

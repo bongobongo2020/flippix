@@ -142,7 +142,8 @@ cat <<MSG
 FlipPix is installed. Start it from the ChromeOS launcher (Linux apps → FlipPix)
 or run:  flippix
 
-Generated images are copied to ~/flippix and videos to ~/flippix-vids.
+Generated images and videos are copied to My files → flippix once you create that folder
+in the Files app and Share it with Linux (until then: ~/flippix and ~/flippix-vids).
 
 First run asks where ComfyUI is. On a Chromebook choose "Remote Server" and enter your
 GPU PC's address, e.g. http://192.168.1.50:8188 — see CHROMEBOOK.md for the output-folder share.

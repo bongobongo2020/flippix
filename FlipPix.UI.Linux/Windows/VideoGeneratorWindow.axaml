@@ -7719,6 +7719,8 @@
                                                         Classes="s60"
                                                         Classes.s60_0="{Binding IsSelected}"
                                                         Classes.s60_1="{Binding IsRendered}"
+                                                        Classes.s60_2="{Binding IsRendering}"
+                                                        Classes.s60_3="{Binding IsFailed}"
                                                         ctrl:Click.Command="{Binding $parent[ItemsControl].((vmv:H3VideoEditorViewModel)DataContext).SelectClipCommand}"
                                                         ctrl:Click.CommandParameter="{Binding}"
                                                         ctrl:Click.DoubleCommand="{Binding $parent[ItemsControl].((vmv:H3VideoEditorViewModel)DataContext).EditClipPromptCommand}"
@@ -7731,6 +7733,12 @@
                                                         <Style Selector="Border.s60.s60_1" x:DataType="m:H3TimelineClip">
                                                             <Setter Property="Background" Value="#1a3d1a"/>
                                                             <Setter Property="BorderBrush" Value="#2a5a2a"/>
+                                                        </Style>
+                                                        <Style Selector="Border.s60.s60_2" x:DataType="m:H3TimelineClip">
+                                                            <Setter Property="BorderBrush" Value="#e0a030"/>
+                                                        </Style>
+                                                        <Style Selector="Border.s60.s60_3" x:DataType="m:H3TimelineClip">
+                                                            <Setter Property="BorderBrush" Value="#c04040"/>
                                                         </Style>
                                                     </Border.Styles>
                                                     <Border.Width>
@@ -7813,6 +7821,34 @@
                                                                     </ControlTheme>
                                                                 </TextBlock.Theme>
                                                             </TextBlock>
+                                                            <!-- State badge: queued / rendering / failed -->
+                                                            <Border Background="#CC000000"
+                                                                    CornerRadius="2"
+                                                                    Padding="4,1"
+                                                                    Margin="2"
+                                                                    HorizontalAlignment="Left"
+                                                                    VerticalAlignment="Top"
+                                                                    IsVisible="{Binding IsRendering}">
+                                                                <TextBlock Text="⏳ rendering..." FontSize="9" FontWeight="SemiBold" Foreground="#e0a030"/>
+                                                            </Border>
+                                                            <Border Background="#CC000000"
+                                                                    CornerRadius="2"
+                                                                    Padding="4,1"
+                                                                    Margin="2"
+                                                                    HorizontalAlignment="Left"
+                                                                    VerticalAlignment="Top"
+                                                                    IsVisible="{Binding IsQueued}">
+                                                                <TextBlock Text="queued" FontSize="9" Foreground="#aaa"/>
+                                                            </Border>
+                                                            <Border Background="#CC000000"
+                                                                    CornerRadius="2"
+                                                                    Padding="4,1"
+                                                                    Margin="2"
+                                                                    HorizontalAlignment="Left"
+                                                                    VerticalAlignment="Top"
+                                                                    IsVisible="{Binding IsFailed}">
+                                                                <TextBlock Text="✕ failed" FontSize="9" FontWeight="SemiBold" Foreground="#e06060"/>
+                                                            </Border>
                                                         </Grid>
                                                         <!-- Bottom info bar -->
                                                         <Border Grid.Row="1" Background="#252525" Padding="2,1">
@@ -7909,7 +7945,7 @@
                             <Grid>
                                 <StackPanel Orientation="Horizontal">
                                     <!-- Generate - primary action with subtle green -->
-                                    <Button Content="Generate"
+                                    <Button Content="{Binding GenerateButtonText}"
                                             Command="{Binding GenerateClipsCommand}"
                                             Height="28"
                                             Padding="14,0"
@@ -8046,6 +8082,7 @@
                                                  Foreground="#2d6a4f"/>
                                     <!-- Log toggle -->
                                     <ToggleButton x:Name="LogToggle"
+                                                  IsChecked="{Binding IsLogOpen, Mode=TwoWay}"
                                                   Content="Log"
                                                   Height="24"
                                                   Padding="10,0"
@@ -8127,6 +8164,15 @@
                                             <ControlTheme TargetType="Button"/>
                                         </Button.Theme>
                                     </Button>
+                                    <!-- Status (visible next to the buttons, not just in the top bar) -->
+                                    <TextBlock Text="{Binding StatusText}"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Foreground="#8fd3b0"
+                                               VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis"
+                                               MaxWidth="360"
+                                               Margin="10,0,0,0"/>
                                 </StackPanel>
                             </Grid>
                         </Border>
