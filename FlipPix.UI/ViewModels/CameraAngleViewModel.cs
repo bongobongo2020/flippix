@@ -94,9 +94,51 @@ namespace FlipPix.UI.ViewModels
         /// <summary>The list of camera-angle prompts that will be generated (one image each).</summary>
         public ObservableCollection<CameraPromptItem> Prompts { get; } = new();
 
-        /// <summary>Directory that holds the training-prompt set files (one prompt per line each).</summary>
+        /// <summary>
+        /// Directory that holds the training-prompt set files (one prompt per line each). Lives in
+        /// the per-user FlipPix folder (%APPDATA%\FlipPix, ~/.config/FlipPix on Linux) rather than
+        /// beside the app, because reinstalling — install-chromebook.sh wipes its install folder —
+        /// would otherwise delete every set the user saved.
+        /// </summary>
         private static string TrainingPromptsDir =>
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FlipPix", "training-prompts");
+
+        /// <summary>The sets that ship with the app (prompts/training-prompts beside the executable).</summary>
+        private static string BundledTrainingPromptsDir =>
             Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "training-prompts");
+
+        /// <summary>Records which bundled sets were already copied, so a set the user deletes stays deleted.</summary>
+        private const string SeededListFileName = ".seeded";
+
+        /// <summary>
+        /// Copies bundled sets into <see cref="TrainingPromptsDir"/> the first time each one is seen.
+        /// This also carries over sets saved beside the app by older versions.
+        /// </summary>
+        private void SeedBundledTrainingSets()
+        {
+            if (!Directory.Exists(BundledTrainingPromptsDir)) return;
+
+            Directory.CreateDirectory(TrainingPromptsDir);
+            var seededListPath = Path.Combine(TrainingPromptsDir, SeededListFileName);
+            var seeded = new HashSet<string>(
+                File.Exists(seededListPath) ? File.ReadAllLines(seededListPath) : Array.Empty<string>(),
+                StringComparer.OrdinalIgnoreCase);
+
+            var newlySeeded = new List<string>();
+            foreach (var source in Directory.GetFiles(BundledTrainingPromptsDir, "*.txt"))
+            {
+                var fileName = Path.GetFileName(source);
+                if (seeded.Contains(fileName)) continue;
+
+                var target = Path.Combine(TrainingPromptsDir, fileName);
+                if (!File.Exists(target))
+                    File.Copy(source, target);
+                newlySeeded.Add(fileName);
+            }
+
+            if (newlySeeded.Count > 0)
+                File.AppendAllLines(seededListPath, newlySeeded);
+        }
 
         /// <summary>Optional extra prompt; when set, an additional image is generated for it.</summary>
         public string ExtraPrompt
@@ -106,8 +148,8 @@ namespace FlipPix.UI.ViewModels
         }
 
         /// <summary>
-        /// The available training-prompt sets (each backed by a .txt file under
-        /// prompts/training-prompts, one prompt per line). Any combination can be selected
+        /// The available training-prompt sets (each backed by a .txt file in
+        /// <see cref="TrainingPromptsDir"/>, one prompt per line). Any combination can be selected
         /// and loaded into the prompt batcher.
         /// </summary>
         public ObservableCollection<TrainingSetItem> TrainingSets { get; } = new();
@@ -132,11 +174,8 @@ namespace FlipPix.UI.ViewModels
 
             try
             {
-                if (!Directory.Exists(TrainingPromptsDir))
-                {
-                    Directory.CreateDirectory(TrainingPromptsDir);
-                    return;
-                }
+                SeedBundledTrainingSets();
+                Directory.CreateDirectory(TrainingPromptsDir);
 
                 var files = Directory.GetFiles(TrainingPromptsDir, "*.txt")
                     .OrderBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase);
