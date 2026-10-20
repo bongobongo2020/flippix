@@ -469,7 +469,7 @@
                                                         <ComboBoxItem Content="Krea2 (Turbo)"/>
                                                         <ComboBoxItem Content="Zimage Base (no style)"/>
                                                         <ComboBoxItem Content="Qwen 2.1 (prompt enhancer)"/>
-                                                        <ComboBoxItem Content="MOSS (rapid 4-step)"/>
+                                                        <ComboBoxItem Content="MOSS (Serenity)"/>
                                                     </ComboBox>
                                                 </StackPanel>
 

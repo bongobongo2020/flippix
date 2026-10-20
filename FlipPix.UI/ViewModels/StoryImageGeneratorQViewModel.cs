@@ -52,7 +52,7 @@ namespace FlipPix.UI.ViewModels
         /// <summary>Krea2 two-reference identity edit mode (workflow/image/krea/krea2_edit_two_ref.json).</summary>
         public const string Krea2EditMode = "krea2-edit";
 
-        /// <summary>MOSS-Image rapid 4-step text-to-image mode (workflow/image/moss-rapid-4step.json).</summary>
+        /// <summary>MOSS Serenity text-to-image mode (workflow/image/moss-serenity-API.json).</summary>
         public const string MossMode = "Moss";
 
         public static readonly IReadOnlyList<string> WorkflowModes = new[] { "Qwen", "Klein", "FireRed", "StoryImageZ", "Krea2", "krea2-edit", MossMode };
@@ -74,7 +74,7 @@ namespace FlipPix.UI.ViewModels
                     else if (value == Krea2EditMode)
                         Steps = 12; // Krea2 Edit (turbo LoRA + identity edit LoRA)
                     else if (value == MossMode)
-                        Steps = 4; // fixed by the rapid-moss adapter
+                        Steps = 12; // as authored in moss-serenity-API.json (display only)
                     else
                         Steps = DefaultSteps;
 
@@ -977,13 +977,13 @@ namespace FlipPix.UI.ViewModels
         }
 
         /// <summary>
-        /// Moss mode: text-to-image with MOSS-Image + the rapid-moss 4-step adapter (no reference
-        /// image). Uses the same orientation picker as Krea2; steps/CFG are fixed by the adapter.
+        /// Moss mode: text-to-image with the MOSS Serenity workflow (no reference image). Uses the
+        /// same orientation picker as Krea2; steps/CFG come from the workflow JSON.
         /// </summary>
         private async Task<string> ProcessMossQueueItemAsync(StoryPromptItem item, string jsonFileName, CancellationToken cancellationToken)
         {
-            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "moss-rapid-4step.json");
-            AddLog("Using MOSS rapid 4-step workflow (text-to-image)");
+            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "moss-serenity-API.json");
+            AddLog("Using MOSS Serenity workflow (text-to-image)");
 
             if (!File.Exists(workflowPath))
                 throw new FileNotFoundException($"Workflow file not found: {workflowPath}");

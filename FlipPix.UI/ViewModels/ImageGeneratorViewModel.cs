@@ -37,8 +37,8 @@ namespace FlipPix.UI.ViewModels
         // enhancer in front of it: a Qwen3-VL 8B TextGenerate pass rewrites the prompt
         // before it reaches the encoder, behind an on/off switch (UsePromptEnhancer).
         Qwen21Enhancer,
-        // MOSS-Image base + rapid-moss 4-step adapter (moss-rapid-4step.json). Steps and CFG are
-        // fixed by the adapter, so only prompt, seed and canvas size are injected.
+        // MOSS-Image Serenity finetune + DMD 8-step LoRA (moss-serenity-API.json). Sampler settings
+        // are the workflow's own, so only prompt, seed and canvas size are injected.
         Moss
     }
 
@@ -854,8 +854,8 @@ namespace FlipPix.UI.ViewModels
                         break;
 
                     case TextGeneratorWorkflow.Moss:
-                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "moss-rapid-4step.json");
-                        AddLog("Using MOSS rapid 4-step workflow");
+                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "moss-serenity-API.json");
+                        AddLog("Using MOSS Serenity workflow");
                         break;
 
                     case TextGeneratorWorkflow.Zimage:
@@ -2690,30 +2690,30 @@ namespace FlipPix.UI.ViewModels
         }
 
         /// <summary>
-        /// Landscape / portrait / square canvas for MOSS-Image, kept near the authored 1328x1024
-        /// (~1.36 MP) so the 4-step adapter stays in the range it was tuned for.
+        /// Landscape / portrait / square canvas for MOSS Serenity, kept near the authored 1584x1776
+        /// (~2.8 MP) that the workflow was tuned at.
         /// </summary>
         internal static (int Width, int Height) MossResolution(int aspectRatioIndex)
         {
             var resolutions = new[]
             {
-                (1328, 1024), // Landscape
-                (1024, 1328), // Portrait
-                (1168, 1168), // Square
+                (1776, 1584), // Landscape
+                (1584, 1776), // Portrait (as authored)
+                (1680, 1680), // Square
             };
             return resolutions[Math.Min(Math.Max(aspectRatioIndex, 0), resolutions.Length - 1)];
         }
 
         /// <summary>
-        /// Fills moss-rapid-4step.json. Shared with the Image Analyzer and the Story Image tab.
+        /// Fills moss-serenity-API.json. Shared with the Image Analyzer and the Story Image tab.
         /// Node map:
-        ///   3  = CLIPTextEncode (positive prompt) → inputs.text                 [set here]
-        ///   5  = RandomNoise → inputs.noise_seed                                [set here]
-        ///   6  = EmptyFlux2LatentImage → inputs.width / height                  [set here]
-        ///   9  = SaveImage → inputs.filename_prefix                             [set here]
-        ///   2  = RapidMOSSAdapter, 4 steps                                      [as authored]
-        ///   13 = ScheduledCFGGuidance, cfg 1 (negative is the zeroed positive)  [as authored]
-        /// The tab's Steps / CFG / Denoise / LoRA controls do not apply: the adapter fixes them.
+        ///   7  = CLIPTextEncode (positive prompt) → inputs.text                 [set here]
+        ///   9  = EmptyFlux2LatentImage → inputs.width / height                  [set here]
+        ///   10 = KSampler → inputs.seed                                         [set here]
+        ///   12 = SaveImage → inputs.filename_prefix                             [set here]
+        ///   10 = steps 12 / cfg 4 / res_2m / bong_tangent                       [as authored]
+        ///   5  = MOSS DMD 8-step LoRA, 6 = skip-layer guidance (block 22)       [as authored]
+        /// The tab's Steps / CFG / Denoise / LoRA controls do not apply: edit the JSON to change them.
         /// </summary>
         internal static JsonElement UpdateMossWorkflow(Dictionary<string, JsonElement> workflowDict, string prompt,
             int aspectRatioIndex, long seed, Action<string> log, (int Width, int Height)? canvas = null,
@@ -2722,17 +2722,17 @@ namespace FlipPix.UI.ViewModels
             var (width, height) = canvas ?? MossResolution(aspectRatioIndex);
             var actualSeed = seed == 0 ? Random.Shared.NextInt64(0, 999999999999999) : seed;
 
-            UpdateNodeInputs(workflowDict, "3", inputs => inputs["text"] = prompt);
-            UpdateNodeInputs(workflowDict, "5", inputs => inputs["noise_seed"] = actualSeed);
-            UpdateNodeInputs(workflowDict, "6", inputs =>
+            UpdateNodeInputs(workflowDict, "7", inputs => inputs["text"] = prompt);
+            UpdateNodeInputs(workflowDict, "9", inputs =>
             {
                 inputs["width"] = width;
                 inputs["height"] = height;
             });
+            UpdateNodeInputs(workflowDict, "10", inputs => inputs["seed"] = actualSeed);
             // Saved at the output root by default so the prefix-based local retrieval matches.
-            UpdateNodeInputs(workflowDict, "9", inputs => inputs["filename_prefix"] = filenamePrefix);
+            UpdateNodeInputs(workflowDict, "12", inputs => inputs["filename_prefix"] = filenamePrefix);
 
-            log($"MOSS rapid 4-step: {width}x{height}, seed={actualSeed} (steps/cfg fixed by the adapter)");
+            log($"MOSS Serenity: {width}x{height}, seed={actualSeed} (steps/cfg as authored)");
 
             return JsonSerializer.SerializeToElement(workflowDict);
         }
@@ -4179,8 +4179,8 @@ namespace FlipPix.UI.ViewModels
                         break;
 
                     case TextGeneratorWorkflow.Moss:
-                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "moss-rapid-4step.json");
-                        AddLog("Using MOSS rapid 4-step workflow");
+                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "moss-serenity-API.json");
+                        AddLog("Using MOSS Serenity workflow");
                         break;
 
                     case TextGeneratorWorkflow.Zimage:

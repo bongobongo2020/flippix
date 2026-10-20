@@ -2230,8 +2230,8 @@ namespace FlipPix.UI.ViewModels
                         break;
 
                     case TextGeneratorWorkflow.Moss:
-                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "moss-rapid-4step.json");
-                        _logger.LogInfo($"Using MOSS rapid 4-step workflow");
+                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "moss-serenity-API.json");
+                        _logger.LogInfo($"Using MOSS Serenity workflow");
                         break;
 
                     case TextGeneratorWorkflow.ZimageBase:
@@ -2916,7 +2916,7 @@ namespace FlipPix.UI.ViewModels
                     TextGeneratorWorkflow.ZimageBase => "76:67",
                     // The USER PROMPT primitive, not the encoder: the enhancer reads through it.
                     TextGeneratorWorkflow.Qwen21Enhancer => "468",
-                    TextGeneratorWorkflow.Moss => "3",
+                    TextGeneratorWorkflow.Moss => "7",
                     _ => ""  // Empty for Zimage (will use generic search)
                 };
 
@@ -3140,18 +3140,18 @@ namespace FlipPix.UI.ViewModels
                         }
                         else if (selectedWorkflow == TextGeneratorWorkflow.Moss)
                         {
-                            // moss-rapid-4step.json (see ImageGeneratorViewModel.UpdateMossWorkflow):
-                            //   6 = EmptyFlux2LatentImage → width / height   [set here]
-                            //   9 = SaveImage → filename_prefix              [set here]
+                            // moss-serenity-API.json (see ImageGeneratorViewModel.UpdateMossWorkflow):
+                            //    9 = EmptyFlux2LatentImage → width / height   [set here]
+                            //   12 = SaveImage → filename_prefix              [set here]
                             var (mossWidth, mossHeight) = ImageGeneratorViewModel.MossResolution(AspectRatioIndex);
-                            UpdateNodeInputs(workflow, "6", nodeInputs =>
+                            UpdateNodeInputs(workflow, "9", nodeInputs =>
                             {
                                 nodeInputs["width"] = mossWidth;
                                 nodeInputs["height"] = mossHeight;
                             });
                             // Saved at the output root so the prefix-based local retrieval matches.
-                            UpdateNodeInputs(workflow, "9", nodeInputs => nodeInputs["filename_prefix"] = "Moss");
-                            _logger.LogInfo($"✓ MOSS rapid 4-step: {mossWidth}x{mossHeight} (steps/cfg fixed by the adapter)");
+                            UpdateNodeInputs(workflow, "12", nodeInputs => nodeInputs["filename_prefix"] = "Moss");
+                            _logger.LogInfo($"✓ MOSS Serenity: {mossWidth}x{mossHeight} (steps/cfg as authored)");
                         }
                     }
 
@@ -3273,9 +3273,10 @@ namespace FlipPix.UI.ViewModels
                     }
                     else if (selectedWorkflow == TextGeneratorWorkflow.Moss)
                     {
-                        // moss-rapid-4step.json: node 5 = RandomNoise.
-                        UpdateNodeInputs(workflow, "5", nodeInputs => nodeInputs["noise_seed"] = randomSeed);
-                        _logger.LogInfo($"✓ Updated MOSS noise node 5 with seed: {randomSeed}");
+                        // moss-serenity-API.json: node 10 = KSampler. Seed only — steps 12 / cfg 4 /
+                        // res_2m / bong_tangent are the workflow's own and are left alone.
+                        UpdateNodeInputs(workflow, "10", nodeInputs => nodeInputs["seed"] = randomSeed);
+                        _logger.LogInfo($"✓ Updated MOSS sampler node 10 with seed: {randomSeed}");
                     }
 
                     return workflow;
