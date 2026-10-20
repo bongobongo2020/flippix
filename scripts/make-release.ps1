@@ -73,7 +73,11 @@ if (-not $NoBuild) {
     # Stop any running FlipPix so the single-file exe isn't locked during publish.
     Get-Process FlipPix.UI -ErrorAction SilentlyContinue | ForEach-Object {
         Write-Step "Stopping running FlipPix (pid $($_.Id)) so its exe can be rebuilt"
-        $_ | Stop-Process -Force
+        # An elevated instance can't be stopped from here; that's fine unless it is
+        # running out of $BuildDir, which the Remove-Item below will then report.
+        $proc = $_
+        try { $proc | Stop-Process -Force -ErrorAction Stop }
+        catch { Write-Host "  [warn] could not stop pid $($proc.Id): $($_.Exception.Message)" -ForegroundColor Yellow }
     }
     Start-Sleep -Milliseconds 500
     Write-Step 'Building FlipPix (Release, self-contained, single-file)'

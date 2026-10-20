@@ -7,7 +7,7 @@
 FlipPix turns ~30 hand-tuned ComfyUI graphs into single-purpose tabs — each one with its own
 vision-LLM prompt writer, its own job queue, and no graph editing required.
 
-### [⬇ Download FlipPix v1.2.0](https://github.com/bongobongo2020/flippix/releases/latest)
+### [⬇ Download FlipPix v1.3.0](https://github.com/bongobongo2020/flippix/releases/latest)
 
 [![latest release](https://img.shields.io/github/v/release/bongobongo2020/flippix?label=release&color=8b7bff)](https://github.com/bongobongo2020/flippix/releases/latest)
 [![downloads](https://img.shields.io/github/downloads/bongobongo2020/flippix/total?color=34d3bd)](https://github.com/bongobongo2020/flippix/releases)
@@ -22,7 +22,7 @@ vision-LLM prompt writer, its own job queue, and no graph editing required.
 curl -fsSL https://raw.githubusercontent.com/bongobongo2020/flippix/HEAD/install-arch.sh | bash
 ```
 
-[Quick start](QUICKSTART.md) · [Arch install](#install-on-arch-linux) · [ComfyUI setup](COMFYUI_SETUP.md) · [Setup scripts](scripts/README.md) · [Architecture](architecture.md) · [Release notes](https://github.com/bongobongo2020/flippix/releases/tag/v1.2.0)
+[Quick start](QUICKSTART.md) · [Arch install](#install-on-arch-linux) · [ComfyUI setup](COMFYUI_SETUP.md) · [Setup scripts](scripts/README.md) · [Architecture](architecture.md) · [Release notes](https://github.com/bongobongo2020/flippix/releases/tag/v1.3.0)
 
 </div>
 
