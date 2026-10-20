@@ -52,7 +52,10 @@ namespace FlipPix.UI.ViewModels
         /// <summary>Krea2 two-reference identity edit mode (workflow/image/krea/krea2_edit_two_ref.json).</summary>
         public const string Krea2EditMode = "krea2-edit";
 
-        public static readonly IReadOnlyList<string> WorkflowModes = new[] { "Qwen", "Klein", "FireRed", "StoryImageZ", "Krea2", "krea2-edit" };
+        /// <summary>MOSS-Image rapid 4-step text-to-image mode (workflow/image/moss-rapid-4step.json).</summary>
+        public const string MossMode = "Moss";
+
+        public static readonly IReadOnlyList<string> WorkflowModes = new[] { "Qwen", "Klein", "FireRed", "StoryImageZ", "Krea2", "krea2-edit", MossMode };
 
         private string _selectedWorkflowMode = "Qwen";
         public string SelectedWorkflowMode
@@ -70,6 +73,8 @@ namespace FlipPix.UI.ViewModels
                         Steps = 8; // Krea2 Turbo
                     else if (value == Krea2EditMode)
                         Steps = 12; // Krea2 Edit (turbo LoRA + identity edit LoRA)
+                    else if (value == MossMode)
+                        Steps = 4; // fixed by the rapid-moss adapter
                     else
                         Steps = DefaultSteps;
 
@@ -130,7 +135,8 @@ namespace FlipPix.UI.ViewModels
 
         public bool ShowKrea2EditOption => SelectedWorkflowMode == Krea2EditMode;
 
-        public bool ShowKrea2Orientation => SelectedWorkflowMode == "Krea2";
+        // MOSS is also text-to-image, so it reuses the same orientation picker.
+        public bool ShowKrea2Orientation => SelectedWorkflowMode == "Krea2" || SelectedWorkflowMode == MossMode;
 
         // --- Krea2 canvas size ---
         // Only the text-to-image Krea2 mode needs this; krea2-edit takes its canvas from the
@@ -361,7 +367,7 @@ namespace FlipPix.UI.ViewModels
         protected override double DefaultCfg => 1.0;
         protected override double DefaultDenoise => 0.98;
         // StoryImageZ and Krea2 are text-to-image (no reference image needed); the rest are image edits.
-        protected override bool RequiresInputImage => SelectedWorkflowMode != "StoryImageZ" && SelectedWorkflowMode != "Krea2";
+        protected override bool RequiresInputImage => SelectedWorkflowMode != "StoryImageZ" && SelectedWorkflowMode != "Krea2" && SelectedWorkflowMode != MossMode;
 
         /// <summary>
         /// Local folder where this session's generated keyframes are saved
@@ -971,6 +977,47 @@ namespace FlipPix.UI.ViewModels
         }
 
         /// <summary>
+        /// Moss mode: text-to-image with MOSS-Image + the rapid-moss 4-step adapter (no reference
+        /// image). Uses the same orientation picker as Krea2; steps/CFG are fixed by the adapter.
+        /// </summary>
+        private async Task<string> ProcessMossQueueItemAsync(StoryPromptItem item, string jsonFileName, CancellationToken cancellationToken)
+        {
+            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "moss-rapid-4step.json");
+            AddLog("Using MOSS rapid 4-step workflow (text-to-image)");
+
+            if (!File.Exists(workflowPath))
+                throw new FileNotFoundException($"Workflow file not found: {workflowPath}");
+
+            var workflowJson = await File.ReadAllTextAsync(workflowPath, cancellationToken);
+            var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflowJson)
+                ?? throw new InvalidOperationException("Failed to parse MOSS workflow JSON");
+
+            // Save into the per-session subfolder like the other modes.
+            var workflow = ImageGeneratorViewModel.UpdateMossWorkflow(
+                workflowDict, item.Prompt, aspectRatioIndex: 0, seed: 0, AddLog,
+                canvas: Krea2Canvas(),
+                filenamePrefix: $"{jsonFileName}/{jsonFileName}-{item.Index}");
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var progress = CreateProgressReporter(item);
+            var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progress, cancellationToken);
+
+            var outputImages = await GetOutputImagesFromComfyUI(promptId, jsonFileName, item.Index);
+            if (!outputImages.Any())
+                throw new InvalidOperationException("No output images were generated");
+
+            var baseOutputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", OutputFolderName, jsonFileName);
+            Directory.CreateDirectory(baseOutputDir);
+            var outputPath = Path.Combine(baseOutputDir, $"{jsonFileName}-{item.Index}.png");
+
+            await File.WriteAllBytesAsync(outputPath, outputImages.First());
+            await LocalCopyService.CopyImageAsync(outputPath);
+            AddLog($"Story Q (MOSS mode) image #{item.Index} saved: {outputPath}");
+            return outputPath;
+        }
+
+        /// <summary>
         /// krea2-edit mode: Krea2 two-reference identity edit. Image A (node 72) is this story
         /// item's input image — the scene being edited — and image B (node 86) is the single
         /// reference subject reused for the whole run, which keeps the character consistent
@@ -1493,6 +1540,9 @@ namespace FlipPix.UI.ViewModels
 
             if (SelectedWorkflowMode == Krea2EditMode)
                 return await ProcessKrea2EditQueueItemAsync(item, inputImagePath, jsonFileName, cancellationToken);
+
+            if (SelectedWorkflowMode == MossMode)
+                return await ProcessMossQueueItemAsync(item, jsonFileName, cancellationToken);
 
             string workflowPath;
             if (SelectedWorkflowMode == "Klein")

@@ -539,7 +539,8 @@ namespace FlipPix.UI.ViewModels
         public bool ShowStyleOptions => SelectedWorkflow == TextGeneratorWorkflow.Zimage;
 
         public bool ShowSamplerSettings => SelectedWorkflow != TextGeneratorWorkflow.Anima
-                                           && SelectedWorkflow != TextGeneratorWorkflow.Krea2;
+                                           && SelectedWorkflow != TextGeneratorWorkflow.Krea2
+                                           && SelectedWorkflow != TextGeneratorWorkflow.Moss;
 
         // Only qwen21-prompt-enhancer.json carries the local rewriter, so only it shows the toggle.
         public bool ShowPromptEnhancerOption => SelectedWorkflow == TextGeneratorWorkflow.Qwen21Enhancer;
@@ -651,6 +652,30 @@ namespace FlipPix.UI.ViewModels
         }
 
         public bool IsTextPromptMode => !IsImageAnalysisMode;
+
+        // What "Analyze Image" asks the vision model for. Index order matches AnalysisModes.
+        private const int AnalysisModeMatch = 0;
+        private const int AnalysisModeSpicy = 1;
+        private int _selectedAnalysisModeIndex = AnalysisModeMatch;
+
+        public string[] AnalysisModes { get; } =
+        {
+            "Match description & pose",
+            "Spicy variation"
+        };
+
+        public int SelectedAnalysisModeIndex
+        {
+            get => _selectedAnalysisModeIndex;
+            set
+            {
+                if (_selectedAnalysisModeIndex != value)
+                {
+                    _selectedAnalysisModeIndex = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         public string NegativePrompt
         {
@@ -1598,7 +1623,7 @@ namespace FlipPix.UI.ViewModels
 
             try
             {
-                _logger.LogInfo("=== Starting image analysis with LM Studio QwenVL ===");
+                _logger.LogInfo($"=== Starting image analysis with LM Studio ({AnalysisModes[SelectedAnalysisModeIndex]}) ===");
                 IsAnalyzing = true;
                 StatusBarMessage = "Analyzing image...";
                 AnalysisText = "Analyzing image...";
@@ -1638,51 +1663,14 @@ namespace FlipPix.UI.ViewModels
                     analysisResult = await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
                         modelToUse,
                         SourceImagePath,
-                        "Generate an Anima prompt for this image.",
+                        BuildAnimaUserPrompt(),
                         systemPrompt,
                         maxTokens: 2000,
                         _cancellationTokenSource.Token);
                 }
                 else
                 {
-                    // The analysis text is injected into the ZStyle template's {$@} slot, so it must
-                    // describe only the subject/action/composition. If it includes scene colors,
-                    // lighting, mood, or rendering style, those literal attributes override the style
-                    // template's intended aesthetic and every style collapses to the same look.
-                    // Exception: when a face is the subject, its identity traits (facial geometry,
-                    // hair/eye/skin colour, marks) are what the generated image must reproduce, so
-                    // those are described exhaustively — they belong to the person, not the style.
-                    var analysisPrompt =
-                        "Describe the main subject(s), their pose/action, clothing, and spatial composition "
-                        + "in this image. Do NOT mention scene colors, lighting, mood, art style, medium, or "
-                        + "rendering — those are set separately.\n\n"
-                        + "IF one or more human faces are clearly visible, the face is the priority: write a "
-                        + "forensically detailed portrait description precise enough to redraw that exact "
-                        + "person. Cover, in flowing prose:\n"
-                        + "- Apparent age range, sex, ethnicity/heritage, build\n"
-                        + "- Head and face shape (oval/round/square/heart/oblong), width-to-length proportion, "
-                        + "forehead height and slope, cheekbone height and prominence, cheek fullness or hollowing, "
-                        + "jawline definition and angle, chin shape (pointed/rounded/square, cleft, projection)\n"
-                        + "- Eyes: shape (almond/round/hooded/monolid/downturned/upturned), size, spacing, set depth, "
-                        + "canthal tilt, iris color and pattern, eyelid crease, lash density, under-eye area\n"
-                        + "- Eyebrows: shape, arch, thickness, density, length, spacing, color\n"
-                        + "- Nose: overall size, bridge width and profile (straight/convex/concave), tip shape and "
-                        + "rotation, nostril shape and flare, columella\n"
-                        + "- Mouth and lips: width, upper/lower lip fullness ratio, cupid's bow definition, philtrum "
-                        + "length and depth, mouth corners, visible teeth, natural lip color\n"
-                        + "- Ears if visible: size, protrusion, lobe attachment\n"
-                        + "- Skin: tone and undertone, texture, pores, freckles, moles/beauty marks with their exact "
-                        + "positions, scars, wrinkles and lines (nasolabial, forehead, crow's feet), blemishes\n"
-                        + "- Facial hair: type, coverage, density, length, color, grooming\n"
-                        + "- Hair: color (including roots/highlights), texture, length, density, hairline shape, "
-                        + "part, and how it is styled or falls\n"
-                        + "- Expression and micro-expression, gaze direction, head tilt and rotation relative to camera\n"
-                        + "- Any glasses, piercings, makeup, or jewelry on or near the face\n"
-                        + "Describe only what is actually visible; never invent traits. Be exhaustive and specific "
-                        + "(use comparative and geometric terms rather than vague adjectives), and put the facial "
-                        + "description first, followed by the body, clothing, and composition.\n\n"
-                        + "IF no face is clearly visible, answer in 1-2 plain sentences instead.\n\n"
-                        + "Output the description only — no headings, no bullet points, no preamble.";
+                    var analysisPrompt = BuildAnalysisPrompt();
                     analysisResult = await _lmStudioService.AnalyzeImageAsync(
                         modelToUse,
                         SourceImagePath,
@@ -1722,6 +1710,116 @@ namespace FlipPix.UI.ViewModels
                 IsAnalyzing = false;
                 _logger.LogInfo("=== Image analysis ended ===");
             }
+        }
+
+        // The analysis text is injected into the ZStyle template's {$@} slot, so it must describe
+        // only the subject/pose/outfit/composition. If it includes scene colors, lighting, mood, or
+        // rendering style, those literal attributes override the style template's intended
+        // aesthetic and every style collapses to the same look. Identity traits (facial geometry,
+        // hair/eye/skin colour, marks) belong to the person, not the style, so they stay detailed.
+        private const string AnalysisStyleRule =
+            "Do NOT mention scene colors, lighting, mood, art style, medium, camera/lens brand or "
+            + "rendering — those are set separately.";
+
+        private const string AnalysisIdentitySection =
+            "1. THE PERSON (identity): apparent age range, sex, ethnicity/heritage, height impression and "
+            + "build/body shape. Then the face precisely enough to redraw that exact person: head and face "
+            + "shape, cheekbones, jawline and chin; eye shape, spacing, iris color; eyebrow shape and "
+            + "thickness; nose bridge and tip; lip fullness and mouth width; skin tone and undertone, "
+            + "freckles, moles/beauty marks with their positions, scars; facial hair; hair color, texture, "
+            + "length and how it is styled or falls; glasses, piercings, makeup or jewelry. Expression and "
+            + "gaze direction.\n";
+
+        private const string AnalysisPoseSection =
+            "2. THE POSE (this is mandatory and must be precise enough to recreate the exact body "
+            + "position — never skip it or reduce it to a single word like \"standing\"):\n"
+            + "- Overall posture: standing, sitting, kneeling, crouching, lying (on back/side/stomach), "
+            + "leaning, walking, etc., and what they are sitting/lying/leaning on\n"
+            + "- Body orientation to the camera: facing it, three-quarter turned left/right, profile, or "
+            + "back to camera; any twist between hips and shoulders\n"
+            + "- Torso: upright, leaning forward/back/sideways, arched, hunched; where the weight rests "
+            + "(which leg, hip popped to which side)\n"
+            + "- Head: turned and tilted which way, chin up/down, where the eyes look (at camera, away, down)\n"
+            + "- Each arm separately (use the subject's own left/right): raised, bent, straight, crossed, "
+            + "behind the back; where each hand is and what it is doing (on hip, in hair, touching face, "
+            + "holding an object, resting on thigh, gripping something), finger position if notable\n"
+            + "- Each leg separately: straight, bent, crossed, knees together/apart, one knee raised, "
+            + "stride; foot placement and whether feet are visible\n"
+            + "- Interaction with props or other people\n";
+
+        private const string AnalysisCompositionSection =
+            "4. FRAMING & COMPOSITION: shot type (close-up, head-and-shoulders, waist-up, three-quarter, "
+            + "full body), camera height and angle (eye level, high angle looking down, low angle looking "
+            + "up, overhead), where the subject sits in the frame and which body parts are cropped out, and "
+            + "a brief note of the setting/background objects (no colors or lighting).\n";
+
+        private const string AnalysisOutputRule =
+            "Write it as one flowing, detailed image-generation prompt in plain prose, in the order above "
+            + "(person, pose, outfit, framing). Describe only what is actually visible; never invent traits. "
+            + "Use concrete, geometric and directional terms rather than vague adjectives. "
+            + "Output the prompt only — no headings, no numbering, no bullet points, no preamble.";
+
+        private string BuildAnalysisPrompt()
+        {
+            if (SelectedAnalysisModeIndex == AnalysisModeSpicy)
+            {
+                return
+                    "You are writing an image-generation prompt for a SPICY VARIATION of this photo: the "
+                    + "same person, in the same pose and framing, but wearing a sexier, more revealing "
+                    + "outfit. " + AnalysisStyleRule + "\n\n"
+                    + "Cover, in this order:\n"
+                    + AnalysisIdentitySection
+                    + "Shift the expression to something more alluring/flirtatious only if it suits the pose "
+                    + "(e.g. a sultry half-smile, a confident gaze at the camera).\n"
+                    + AnalysisPoseSection
+                    + "Keep the pose EXACTLY as in the image — the variation is in the outfit, not the body "
+                    + "position.\n"
+                    + "3. THE NEW OUTFIT: do NOT describe the clothing in the image. Instead invent one "
+                    + "sexier alternative that fits the setting and the pose — for example lingerie, a lace "
+                    + "bodysuit, a bikini or swimsuit, a tight mini dress, a cropped top with a short skirt, "
+                    + "or an unbuttoned shirt. Pick something different and specific each time: name the "
+                    + "garment(s), cut, neckline, fabric (lace, satin, mesh, latex, leather, sheer), fit, "
+                    + "how much skin it shows, and matching accessories, shoes or stockings. The outfit must "
+                    + "work with the pose (e.g. nothing that would hide a raised arm or a crossed leg).\n"
+                    + AnalysisCompositionSection + "\n"
+                    + "Every person described must be an adult. If the person appears to be under 18, "
+                    + "ignore the spicy instructions and instead describe them with their original "
+                    + "clothing.\n\n"
+                    + AnalysisOutputRule;
+            }
+
+            return
+                "You are writing an image-generation prompt that recreates this photo as closely as "
+                + "possible: the same person, the same outfit and the SAME POSE. " + AnalysisStyleRule + "\n\n"
+                + "If there is a person in the image, cover, in this order:\n"
+                + AnalysisIdentitySection
+                + AnalysisPoseSection
+                + "3. THE OUTFIT: every visible garment and accessory — type, cut, neckline, sleeve and "
+                + "hem length, fit, fabric, color and pattern, how it sits on the body in this pose "
+                + "(rolled sleeves, open buttons, riding up, tucked in), plus shoes, bag and jewelry.\n"
+                + AnalysisCompositionSection + "\n"
+                + "If there is no person in the image, describe the main subject(s), their arrangement, "
+                + "and the framing and composition in a few sentences instead.\n\n"
+                + AnalysisOutputRule;
+        }
+
+        // The Anima system prompt (anima-system-prompt.md) already defines the Danbooru-tag output
+        // format; the user message only steers what the tags should capture.
+        private string BuildAnimaUserPrompt()
+        {
+            if (SelectedAnalysisModeIndex == AnalysisModeSpicy)
+            {
+                return "Generate an Anima prompt for a spicy variation of this image: keep the same "
+                    + "character, the exact same pose (include detailed pose, arm, hand, leg, head and gaze "
+                    + "tags) and the same framing, but replace the clothing with a sexier, more revealing "
+                    + "outfit of your choice (e.g. lingerie, swimsuit, tight mini dress) and tag it in "
+                    + "detail. The character must be an adult; if they appear under 18, keep their "
+                    + "original clothing.";
+            }
+
+            return "Generate an Anima prompt for this image. Match the character, outfit and framing, "
+                + "and capture the exact pose with detailed tags for posture, body orientation, head tilt, "
+                + "gaze, each arm and hand position, and each leg position.";
         }
 
         private async Task<string> TryGetAnalysisOutputAsync(string promptId)
@@ -2131,6 +2229,11 @@ namespace FlipPix.UI.ViewModels
                         _logger.LogInfo($"Using Qwen Image 2.1 workflow (local prompt enhancer)");
                         break;
 
+                    case TextGeneratorWorkflow.Moss:
+                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "moss-rapid-4step.json");
+                        _logger.LogInfo($"Using MOSS rapid 4-step workflow");
+                        break;
+
                     case TextGeneratorWorkflow.ZimageBase:
                         workflowPath = WorkflowLocator.Resolve("workflow", "image", "zimage", "base", "z-image-base.json");
                         _logger.LogInfo($"Using Zimage Base workflow");
@@ -2335,6 +2438,7 @@ namespace FlipPix.UI.ViewModels
                         TextGeneratorWorkflow.Krea2 => "krea2",
                         TextGeneratorWorkflow.ZimageBase => "z-image-base",
                         TextGeneratorWorkflow.Qwen21Enhancer => "qwen21",
+                        TextGeneratorWorkflow.Moss => "moss",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");
@@ -2812,6 +2916,7 @@ namespace FlipPix.UI.ViewModels
                     TextGeneratorWorkflow.ZimageBase => "76:67",
                     // The USER PROMPT primitive, not the encoder: the enhancer reads through it.
                     TextGeneratorWorkflow.Qwen21Enhancer => "468",
+                    TextGeneratorWorkflow.Moss => "3",
                     _ => ""  // Empty for Zimage (will use generic search)
                 };
 
@@ -3033,6 +3138,21 @@ namespace FlipPix.UI.ViewModels
                             _logger.LogInfo("✓ Zimage Base: running the workflow as authored — resolution, " +
                                             "sampler settings and LoRA come from z-image-base.json");
                         }
+                        else if (selectedWorkflow == TextGeneratorWorkflow.Moss)
+                        {
+                            // moss-rapid-4step.json (see ImageGeneratorViewModel.UpdateMossWorkflow):
+                            //   6 = EmptyFlux2LatentImage → width / height   [set here]
+                            //   9 = SaveImage → filename_prefix              [set here]
+                            var (mossWidth, mossHeight) = ImageGeneratorViewModel.MossResolution(AspectRatioIndex);
+                            UpdateNodeInputs(workflow, "6", nodeInputs =>
+                            {
+                                nodeInputs["width"] = mossWidth;
+                                nodeInputs["height"] = mossHeight;
+                            });
+                            // Saved at the output root so the prefix-based local retrieval matches.
+                            UpdateNodeInputs(workflow, "9", nodeInputs => nodeInputs["filename_prefix"] = "Moss");
+                            _logger.LogInfo($"✓ MOSS rapid 4-step: {mossWidth}x{mossHeight} (steps/cfg fixed by the adapter)");
+                        }
                     }
 
                     // Randomize seed for non-Zimage workflows
@@ -3150,6 +3270,12 @@ namespace FlipPix.UI.ViewModels
                         // res_2m / beta57 / denoise 1 are the workflow's own and are left alone.
                         UpdateNodeInputs(workflow, "76:69", nodeInputs => nodeInputs["seed"] = randomSeed);
                         _logger.LogInfo($"✓ Updated Zimage Base sampler node 76:69 with seed: {randomSeed} (steps/cfg/denoise as authored)");
+                    }
+                    else if (selectedWorkflow == TextGeneratorWorkflow.Moss)
+                    {
+                        // moss-rapid-4step.json: node 5 = RandomNoise.
+                        UpdateNodeInputs(workflow, "5", nodeInputs => nodeInputs["noise_seed"] = randomSeed);
+                        _logger.LogInfo($"✓ Updated MOSS noise node 5 with seed: {randomSeed}");
                     }
 
                     return workflow;
@@ -3876,6 +4002,7 @@ namespace FlipPix.UI.ViewModels
                     TextGeneratorWorkflow.Krea2 => "Krea2_",
                     TextGeneratorWorkflow.ZimageBase => "ZBase_",
                     TextGeneratorWorkflow.Qwen21Enhancer => "Qwen21_",
+                    TextGeneratorWorkflow.Moss => "Moss_",
                     _ => ""  // Empty for Zimage (will use ZI/z-image pattern)
                 };
 

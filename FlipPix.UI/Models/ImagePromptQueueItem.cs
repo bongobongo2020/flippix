@@ -62,6 +62,7 @@ namespace FlipPix.UI.Models
             TextGeneratorWorkflow.Anima => "A",
             TextGeneratorWorkflow.ZimageBase => "ZB",
             TextGeneratorWorkflow.Qwen21Enhancer => "Q21",
+            TextGeneratorWorkflow.Moss => "M",
             _ => "?"
         };
 
@@ -74,6 +75,7 @@ namespace FlipPix.UI.Models
             TextGeneratorWorkflow.Anima => "#EC4899",     // Pink
             TextGeneratorWorkflow.ZimageBase => "#8B5CF6",  // Violet
             TextGeneratorWorkflow.Qwen21Enhancer => "#0EA5E9", // Sky
+            TextGeneratorWorkflow.Moss => "#14B8A6",           // Teal
             _ => "#6C757D"
         };
 

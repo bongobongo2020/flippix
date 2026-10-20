@@ -36,7 +36,10 @@ namespace FlipPix.UI.ViewModels
         // Qwen Image 2.1 (qwen21-prompt-enhancer.json) with the authored local prompt
         // enhancer in front of it: a Qwen3-VL 8B TextGenerate pass rewrites the prompt
         // before it reaches the encoder, behind an on/off switch (UsePromptEnhancer).
-        Qwen21Enhancer
+        Qwen21Enhancer,
+        // MOSS-Image base + rapid-moss 4-step adapter (moss-rapid-4step.json). Steps and CFG are
+        // fixed by the adapter, so only prompt, seed and canvas size are injected.
+        Moss
     }
 
     public class ImageGeneratorViewModel : BasePromptViewModel, IDisposable
@@ -538,7 +541,8 @@ namespace FlipPix.UI.ViewModels
         // Anima and Krea2 are turbo/fixed-schedule workflows: steps/cfg/sampler are
         // baked into the JSON and changing them breaks the result, so hide the sampler panel.
         public bool ShowSamplerSettings => SelectedWorkflow != TextGeneratorWorkflow.Anima
-                                           && SelectedWorkflow != TextGeneratorWorkflow.Krea2;
+                                           && SelectedWorkflow != TextGeneratorWorkflow.Krea2
+                                           && SelectedWorkflow != TextGeneratorWorkflow.Moss;
 
         // Only qwen21-prompt-enhancer.json carries the local rewriter, so only it shows the toggle.
         public bool ShowPromptEnhancerOption => SelectedWorkflow == TextGeneratorWorkflow.Qwen21Enhancer;
@@ -849,6 +853,11 @@ namespace FlipPix.UI.ViewModels
                         AddLog("Using Qwen Image 2.1 workflow (local prompt enhancer)");
                         break;
 
+                    case TextGeneratorWorkflow.Moss:
+                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "moss-rapid-4step.json");
+                        AddLog("Using MOSS rapid 4-step workflow");
+                        break;
+
                     case TextGeneratorWorkflow.Zimage:
                     default:
                         if (SelectedStyle != null)
@@ -953,6 +962,7 @@ namespace FlipPix.UI.ViewModels
                         TextGeneratorWorkflow.Krea2 => "krea2",
                         TextGeneratorWorkflow.ZimageBase => "z-image-base",
                         TextGeneratorWorkflow.Qwen21Enhancer => "qwen21",
+                        TextGeneratorWorkflow.Moss => "moss",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");
@@ -1492,6 +1502,8 @@ namespace FlipPix.UI.ViewModels
                     return UpdateZimageBaseWorkflow(workflowDict);
                 case TextGeneratorWorkflow.Qwen21Enhancer:
                     return UpdateQwen21EnhancerWorkflow(workflowDict);
+                case TextGeneratorWorkflow.Moss:
+                    return UpdateMossWorkflow(workflowDict, ImagePrompt, AspectRatioIndex, Seed, AddLog);
                 default:
                     return workflow;
             }
@@ -2677,6 +2689,54 @@ namespace FlipPix.UI.ViewModels
             return JsonSerializer.SerializeToElement(workflowDict);
         }
 
+        /// <summary>
+        /// Landscape / portrait / square canvas for MOSS-Image, kept near the authored 1328x1024
+        /// (~1.36 MP) so the 4-step adapter stays in the range it was tuned for.
+        /// </summary>
+        internal static (int Width, int Height) MossResolution(int aspectRatioIndex)
+        {
+            var resolutions = new[]
+            {
+                (1328, 1024), // Landscape
+                (1024, 1328), // Portrait
+                (1168, 1168), // Square
+            };
+            return resolutions[Math.Min(Math.Max(aspectRatioIndex, 0), resolutions.Length - 1)];
+        }
+
+        /// <summary>
+        /// Fills moss-rapid-4step.json. Shared with the Image Analyzer and the Story Image tab.
+        /// Node map:
+        ///   3  = CLIPTextEncode (positive prompt) → inputs.text                 [set here]
+        ///   5  = RandomNoise → inputs.noise_seed                                [set here]
+        ///   6  = EmptyFlux2LatentImage → inputs.width / height                  [set here]
+        ///   9  = SaveImage → inputs.filename_prefix                             [set here]
+        ///   2  = RapidMOSSAdapter, 4 steps                                      [as authored]
+        ///   13 = ScheduledCFGGuidance, cfg 1 (negative is the zeroed positive)  [as authored]
+        /// The tab's Steps / CFG / Denoise / LoRA controls do not apply: the adapter fixes them.
+        /// </summary>
+        internal static JsonElement UpdateMossWorkflow(Dictionary<string, JsonElement> workflowDict, string prompt,
+            int aspectRatioIndex, long seed, Action<string> log, (int Width, int Height)? canvas = null,
+            string filenamePrefix = "Moss")
+        {
+            var (width, height) = canvas ?? MossResolution(aspectRatioIndex);
+            var actualSeed = seed == 0 ? Random.Shared.NextInt64(0, 999999999999999) : seed;
+
+            UpdateNodeInputs(workflowDict, "3", inputs => inputs["text"] = prompt);
+            UpdateNodeInputs(workflowDict, "5", inputs => inputs["noise_seed"] = actualSeed);
+            UpdateNodeInputs(workflowDict, "6", inputs =>
+            {
+                inputs["width"] = width;
+                inputs["height"] = height;
+            });
+            // Saved at the output root by default so the prefix-based local retrieval matches.
+            UpdateNodeInputs(workflowDict, "9", inputs => inputs["filename_prefix"] = filenamePrefix);
+
+            log($"MOSS rapid 4-step: {width}x{height}, seed={actualSeed} (steps/cfg fixed by the adapter)");
+
+            return JsonSerializer.SerializeToElement(workflowDict);
+        }
+
         private JsonElement UpdateZimageBaseWorkflow(Dictionary<string, JsonElement> workflowDict)
         {
             // z-image-base.json is run AS AUTHORED. Only the prompt and the seed are injected;
@@ -2717,7 +2777,7 @@ namespace FlipPix.UI.ViewModels
         /// Reads node <paramref name="nodeId"/>'s inputs into a mutable dictionary, hands it to
         /// <paramref name="mutate"/>, and writes the node back. No-op if the node is absent.
         /// </summary>
-        private static void UpdateNodeInputs(Dictionary<string, JsonElement> workflowDict, string nodeId, Action<Dictionary<string, object>> mutate)
+        internal static void UpdateNodeInputs(Dictionary<string, JsonElement> workflowDict, string nodeId, Action<Dictionary<string, object>> mutate)
         {
             if (!workflowDict.ContainsKey(nodeId)) return;
 
@@ -3156,6 +3216,7 @@ namespace FlipPix.UI.ViewModels
                             TextGeneratorWorkflow.Krea2 => "Krea2_",
                             TextGeneratorWorkflow.ZimageBase => "ZBase_",
                             TextGeneratorWorkflow.Qwen21Enhancer => "Qwen21_",
+                            TextGeneratorWorkflow.Moss => "Moss_",
                             _ => "z-image_"
                         };
                         imageFiles = Directory.GetFiles(comfyUIOutputDir, $"{prefix}*.png")
@@ -3291,6 +3352,7 @@ namespace FlipPix.UI.ViewModels
                 TextGeneratorWorkflow.Krea2 => new[] { @"Krea2_(\d+)_", @"Krea2_(\d+)$" },
                 TextGeneratorWorkflow.ZimageBase => new[] { @"ZBase_(\d+)_", @"ZBase_(\d+)$" },
                 TextGeneratorWorkflow.Qwen21Enhancer => new[] { @"Qwen21_(\d+)_", @"Qwen21_(\d+)$" },
+                TextGeneratorWorkflow.Moss => new[] { @"Moss_(\d+)_", @"Moss_(\d+)$" },
                 _ => new[] { @"z-image_(\d+)_", @"z-image_(\d+)$" }
             };
 
@@ -4116,6 +4178,11 @@ namespace FlipPix.UI.ViewModels
                         AddLog("Using Qwen Image 2.1 workflow (local prompt enhancer)");
                         break;
 
+                    case TextGeneratorWorkflow.Moss:
+                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "moss-rapid-4step.json");
+                        AddLog("Using MOSS rapid 4-step workflow");
+                        break;
+
                     case TextGeneratorWorkflow.Zimage:
                     default:
                         // Use ZStyle workflow file if a style was selected
@@ -4270,6 +4337,7 @@ namespace FlipPix.UI.ViewModels
                         TextGeneratorWorkflow.Krea2 => "krea2",
                         TextGeneratorWorkflow.ZimageBase => "z-image-base",
                         TextGeneratorWorkflow.Qwen21Enhancer => "qwen21",
+                        TextGeneratorWorkflow.Moss => "moss",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");

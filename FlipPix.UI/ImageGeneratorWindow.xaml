@@ -371,12 +371,27 @@
                                         </Border>
 
                                         <!-- Analyze Button -->
-                                        <Button Content="Analyze Image with QwenVL"
-                                               Style="{StaticResource AnalyzeButtonStyle}"
-                                               Command="{Binding Analyzer.AnalyzeImageCommand}"
-                                               HorizontalAlignment="Stretch"
-                                               Height="38"
-                                               Margin="0,0,0,8"/>
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Button Grid.Column="0"
+                                                   Content="Analyze Image"
+                                                   Style="{StaticResource AnalyzeButtonStyle}"
+                                                   Command="{Binding Analyzer.AnalyzeImageCommand}"
+                                                   HorizontalAlignment="Stretch"
+                                                   Height="38"/>
+                                            <ComboBox Grid.Column="1"
+                                                      ItemsSource="{Binding Analyzer.AnalysisModes}"
+                                                      SelectedIndex="{Binding Analyzer.SelectedAnalysisModeIndex, Mode=TwoWay}"
+                                                      Height="38"
+                                                      MinWidth="170"
+                                                      FontSize="11"
+                                                      VerticalContentAlignment="Center"
+                                                      Margin="6,0,0,0"
+                                                      ToolTip="Match description &amp; pose: describe the person, outfit and exact body pose so the result reproduces the image.&#10;Spicy variation: keep the same person and pose but swap in a sexier, more revealing outfit."/>
+                                        </Grid>
 
                                         <!-- Processing Status for Analysis -->
                                         <Border Background="{StaticResource SurfaceAltBrush}"
@@ -454,6 +469,7 @@
                                                         <ComboBoxItem Content="Krea2 (Turbo)"/>
                                                         <ComboBoxItem Content="Zimage Base (no style)"/>
                                                         <ComboBoxItem Content="Qwen 2.1 (prompt enhancer)"/>
+                                                        <ComboBoxItem Content="MOSS (rapid 4-step)"/>
                                                     </ComboBox>
                                                 </StackPanel>
 
@@ -1792,9 +1808,9 @@
                                 </Style>
                             </Border.Style>
                             <StackPanel>
-                                <TextBlock Text="&#x1F4D0; Krea2 Orientation"
+                                <TextBlock Text="&#x1F4D0; Orientation (Krea2 / MOSS)"
                                            FontWeight="SemiBold" FontSize="13" Foreground="#6D28D9" Margin="0,0,0,2"/>
-                                <TextBlock Text="Canvas every image in the story is rendered at. All sizes sit near 1 MP so the Turbo pass stays fast."
+                                <TextBlock Text="Canvas every image in the story is rendered at. All sizes sit near 1 MP so the fast few-step passes stay fast."
                                            FontSize="11" Opacity="0.6" TextWrapping="Wrap" Margin="0,0,0,8"/>
                                 <ComboBox ItemsSource="{x:Static local:StoryImageGeneratorQViewModel.Krea2Orientations}"
                                           SelectedItem="{Binding StoryGeneratorQ.Krea2SelectedOrientation, Mode=TwoWay}"

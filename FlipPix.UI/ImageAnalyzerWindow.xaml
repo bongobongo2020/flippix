@@ -285,11 +285,25 @@
                                 </Border>
 
                                 <!-- Analyze Button -->
-                                <Button Content="Analyze Image with QwenVL"
-                                       Style="{StaticResource AnalyzeButtonStyle}"
-                                       Command="{Binding AnalyzeImageCommand}"
-                                       HorizontalAlignment="Stretch"
-                                       Height="38"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0"
+                                           Content="Analyze Image"
+                                           Style="{StaticResource AnalyzeButtonStyle}"
+                                           Command="{Binding AnalyzeImageCommand}"
+                                           HorizontalAlignment="Stretch"
+                                           Height="38"/>
+                                    <ComboBox Grid.Column="1"
+                                              ItemsSource="{Binding AnalysisModes}"
+                                              SelectedIndex="{Binding SelectedAnalysisModeIndex, Mode=TwoWay}"
+                                              Height="38"
+                                              MinWidth="170"
+                                              VerticalContentAlignment="Center"
+                                              Margin="6,0,0,0"/>
+                                </Grid>
 
                                 <!-- Processing Status for Analysis -->
                                 <Border Background="#FEF3C7"
@@ -389,6 +403,9 @@
                                 <ComboBoxItem Content="Klien (Flux Klein)"/>
                                 <ComboBoxItem Content="Anima"/>
                                 <ComboBoxItem Content="Krea2 (Turbo)"/>
+                                <ComboBoxItem Content="Zimage Base (no style)"/>
+                                <ComboBoxItem Content="Qwen 2.1 (prompt enhancer)"/>
+                                <ComboBoxItem Content="MOSS (rapid 4-step)"/>
                             </ComboBox>
                         </StackPanel>
                     </Border>

@@ -1,0 +1,172 @@
+{
+  "2": {
+    "inputs": {
+      "adapter": "rapid-moss-4step",
+      "steps": 4,
+      "lora_strength": 1,
+      "model": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "RapidMOSSAdapter",
+    "_meta": {
+      "title": "MOSS-Image Few-Step Adapter (rapid-moss)"
+    }
+  },
+  "3": {
+    "inputs": {
+      "text": "A vertical overhead phone selfie of a 24-year-old adult woman wearing an opaque fitted red long-sleeved athletic top zipped to a high collar and black fitted shorts. The red fabric follows a large rounded bust, tapers inward at a narrow waist and widens over a rounded hip; natural curved wrinkles cross the lower stomach. No exposed midriff or cleavage, no tattoos.\nThe camera is held high above and points down. Her entire face is visible near the upper-left, with BOTH eyes, nose, mouth and chin inside the image; only the crown is clipped. The head leans mildly toward the camera. Her torso slopes gently toward the lower-right, with the waist and rounded hip toward the bottom-right. This is a mild diagonal frame, roughly ten degrees, not a sideways rotated photo. The raised camera arm extends to image-right in a red sleeve. She looks up with a small closed smile. Dark fringe, cheek-length straight sections, ponytails, dark eyeliner and pink lips, a white earbud. Her free hand at lower-left holds a pale pink insulated mug with a broad metal rim. Light cupboard doors behind, warm wooden floor below, black rounded chair at left. Soft indoor light and a little motion softness and phone grain, relaxed everyday snapshot.",
+      "clip": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Prompt"
+    }
+  },
+  "5": {
+    "inputs": {
+      "noise_seed": 1040582270774326
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "6": {
+    "inputs": {
+      "width": 1328,
+      "height": 1024,
+      "batch_size": 1
+    },
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {
+      "title": "Empty Flux 2 Latent"
+    }
+  },
+  "7": {
+    "inputs": {
+      "noise": [
+        "5",
+        0
+      ],
+      "guider": [
+        "13",
+        0
+      ],
+      "sampler": [
+        "2",
+        1
+      ],
+      "sigmas": [
+        "2",
+        2
+      ],
+      "latent_image": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "8": {
+    "inputs": {
+      "samples": [
+        "7",
+        0
+      ],
+      "vae": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "9": {
+    "inputs": {
+      "filename_prefix": "rapid-moss",
+      "images": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "10": {
+    "inputs": {
+      "clip_name": "qwen3.5_9b_int8_convrot.safetensors",
+      "type": "moss_image",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "11": {
+    "inputs": {
+      "unet_name": "moss_image_base_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "12": {
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "13": {
+    "inputs": {
+      "cfg": 1,
+      "start_percent": 0,
+      "end_percent": 1,
+      "model": [
+        "2",
+        0
+      ],
+      "positive": [
+        "3",
+        0
+      ],
+      "negative": [
+        "14",
+        0
+      ]
+    },
+    "class_type": "ScheduledCFGGuidance",
+    "_meta": {
+      "title": "Scheduled CFG Guidance"
+    }
+  },
+  "14": {
+    "inputs": {
+      "conditioning": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "Conditioning Zero Out"
+    }
+  }
+}
