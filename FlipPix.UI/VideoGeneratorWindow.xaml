@@ -4081,6 +4081,56 @@
                             <Grid.Resources>
                                 <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource AccentAmberColor}"/>
 
+                                <!-- One reference picture tile. Shared by slots 1–4 and Ultra's slots 5–9. -->
+                                <DataTemplate x:Key="I2VReferenceTileTemplate">
+                                    <Border Margin="0,0,6,6" CornerRadius="6" BorderThickness="1"
+                                            BorderBrush="{StaticResource BorderBrush}"
+                                            Background="{StaticResource SurfaceAltBrush}">
+                                        <StackPanel>
+                                            <Grid Height="84">
+                                                <TextBlock Text="empty"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasImage}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <Image Source="{Binding Preview}" Stretch="Uniform" Margin="3"/>
+                                                <Border VerticalAlignment="Top" HorizontalAlignment="Left"
+                                                        Margin="4" CornerRadius="3" Padding="5,1"
+                                                        Background="{StaticResource SurfaceBrush}"
+                                                        BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1">
+                                                    <TextBlock Text="{Binding Label}" FontSize="9" FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource TabAccentBrush}"/>
+                                                </Border>
+                                            </Grid>
+                                            <Grid Margin="4,0,4,4">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Button Grid.Column="0" Content="Browse…" Height="24" FontSize="10" Padding="6,0"
+                                                        Background="{StaticResource SurfaceBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                        Command="{Binding DataContext.BrowseReferenceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}"/>
+                                                <Button Grid.Column="1" Content="✕" Width="24" Height="24" FontSize="9" Padding="0" Margin="4,0,0,0"
+                                                        Style="{StaticResource SecondaryButtonStyle}"
+                                                        Visibility="{Binding HasImage, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                        Command="{Binding DataContext.ClearReferenceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+
                                 <!-- One LoRA on the render card: what to load, how hard, and ✕ to drop the
                                      row. The strength only appears once something is chosen — an empty row
                                      has nothing to weigh. -->
@@ -4136,71 +4186,58 @@
                                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                                     <StackPanel Margin="12">
 
+                                        <!-- The workflow dropdown: which graph Add to Queue submits. Picking 💎 Ultra
+                                             swaps the Ref2VA cards for its own. See MiniMaxI2VViewModel.Ultra.cs. -->
+                                        <Border Style="{StaticResource SectionCardStyle}">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="WORKFLOW" Margin="0,0,0,6"/>
+                                                <ComboBox ItemsSource="{Binding WorkflowOptions}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                          SelectedValue="{Binding Workflow}" Height="30" FontSize="11"
+                                                          ToolTip="Which ComfyUI graph this tab submits. Each queued take keeps the workflow it was queued with, so the queue can mix them."/>
+                                                <TextBlock Text="{Binding WorkflowSummary}" FontSize="10" TextWrapping="Wrap" Margin="0,6,0,0"
+                                                           Foreground="{StaticResource TextMutedBrush}"/>
+                                                <Grid Margin="0,8,0,0" Visibility="{Binding IsUltra, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding UltraAuthoredBadge}" FontSize="10" TextWrapping="Wrap" VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    <Button Grid.Column="1" Content="&#x21BA; Workflow defaults" Height="24" Padding="8,0" FontSize="10" Margin="6,0,0,0"
+                                                            Command="{Binding ResetUltraCommand}"
+                                                            Style="{StaticResource AccentOutlineButtonStyle}"
+                                                            ToolTip="Put every Ultra dial back on the value the workflow was tested with."/>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+
                                         <!-- Reference pictures -->
                                         <Border Style="{StaticResource SectionCardStyle}">
                                             <StackPanel>
-                                                <ctrl:SectionHeader Title="REFERENCE PICTURES" Note="  · up to 4" Margin="0,0,0,4"/>
+                                                <ctrl:SectionHeader Title="REFERENCE PICTURES" Note="{Binding ReferenceLimitNote}" Margin="0,0,0,4"/>
                                                 <TextBlock TextWrapping="Wrap" Margin="0,0,0,8"
                                                            FontSize="10" FontStyle="Italic" Foreground="{StaticResource TextMutedBrush}"
                                                            Text="These are references, not the frame at 0.00s: they tell H3 how the subjects and the set look, and the prompt says what happens. Slot order is the &lt;Picture N&gt; numbering the prompt refers to."/>
 
-                                                <ItemsControl ItemsSource="{Binding References}">
+                                                <ItemsControl ItemsSource="{Binding References}" ItemTemplate="{StaticResource I2VReferenceTileTemplate}">
                                                     <ItemsControl.ItemsPanel>
                                                         <ItemsPanelTemplate>
                                                             <UniformGrid Columns="2"/>
                                                         </ItemsPanelTemplate>
                                                     </ItemsControl.ItemsPanel>
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate>
-                                                            <Border Margin="0,0,6,6" CornerRadius="6" BorderThickness="1"
-                                                                    BorderBrush="{StaticResource BorderBrush}"
-                                                                    Background="{StaticResource SurfaceAltBrush}">
-                                                                <StackPanel>
-                                                                    <Grid Height="84">
-                                                                        <TextBlock Text="empty"
-                                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                                                   FontSize="10" Foreground="{StaticResource TextMutedBrush}">
-                                                                            <TextBlock.Style>
-                                                                                <Style TargetType="TextBlock">
-                                                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                                                    <Style.Triggers>
-                                                                                        <DataTrigger Binding="{Binding HasImage}" Value="True">
-                                                                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                                                                        </DataTrigger>
-                                                                                    </Style.Triggers>
-                                                                                </Style>
-                                                                            </TextBlock.Style>
-                                                                        </TextBlock>
-                                                                        <Image Source="{Binding Preview}" Stretch="Uniform" Margin="3"/>
-                                                                        <Border VerticalAlignment="Top" HorizontalAlignment="Left"
-                                                                                Margin="4" CornerRadius="3" Padding="5,1"
-                                                                                Background="{StaticResource SurfaceBrush}"
-                                                                                BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1">
-                                                                            <TextBlock Text="{Binding Label}" FontSize="9" FontWeight="SemiBold"
-                                                                                       Foreground="{DynamicResource TabAccentBrush}"/>
-                                                                        </Border>
-                                                                    </Grid>
-                                                                    <Grid Margin="4,0,4,4">
-                                                                        <Grid.ColumnDefinitions>
-                                                                            <ColumnDefinition Width="*"/>
-                                                                            <ColumnDefinition Width="Auto"/>
-                                                                        </Grid.ColumnDefinitions>
-                                                                        <Button Grid.Column="0" Content="Browse…" Height="24" FontSize="10" Padding="6,0"
-                                                                                Background="{StaticResource SurfaceBrush}" Foreground="{DynamicResource TabAccentBrush}"
-                                                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                                                Command="{Binding DataContext.BrowseReferenceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                                                CommandParameter="{Binding}"/>
-                                                                        <Button Grid.Column="1" Content="✕" Width="24" Height="24" FontSize="9" Padding="0" Margin="4,0,0,0"
-                                                                                Style="{StaticResource SecondaryButtonStyle}"
-                                                                                Visibility="{Binding HasImage, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                                                Command="{Binding DataContext.ClearReferenceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                                                CommandParameter="{Binding}"/>
-                                                                    </Grid>
-                                                                </StackPanel>
-                                                            </Border>
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
                                                 </ItemsControl>
+                                                <!-- 💎 Ultra takes nine pictures; slots 5–9 only exist there. -->
+                                                <StackPanel Visibility="{Binding IsUltra, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <TextBlock Text="Pictures 5–9 · Ultra only" FontSize="10" FontWeight="SemiBold" Margin="0,4,0,4"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <ItemsControl ItemsSource="{Binding ExtraReferences}" ItemTemplate="{StaticResource I2VReferenceTileTemplate}">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <UniformGrid Columns="2"/>
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                    </ItemsControl>
+                                                </StackPanel>
 
                                                 <TextBlock Text="{Binding ReferenceSummary}" Margin="0,2,0,10"
                                                            FontSize="10" FontStyle="Italic" Foreground="{StaticResource TextSecondaryBrush}"/>
@@ -4231,6 +4268,77 @@
                                                         </TextBlock.Style>
                                                     </TextBlock>
                                                 </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- 💎 Ultra's audio and video references. -->
+                                        <Border Style="{StaticResource SectionCardStyle}" Visibility="{Binding IsUltra, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="REFERENCE AUDIO &amp; VIDEO" Note="  · Ultra" Margin="0,0,0,8"/>
+                                                <TextBlock TextWrapping="Wrap" Margin="0,0,0,6" FontSize="10" FontStyle="Italic" Foreground="{StaticResource TextMutedBrush}"
+                                                           Text="Up to 3 audio and 3 video clips, each 2–15 s and 15 s in total; at most 12 files across pictures, audio and video. An audio clip gives a subject's voice timbre and accent — the words are always new — and cannot be the only reference. The prompt refers to them as &lt;Audio N&gt; and &lt;Video N&gt;."/>
+                                                <TextBlock Text="Reference audio" FontSize="10" FontWeight="SemiBold" Margin="0,4,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                <ItemsControl ItemsSource="{Binding AudioReferences}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Grid Margin="0,0,0,4">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="58"/>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                    <ColumnDefinition Width="Auto"/>
+                                                                    <ColumnDefinition Width="Auto"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock Text="{Binding Label}" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"
+                                                                           Foreground="{DynamicResource TabAccentBrush}"/>
+                                                                <TextBlock Grid.Column="1" Text="{Binding FileName}" FontSize="10" VerticalAlignment="Center"
+                                                                           TextTrimming="CharacterEllipsis" ToolTip="{Binding Path}"
+                                                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                                <Button Grid.Column="2" Content="Browse…" Height="24" FontSize="10" Padding="8,0" Margin="4,0,0,0"
+                                                                        Background="{StaticResource SurfaceBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                        Command="{Binding DataContext.BrowseMediaCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                        CommandParameter="{Binding}"/>
+                                                                <Button Grid.Column="3" Content="✕" Width="24" Height="24" FontSize="9" Padding="0" Margin="4,0,0,0"
+                                                                        Style="{StaticResource SecondaryButtonStyle}"
+                                                                        Visibility="{Binding HasFile, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                                        Command="{Binding DataContext.ClearMediaCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                        CommandParameter="{Binding}"/>
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBlock Text="Reference video" FontSize="10" FontWeight="SemiBold" Margin="0,4,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                <ItemsControl ItemsSource="{Binding VideoReferences}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Grid Margin="0,0,0,4">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="58"/>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                    <ColumnDefinition Width="Auto"/>
+                                                                    <ColumnDefinition Width="Auto"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock Text="{Binding Label}" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"
+                                                                           Foreground="{DynamicResource TabAccentBrush}"/>
+                                                                <TextBlock Grid.Column="1" Text="{Binding FileName}" FontSize="10" VerticalAlignment="Center"
+                                                                           TextTrimming="CharacterEllipsis" ToolTip="{Binding Path}"
+                                                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                                <Button Grid.Column="2" Content="Browse…" Height="24" FontSize="10" Padding="8,0" Margin="4,0,0,0"
+                                                                        Background="{StaticResource SurfaceBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                        Command="{Binding DataContext.BrowseMediaCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                        CommandParameter="{Binding}"/>
+                                                                <Button Grid.Column="3" Content="✕" Width="24" Height="24" FontSize="9" Padding="0" Margin="4,0,0,0"
+                                                                        Style="{StaticResource SecondaryButtonStyle}"
+                                                                        Visibility="{Binding HasFile, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                                        Command="{Binding DataContext.ClearMediaCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                        CommandParameter="{Binding}"/>
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBlock Text="{Binding UltraMediaSummary}" FontSize="10" TextWrapping="Wrap" Margin="0,4,0,0"
+                                                           Foreground="{StaticResource TextMutedBrush}"/>
                                             </StackPanel>
                                         </Border>
 
@@ -4265,7 +4373,7 @@
                                                             BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                                                             ToolTip="File the current segments in the prompt library. Analyzed and rendered takes are saved automatically — this is for hand-edited ones."/>
                                                 </Grid>
-                                                <Grid Margin="0,8,0,0">
+                                                <Grid Margin="0,8,0,0" Visibility="{Binding IsRef2VA, Converter={StaticResource BooleanToVisibilityConverter}}">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="Auto"/>
                                                         <ColumnDefinition Width="*"/>
@@ -4281,11 +4389,433 @@
                                                                VerticalAlignment="Center" FontFamily="Consolas" FontSize="11"
                                                                Foreground="{DynamicResource TabAccentBrush}" MinWidth="30" TextAlignment="Right"/>
                                                 </Grid>
+                                                <Grid Margin="0,8,0,0" Visibility="{Binding IsUltra, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="Duration" VerticalAlignment="Center"
+                                                               FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Slider Grid.Column="1" Margin="8,0"
+                                                            Minimum="5" Maximum="15" TickFrequency="0.5" IsSnapToTickEnabled="True"
+                                                            Value="{Binding Ultra.DurationSeconds}" VerticalAlignment="Center"
+                                                            ToolTip="Duration(Second) in the Ultra workflow — 15 as authored. Turned into frames by the graph's own expression, max(5, round(s × 24)) snapped up to H3's 17k+5 grid: 15 s is 362 frames."/>
+                                                    <TextBlock Grid.Column="2" Text="{Binding Ultra.DurationSeconds, StringFormat={}{0:0.#}s}"
+                                                               VerticalAlignment="Center" FontFamily="Consolas" FontSize="11"
+                                                               Foreground="{DynamicResource TabAccentBrush}" MinWidth="30" TextAlignment="Right"/>
+                                                </Grid>
+                                                <TextBlock Text="{Binding UltraFrameSummary}" Visibility="{Binding IsUltra, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="0,2,0,0"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- ─── 💎 All-In-One Ultra ─────────────────────────────────
+                                             Only shown when the workflow dropdown is on Ultra. Every dial opens on
+                                             the authored workflow's value. See MiniMaxI2VViewModel.Ultra.cs. -->
+                                        <Border Style="{StaticResource SectionCardStyle}" Visibility="{Binding IsUltra, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="💎 ULTRA · MODEL &amp; LORAS" Note="  · as tested" Margin="0,0,0,8"/>
+                                                <TextBlock Text="Model" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                <Grid Margin="0,0,0,4">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <ComboBox ItemsSource="{Binding DiffusionModelOptions}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                              SelectedValue="{Binding Ultra.DiffusionModel}" Height="28" FontSize="11" Margin="0,0,6,0"
+                                                              ToolTip="UNETLoader. The workflow ships the fl2va/ref2va hybrid b25-49 int8 — what it was tested on."/>
+                                                    <Button Grid.Column="1" Content="&#x27F3;" Width="28" Height="28" FontSize="13"
+                                                            Command="{Binding RefreshDiffusionModelsCommand}"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            ToolTip="Re-read diffusion_models/h3-minimax from ComfyUI."/>
+                                                </Grid>
+                                                <TextBlock Text="Text encoder" FontSize="10" FontWeight="SemiBold" Margin="0,8,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                <ComboBox ItemsSource="{Binding UltraTextEncoderOptions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Ultra.TextEncoder}"
+                                                          Height="28" FontSize="11" Margin="0,0,0,4"
+                                                          ToolTip="CLIPLoader (type minimax). The workflow loads the nvfp4 awq build; its bypassed second loader is the uncensored heretic int8 build, which has to be downloaded into text_encoders separately."/>
+                                                <TextBlock Text="LoRAs" FontSize="10" FontWeight="SemiBold" Margin="0,8,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                <CheckBox Content="MysticXXX MMH3 V4" IsChecked="{Binding Ultra.UseMystic}" FontSize="11" Margin="0,0,0,0"
+                                                          Foreground="{StaticResource TextPrimaryBrush}"
+                                                          ToolTip="LoraLoaderModelOnly 186 — on at 0.50 in the workflow."/>
+                                                <Grid Margin="0,2,0,0" IsEnabled="{Binding Ultra.UseMystic}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="  strength" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="7,0">
+                                                        <TextBlock Text="{Binding Ultra.MysticStrength, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11" FontWeight="Bold"
+                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    </Border>
+                                                </Grid>
+                                                <Slider Minimum="0" Maximum="2" Value="{Binding Ultra.MysticStrength}" IsEnabled="{Binding Ultra.UseMystic}"
+                                                        TickFrequency="0.05" IsSnapToTickEnabled="True" SmallChange="0.05" LargeChange="0.05"
+                                                        Foreground="{DynamicResource TabAccentBrush}"
+                                                        ToolTip="MysticXXX strength_model. 0.50 as authored."/>
+                                                <CheckBox Content="DMAD dare-ties v4 (step 600)" IsChecked="{Binding Ultra.UseDmad}" FontSize="11" Margin="0,6,0,2"
+                                                          Foreground="{StaticResource TextPrimaryBrush}"
+                                                          ToolTip="LoraLoaderModelOnly 242 — on at 0.75 in the workflow."/>
+                                                <Grid Margin="0,2,0,0" IsEnabled="{Binding Ultra.UseDmad}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="  strength" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="7,0">
+                                                        <TextBlock Text="{Binding Ultra.DmadStrength, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11" FontWeight="Bold"
+                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    </Border>
+                                                </Grid>
+                                                <Slider Minimum="0" Maximum="2" Value="{Binding Ultra.DmadStrength}" IsEnabled="{Binding Ultra.UseDmad}"
+                                                        TickFrequency="0.05" IsSnapToTickEnabled="True" SmallChange="0.05" LargeChange="0.05"
+                                                        Foreground="{DynamicResource TabAccentBrush}"
+                                                        ToolTip="DMAD strength_model. 0.75 as authored."/>
+                                                <CheckBox Content="⚔ High motion fix (fighting)" IsChecked="{Binding Ultra.HighMotionFix}" FontSize="11" Margin="0,10,0,2"
+                                                          Foreground="{StaticResource TextPrimaryBrush}"
+                                                          ToolTip="The workflow's 'High motion fix lora group': Combat 0.65 → Motion Repair 0.35 → Fight Flow 0.35 → speed slider 3.00, switched in after DMAD by the 'Fighting High Motion Fix' boolean. Off as authored — turn it on for fast physical action."/>
+                                                <StackPanel Margin="18,0,0,0" Visibility="{Binding Ultra.HighMotionFix, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <Grid Margin="0,4,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="Combat V2" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                        <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="7,0">
+                                                            <TextBlock Text="{Binding Ultra.CombatStrength, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11" FontWeight="Bold"
+                                                                       Foreground="{DynamicResource TabAccentBrush}"/>
+                                                        </Border>
+                                                    </Grid>
+                                                    <Slider Minimum="0" Maximum="2" Value="{Binding Ultra.CombatStrength}"
+                                                            TickFrequency="0.05" IsSnapToTickEnabled="True" SmallChange="0.05" LargeChange="0.05"
+                                                            Foreground="{DynamicResource TabAccentBrush}"
+                                                            ToolTip="H3_Combat_V2. 0.65 as authored."/>
+                                                    <Grid Margin="0,4,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="Motion Repair V2" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                        <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="7,0">
+                                                            <TextBlock Text="{Binding Ultra.MotionRepairStrength, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11" FontWeight="Bold"
+                                                                       Foreground="{DynamicResource TabAccentBrush}"/>
+                                                        </Border>
+                                                    </Grid>
+                                                    <Slider Minimum="0" Maximum="2" Value="{Binding Ultra.MotionRepairStrength}"
+                                                            TickFrequency="0.05" IsSnapToTickEnabled="True" SmallChange="0.05" LargeChange="0.05"
+                                                            Foreground="{DynamicResource TabAccentBrush}"
+                                                            ToolTip="Motion_Repair_V2. 0.35 as authored."/>
+                                                    <Grid Margin="0,4,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="Fight Flow V1" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                        <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="7,0">
+                                                            <TextBlock Text="{Binding Ultra.FightFlowStrength, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11" FontWeight="Bold"
+                                                                       Foreground="{DynamicResource TabAccentBrush}"/>
+                                                        </Border>
+                                                    </Grid>
+                                                    <Slider Minimum="0" Maximum="2" Value="{Binding Ultra.FightFlowStrength}"
+                                                            TickFrequency="0.05" IsSnapToTickEnabled="True" SmallChange="0.05" LargeChange="0.05"
+                                                            Foreground="{DynamicResource TabAccentBrush}"
+                                                            ToolTip="H3_Fight_Flow_V1. 0.35 as authored."/>
+                                                    <Grid Margin="0,4,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="Speed slider 1.1" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                        <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="7,0">
+                                                            <TextBlock Text="{Binding Ultra.SpeedSliderStrength, StringFormat={}{0:0.0}}" FontFamily="Consolas" FontSize="11" FontWeight="Bold"
+                                                                       Foreground="{DynamicResource TabAccentBrush}"/>
+                                                        </Border>
+                                                    </Grid>
+                                                    <Slider Minimum="0" Maximum="5" Value="{Binding Ultra.SpeedSliderStrength}"
+                                                            TickFrequency="0.1" IsSnapToTickEnabled="True" SmallChange="0.1" LargeChange="0.1"
+                                                            Foreground="{DynamicResource TabAccentBrush}"
+                                                            ToolTip="H3_speed_slider_1.1. 3.0 as authored."/>
+                                                </StackPanel>
+                                                <TextBlock Text="Sigma shift" FontSize="10" FontWeight="SemiBold" Margin="0,10,0,0" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                <Grid Margin="0,4,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Video" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="7,0">
+                                                        <TextBlock Text="{Binding Ultra.ShiftVideo, StringFormat={}{0:0.0}}" FontFamily="Consolas" FontSize="11" FontWeight="Bold"
+                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    </Border>
+                                                </Grid>
+                                                <Slider Minimum="1" Maximum="20" Value="{Binding Ultra.ShiftVideo}"
+                                                        TickFrequency="0.5" IsSnapToTickEnabled="True" SmallChange="0.5" LargeChange="0.5"
+                                                        Foreground="{DynamicResource TabAccentBrush}"
+                                                        ToolTip="MiniMaxH3SigmaShift shift_video. 12 as authored."/>
+                                                <Grid Margin="0,4,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Audio" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="7,0">
+                                                        <TextBlock Text="{Binding Ultra.ShiftAudio, StringFormat={}{0:0.0}}" FontFamily="Consolas" FontSize="11" FontWeight="Bold"
+                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    </Border>
+                                                </Grid>
+                                                <Slider Minimum="1" Maximum="10" Value="{Binding Ultra.ShiftAudio}"
+                                                        TickFrequency="0.5" IsSnapToTickEnabled="True" SmallChange="0.5" LargeChange="0.5"
+                                                        Foreground="{DynamicResource TabAccentBrush}"
+                                                        ToolTip="MiniMaxH3SigmaShift shift_audio. 3 as authored."/>
+                                                <TextBlock Text="{Binding UltraLoraSummary}" FontSize="10" TextWrapping="Wrap" Margin="0,6,0,0"
+                                                           Foreground="{StaticResource TextMutedBrush}"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border Style="{StaticResource SectionCardStyle}" Visibility="{Binding IsUltra, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="💎 ULTRA · CANVAS" Note="" Margin="0,0,0,8"/>
+                                                <TextBlock Text="Aspect ratio" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                <ComboBox ItemsSource="{Binding AspectRatioOptions}" SelectedItem="{Binding Ultra.AspectRatio}"
+                                                          Height="28" FontSize="11" Margin="0,0,0,4"
+                                                          ToolTip="ResolutionSelector aspect. 16:9 as authored; Auto follows picture 1."/>
+                                                <TextBlock Text="Size (finished canvas)" FontSize="10" FontWeight="SemiBold" Margin="0,8,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                <ComboBox ItemsSource="{Binding UltraMegapixelOptions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Ultra.Megapixels}"
+                                                          Height="28" FontSize="11" Margin="0,0,0,4"
+                                                          ToolTip="ResolutionSelector megapixels, multiple 32. The whole pass is built at this size — SelfLift samples its first steps smaller and lifts them. 2.0 MP (1920×1088) as authored."/>
+                                                <TextBlock Text="{Binding UltraCanvasSummary}" FontSize="10" TextWrapping="Wrap" Margin="0,2,0,4"
+                                                           Foreground="{StaticResource TextMutedBrush}"/>
+                                                <CheckBox Content="Max-fidelity references (ref_image_size: max)" IsChecked="{Binding Ultra.MaxFidelityReferences}" FontSize="11" Margin="0,6,0,2"
+                                                          Foreground="{StaticResource TextPrimaryBrush}"
+                                                          ToolTip="On as authored: each reference picture is fed at the reference pipeline's 2048px short edge. Off scales them to the canvas ('match'), which is quicker and loses identity detail."/>
+                                                <TextBlock Text="Seed (-1 = random)" FontSize="10" FontWeight="SemiBold" Margin="0,8,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox Text="{Binding Seed, UpdateSourceTrigger=PropertyChanged}"
+                                                             Height="28" Padding="6,0" VerticalContentAlignment="Center"
+                                                             BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                                             FontSize="12" FontFamily="Consolas" Margin="0,0,6,0"
+                                                             ToolTip="SelfLiftH3Sampler seed. The workflow was saved on 584635394862178 (fixed) — paste that to reproduce its take."/>
+                                                    <Button Grid.Column="1" Content="🎲" Command="{Binding RandomSeedCommand}" Height="28" Width="36" FontSize="14"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border Style="{StaticResource SectionCardStyle}" Visibility="{Binding IsUltra, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="💎 ULTRA · SELFLIFT SAMPLING" Note="  · full-res tiled" Margin="0,0,0,8"/>
+                                                <Grid Margin="0,0,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Steps" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="7,0">
+                                                        <TextBlock Text="{Binding Ultra.Steps, StringFormat={}{0:0}}" FontFamily="Consolas" FontSize="11" FontWeight="Bold"
+                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    </Border>
+                                                </Grid>
+                                                <Slider Minimum="4" Maximum="30" Value="{Binding Ultra.Steps}"
+                                                        TickFrequency="1" IsSnapToTickEnabled="True" SmallChange="1" LargeChange="1"
+                                                        Foreground="{DynamicResource TabAccentBrush}"
+                                                        ToolTip="BasicScheduler steps — 10 as authored. SelfLift keeps the step count: the first few run at the low-res scale, the rest at full size."/>
+                                                <TextBlock Text="Scheduler" FontSize="10" FontWeight="SemiBold" Margin="0,8,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                <ComboBox ItemsSource="{Binding UltraSchedulerOptions}" SelectedItem="{Binding Ultra.Scheduler}"
+                                                          Height="28" FontSize="11" Margin="0,0,0,4"
+                                                          ToolTip="BasicScheduler. beta as authored. The sampler is euler — SelfLift is Euler-only."/>
+                                                <Grid Margin="0,4,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Low-res steps (transition_step)" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="7,0">
+                                                        <TextBlock Text="{Binding Ultra.TransitionStep, StringFormat={}{0:0}}" FontFamily="Consolas" FontSize="11" FontWeight="Bold"
+                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    </Border>
+                                                </Grid>
+                                                <Slider Minimum="1" Maximum="29" Value="{Binding Ultra.TransitionStep}"
+                                                        TickFrequency="1" IsSnapToTickEnabled="True" SmallChange="1" LargeChange="1"
+                                                        Foreground="{DynamicResource TabAccentBrush}"
+                                                        ToolTip="How many evaluations run at the low-res scale before the latent is lifted. 6 of 10 as authored; always kept below the step count."/>
+                                                <Grid Margin="0,4,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Low-res scale" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="7,0">
+                                                        <TextBlock Text="{Binding Ultra.LowresScale, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11" FontWeight="Bold"
+                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    </Border>
+                                                </Grid>
+                                                <Slider Minimum="0.25" Maximum="1" Value="{Binding Ultra.LowresScale}"
+                                                        TickFrequency="0.05" IsSnapToTickEnabled="True" SmallChange="0.05" LargeChange="0.05"
+                                                        Foreground="{DynamicResource TabAccentBrush}"
+                                                        ToolTip="Spatial scale of the low-res prefix. 0.60 as authored (the paper uses 0.5)."/>
+                                                <Grid Margin="0,4,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="CFG" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="7,0">
+                                                        <TextBlock Text="{Binding Ultra.Cfg, StringFormat={}{0:0.0}}" FontFamily="Consolas" FontSize="11" FontWeight="Bold"
+                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    </Border>
+                                                </Grid>
+                                                <Slider Minimum="1" Maximum="5" Value="{Binding Ultra.Cfg}"
+                                                        TickFrequency="0.1" IsSnapToTickEnabled="True" SmallChange="0.1" LargeChange="0.1"
+                                                        Foreground="{DynamicResource TabAccentBrush}"
+                                                        ToolTip="SelfLift cfg. 1.0 as authored — this stack runs without guidance."/>
+                                                <TextBlock Text="Latent upscaler" FontSize="10" FontWeight="SemiBold" Margin="0,8,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                <ComboBox ItemsSource="{Binding UltraUpscalerOptions}" SelectedItem="{Binding Ultra.UpscalerModel}"
+                                                          Height="28" FontSize="11" Margin="0,0,0,4"
+                                                          ToolTip="The model that lifts the low-res latent to full size. h3_upscaler_lms_v0.1 as authored. 'none' is SelfLift-zero (pair it with rho around 0.6)."/>
+                                                <CheckBox Content="Full-res tiling (highres_tiling)" IsChecked="{Binding Ultra.HighresTiling}" FontSize="11" Margin="0,6,0,2"
+                                                          Foreground="{StaticResource TextPrimaryBrush}"
+                                                          ToolTip="On as authored — the 'Full-Res Tiled' in the workflow's name: the full-size steps run in tiles, which is what lets a 1920×1088 take fit in VRAM."/>
+                                                <CheckBox Content="Unload the upscaler after use" IsChecked="{Binding Ultra.UpscalerUnload}" FontSize="11" Margin="0,6,0,2"
+                                                          Foreground="{StaticResource TextPrimaryBrush}"
+                                                          ToolTip="upscaler_unload. On as authored."/>
+                                                <Expander Header="Advanced" IsExpanded="False" FontSize="11" Margin="0,6,0,0">
+                                                    <StackPanel Margin="0,4,0,0">
+                                                        <Grid Margin="0,4,0,0">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Text="rho" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                            <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="7,0">
+                                                                <TextBlock Text="{Binding Ultra.Rho, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11" FontWeight="Bold"
+                                                                           Foreground="{DynamicResource TabAccentBrush}"/>
+                                                            </Border>
+                                                        </Grid>
+                                                        <Slider Minimum="0" Maximum="1" Value="{Binding Ultra.Rho}"
+                                                                TickFrequency="0.05" IsSnapToTickEnabled="True" SmallChange="0.05" LargeChange="0.05"
+                                                                Foreground="{DynamicResource TabAccentBrush}"
+                                                                ToolTip="Fraction of highest-risk locations corrected toward a pixel-VAE anchor at the transition. 0 as authored (the external upscaler alone, no VAE round trip)."/>
+                                                        <Grid Margin="0,4,0,0">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Text="w_min" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                            <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="7,0">
+                                                                <TextBlock Text="{Binding Ultra.WMin, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11" FontWeight="Bold"
+                                                                           Foreground="{DynamicResource TabAccentBrush}"/>
+                                                            </Border>
+                                                        </Grid>
+                                                        <Slider Minimum="0" Maximum="1" Value="{Binding Ultra.WMin}"
+                                                                TickFrequency="0.05" IsSnapToTickEnabled="True" SmallChange="0.05" LargeChange="0.05"
+                                                                Foreground="{DynamicResource TabAccentBrush}"
+                                                                ToolTip="SelfLift w_min. 0.50 as authored."/>
+                                                        <Grid Margin="0,4,0,0">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Text="w_max" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                            <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="7,0">
+                                                                <TextBlock Text="{Binding Ultra.WMax, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11" FontWeight="Bold"
+                                                                           Foreground="{DynamicResource TabAccentBrush}"/>
+                                                            </Border>
+                                                        </Grid>
+                                                        <Slider Minimum="0" Maximum="1" Value="{Binding Ultra.WMax}"
+                                                                TickFrequency="0.05" IsSnapToTickEnabled="True" SmallChange="0.05" LargeChange="0.05"
+                                                                Foreground="{DynamicResource TabAccentBrush}"
+                                                                ToolTip="SelfLift w_max. 1.00 as authored."/>
+                                                    </StackPanel>
+                                                </Expander>
+                                                <TextBlock Text="{Binding UltraSamplingSummary}" FontSize="10" TextWrapping="Wrap" Margin="0,6,0,0"
+                                                           Foreground="{StaticResource TextMutedBrush}"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border Style="{StaticResource SectionCardStyle}" Visibility="{Binding IsUltra, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="💎 ULTRA · ATTENTION &amp; MEMORY" Note="" Margin="0,0,0,8"/>
+                                                <TextBlock Text="Attention backend" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                <ComboBox ItemsSource="{Binding UltraAttentionOptions}" SelectedItem="{Binding Ultra.AttentionBackend}"
+                                                          Height="28" FontSize="11" Margin="0,0,0,4"
+                                                          ToolTip="ModelAttentionBackend. comfy kitchen attention (quantized INT8, Nvidia/AMD) as authored."/>
+                                                <CheckBox Content="Block-sparse attention (sol-attn)" IsChecked="{Binding Ultra.UseSparseAttention}" FontSize="11" Margin="0,6,0,2"
+                                                          Foreground="{StaticResource TextPrimaryBrush}"
+                                                          ToolTip="BlockSparseAttention, method sol-attn: a training-free adaptive threshold per head picks the key blocks that get exact attention. On as authored — tau 1.3, from 20% of the schedule to the end."/>
+                                                <Grid Margin="0,4,0,0" IsEnabled="{Binding Ultra.UseSparseAttention}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="tau" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="7,0">
+                                                        <TextBlock Text="{Binding Ultra.SparseTau, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11" FontWeight="Bold"
+                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    </Border>
+                                                </Grid>
+                                                <Slider Minimum="0" Maximum="4" Value="{Binding Ultra.SparseTau}" IsEnabled="{Binding Ultra.UseSparseAttention}"
+                                                        TickFrequency="0.05" IsSnapToTickEnabled="True" SmallChange="0.05" LargeChange="0.05"
+                                                        Foreground="{DynamicResource TabAccentBrush}"
+                                                        ToolTip="Threshold in score-distribution sigmas. Higher is sparser: 1.0 keeps ~16% of key blocks exact, 1.5 ~7%. 1.3 as authored."/>
+                                                <Grid Margin="0,4,0,0" IsEnabled="{Binding Ultra.UseSparseAttention}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Start" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="7,0">
+                                                        <TextBlock Text="{Binding Ultra.SparseStart, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11" FontWeight="Bold"
+                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    </Border>
+                                                </Grid>
+                                                <Slider Minimum="0" Maximum="1" Value="{Binding Ultra.SparseStart}" IsEnabled="{Binding Ultra.UseSparseAttention}"
+                                                        TickFrequency="0.05" IsSnapToTickEnabled="True" SmallChange="0.05" LargeChange="0.05"
+                                                        Foreground="{DynamicResource TabAccentBrush}"
+                                                        ToolTip="start_percent. 0.20 as authored."/>
+                                                <Grid Margin="0,4,0,0" IsEnabled="{Binding Ultra.UseSparseAttention}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="End" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="7,0">
+                                                        <TextBlock Text="{Binding Ultra.SparseEnd, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11" FontWeight="Bold"
+                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    </Border>
+                                                </Grid>
+                                                <Slider Minimum="0" Maximum="1" Value="{Binding Ultra.SparseEnd}" IsEnabled="{Binding Ultra.UseSparseAttention}"
+                                                        TickFrequency="0.05" IsSnapToTickEnabled="True" SmallChange="0.05" LargeChange="0.05"
+                                                        Foreground="{DynamicResource TabAccentBrush}"
+                                                        ToolTip="end_percent. 1.00 as authored."/>
+                                                <CheckBox Content="Low VRAM block swap (much slower)" IsChecked="{Binding Ultra.LowVramBlockSwap}" FontSize="11" Margin="0,10,0,2"
+                                                          Foreground="{StaticResource TextPrimaryBrush}"
+                                                          ToolTip="UniBlockSwap — bypassed in the workflow. The author's note: enable it to run on ~8 GB of VRAM, much slower."/>
+                                                <Grid Margin="0,4,0,0" IsEnabled="{Binding Ultra.LowVramBlockSwap}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Blocks to swap (-1 = all)" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="7,0">
+                                                        <TextBlock Text="{Binding Ultra.BlockSwapBlocks, StringFormat={}{0:0}}" FontFamily="Consolas" FontSize="11" FontWeight="Bold"
+                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    </Border>
+                                                </Grid>
+                                                <Slider Minimum="-1" Maximum="60" Value="{Binding Ultra.BlockSwapBlocks}" IsEnabled="{Binding Ultra.LowVramBlockSwap}"
+                                                        TickFrequency="1" IsSnapToTickEnabled="True" SmallChange="1" LargeChange="1"
+                                                        Foreground="{DynamicResource TabAccentBrush}"
+                                                        ToolTip="num_blocks: blocks from the end to swap to system RAM. -1 swaps all, as authored."/>
                                             </StackPanel>
                                         </Border>
 
                                         <!-- Continuations -->
-                                        <Border Style="{StaticResource SectionCardStyle}">
+                                        <Border Style="{StaticResource SectionCardStyle}" Visibility="{Binding IsRef2VA, Converter={StaticResource BooleanToVisibilityConverter}}">
                                             <StackPanel>
                                                 <ctrl:SectionHeader Title="CONTINUATIONS" Note="  · up to 3" Margin="0,0,0,4"/>
                                                 <TextBlock TextWrapping="Wrap" Margin="0,0,0,8"
@@ -4357,7 +4887,7 @@
                                              checkpoint, the sampler and scheduler, the sigma shift, the
                                              LoRAs the stack is built around and — on 🍥 and 🐰 — the second
                                              sampler. See MiniMaxI2VViewModel.Stacks.cs. -->
-                                        <Border Style="{StaticResource SectionCardStyle}">
+                                        <Border Style="{StaticResource SectionCardStyle}" Visibility="{Binding IsRef2VA, Converter={StaticResource BooleanToVisibilityConverter}}">
                                             <StackPanel>
                                                 <ctrl:SectionHeader Title="RENDER" Note="  · applies to every pass" Margin="0,0,0,10"/>
 
@@ -4531,7 +5061,7 @@
                                         </Border>
 
                                         <!-- Canvas -->
-                                        <Border Style="{StaticResource SectionCardStyle}">
+                                        <Border Style="{StaticResource SectionCardStyle}" Visibility="{Binding IsRef2VA, Converter={StaticResource BooleanToVisibilityConverter}}">
                                             <StackPanel>
                                                 <ctrl:SectionHeader Title="CANVAS" Margin="0,0,0,10"/>
 
@@ -4572,7 +5102,7 @@
                                         </Border>
 
                                         <!-- Finishing -->
-                                        <Border Style="{StaticResource SectionCardStyle}">
+                                        <Border Style="{StaticResource SectionCardStyle}" Visibility="{Binding IsRef2VA, Converter={StaticResource BooleanToVisibilityConverter}}">
                                             <StackPanel>
                                                 <ctrl:SectionHeader Title="FINISHING" Margin="0,0,0,8"/>
 

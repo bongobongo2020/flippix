@@ -81,11 +81,31 @@ namespace FlipPix.UI.Models
         /// <summary>RIFE on the finished frames, 24 → 48 fps.</summary>
         public bool UseRife { get; set; }
 
-        [JsonIgnore]
-        public int PassCount => ContinuationPrompts.Count + 1;
+        // ── 💎 All-In-One Ultra ─────────────────────────────────────────────────────────────────────
+        // A queue written before the workflow dropdown existed has none of these, and restores as Ref2VA.
+
+        /// <summary>Which graph this item submits.</summary>
+        public I2VWorkflow Workflow { get; set; } = I2VWorkflow.Ref2VA;
+
+        /// <summary>The Ultra card as it stood at Add to Queue. Null on a Ref2VA item.</summary>
+        public FlipPix.Core.Models.MiniMaxI2VUltraOptions? Ultra { get; set; }
+
+        /// <summary>Reference audio clips, in &lt;Audio N&gt; order. Ultra only.</summary>
+        public List<string> AudioPaths { get; set; } = new();
+
+        /// <summary>Reference video clips, in &lt;Video N&gt; order. Ultra only.</summary>
+        public List<string> VideoPaths { get; set; } = new();
 
         [JsonIgnore]
-        public int TotalSeconds => LengthSeconds + ContinuationSeconds.Sum();
+        public bool IsUltra => Workflow == I2VWorkflow.Ultra && Ultra != null;
+
+        [JsonIgnore]
+        public int PassCount => IsUltra ? 1 : ContinuationPrompts.Count + 1;
+
+        [JsonIgnore]
+        public int TotalSeconds => IsUltra
+            ? (int)Math.Round(Ultra!.DurationSeconds)
+            : LengthSeconds + ContinuationSeconds.Sum();
 
         [JsonIgnore]
         public string DisplayText
@@ -96,6 +116,15 @@ namespace FlipPix.UI.Models
                     ? "(no reference)"
                     : Path.GetFileNameWithoutExtension(ReferencePaths[0]) +
                       (ReferencePaths.Count > 1 ? $" +{ReferencePaths.Count - 1}" : string.Empty);
+
+                if (IsUltra)
+                {
+                    var media = (AudioPaths.Count > 0 ? $" · {AudioPaths.Count} audio" : string.Empty) +
+                                (VideoPaths.Count > 0 ? $" · {VideoPaths.Count} video" : string.Empty);
+                    var motion = Ultra!.HighMotionFix ? " · motion fix" : string.Empty;
+                    return $"💎 Ultra · {refs}{media} → {AspectRatio} · {Ultra.Megapixels:0.0} MP · " +
+                           $"{Ultra.DurationSeconds:0.#}s · {Ultra.Steps} steps{motion}";
+                }
                 var passes = PassCount == 1 ? string.Empty : $" · {PassCount} passes";
                 var detail = UseLatentUpscale ? " · latent ×2" : string.Empty;
                 var rtx = UseRtxUpscale ? " · RTX ×2" : string.Empty;

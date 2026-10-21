@@ -390,6 +390,67 @@ namespace FlipPix.UI.Models
     }
 
     /// <summary>
+    /// Which graph 🌀 MiniMax I2V submits — the dropdown at the top of the tab. Stacks (<see cref="I2VStack"/>)
+    /// are patches on <see cref="Ref2VA"/>; <see cref="Ultra"/> is a different workflow with its own card.
+    /// </summary>
+    public enum I2VWorkflow
+    {
+        /// <summary><c>h3-minimax-i2v.json</c>: up to four references, draft → latent ×2 → finish, up to three
+        /// continuations, and the sampling stacks.</summary>
+        Ref2VA,
+
+        /// <summary><c>h3-minimax-ultra.json</c>: JunkunStudio's All-In-One Ultra — up to nine pictures, three
+        /// audio and three video references, one pass at the finished canvas sampled by SelfLift (a 0.6×
+        /// low-res prefix lifted by the LMS latent upscaler, tiled at full resolution).</summary>
+        Ultra,
+    }
+
+    /// <summary>
+    /// One reference audio or video clip on the 💎 Ultra workflow. The slot number is the
+    /// <c>&lt;Audio N&gt;</c> / <c>&lt;Video N&gt;</c> the prompt refers to; empty slots are closed up before
+    /// submitting, the same as the pictures.
+    /// </summary>
+    public partial class MiniMaxI2VMediaReference : ObservableObject
+    {
+        private string _path = string.Empty;
+
+        public MiniMaxI2VMediaReference(bool isVideo, int slot)
+        {
+            IsVideo = isVideo;
+            Slot = slot;
+        }
+
+        public bool IsVideo { get; }
+
+        public int Slot { get; }
+
+        /// <summary>The tag the prompt uses for this slot.</summary>
+        public string Label => IsVideo ? $"Video {Slot}" : $"Audio {Slot}";
+
+        public string Path
+        {
+            get => _path;
+            set
+            {
+                if (_path == value) return;
+                _path = value ?? string.Empty;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(HasFile));
+                OnPropertyChanged(nameof(FileName));
+                Changed?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        public bool HasFile => !string.IsNullOrEmpty(Path) && File.Exists(Path);
+
+        public string FileName => HasFile ? System.IO.Path.GetFileName(Path) : "empty";
+
+        public event EventHandler? Changed;
+
+        public void Clear() => Path = string.Empty;
+    }
+
+    /// <summary>
     /// One LoRA row on the 🌀 MiniMax I2V render card. The graph ships five switched
     /// <c>LoraLoaderModelOnly</c> seats, so up to five of these stack onto the checkpoint in list order.
     ///

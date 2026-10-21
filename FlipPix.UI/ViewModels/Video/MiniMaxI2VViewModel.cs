@@ -251,6 +251,9 @@ namespace FlipPix.UI.ViewModels.Video
             // is described in terms of what the card offers.
             InitRender();
 
+            // After the render card: the Ultra card offers its checkpoint into the model list InitRender seeded.
+            InitUltra();
+
             // Only once every command exists: restoring a queue notifies all of them.
             _queue.CollectionChanged += (_, _) => UpdateQueueStatus();
             LoadQueueFromFile();
@@ -316,7 +319,8 @@ namespace FlipPix.UI.ViewModels.Video
             OnPropertyChanged(nameof(StereoSummary));
             RaiseReferenceScale();
             ApplyStereoPrompt();
-            OnCanExecuteChanged();
+            // Slots 1–4 are Ultra's first four pictures too, and picture 1 is what its Auto aspect reads.
+            OnUltraMediaChanged();
         }
 
         /// <summary>
@@ -979,9 +983,11 @@ namespace FlipPix.UI.ViewModels.Video
         /// is a local operation, so a render already in flight must not block it; that is the whole point
         /// of the queue.
         /// </summary>
-        public bool CanGenerate =>
-            HasReference && !string.IsNullOrWhiteSpace(Prompt) && !IsAnalyzing &&
-            Continuations.All(c => !string.IsNullOrWhiteSpace(c.Prompt));
+        public bool CanGenerate => IsUltra
+            // 💎 Ultra: one pass, no continuations; a video alone is a valid reference, audio alone is not.
+            ? HasUltraVisualReference && !string.IsNullOrWhiteSpace(Prompt) && !IsAnalyzing
+            : HasReference && !string.IsNullOrWhiteSpace(Prompt) && !IsAnalyzing &&
+              Continuations.All(c => !string.IsNullOrWhiteSpace(c.Prompt));
 
         /// <summary>
         /// Why Add to Queue is disabled, or empty when it is not. A greyed-out button with four possible
@@ -992,6 +998,14 @@ namespace FlipPix.UI.ViewModels.Video
         {
             get
             {
+                if (IsUltra)
+                {
+                    if (!HasUltraVisualReference)
+                        return "Add a picture or a reference video — audio cannot be the only reference.";
+                    if (string.IsNullOrWhiteSpace(Prompt)) return "Write a prompt — press Analyze, or write one.";
+                    if (IsAnalyzing) return "Waiting for Analyze to finish…";
+                    return string.Empty;
+                }
                 if (!HasReference) return "Add a picture to slot 1 (Picture 1) to enable this.";
                 if (string.IsNullOrWhiteSpace(Prompt)) return "Segment 1 needs a prompt — press Analyze, or write one.";
                 if (IsAnalyzing) return "Waiting for Analyze to finish…";
@@ -1047,7 +1061,8 @@ namespace FlipPix.UI.ViewModels.Video
                 // MiniMaxI2VViewModel.LocationPlate.cs.
                 await EnsureLocationPlateAsync(model, token);
 
-                var pictures = FilledReferences;
+                // Ultra reads all nine slots; the Ref2VA graph only ever takes the first four.
+                var pictures = IsUltra ? UltraPictures : FilledReferences;
                 AddLog($"Writing the Ref2VA prompt — {pictures.Count} picture(s) → {_lmStudioService.DescribeTarget(model)}");
 
                 // Captured before the reply lands: ApplyAnalyzedPrompt overwrites the box with segment 1,
@@ -1099,7 +1114,12 @@ namespace FlipPix.UI.ViewModels.Video
                     : $"  <Picture {i + 1}> — {Path.GetFileNameWithoutExtension(pictures[i].Path)}");
 
             lines.Add(string.Empty);
-            if (Continuations.Count == 0)
+            if (IsUltra)
+            {
+                lines.AddRange(UltraMediaInstructions());
+                lines.Add($"Write ONE segment. Target duration: {Ultra.DurationSeconds:0.#} seconds.");
+            }
+            else if (Continuations.Count == 0)
             {
                 lines.Add($"Write ONE segment. Target duration: {LengthSeconds} seconds.");
             }
@@ -1180,7 +1200,8 @@ namespace FlipPix.UI.ViewModels.Video
             Prompt = blocks[0];
             AddLog($"Segment 1 prompt written ({blocks[0].Length} chars)");
 
-            for (var i = 0; i < Continuations.Count; i++)
+            // Ultra renders one pass; continuations belong to the Ref2VA workflow and are left as they were.
+            for (var i = 0; i < (IsUltra ? 0 : Continuations.Count); i++)
             {
                 if (i + 1 >= blocks.Count)
                 {
@@ -1210,7 +1231,7 @@ namespace FlipPix.UI.ViewModels.Video
             string model, string systemPrompt, IReadOnlyList<MiniMaxI2VReference> pictures,
             string draft, CancellationToken token)
         {
-            if (Continuations.All(c => !string.IsNullOrWhiteSpace(c.Prompt))) return;
+            if (IsUltra || Continuations.All(c => !string.IsNullOrWhiteSpace(c.Prompt))) return;
 
             var missing = Continuations.Count(c => string.IsNullOrWhiteSpace(c.Prompt));
             AddLog($"{missing} continuation(s) came back without a segment marker — asking for them one at a time");
@@ -1378,6 +1399,12 @@ namespace FlipPix.UI.ViewModels.Video
         {
             if (!CanGenerate) return;
 
+            if (IsUltra)
+            {
+                EnqueueItem(BuildUltraQueueItem());
+                return;
+            }
+
             // A host-RAM blowout does not fail one job — the kernel kills ComfyUI, which loses whatever
             // was rendering and every item queued behind it. Worth a confirm rather than a log line.
             if (IsMemoryOverLimit)
@@ -1426,6 +1453,11 @@ namespace FlipPix.UI.ViewModels.Video
                 UseRife = UseRife,
             };
 
+            EnqueueItem(item);
+        }
+
+        private void EnqueueItem(MiniMaxI2VQueueItem item)
+        {
             _queue.Add(item);
             AddLog($"Queued: {item.DisplayText}");
             UpdateQueueStatus();
@@ -1580,6 +1612,8 @@ namespace FlipPix.UI.ViewModels.Video
         /// </summary>
         private async Task<string?> PreflightAsync(MiniMaxI2VQueueItem item, CancellationToken token)
         {
+            if (item.IsUltra) return await PreflightUltraAsync(item, token);
+
             var frameRamGb = EstimateFrameRamGb(item);
             var peakRamGb = PeakRamGb(frameRamGb, item.UseRtxUpscale);
             var gpx = EstimateGpx(item);
@@ -1655,6 +1689,41 @@ namespace FlipPix.UI.ViewModels.Video
                 AddLog($"Pre-flight: ~{gpx:0.00} Gpx is within 5% of this card's ~{gpxCeiling:0.00} Gpx "
                        + "limit — it should run, but there is nothing spare.");
 
+            return null;
+        }
+
+        /// <summary>
+        /// 💎 Ultra's pre-flight: host RAM only. The Gpx ceiling below was measured on the Ref2VA graph's
+        /// finish sampler and does not describe SelfLift, which tiles its full-resolution steps — the authored
+        /// 1920×1088 × 362-frame take is well past that line and is the configuration that was tested. The
+        /// decoded frames still land in host RAM in one batch, so that check stays.
+        /// </summary>
+        private async Task<string?> PreflightUltraAsync(MiniMaxI2VQueueItem item, CancellationToken token)
+        {
+            var frameRamGb = UltraFrameRamGb(item);
+            var head = await FetchHeadroomAsync(token);
+            if (head == null)
+            {
+                AddLog("Pre-flight: could not read /system_stats — going ahead");
+                return null;
+            }
+
+            var (ramFree, ramTotal, vramFree, vramTotal) = head.Value;
+            AddLog($"Pre-flight: server has {ramFree:0.0} GB RAM and {vramFree:0.0} GB of {vramTotal:0.0} GB VRAM " +
+                   $"free; this Ultra take decodes ~{frameRamGb:0.0} GB of frames");
+
+            if (frameRamGb * 2 > ramFree)
+            {
+                AddLog("Pre-flight: tight on host RAM — unloading models to reclaim it…");
+                var freed = await FreeServerMemoryAsync(token);
+                if (freed != null) ramFree = freed.Value.RamFreeGb;
+                if (frameRamGb * 2 > ramFree)
+                    return $"Not enough host RAM: decoding this take needs roughly {frameRamGb * 2:0.0} GB and the " +
+                           $"server has {ramFree:0.0} GB free even after unloading models. Shorten it or lower the canvas.";
+            }
+
+            if (vramTotal > 0 && vramTotal < 20 && !item.Ultra!.LowVramBlockSwap)
+                AddLog($"Pre-flight: {vramTotal:0.0} GB card — if this runs out of memory, turn on Low VRAM block swap.");
             return null;
         }
 
@@ -2090,7 +2159,8 @@ namespace FlipPix.UI.ViewModels.Video
                 var blocked = await PreflightAsync(item, outerToken);
                 if (blocked != null) throw new InvalidOperationException(blocked);
 
-                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, WorkflowFileName);
+                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
+                                                item.IsUltra ? UltraWorkflowFileName : WorkflowFileName);
                 if (!File.Exists(workflowPath))
                     throw new FileNotFoundException($"Workflow file not found: {workflowPath}");
                 var json = await File.ReadAllTextAsync(workflowPath, outerToken);
@@ -2108,11 +2178,48 @@ namespace FlipPix.UI.ViewModels.Video
                     uploaded.Add(name!);
                     AddLog($"<Picture {uploaded.Count}> uploaded: {name}");
                 }
-                if (uploaded.Count == 0) throw new Exception("This item has no reference pictures.");
-
                 var runSeed = item.Seed >= 0 ? item.Seed : System.Random.Shared.NextInt64(0, int.MaxValue);
                 var ts = DateTime.Now.ToString("yyyyMMdd_HHmmss");
                 var runToken = $"mmi2v_{ts}";
+
+                if (item.IsUltra)
+                {
+                    var audios = await UploadMediaAsync(item.AudioPaths, isVideo: false, outerToken);
+                    var videos = await UploadMediaAsync(item.VideoPaths, isVideo: true, outerToken);
+                    if (uploaded.Count == 0 && videos.Count == 0)
+                        throw new Exception("This item has no reference picture or video.");
+
+                    json = BuildUltraWorkflow(json, item, uploaded, audios, videos, runSeed, runToken, out var ultraPruned);
+                    var o = item.Ultra!;
+                    var (uw, uh) = H3Canvas.Resolve(item.AspectRatio, o.Megapixels, UltraResolutionMultiple);
+                    AddLog($"Graph prepared: 💎 All-In-One Ultra, {ultraPruned} node(s) pruned");
+                    AddLog($"Generating (seed {runSeed}, {o.DurationSeconds:0.#}s = {UltraFrameCount(o.DurationSeconds)} " +
+                           $"frames at {uw}×{uh}, {uploaded.Count} picture(s), {audios.Count} audio, {videos.Count} video; " +
+                           $"{UltraSamplingSummaryFor(o)}; {UltraLoraSummaryFor(o)})...");
+
+                    ProcessingProgress = 8;
+                    var ultraPlan = BuildUltraProgressPlan(item);
+                    _progressTracker.Begin(ultraPlan.Stages, ultraPlan.LeadUnits, 8, 97, ultraPlan.EstimatedSeconds,
+                                           phase: string.Empty);
+                    AddLog($"Estimated run time ~{TimeSpan.FromSeconds(ultraPlan.EstimatedSeconds):hh\\:mm\\:ss} " +
+                           $"({_ultraSecondsPerGpx:0} s/Gpx learned so far)");
+
+                    var ultraLocal = await SubmitAndRetrieveAsync(json, runToken, UltraSink,
+                                                                  ultraPlan.EstimatedSeconds, outerToken);
+                    if (ultraLocal == null || !File.Exists(ultraLocal))
+                        throw new Exception("No output video was generated.");
+
+                    RecalibrateUltraFromRun(item, _progressTracker.Elapsed);
+                    _progressTracker.Finish(true);
+                    await PublishResultAsync(item, ultraLocal, ts,
+                        $"💎 Ultra • {item.AspectRatio} • {o.DurationSeconds:0.#}s • {uploaded.Count} ref" +
+                        (audios.Count > 0 ? $" + {audios.Count} audio" : string.Empty) +
+                        (videos.Count > 0 ? $" + {videos.Count} video" : string.Empty));
+                    return;
+                }
+
+                if (uploaded.Count == 0) throw new Exception("This item has no reference pictures.");
+
                 var sink = item.ContinuationPrompts.Count > 0 ? NodeSaveJoined : NodeSaveSingle;
 
                 json = BuildWorkflow(json, item, uploaded, runSeed, runToken, sink, out var pruned);
@@ -2159,28 +2266,9 @@ namespace FlipPix.UI.ViewModels.Video
                 RecalibrateFromRun(item, _progressTracker.Elapsed);
                 _progressTracker.Finish(true);
 
-                var outputDir = Path.Combine(
-                    _settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(), "MiniMaxI2V");
-                Directory.CreateDirectory(outputDir);
-                var finalPath = Path.Combine(outputDir, $"MiniMaxI2V_{ts}.mp4");
-                File.Copy(local, finalPath, true);
-                await LocalCopyService.CopyVideoAsync(finalPath);
-
-                var fi = new FileInfo(finalPath);
-                item.OutputImagePath = finalPath;
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    ResultVideoPath = finalPath;
-                    ResultVideoInfo =
-                        $"MiniMax I2V • {item.AspectRatio} • {item.TotalSeconds}s over {item.PassCount} " +
-                        $"pass{(item.PassCount == 1 ? "" : "es")} • {uploaded.Count} ref • " +
-                        $"{fi.Length / 1024 / 1024.0:F1}MB";
-                    HasResult = true;
-                    OnCanExecuteChanged();
-                });
-                ProcessingProgress = 100;
-                ProcessingStatus = "Complete!";
-                AddLog($"=== Complete: {finalPath} ===");
+                await PublishResultAsync(item, local, ts,
+                    $"MiniMax I2V • {item.AspectRatio} • {item.TotalSeconds}s over {item.PassCount} " +
+                    $"pass{(item.PassCount == 1 ? "" : "es")} • {uploaded.Count} ref");
             }
             finally
             {
@@ -2191,6 +2279,53 @@ namespace FlipPix.UI.ViewModels.Video
                 IsProcessing = false;
                 OnCanExecuteChanged();
             }
+        }
+
+        /// <summary>Copies a finished video into the output folder and puts it on the result panel.</summary>
+        private async Task PublishResultAsync(MiniMaxI2VQueueItem item, string local, string ts, string info)
+        {
+            var outputDir = Path.Combine(
+                _settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(), "MiniMaxI2V");
+            Directory.CreateDirectory(outputDir);
+            var finalPath = Path.Combine(outputDir, $"MiniMaxI2V_{ts}.mp4");
+            File.Copy(local, finalPath, true);
+            await LocalCopyService.CopyVideoAsync(finalPath);
+
+            var fi = new FileInfo(finalPath);
+            item.OutputImagePath = finalPath;
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                ResultVideoPath = finalPath;
+                ResultVideoInfo = $"{info} • {fi.Length / 1024 / 1024.0:F1}MB";
+                HasResult = true;
+                OnCanExecuteChanged();
+            });
+            ProcessingProgress = 100;
+            ProcessingStatus = "Complete!";
+            AddLog($"=== Complete: {finalPath} ===");
+        }
+
+        /// <summary>Uploads reference audio or video clips in slot order — the &lt;Audio N&gt; / &lt;Video N&gt;
+        /// numbering the prompt was written against.</summary>
+        private async Task<List<string>> UploadMediaAsync(
+            IReadOnlyList<string> paths, bool isVideo, CancellationToken token)
+        {
+            var kind = isVideo ? "Video" : "Audio";
+            var names = new List<string>();
+            foreach (var path in paths)
+            {
+                token.ThrowIfCancellationRequested();
+                if (!File.Exists(path)) throw new FileNotFoundException($"Reference {kind.ToLowerInvariant()} is gone: {path}");
+                ProcessingStatus = $"Uploading reference {kind.ToLowerInvariant()} {names.Count + 1}...";
+                var name = isVideo
+                    ? await _comfyUIService.UploadVideoAsync(path, token)
+                    : await _comfyUIService.UploadAudioAsync(path, token);
+                if (string.IsNullOrEmpty(name))
+                    throw new Exception($"Failed to upload reference {kind.ToLowerInvariant()} {names.Count + 1}.");
+                names.Add(name);
+                AddLog($"<{kind} {names.Count}> uploaded: {name}");
+            }
+            return names;
         }
 
         /// <summary>

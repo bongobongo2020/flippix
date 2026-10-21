@@ -576,6 +576,16 @@ namespace FlipPix.UI.ViewModels.Video
                     OnPropertyChanged(nameof(SelectedDiffusionModel));
                     OnPropertyChanged(nameof(DiffusionModelSummary));
                     OnStepsModelChanged();
+
+                    // 💎 Ultra's model dropdown shares this list, and its selection was cleared the same way.
+                    var ultraMatch = found.FirstOrDefault(n => string.Equals(n, NormalizeName(Ultra.DiffusionModel),
+                                                                             StringComparison.OrdinalIgnoreCase));
+                    if (ultraMatch != null) Ultra.DiffusionModel = ultraMatch;
+                    else if (DiffusionModelOptions.All(o => !string.Equals(o.Value, Ultra.DiffusionModel,
+                                                                              StringComparison.OrdinalIgnoreCase)))
+                        DiffusionModelOptions.Add(new DiffusionModelOption(Ultra.DiffusionModel,
+                                                                           LabelFor(Ultra.DiffusionModel) + " (not on server)"));
+                    Ultra.Refresh(nameof(MiniMaxI2VUltraOptions.DiffusionModel));
                 });
                 AddLog($"Model list: {found.Count} model(s) in diffusion_models/h3-minimax.");
             }

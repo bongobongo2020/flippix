@@ -95,6 +95,15 @@ public class ComfyUISettings
     // authored with it, so it is an addition rather than a setting.
     public bool MiniMaxI2VUseRife { get; set; }
 
+    // Which graph 🌀 MiniMax I2V submits: "Ref2VA" (h3-minimax-i2v.json, the references + continuations
+    // graph every stack above patches) or "Ultra" (h3-minimax-ultra.json, JunkunStudio's All-In-One Ultra
+    // with SelfLift full-res tiled sampling). Unknown or missing falls back to Ref2VA.
+    public string MiniMaxI2VWorkflow { get; set; } = "Ref2VA";
+
+    // The All-In-One Ultra card. Its defaults are the authored workflow's own values, which is what was
+    // tested on the server — see MiniMaxI2VUltraOptions.
+    public MiniMaxI2VUltraOptions MiniMaxI2VUltra { get; set; } = new();
+
     public LMStudioSettings LMStudioSettings { get; set; } = new LMStudioSettings();
 
     // H3 Video Editor settings

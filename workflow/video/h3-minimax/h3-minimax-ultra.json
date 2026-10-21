@@ -1,0 +1,443 @@
+{
+  "100": {
+    "inputs": {
+      "unet_name": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "33": {
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "type": "minimax",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "4": {
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Video VAE"
+    }
+  },
+  "5": {
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Audio VAE"
+    }
+  },
+  "120": {
+    "inputs": {
+      "model": [
+        "100",
+        0
+      ],
+      "attention": "comfy kitchen attention"
+    },
+    "class_type": "ModelAttentionBackend",
+    "_meta": {
+      "title": "Model Attention Backend"
+    }
+  },
+  "204": {
+    "inputs": {
+      "model": [
+        "120",
+        0
+      ],
+      "selection": "sol-attn",
+      "selection.tau": 1.3,
+      "start_percent": 0.2,
+      "end_percent": 1,
+      "dense_blocks": "",
+      "min_tokens": 12288,
+      "extra_tokens": 256,
+      "sink_conditioning": "exact_kv_and_rows",
+      "verbose": true
+    },
+    "class_type": "BlockSparseAttention",
+    "_meta": {
+      "title": "Block Sparse Attention (sol-attn)"
+    }
+  },
+  "186": {
+    "inputs": {
+      "model": [
+        "204",
+        0
+      ],
+      "lora_name": "H3/MysticXXX_MMH3-V4.safetensors",
+      "strength_model": 0.5
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LoRA: MysticXXX"
+    }
+  },
+  "242": {
+    "inputs": {
+      "model": [
+        "186",
+        0
+      ],
+      "lora_name": "H3/minimax_h3_dmad_full_dareties_v4_step600_comfy_fro.safetensors",
+      "strength_model": 0.75
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LoRA: DMAD dare-ties"
+    }
+  },
+  "215": {
+    "inputs": {
+      "model": [
+        "242",
+        0
+      ],
+      "lora_name": "H3/H3_Combat_V2.safetensors",
+      "strength_model": 0.65
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "High motion fix: Combat"
+    }
+  },
+  "217": {
+    "inputs": {
+      "model": [
+        "215",
+        0
+      ],
+      "lora_name": "H3/Motion_Repair_V2.safetensors",
+      "strength_model": 0.35
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "High motion fix: Motion Repair"
+    }
+  },
+  "216": {
+    "inputs": {
+      "model": [
+        "217",
+        0
+      ],
+      "lora_name": "H3/H3_Fight_Flow_V1.safetensors",
+      "strength_model": 0.35
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "High motion fix: Fight Flow"
+    }
+  },
+  "218": {
+    "inputs": {
+      "model": [
+        "216",
+        0
+      ],
+      "lora_name": "H3/H3_speed_slider_1.1.safetensors",
+      "strength_model": 3.0
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "High motion fix: speed slider"
+    }
+  },
+  "223": {
+    "inputs": {
+      "value": false
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "Boolean(Fighting High Motion Fix)"
+    }
+  },
+  "222": {
+    "inputs": {
+      "switch": [
+        "223",
+        0
+      ],
+      "on_false": [
+        "242",
+        0
+      ],
+      "on_true": [
+        "218",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "High motion fix switch"
+    }
+  },
+  "219": {
+    "inputs": {
+      "model": [
+        "222",
+        0
+      ],
+      "shift_video": 12,
+      "shift_audio": 3.0
+    },
+    "class_type": "MiniMaxH3SigmaShift",
+    "_meta": {
+      "title": "MiniMax H3 Sigma Shift"
+    }
+  },
+  "221": {
+    "inputs": {
+      "model": [
+        "219",
+        0
+      ],
+      "audio_vae": [
+        "5",
+        0
+      ],
+      "max_resolution": 1024,
+      "jpeg_quality": 80,
+      "suppress_default_preview": true,
+      "preview_frames": 999,
+      "preview_fps": 16,
+      "tiny_vae": "taeh3.safetensors"
+    },
+    "class_type": "ModelPreviewOverrideKJ",
+    "_meta": {
+      "title": "Model Preview Override"
+    }
+  },
+  "190": {
+    "inputs": {
+      "value": "subject_definitions:\n<Subject 1> is adult android ELI from <Picture 1>: short graphite hair, a near-human face with subtle temple seams, ivory articulated hands, blue-gray jacket, charcoal trousers and dark boots. He begins without a scarf.\n<Subject 2> is adult MARA from <Picture 2>: chestnut bob, camel coat, dark clothing and her worn charcoal-gray scarf. Her hands are EMPTY in the character sheet; that image supplies identity and costume, not the target opening pose. In the generated scene she starts holding the separately referenced red prop in her right hand.\n<Subject 3> is the unoccupied snowy bus shelter from <Picture 3>: green steel, glass panels, wooden bench, brick homes beyond, blue dusk and a warm ceiling lamp. This image supplies only the setting; place the two leads inside it.\n<Subject 4> is the single separate red scarf from <Picture 4>: muted deep brick-red wool, fine rib-knit and fringes at both ends. The product photo supplies only prop identity, not a flat-lay scene or fixed U-shaped pose. MARA carries it at the start and transfers it once to ELI. It is distinct from her gray neck scarf.\n<Audio 1> is female_voice_clone_10s.wav, the voice-timbre and accent reference for MARA, <Subject 2> (S2).\n<Audio 2> is male_voice_clone_10s.wav, the voice-timbre and accent reference for ELI, <Subject 1> (S1).\n\nsummary:\n[reference generation + audio reference] Generate one complete 15.0-second, 16:9 standalone science-fiction drama in a single generation. <Subject 2> offers <Subject 4> to <Subject 1> in <Subject 3>. Four spoken turns change the meaning of his accepting it. Use the four pictures for character, environment and separate prop reference, and <Audio 1> and <Audio 2> for their respective new dialogue. No prior clip or additional asset is required.\n\nretention_analysis:\n<Subject 1> (all shots): fully_preserved - retain identity, mechanical details and costume; the scarf is added through the new action.\n<Subject 2> (all shots): fully_preserved - retain face, hair, coat and worn gray scarf; her reference hands are empty, and the separate prop is added only for the target scene.\n<Subject 3> (all shots): fully_preserved - retain architecture, bench, snowy surroundings and lighting. The empty source is an environment reference, not a required empty opening.\n<Subject 4> (all shots): fully_preserved - retain the red prop's color, wool, knit and two fringed ends from its own picture; one connected scarf changes pose naturally, transfers once and finishes on ELI. Never duplicate it or turn MARA's gray scarf red.\n<Audio 1>: reference - MARA's vocal identity only; generate the new words without copying the source recording.\n<Audio 2>: reference - ELI's vocal identity only; generate the new words without copying the source recording.\n\ndetailed_description:\nPhotorealistic intimate adult science-fiction drama, restrained acting, tactile winter clothing, cold blue exteriors and soft amber faces. Play at normal speed in one continuous moment. Keep ELI screen-left and MARA screen-right, on the same camera side throughout. Reference sheets supply identities, never on-screen layouts. No subtitles, explanatory text, narration or additional characters.\n\n[Shot 1] A stable waist-up two-shot introduces <Subject 1>, his exposed mechanical left hand briefly raised to examine snow on its back, and <Subject 2>, inside <Subject 3>. Add <Subject 4> from its separate prop reference into MARA's right hand at her right hip from the first frame; her empty-handed sheet does not constrain this story pose. The wooden bench stays behind them and snow falls beyond the glass. His neck is bare; her gray scarf stays worn around her neck. She starts raising the separate red wool toward him. From 00:00.500 to 00:02.800, <Subject 1> (S1), using the vocal identity of <Audio 2>, says <d>[English] My return window closes tonight.</d> He describes his return deadline with practiced composure; his question exposes a quiet fear of rejection. His hand lowers naturally. Preserve ordinary speech rhythm and small eye movements; do not rush an establishing montage into this opening.\n\n[Shot 2] At 00:03.000, cut slightly closer to a chest-up two-shot retaining both faces, the offered scarf and the same left-right positions. MARA holds the wool between them without dressing him or pushing it into his hands. From 00:03.200 to 00:03.900, <Subject 2> (S2), using <Audio 1>, answers <d>[English] Good.</d> From 00:04.300 to 00:06.200, <Subject 1> (S1) asks <d>[English] What if I disappoint you?</d> From 00:06.600 to 00:09.400, <Subject 2> (S2) replies <d>[English] Then we'll have something in common.</d> Her short answer is certain. Deliver the last line with affectionate self-deprecation, not sarcasm aimed at him. Each speaker listens with closed lips during the other's turn. After her answer, ELI briefly considers her face, then grips the scarf with both hands; she releases it only when his grip is secure. Complete this single handoff by the cut. No added dialogue or simultaneous speech.\n\n[Shot 3] At 00:10.000, cut to a medium-wide two-shot with enough room to read both hands. MARA gives one small empty-handed draping cue near her own scarf, without unwrapping it. ELI follows, places the red scarf's middle behind his neck and lets both long fringed ends hang down the front of his jacket. Keep cloth connected and fingers distinct; no knot or shoulder toss. By 00:13.000 he lowers his hands. Hold their quiet side-by-side presence through exactly 00:15.000, with ELI looking ahead and MARA looking gently toward him. His hesitation gives way to permission to be imperfect; her restrained smile contains the dry joke without inviting a laugh track. No new props, location change or extra physical event; the dialogue supplies the turn.\n\noverall_soundscape:\nLow distant winter traffic, soft wind outside the shelter and close sleeve and wool rustle. Clear synchronized dialogue, one speaker at a time. <Audio 1> and <Audio 2> guide vocal identity only; never replay their original words or background noise. Preserve the final two seconds without speech. No added voices, robotic voice filter or dramatic sound cue.\n\nnon_diegetic_music:\nN/A\n```"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Prompt"
+    }
+  },
+  "111": {
+    "inputs": {
+      "value": 15
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "Duration(Second)"
+    }
+  },
+  "66": {
+    "inputs": {
+      "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+      "values.a": [
+        "111",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Seconds -> frames (17k+5)"
+    }
+  },
+  "112": {
+    "inputs": {
+      "aspect_ratio": "16:9 (Widescreen)",
+      "megapixels": 2,
+      "multiple": 32
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "Resolution Selector (Final)"
+    }
+  },
+  "121": {
+    "inputs": {
+      "clip": [
+        "33",
+        0
+      ],
+      "vae": [
+        "4",
+        0
+      ],
+      "audio_vae": [
+        "5",
+        0
+      ],
+      "prompt": [
+        "190",
+        0
+      ],
+      "width": [
+        "112",
+        0
+      ],
+      "height": [
+        "112",
+        1
+      ],
+      "length": [
+        "66",
+        1
+      ],
+      "ref_image_size": "max"
+    },
+    "class_type": "MiniMaxH3ReferenceToVideo",
+    "_meta": {
+      "title": "MiniMax H3 Reference To Video"
+    }
+  },
+  "225": {
+    "inputs": {
+      "conditioning": [
+        "121",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "Negative (zeroed)"
+    }
+  },
+  "164": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSampler Select"
+    }
+  },
+  "165": {
+    "inputs": {
+      "model": [
+        "221",
+        0
+      ],
+      "scheduler": "beta",
+      "steps": 10,
+      "denoise": 1
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "Basic Scheduler"
+    }
+  },
+  "224": {
+    "inputs": {
+      "model": [
+        "221",
+        0
+      ],
+      "positive": [
+        "121",
+        0
+      ],
+      "negative": [
+        "225",
+        0
+      ],
+      "vae": [
+        "4",
+        0
+      ],
+      "latent_image": [
+        "121",
+        1
+      ],
+      "sampler": [
+        "164",
+        0
+      ],
+      "sigmas": [
+        "165",
+        0
+      ],
+      "seed": 584635394862178,
+      "cfg": 1,
+      "transition_step": 6,
+      "lowres_scale": 0.6,
+      "rho": 0,
+      "w_min": 0.5,
+      "w_max": 1,
+      "upscaler_model": "h3_upscaler_lms_v0.1.safetensors",
+      "highres_tiling": true,
+      "upscaler_unload": true
+    },
+    "class_type": "SelfLiftH3Sampler",
+    "_meta": {
+      "title": "SelfLift H3 Sampler"
+    }
+  },
+  "153": {
+    "inputs": {
+      "samples": [
+        "224",
+        0
+      ],
+      "vae": [
+        "4",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "159": {
+    "inputs": {
+      "samples": [
+        "224",
+        0
+      ],
+      "vae": [
+        "5",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeAudio",
+    "_meta": {
+      "title": "VAE Decode Audio"
+    }
+  },
+  "163": {
+    "inputs": {
+      "images": [
+        "153",
+        0
+      ],
+      "audio": [
+        "159",
+        0
+      ],
+      "frame_rate": 24,
+      "loop_count": 0,
+      "filename_prefix": "JK_H3_SelfLift",
+      "format": "video/h264-mp4",
+      "pingpong": false,
+      "save_output": true,
+      "pix_fmt": "yuv420p",
+      "crf": 15,
+      "save_metadata": true,
+      "trim_to_audio": false
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine"
+    }
+  }
+}
