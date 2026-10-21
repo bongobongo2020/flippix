@@ -124,6 +124,28 @@ namespace FlipPix.Core.Services
         }
 
         /// <summary>
+        /// Like <see cref="GetLastBrowseFolder"/> but without checking the folder still exists, which
+        /// on a slow network share is a blocking round trip. For callers that cope with a missing
+        /// folder themselves.
+        /// </summary>
+        public string? PeekLastBrowseFolder(string? key)
+        {
+            _lock.EnterReadLock();
+            try
+            {
+                var folders = _settings.LastBrowseFolders;
+                if (folders == null) return null;
+                if (!string.IsNullOrEmpty(key) && folders.TryGetValue(key, out var dir) && !string.IsNullOrEmpty(dir))
+                    return dir;
+                return folders.TryGetValue(GlobalBrowseKey, out var global) && !string.IsNullOrEmpty(global) ? global : null;
+            }
+            finally
+            {
+                _lock.ExitReadLock();
+            }
+        }
+
+        /// <summary>
         /// Records <paramref name="folder"/> as the last-used browse folder for <paramref name="key"/>
         /// (and as the global fallback) and persists it. Cheap no-op if the folder is invalid.
         /// </summary>

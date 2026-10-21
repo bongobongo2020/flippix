@@ -1586,29 +1586,40 @@ namespace FlipPix.UI.ViewModels
             if (filePath != null)
             {
                 SourceImagePath = filePath;
-                LoadSourceImagePreview(filePath);
+                SourceImageSource = null;
                 HasSourceImage = true;
-                StatusBarMessage = $"Loaded: {Path.GetFileName(filePath)}";
+                StatusBarMessage = $"Loading preview: {Path.GetFileName(filePath)}…";
                 _logger.LogInfo($"Image selected: {filePath}");
+                await LoadSourceImagePreviewAsync(filePath);
             }
         }
 
-        private void LoadSourceImagePreview(string imagePath)
+        private async Task LoadSourceImagePreviewAsync(string imagePath)
         {
             try
             {
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.UriSource = new Uri(imagePath, UriKind.Absolute);
-                bitmap.EndInit();
-                bitmap.Freeze();
+                // Decoded off the UI thread: from a network share the read can take minutes, and
+                // doing it inline froze the whole window. Frozen, the bitmap can cross threads.
+                var bitmap = await Task.Run(() =>
+                {
+                    var b = new BitmapImage();
+                    b.BeginInit();
+                    b.CacheOption = BitmapCacheOption.OnLoad;
+                    b.UriSource = new Uri(imagePath, UriKind.Absolute);
+                    b.EndInit();
+                    b.Freeze();
+                    return b;
+                });
 
+                // Another image may have been picked while this one was loading.
+                if (SourceImagePath != imagePath) return;
                 SourceImageSource = bitmap;
+                StatusBarMessage = $"Loaded: {Path.GetFileName(imagePath)}";
                 _logger.LogInfo("Source image preview loaded");
             }
             catch (Exception ex)
             {
+                if (SourceImagePath != imagePath) return;
                 _logger.LogError($"Error loading source image preview: {ex.Message}");
                 System.Windows.MessageBox.Show($"Error loading image:\n{ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }
