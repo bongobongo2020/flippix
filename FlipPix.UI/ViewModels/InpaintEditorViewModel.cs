@@ -465,7 +465,7 @@ namespace FlipPix.UI.ViewModels
         private void OpenResultImage()
         {
             if (File.Exists(ResultImagePath))
-                Process.Start(new ProcessStartInfo { FileName = ResultImagePath, UseShellExecute = true });
+                FlipPix.UI.Services.ImageOpener.Open(ResultImagePath);
         }
 
         private static void TryDeleteTempFile(string path)

@@ -1044,7 +1044,7 @@ namespace FlipPix.UI.ViewModels
         private void OpenResultImage()
         {
             if (!string.IsNullOrEmpty(ResultImagePath) && File.Exists(ResultImagePath))
-                Process.Start(new ProcessStartInfo(ResultImagePath) { UseShellExecute = true });
+                FlipPix.UI.Services.ImageOpener.Open(ResultImagePath);
         }
 
         private static string StripThinkingTokens(string text)
