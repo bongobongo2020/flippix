@@ -3019,7 +3019,7 @@ namespace FlipPix.UI.ViewModels.Video
                         $"Story video saved to:\n{outputPath}\n\nOpen the Videos folder?",
                         "Clips Joined", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Information);
                     if (result == System.Windows.MessageBoxResult.Yes)
-                        Process.Start(new ProcessStartInfo(videosFolder) { UseShellExecute = true });
+                        FlipPix.UI.Services.FolderOpener.Open(videosFolder);
                 }
                 else
                 {

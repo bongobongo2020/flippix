@@ -653,7 +653,7 @@ namespace FlipPix.UI.ViewModels.Video
                 var folderPath = Path.GetDirectoryName(ResultVideoPath);
                 if (!string.IsNullOrEmpty(folderPath))
                 {
-                    Process.Start("explorer.exe", folderPath);
+                    FlipPix.UI.Services.FolderOpener.Open(folderPath);
                     AddLog($"Opened folder: {folderPath}");
                 }
             }

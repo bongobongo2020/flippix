@@ -542,7 +542,7 @@ namespace FlipPix.UI.ViewModels
         {
             var folder = Path.GetDirectoryName(ResultImagePath);
             if (!string.IsNullOrEmpty(folder) && Directory.Exists(folder))
-                Process.Start(new ProcessStartInfo { FileName = folder, UseShellExecute = true });
+                FlipPix.UI.Services.FolderOpener.Open(folder);
         }
 
         private void OpenResultImage()

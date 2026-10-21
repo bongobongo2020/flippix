@@ -776,7 +776,7 @@ namespace FlipPix.UI.ViewModels.Video
         private void OpenStoryFolder()
         {
             if (!HasFolder) return;
-            try { System.Diagnostics.Process.Start("explorer.exe", BatchFolder); }
+            try { FlipPix.UI.Services.FolderOpener.Open(BatchFolder); }
             catch (Exception ex) { AddLog($"Could not open the folder: {ex.Message}"); }
         }
 

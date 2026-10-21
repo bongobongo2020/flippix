@@ -1,0 +1,49 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ctrl="using:FlipPix.UI.Linux.Controls"
+        x:Class="FlipPix.UI.Linux.Windows.VideoPlayerWindow"
+        Title="Video"
+        Width="1000" Height="700"
+        MinWidth="360" MinHeight="260"
+        Background="#1E1E1E"
+        WindowStartupLocation="CenterOwner">
+
+    <DockPanel>
+        <!-- Transport bar -->
+        <Border DockPanel.Dock="Bottom" Background="#2B2B2B" Padding="10,6">
+            <DockPanel>
+                <Button x:Name="PlayPauseButton" DockPanel.Dock="Left" Content="⏸" Width="44"
+                        Click="PlayPause_Click" ToolTip.Tip="Play / pause (Space)"/>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" Margin="8,0,0,0">
+                    <TextBlock x:Name="TimeText" Text="0:00 / 0:00" Foreground="#CCCCCC" FontSize="12"
+                               VerticalAlignment="Center" MinWidth="90" TextAlignment="Right"/>
+                    <ToggleButton x:Name="LoopToggle" Content="🔁" Width="40" IsChecked="True"
+                                  ToolTip.Tip="Loop"/>
+                    <ToggleButton x:Name="MuteToggle" Content="🔇" Width="40"
+                                  IsCheckedChanged="Mute_Changed" ToolTip.Tip="Mute (M)"/>
+                </StackPanel>
+                <Slider x:Name="SeekSlider" Minimum="0" Maximum="1" Margin="10,0"
+                        VerticalAlignment="Center" ValueChanged="Seek_ValueChanged"/>
+            </DockPanel>
+        </Border>
+
+        <Panel>
+            <ctrl:VideoPreview x:Name="Player" Stretch="Uniform" Background="#000000"
+                               MediaOpened="Player_MediaOpened"
+                               MediaEnded="Player_MediaEnded"
+                               MediaFailed="Player_MediaFailed"
+                               PointerPressed="Player_PointerPressed"/>
+            <TextBlock x:Name="StatusText" Foreground="#AAAAAA" FontSize="14"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       IsHitTestVisible="False" Text="Loading…"/>
+        </Panel>
+    </DockPanel>
+
+    <Window.Styles>
+        <Style Selector="Button, ToggleButton">
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        </Style>
+    </Window.Styles>
+</Window>

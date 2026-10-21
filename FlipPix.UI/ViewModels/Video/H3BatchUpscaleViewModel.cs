@@ -176,11 +176,7 @@ namespace FlipPix.UI.ViewModels.Video
         {
             try
             {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = ScanFolder,
-                    UseShellExecute = true
-                });
+                FlipPix.UI.Services.FolderOpener.Open(ScanFolder);
             }
             catch (Exception ex) { AddLog($"Could not open the folder: {ex.Message}"); }
         }
@@ -1027,7 +1023,7 @@ namespace FlipPix.UI.ViewModels.Video
             try
             {
                 var path = item.HasUpscale ? item.UpscaledPath! : item.VideoPath;
-                System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{path}\"");
+                FlipPix.UI.Services.FolderOpener.Reveal(path);
             }
             catch (Exception ex) { AddLog($"Could not reveal: {ex.Message}"); }
         }

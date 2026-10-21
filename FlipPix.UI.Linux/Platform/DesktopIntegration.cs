@@ -24,6 +24,7 @@ namespace FlipPix.UI.Services
         public static void OpenFolder(string folderPath)
         {
             if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath)) return;
+            if (IsChromeOS) { InAppViewers.BrowseFolder(folderPath); return; }
             Launch(folderPath);
         }
 
@@ -31,6 +32,8 @@ namespace FlipPix.UI.Services
         public static void OpenFile(string filePath)
         {
             if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath)) return;
+            // On ChromeOS the opener is Chrome, which can't read the container's files.
+            if (IsChromeOS && InAppViewers.TryOpenFile(filePath)) return;
             Launch(filePath);
         }
 
@@ -41,6 +44,13 @@ namespace FlipPix.UI.Services
         public static void RevealInFileManager(string filePath)
         {
             if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath)) return;
+
+            if (IsChromeOS)
+            {
+                var folder = Path.GetDirectoryName(filePath);
+                if (!string.IsNullOrEmpty(folder)) InAppViewers.BrowseFolder(folder, filePath);
+                return;
+            }
 
             if (OperatingSystem.IsWindows())
             {
