@@ -774,7 +774,12 @@ public class ComfyUIHttpClient : IDisposable
         }
     }
 
-    public async Task<byte[]?> DownloadOutputImageAsync(string filename, string subfolder = "", CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Downloads an output image through /view. With <paramref name="preview"/> (e.g. "webp;90" or
+    /// "jpeg;90") ComfyUI re-encodes it first, typically ~10x smaller than the PNG, for a quick
+    /// look over a slow link.
+    /// </summary>
+    public async Task<byte[]?> DownloadOutputImageAsync(string filename, string subfolder = "", CancellationToken cancellationToken = default, string? preview = null)
     {
         try
         {
@@ -795,6 +800,10 @@ public class ComfyUIHttpClient : IDisposable
             if (!string.IsNullOrEmpty(subfolder))
             {
                 url += $"&subfolder={Uri.EscapeDataString(subfolder)}";
+            }
+            if (!string.IsNullOrEmpty(preview))
+            {
+                url += $"&type=output&preview={Uri.EscapeDataString(preview)}";
             }
 
             // Log the full URL for debugging

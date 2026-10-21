@@ -1513,7 +1513,7 @@
                                                     <Style TargetType="TextBlock">
                                                         <Setter Property="Visibility" Value="Collapsed"/>
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding Analyzer.HasResultImage}" Value="False">
+                                                            <DataTrigger Binding="{Binding Analyzer.HasResultPreview}" Value="False">
                                                                 <Setter Property="Visibility" Value="Visible"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
@@ -1526,7 +1526,7 @@
                                                     ToolTip="Click to open in image viewer" Padding="0">
                                                 <Image Source="{Binding Analyzer.ResultImageSource}"
                                                        Stretch="Uniform" Margin="5"
-                                                       Visibility="{Binding Analyzer.HasResultImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                       Visibility="{Binding Analyzer.HasResultPreview, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                             </Button>
                                         </Grid>
                                     </Border>

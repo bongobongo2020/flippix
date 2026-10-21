@@ -241,9 +241,24 @@ namespace FlipPix.UI.Models
         /// <summary>
         /// Load thumbnail from output image path
         /// </summary>
-        protected void LoadThumbnail()
+        protected void LoadThumbnail() => LoadThumbnailFrom(_outputImagePath);
+
+        /// <summary>
+        /// Shows <paramref name="previewPath"/> as the thumbnail before the output itself exists
+        /// (e.g. a quick preview while the full image is still downloading). Setting
+        /// <see cref="OutputImagePath"/> later replaces it.
+        /// </summary>
+        public void ShowPreviewThumbnail(string previewPath)
         {
-            if (string.IsNullOrEmpty(_outputImagePath) || !File.Exists(_outputImagePath))
+            if (System.Windows.Application.Current?.Dispatcher?.CheckAccess() == false)
+                System.Windows.Application.Current.Dispatcher.Invoke(() => LoadThumbnailFrom(previewPath));
+            else
+                LoadThumbnailFrom(previewPath);
+        }
+
+        private void LoadThumbnailFrom(string? imagePath)
+        {
+            if (string.IsNullOrEmpty(imagePath) || !File.Exists(imagePath))
             {
                 ThumbnailImage = null;
                 StoryboardThumbnailImage = null;
@@ -254,7 +269,7 @@ namespace FlipPix.UI.Models
             {
                 var bitmap = new BitmapImage();
                 bitmap.BeginInit();
-                bitmap.UriSource = new Uri(_outputImagePath, UriKind.Absolute);
+                bitmap.UriSource = new Uri(imagePath, UriKind.Absolute);
                 bitmap.DecodePixelHeight = 60;
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
                 bitmap.EndInit();
@@ -270,7 +285,7 @@ namespace FlipPix.UI.Models
             {
                 var largeBitmap = new BitmapImage();
                 largeBitmap.BeginInit();
-                largeBitmap.UriSource = new Uri(_outputImagePath, UriKind.Absolute);
+                largeBitmap.UriSource = new Uri(imagePath, UriKind.Absolute);
                 largeBitmap.DecodePixelHeight = 220;
                 largeBitmap.CacheOption = BitmapCacheOption.OnLoad;
                 largeBitmap.EndInit();
@@ -292,7 +307,7 @@ namespace FlipPix.UI.Models
             {
                 if (!string.IsNullOrEmpty(OutputImagePath) && File.Exists(OutputImagePath))
                 {
-                    Process.Start(new ProcessStartInfo(OutputImagePath) { UseShellExecute = true });
+                    FlipPix.UI.Services.ImageOpener.Open(OutputImagePath);
                 }
             }
             catch (Exception ex)

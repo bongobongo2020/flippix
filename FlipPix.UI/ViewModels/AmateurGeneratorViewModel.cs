@@ -1419,11 +1419,7 @@ namespace FlipPix.UI.ViewModels
             {
                 if (!string.IsNullOrEmpty(ResultImagePath) && File.Exists(ResultImagePath))
                 {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = ResultImagePath,
-                        UseShellExecute = true
-                    });
+                    FlipPix.UI.Services.ImageOpener.Open(ResultImagePath);
                 }
             }
             catch (Exception ex)

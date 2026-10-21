@@ -1,0 +1,49 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FlipPix.UI.Linux.Windows.ImageViewerWindow"
+        Title="Image"
+        Width="1000" Height="760"
+        MinWidth="320" MinHeight="240"
+        Background="#1E1E1E"
+        WindowStartupLocation="CenterOwner">
+
+    <DockPanel>
+        <!-- Bottom bar: file info and zoom controls -->
+        <Border DockPanel.Dock="Bottom" Background="#2B2B2B" Padding="10,6">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
+                    <Button Content="−" Width="34" Click="ZoomOut_Click" ToolTip.Tip="Zoom out (−)"/>
+                    <Button Content="+" Width="34" Click="ZoomIn_Click" ToolTip.Tip="Zoom in (+)"/>
+                    <Button Content="Fit" Click="Fit_Click" ToolTip.Tip="Fit to window (F or 0)"/>
+                    <Button Content="100%" Click="Actual_Click" ToolTip.Tip="Actual size (1)"/>
+                </StackPanel>
+                <TextBlock x:Name="InfoText" Foreground="#CCCCCC" FontSize="12"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+            </DockPanel>
+        </Border>
+
+        <!-- The picture is placed on a canvas and moved with a transform, so zooming and
+             panning never re-run layout. Wheel zooms around the pointer, drag pans,
+             double-click toggles fit / actual size. -->
+        <Canvas x:Name="Viewport" ClipToBounds="True" Background="#1E1E1E" Focusable="True"
+                SizeChanged="Viewport_SizeChanged"
+                PointerWheelChanged="Viewport_PointerWheelChanged"
+                PointerPressed="Viewport_PointerPressed"
+                PointerMoved="Viewport_PointerMoved"
+                PointerReleased="Viewport_PointerReleased"
+                DoubleTapped="Viewport_DoubleTapped">
+            <Image x:Name="Picture" Stretch="Fill" IsHitTestVisible="False"
+                   RenderTransformOrigin="0,0"
+                   RenderOptions.BitmapInterpolationMode="HighQuality"/>
+        </Canvas>
+    </DockPanel>
+
+    <Window.Styles>
+        <Style Selector="Button">
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Padding" Value="10,0"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        </Style>
+    </Window.Styles>
+</Window>

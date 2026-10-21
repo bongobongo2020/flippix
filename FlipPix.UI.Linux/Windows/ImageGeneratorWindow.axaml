@@ -1641,7 +1641,7 @@
                                                        FontStyle="Italic"
                                                        FontSize="13"
                                                        Classes="s22"
-                                                       Classes.s22_0="{Binding !Analyzer.HasResultImage}">
+                                                       Classes.s22_0="{Binding !Analyzer.HasResultPreview}">
                                                 <TextBlock.Styles>
                                                     <Style Selector="TextBlock.s22.s22_0" x:DataType="vm:ImageGeneratorViewModel">
                                                         <Setter Property="IsVisible" Value="True"/>
@@ -1662,7 +1662,7 @@
                                                 <Image Source="{Binding Analyzer.ResultImageSource, Converter={StaticResource PathToBitmapConverter}}"
                                                        Stretch="Uniform"
                                                        Margin="5"
-                                                       IsVisible="{Binding Analyzer.HasResultImage}"/>
+                                                       IsVisible="{Binding Analyzer.HasResultPreview}"/>
                                             </Button>
                                         </Grid>
                                     </Border>
