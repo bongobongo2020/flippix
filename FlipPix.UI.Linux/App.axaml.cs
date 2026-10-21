@@ -91,22 +91,11 @@ public partial class App : Application
         Controls.Menus.Initialize();
         WindowsToolShims.Install(logger);
 
-        // A Chromebook's Linux apps can't launch the Gallery: the shell hands files to Chrome,
-        // which can't read the container's files. Show images in FlipPix's own viewer instead.
+        // A Chromebook's Linux apps can't reach the Gallery, the Files app or a video player: the
+        // shell hands files and folders to Chrome, which can't read the container's files. Show
+        // them in FlipPix's own viewers instead.
         if (DesktopIntegration.IsChromeOS)
-        {
-            ImageOpener.Handler = path =>
-            {
-                Dispatcher.UIThread.Post(() =>
-                {
-                    var owner = desktop.Windows.FirstOrDefault(w => w.IsActive) ?? desktop.MainWindow;
-                    var viewer = new ImageViewerWindow(path);
-                    if (owner != null && owner.IsVisible) viewer.Show(owner);
-                    else viewer.Show();
-                });
-                return true;
-            };
-        }
+            InAppViewers.Register();
 
         desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
         desktop.Exit += (_, _) =>

@@ -24,6 +24,10 @@ public class ImagePickerItem : INotifyPropertyChanged
     public string Name { get; init; } = "";
     public string FullPath { get; init; } = "";
     public bool IsDirectory { get; init; }
+    public bool IsVideo { get; init; }
+
+    /// <summary>Shown while there is no thumbnail.</summary>
+    public string PlaceholderGlyph => IsVideo ? "🎬" : "🖼";
 
     public Bitmap? Thumbnail
     {
@@ -68,8 +72,16 @@ public class ImagePickerRow
 /// </summary>
 public class ImagePickerViewModel : INotifyPropertyChanged, IDisposable
 {
-    private static readonly HashSet<string> ImageExts = new(StringComparer.OrdinalIgnoreCase)
-        { ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tiff", ".tif" };
+    /// <summary>List videos as well as images (the folder browser; the image picker doesn't).</summary>
+    public bool IncludeVideos { get; init; }
+
+    private string EmptyText => IncludeVideos ? "No pictures, videos or folders here." : "No images or folders here.";
+
+    /// <summary>A file to select and scroll to once the folder is shown ("show in folder").</summary>
+    public string? RevealPath { get; set; }
+
+    /// <summary>Asks the view to scroll the item at this index into view.</summary>
+    public event EventHandler<int>? ScrollToItemRequested;
 
     /// <summary>Source files read at once. The share is latency-bound, so overlapping reads is
     /// what makes it fast; more than this only splits the bandwidth.</summary>
@@ -226,7 +238,7 @@ public class ImagePickerViewModel : INotifyPropertyChanged, IDisposable
         if (cached != null)
         {
             ShowEntries(path, cached);
-            StatusText = cached.Count == 0 ? "No images or folders here." : "";
+            StatusText = _items.Count == 0 ? EmptyText : "";
             IsRefreshing = true;
         }
         FolderOpened?.Invoke(this, EventArgs.Empty);
@@ -267,7 +279,7 @@ public class ImagePickerViewModel : INotifyPropertyChanged, IDisposable
             ShowEntries(path, entries);
             _ = Task.Run(() => ListingCache.Save(path, entries));
         }
-        StatusText = entries.Count == 0 ? "No images or folders here." : "";
+        StatusText = _items.Count == 0 ? EmptyText : "";
     }
 
     /// <summary>Raised when a newly opened folder is first shown, so the view scrolls to the top.
@@ -288,10 +300,12 @@ public class ImagePickerViewModel : INotifyPropertyChanged, IDisposable
         foreach (var entry in entries)
         {
             var fullPath = Path.Combine(path, entry.Name);
+            var isVideo = !entry.IsDirectory && InAppViewers.IsVideo(entry.Name);
+            if (isVideo && !IncludeVideos) continue;
             if (existing.Remove(fullPath, out var keep) && keep.IsDirectory == entry.IsDirectory)
                 items.Add(keep);
             else
-                items.Add(new ImagePickerItem { Name = entry.Name, FullPath = fullPath, IsDirectory = entry.IsDirectory, IsCurrent = true });
+                items.Add(new ImagePickerItem { Name = entry.Name, FullPath = fullPath, IsDirectory = entry.IsDirectory, IsVideo = isVideo, IsCurrent = true });
         }
         foreach (var gone in existing.Values)
         {
@@ -301,6 +315,17 @@ public class ImagePickerViewModel : INotifyPropertyChanged, IDisposable
 
         Items = items;
         RebuildRows();
+
+        if (RevealPath != null)
+        {
+            var index = items.FindIndex(i => string.Equals(i.FullPath, RevealPath, StringComparison.Ordinal));
+            if (index >= 0)
+            {
+                RevealPath = null;
+                SelectedItem = items[index];
+                ScrollToItemRequested?.Invoke(this, index);
+            }
+        }
     }
 
     /// <summary>
@@ -326,7 +351,8 @@ public class ImagePickerViewModel : INotifyPropertyChanged, IDisposable
             if (entry.Name.StartsWith('.')) continue;
             if (entry.IsDirectory)
                 dirs.Add(entry);
-            else if (ImageExts.Contains(Path.GetExtension(entry.Name)))
+            // Videos are listed (and cached) too; ShowEntries leaves them out of the image picker.
+            else if (InAppViewers.IsImage(entry.Name) || InAppViewers.IsVideo(entry.Name))
                 files.Add(entry);
         }
 
@@ -596,6 +622,9 @@ internal static class ThumbnailCache
     /// </summary>
     public static Bitmap? Create(string sourcePath, ThumbMeta? cachedMeta, Func<bool> abandoned)
     {
+        if (InAppViewers.IsVideo(sourcePath))
+            return CreateForVideo(sourcePath, cachedMeta);
+
         byte[] data;
         ThumbMeta meta;
         // bufferSize 1 = unbuffered: FileStream's default 4 KB buffer would split the read into
@@ -623,6 +652,55 @@ internal static class ThumbnailCache
 
         Save(sourcePath, bmp, meta);
         return bmp;
+    }
+
+    /// <summary>A frame from early in the video, via ffmpeg, which reads only the start of the file.
+    /// Null if ffmpeg isn't installed or can't decode it.</summary>
+    private static Bitmap? CreateForVideo(string sourcePath, ThumbMeta? cachedMeta)
+    {
+        var info = new FileInfo(sourcePath);
+        var meta = new ThumbMeta(info.Length, info.LastWriteTimeUtc.Ticks);
+        if (cachedMeta == meta) return null;
+
+        var ffmpeg = MediaTools.FFmpegPath;
+        if (ffmpeg == null) throw new InvalidOperationException("ffmpeg is not installed");
+
+        // A second in skips a fade from black; a clip shorter than that gets its first frame.
+        var png = ExtractFrame(ffmpeg, sourcePath, "1") ?? ExtractFrame(ffmpeg, sourcePath, "0")
+                  ?? throw new InvalidDataException("ffmpeg produced no frame");
+        Bitmap bmp;
+        using (var ms = new MemoryStream(png, writable: false))
+            bmp = new Bitmap(ms);
+        Save(sourcePath, bmp, meta);
+        return bmp;
+    }
+
+    private static byte[]? ExtractFrame(string ffmpeg, string sourcePath, string seekSeconds)
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo(ffmpeg)
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+        };
+        foreach (var arg in new[] { "-v", "error", "-ss", seekSeconds, "-i", sourcePath, "-frames:v", "1",
+                     "-vf", $"scale={ThumbWidth}:-2", "-f", "image2pipe", "-vcodec", "png", "pipe:1" })
+            psi.ArgumentList.Add(arg);
+
+        using var process = System.Diagnostics.Process.Start(psi);
+        if (process == null) return null;
+        process.ErrorDataReceived += (_, _) => { }; // drain stderr so ffmpeg can't block on it
+        process.BeginErrorReadLine();
+        using var output = new MemoryStream();
+        // Bounded: on a stalled share ffmpeg can wait on the file indefinitely.
+        var copy = process.StandardOutput.BaseStream.CopyToAsync(output);
+        if (!copy.Wait(120_000) || !process.WaitForExit(10_000))
+        {
+            try { process.Kill(); } catch { }
+            return null;
+        }
+        return output.Length > 0 ? output.ToArray() : null;
     }
 
     private static void Save(string sourcePath, Bitmap bmp, ThumbMeta meta)

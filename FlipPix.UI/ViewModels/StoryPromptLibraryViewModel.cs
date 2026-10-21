@@ -733,7 +733,7 @@ namespace FlipPix.UI.ViewModels
             if (string.IsNullOrWhiteSpace(path)) return;
             try
             {
-                System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{path}\"");
+                FlipPix.UI.Services.FolderOpener.Reveal(path);
             }
             catch (Exception ex)
             {
@@ -747,7 +747,7 @@ namespace FlipPix.UI.ViewModels
             try
             {
                 Directory.CreateDirectory(_store.RootFolder);
-                System.Diagnostics.Process.Start("explorer.exe", _store.RootFolder);
+                FlipPix.UI.Services.FolderOpener.Open(_store.RootFolder);
             }
             catch (Exception ex)
             {

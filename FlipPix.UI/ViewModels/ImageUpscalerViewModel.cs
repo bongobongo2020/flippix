@@ -928,12 +928,12 @@ namespace FlipPix.UI.ViewModels
         {
             if (!string.IsNullOrEmpty(ResultImagePath) && File.Exists(ResultImagePath))
             {
-                Process.Start("explorer.exe", $"/select,\"{ResultImagePath}\"");
+                FlipPix.UI.Services.FolderOpener.Reveal(ResultImagePath);
                 return;
             }
             var folder = EffectiveOutputFolder;
             if (Directory.Exists(folder))
-                Process.Start("explorer.exe", $"\"{folder}\"");
+                FlipPix.UI.Services.FolderOpener.Open(folder);
         }
 
         private void OpenResultImage()

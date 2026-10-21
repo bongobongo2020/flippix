@@ -760,11 +760,7 @@ namespace FlipPix.UI.ViewModels
                 var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", OutputFolderName);
                 if (Directory.Exists(outputDir))
                 {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = outputDir,
-                        UseShellExecute = true
-                    });
+                    FlipPix.UI.Services.FolderOpener.Open(outputDir);
                 }
                 else
                 {
@@ -1029,7 +1025,7 @@ namespace FlipPix.UI.ViewModels
                     $"Saved {completedItems.Count} images + prompts.txt\n\n{finalFolderPath}",
                     "Storyboard Saved", MessageBoxButton.OK, MessageBoxImage.Information);
 
-                Process.Start(new ProcessStartInfo { FileName = finalFolderPath, UseShellExecute = true });
+                FlipPix.UI.Services.FolderOpener.Open(finalFolderPath);
             }
             catch (Exception ex)
             {

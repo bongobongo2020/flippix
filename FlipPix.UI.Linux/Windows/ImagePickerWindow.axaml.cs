@@ -17,20 +17,45 @@ public partial class ImagePickerWindow : Window
     private readonly ImagePickerViewModel _vm;
     private readonly Dictionary<Control, ImagePickerRow> _shownRows = new();
 
-    public ImagePickerWindow(string? startDirectory = null)
+    /// <summary>Tile height (148) plus its 4px margin above and below.</summary>
+    private const double RowSlot = 156;
+
+    // Folder browser (ChromeOS's stand-in for the Files app) rather than "pick an image".
+    private readonly bool _browsing;
+
+    public ImagePickerWindow(string? startDirectory = null) : this(startDirectory, browsing: false, revealPath: null) { }
+
+    private ImagePickerWindow(string? startDirectory, bool browsing, string? revealPath)
     {
         InitializeComponent();
-        _vm = new ImagePickerViewModel();
+        _browsing = browsing;
+        _vm = new ImagePickerViewModel { IncludeVideos = browsing, RevealPath = revealPath };
         _vm.FolderOpened += Vm_FolderOpened;
+        _vm.ScrollToItemRequested += Vm_ScrollToItemRequested;
+        if (browsing)
+        {
+            Title = "FlipPix: " + (System.IO.Path.GetFileName(System.IO.Path.TrimEndingDirectorySeparator(startDirectory ?? "")) is { Length: > 0 } name ? name : "Folder");
+            this.FindControl<Button>("OkButton")!.IsVisible = false;
+            this.FindControl<Button>("CancelButton")!.Content = "Close";
+            this.FindControl<TextBlock>("SelectedLabel")!.IsVisible = false;
+            this.FindControl<TextBox>("SelectedBox")!.IsVisible = false;
+            this.FindControl<TextBlock>("BrowseHint")!.IsVisible = true;
+        }
         DataContext = _vm;
         _vm.Initialize(startDirectory);
     }
+
+    /// <summary>A window that browses <paramref name="folder"/> (pictures and videos, opened in
+    /// FlipPix's viewers) with <paramref name="revealPath"/> selected when given.</summary>
+    public static ImagePickerWindow ForBrowsing(string folder, string? revealPath = null)
+        => new(folder, browsing: true, revealPath);
 
     private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 
     protected override void OnClosed(EventArgs e)
     {
         _vm.FolderOpened -= Vm_FolderOpened;
+        _vm.ScrollToItemRequested -= Vm_ScrollToItemRequested;
         _vm.Dispose();
         base.OnClosed(e);
     }
@@ -40,6 +65,18 @@ public partial class ImagePickerWindow : Window
         // A new folder starts at the top; a refresh or a re-flow on resize keeps the position.
         if (this.FindControl<ScrollViewer>("GridScroller") is { } scroller)
             scroller.Offset = default;
+    }
+
+    private void Vm_ScrollToItemRequested(object? sender, int index)
+    {
+        // After layout, so the scroller knows the new extent; the item's row is centred.
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            if (this.FindControl<ScrollViewer>("GridScroller") is not { } scroller) return;
+            var row = index / Math.Max(1, _vm.Columns);
+            var y = 8 + row * RowSlot - (scroller.Viewport.Height - RowSlot) / 2;
+            scroller.Offset = new Vector(0, Math.Max(0, y));
+        }, Avalonia.Threading.DispatcherPriority.Background);
     }
 
     private void GridScroller_SizeChanged(object? sender, SizeChangedEventArgs e)
@@ -86,6 +123,18 @@ public partial class ImagePickerWindow : Window
         if ((sender as Control)?.DataContext is not ImagePickerItem item) return;
         if (item.IsDirectory)
             _vm.CurrentPath = item.FullPath;
+        else if (_browsing)
+        {
+            _vm.SelectedItem = item;
+            if (item.IsVideo)
+            {
+                if (!FlipPix.UI.Services.InAppViewers.PlayVideo(item.FullPath))
+                    System.Windows.MessageBox.Show("Video playback needs VLC. Install it with: sudo apt install vlc",
+                        "Can't play video", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+            }
+            else
+                FlipPix.UI.Services.InAppViewers.ShowImage(item.FullPath);
+        }
         else
         {
             _vm.SelectedItem = item;
