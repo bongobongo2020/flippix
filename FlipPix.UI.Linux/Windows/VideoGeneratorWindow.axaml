@@ -5808,15 +5808,33 @@
                                                    TextWrapping="Wrap"
                                                    FontSize="10"
                                                    Foreground="{StaticResource TextMutedBrush}"/>
+                                        <!-- Analyze & Queue: freezes this card into its own queue row and writes that
+                                             row's prompt in the background. See MiniMaxI2VViewModel.Analysis.cs. -->
+                                        <Button Command="{Binding AnalyzeAndQueueCommand}"
+                                                HorizontalAlignment="Stretch"
+                                                HorizontalContentAlignment="Center"
+                                                Height="40"
+                                                FontSize="13"
+                                                FontWeight="Bold"
+                                                Margin="0,0,0,4"
+                                                Theme="{StaticResource AccentButtonStyle}"
+                                                Content="✨  Analyze &amp; Queue"
+                                                ToolTip.Tip="Freezes the pictures, the prompt box (as the idea) and every setting into a new queue row, writes its Ref2VA prompt in the background, and starts rendering as soon as the prompt is ready — unless something is already rendering, in which case it waits its turn.&#10;&#10;The tab is free again immediately: load the next picture and press it again. Each press is its own row."/>
+                                        <TextBlock Text="Each press becomes its own queue row — load the next picture right away."
+                                                   FontSize="10"
+                                                   TextWrapping="Wrap"
+                                                   HorizontalAlignment="Center"
+                                                   Margin="0,0,0,8"
+                                                   Foreground="{StaticResource TextMutedBrush}"/>
                                         <StackPanel Orientation="Horizontal">
-                                            <Button Content="🔍 Analyze → Ref2VA"
+                                            <Button Content="✎ Write prompt"
                                                     Command="{Binding AnalyzeCommand}"
                                                     IsEnabled="{Binding CanAnalyze}"
-                                                    Height="32"
+                                                    Height="30"
                                                     Padding="14,0"
                                                     FontSize="11"
-                                                    Theme="{StaticResource AccentButtonStyle}"
-                                                    ToolTip.Tip="Sends every filled reference picture — plus whatever is in the prompt box as a draft idea — to the llama-server and writes the six-field Ref2VA prompt: subject_definitions, summary, retention_analysis, detailed_description, overall_soundscape and non_diegetic_music.&#10;&#10;With continuations queued it writes one block per segment in the same reply and drops each into its own box, so the whole take is paced in one pass."/>
+                                                    Theme="{StaticResource AccentOutlineButtonStyle}"
+                                                    ToolTip.Tip="Writes the six-field Ref2VA prompt into the prompt box (and one block per continuation into its own box) so you can read or edit it before queuing — nothing is queued. Use Add to Queue afterwards."/>
                                             <TextBlock FontStyle="Italic"
                                                        FontSize="11"
                                                        VerticalAlignment="Center"
