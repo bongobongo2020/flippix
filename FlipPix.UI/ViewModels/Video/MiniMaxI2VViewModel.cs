@@ -2581,11 +2581,15 @@ namespace FlipPix.UI.ViewModels.Video
         #region Submission
 
         /// <summary>Submits the workflow, waits for completion, and resolves the chosen video sink's output
-        /// to a local file — first via /history node outputs, then a disk scan for the run token.</summary>
+        /// to a local file — first via /history node outputs, then a look for the run token on disk.
+        ///
+        /// <para>No snapshot of the output folder is taken before submitting: the run token is unique, so
+        /// the fallback only has to find that one name. Listing the whole output tree up front was what
+        /// held a take back for minutes on ChromeOS, where the Linux container reaches the server's share
+        /// through the host's file bridge and every directory entry is a round trip.</para></summary>
         private async Task<string?> SubmitAndRetrieveAsync(
             string json, string runToken, string outputNode, double estimatedSeconds, CancellationToken token)
         {
-            var existing = GetExistingVideoFiles("*.mp4", OutputSubfolder);
             var promptId = await SubmitAsync(json, estimatedSeconds, token);
 
             _progressTracker.SetPhase("Fetching the finished video...");
@@ -2597,12 +2601,16 @@ namespace FlipPix.UI.ViewModels.Video
                 if (local != null) return local;
             }
 
-            // Fallback: wait for a new mp4 carrying this run's token in the output subfolder.
-            var found = await WaitForNewVideoAsync(existing, "*.mp4",
-                TimeSpan.FromMinutes(90), TimeSpan.FromSeconds(4), OutputSubfolder);
-            if (found != null && Path.GetFileName(found).IndexOf(runToken, StringComparison.OrdinalIgnoreCase) >= 0)
-                return found;
-            return found ?? FindTokenFileOnDisk(runToken);
+            // Fallback: the run has finished, so its file is on disk or about to be — look for this run's
+            // token in the one folder the sink writes to, briefly, off the UI thread.
+            var deadline = DateTime.UtcNow + TimeSpan.FromMinutes(2);
+            while (true)
+            {
+                var found = await Task.Run(() => FindTokenFileOnDisk(runToken), token);
+                if (found != null) return found;
+                if (DateTime.UtcNow >= deadline) return null;
+                await Task.Delay(TimeSpan.FromSeconds(4), token);
+            }
         }
 
         /// <summary>
@@ -2677,14 +2685,15 @@ namespace FlipPix.UI.ViewModels.Video
                 var outputFolder = settings.ResolveOutputFolder(isRemote);
                 if (string.IsNullOrEmpty(outputFolder)) return null;
 
-                var candidates = new List<string>();
-                foreach (var folder in new[] { outputFolder, Path.Combine(outputFolder, OutputSubfolder) })
-                {
-                    if (Directory.Exists(folder))
-                        candidates.AddRange(Directory.GetFiles(folder, "*.mp4", SearchOption.AllDirectories)
-                            .Where(f => Path.GetFileName(f).IndexOf(runToken, StringComparison.OrdinalIgnoreCase) >= 0));
-                }
-                return candidates.OrderByDescending(File.GetLastWriteTime).FirstOrDefault();
+                // Only the folder the sink's filename_prefix names, not the whole output tree: over a slow
+                // share a recursive listing of every take ever rendered costs minutes.
+                var folder = Path.Combine(outputFolder, OutputSubfolder);
+                if (!Directory.Exists(folder)) return null;
+                // VHS writes a silent copy beside the muxed one; the take is the one with sound.
+                return Directory.EnumerateFiles(folder, $"*{runToken}*.mp4", SearchOption.TopDirectoryOnly)
+                    .OrderByDescending(f => f.EndsWith("-audio.mp4", StringComparison.OrdinalIgnoreCase))
+                    .ThenByDescending(File.GetLastWriteTime)
+                    .FirstOrDefault();
             }
             catch (Exception ex)
             {
