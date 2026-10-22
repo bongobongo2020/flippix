@@ -4081,13 +4081,24 @@
                             <Grid.Resources>
                                 <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource AccentAmberColor}"/>
 
-                                <!-- One reference picture tile. Shared by slots 1–4 and Ultra's slots 5–9. -->
+                                <!-- One reference picture tile. Picture 1 is shown on its own, taller; the rest
+                                     share it behind "More references". -->
                                 <DataTemplate x:Key="I2VReferenceTileTemplate">
                                     <Border Margin="0,0,6,6" CornerRadius="6" BorderThickness="1"
                                             BorderBrush="{StaticResource BorderBrush}"
                                             Background="{StaticResource SurfaceAltBrush}">
                                         <StackPanel>
-                                            <Grid Height="84">
+                                            <Grid>
+                                                <Grid.Style>
+                                                    <Style TargetType="Grid">
+                                                        <Setter Property="Height" Value="84"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Slot}" Value="1">
+                                                                <Setter Property="Height" Value="170"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Grid.Style>
                                                 <TextBlock Text="empty"
                                                            HorizontalAlignment="Center" VerticalAlignment="Center"
                                                            FontSize="10" Foreground="{StaticResource TextMutedBrush}">
@@ -4119,12 +4130,12 @@
                                                 <Button Grid.Column="0" Content="Browse…" Height="24" FontSize="10" Padding="6,0"
                                                         Background="{StaticResource SurfaceBrush}" Foreground="{DynamicResource TabAccentBrush}"
                                                         BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                        Command="{Binding DataContext.BrowseReferenceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        Command="{Binding DataContext.BrowseReferenceCommand, RelativeSource={RelativeSource AncestorType=ScrollViewer}}"
                                                         CommandParameter="{Binding}"/>
                                                 <Button Grid.Column="1" Content="✕" Width="24" Height="24" FontSize="9" Padding="0" Margin="4,0,0,0"
                                                         Style="{StaticResource SecondaryButtonStyle}"
                                                         Visibility="{Binding HasImage, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                        Command="{Binding DataContext.ClearReferenceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        Command="{Binding DataContext.ClearReferenceCommand, RelativeSource={RelativeSource AncestorType=ScrollViewer}}"
                                                         CommandParameter="{Binding}"/>
                                             </Grid>
                                         </StackPanel>
@@ -4258,32 +4269,28 @@
 
                                                 <ctrl:SectionHeader Title="REFERENCE PICTURES" Note="{Binding ReferenceLimitNote}" Margin="0,0,0,8"
                                                                     ToolTip="These are references, not the frame at 0.00s: they tell H3 how the subjects and the set look, and the prompt says what happens. Slot order is the &lt;Picture N&gt; numbering the prompt refers to."/>
-                                                <ItemsControl ItemsSource="{Binding References}" ItemTemplate="{StaticResource I2VReferenceTileTemplate}">
-                                                    <ItemsControl.ItemsPanel>
-                                                        <ItemsPanelTemplate>
-                                                            <UniformGrid Columns="2"/>
-                                                        </ItemsPanelTemplate>
-                                                    </ItemsControl.ItemsPanel>
-                                                </ItemsControl>
+                                                <ContentControl Content="{Binding FirstReference}" ContentTemplate="{StaticResource I2VReferenceTileTemplate}"
+                                                                Margin="0,0,-6,0" Focusable="False"/>
 
-                                                <!-- 💎 Ultra takes nine pictures plus audio and video; folded away until wanted. -->
-                                                <StackPanel Visibility="{Binding IsUltra, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                    <ToggleButton IsChecked="{Binding ShowMoreReferences}" Style="{StaticResource I2VDisclosureStyle}" Padding="10,6" Margin="0,0,0,6">
-                                                        <TextBlock FontSize="11" Foreground="{StaticResource TextPrimaryBrush}">
-                                                            <Run Text="More references"/>
-                                                            <Run Text=" · pictures 5–9, audio, video" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
-                                                        </TextBlock>
-                                                    </ToggleButton>
-                                                    <StackPanel Visibility="{Binding ShowMoreReferences, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <!-- Pictures 2–4 (2–9 on 💎 Ultra) and Ultra's audio and video, folded away until wanted. -->
+                                                <ToggleButton IsChecked="{Binding ShowMoreReferences}" Style="{StaticResource I2VDisclosureStyle}" Padding="10,6" Margin="0,2,0,6">
+                                                    <TextBlock FontSize="11" Foreground="{StaticResource TextPrimaryBrush}">
+                                                        <Run Text="More references"/>
+                                                        <Run Text=" · " FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                                                        <Run Text="{Binding MoreReferencesNote, Mode=OneWay}" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                                                    </TextBlock>
+                                                </ToggleButton>
+                                                <StackPanel Visibility="{Binding ShowMoreReferences, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <ItemsControl ItemsSource="{Binding MoreReferences}" ItemTemplate="{StaticResource I2VReferenceTileTemplate}">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <UniformGrid Columns="2"/>
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                    </ItemsControl>
+                                                    <StackPanel Visibility="{Binding IsUltra, Converter={StaticResource BooleanToVisibilityConverter}}">
                                                         <TextBlock TextWrapping="Wrap" Margin="0,0,0,6" FontSize="10" Foreground="{StaticResource TextMutedBrush}"
                                                                    Text="Up to 3 audio and 3 video clips, each 2–15 s and 15 s in total; at most 12 files across pictures, audio and video. Audio gives a voice, never the only reference."/>
-                                                        <ItemsControl ItemsSource="{Binding ExtraReferences}" ItemTemplate="{StaticResource I2VReferenceTileTemplate}">
-                                                            <ItemsControl.ItemsPanel>
-                                                                <ItemsPanelTemplate>
-                                                                    <UniformGrid Columns="2"/>
-                                                                </ItemsPanelTemplate>
-                                                            </ItemsControl.ItemsPanel>
-                                                        </ItemsControl>
                                                         <TextBlock Text="Reference audio" FontSize="10" FontWeight="SemiBold" Margin="0,4,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
                                                         <ItemsControl ItemsSource="{Binding AudioReferences}">
                                                             <ItemsControl.ItemTemplate>
