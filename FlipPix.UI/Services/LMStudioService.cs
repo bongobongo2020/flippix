@@ -135,12 +135,17 @@ namespace FlipPix.UI.Services
             await _semaphore.WaitAsync(cancellationToken);
             try
             {
-                if (!File.Exists(imagePath))
+                // Off the caller's (UI) thread: on a slow network share the check and the read
+                // can take minutes and would freeze the window.
+                var imageBytes = await Task.Run(() =>
                 {
-                    throw new FileNotFoundException($"Image file not found: {imagePath}");
-                }
+                    if (!File.Exists(imagePath))
+                    {
+                        throw new FileNotFoundException($"Image file not found: {imagePath}");
+                    }
 
-                var imageBytes = ResizeImageForVision(imagePath, 512, 512, useJpeg: true);
+                    return ResizeImageForVision(imagePath, 512, 512, useJpeg: true);
+                }, cancellationToken);
                 var base64Image = Convert.ToBase64String(imageBytes);
                 var dataUrl = $"data:image/jpeg;base64,{base64Image}";
 
@@ -250,19 +255,21 @@ namespace FlipPix.UI.Services
             await _semaphore.WaitAsync(cancellationToken);
             try
             {
-                if (!File.Exists(firstImagePath))
-                    throw new FileNotFoundException($"First frame image not found: {firstImagePath}");
-                if (!File.Exists(lastImagePath))
-                    throw new FileNotFoundException($"Last frame image not found: {lastImagePath}");
-
                 string ToDataUrl(string path)
                 {
                     var bytes = ResizeImageForVision(path, 512, 512, useJpeg: true);
                     return $"data:image/jpeg;base64,{Convert.ToBase64String(bytes)}";
                 }
 
-                var firstDataUrl = ToDataUrl(firstImagePath);
-                var lastDataUrl  = ToDataUrl(lastImagePath);
+                // Off the caller's (UI) thread: on a slow network share this can take minutes.
+                var (firstDataUrl, lastDataUrl) = await Task.Run(() =>
+                {
+                    if (!File.Exists(firstImagePath))
+                        throw new FileNotFoundException($"First frame image not found: {firstImagePath}");
+                    if (!File.Exists(lastImagePath))
+                        throw new FileNotFoundException($"Last frame image not found: {lastImagePath}");
+                    return (ToDataUrl(firstImagePath), ToDataUrl(lastImagePath));
+                }, cancellationToken);
 
                 _logger.LogInfo($"Sending 2 images (first={Path.GetFileName(firstImagePath)}, last={Path.GetFileName(lastImagePath)}, resized 512px, max_tokens={maxTokens}) to {DescribeTarget(modelName)}");
 
@@ -347,12 +354,17 @@ namespace FlipPix.UI.Services
             await _semaphore.WaitAsync(cancellationToken);
             try
             {
-                if (!File.Exists(imagePath))
+                // Off the caller's (UI) thread: on a slow network share the check and the read
+                // can take minutes and would freeze the window.
+                var imageBytes = await Task.Run(() =>
                 {
-                    throw new FileNotFoundException($"Image file not found: {imagePath}");
-                }
+                    if (!File.Exists(imagePath))
+                    {
+                        throw new FileNotFoundException($"Image file not found: {imagePath}");
+                    }
 
-                var imageBytes = ResizeImageForVision(imagePath, 512, 512, useJpeg: true);
+                    return ResizeImageForVision(imagePath, 512, 512, useJpeg: true);
+                }, cancellationToken);
                 var base64Image = Convert.ToBase64String(imageBytes);
                 var dataUrl = $"data:image/jpeg;base64,{base64Image}";
 
@@ -754,13 +766,13 @@ namespace FlipPix.UI.Services
                 var contentParts = new List<object>();
                 contentParts.Add(new { type = "text", text = SuppressThinking(userPrompt, modelName) });
 
-                foreach (var imagePath in imagePaths)
-                {
-                    if (!File.Exists(imagePath)) continue;
-                    var bytes = ResizeImageForVision(imagePath, 512, 512, useJpeg: true);
-                    var dataUrl = $"data:image/jpeg;base64,{Convert.ToBase64String(bytes)}";
+                // Off the caller's (UI) thread: on a slow network share this can take minutes.
+                var dataUrls = await Task.Run(() => imagePaths
+                    .Where(File.Exists)
+                    .Select(imagePath => $"data:image/jpeg;base64,{Convert.ToBase64String(ResizeImageForVision(imagePath, 512, 512, useJpeg: true))}")
+                    .ToList(), cancellationToken);
+                foreach (var dataUrl in dataUrls)
                     contentParts.Add(new { type = "image_url", image_url = new { url = dataUrl } });
-                }
 
                 _logger.LogInfo($"Sending {contentParts.Count - 1} image(s) with system prompt (max_tokens: {maxTokens}) to {DescribeTarget(modelName)}");
 

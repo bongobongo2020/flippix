@@ -500,8 +500,13 @@ namespace FlipPix.UI.ViewModels
             {
                 _resultImageSource = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(HasResultPreview));
             }
         }
+
+        /// <summary>Whether the result panel has an image to show. Unlike <see cref="HasResultImage"/>
+        /// this includes a preview whose full-quality file is still downloading.</summary>
+        public bool HasResultPreview => _resultImageSource != null;
 
         public string ImageInfo
         {
@@ -1586,29 +1591,40 @@ namespace FlipPix.UI.ViewModels
             if (filePath != null)
             {
                 SourceImagePath = filePath;
-                LoadSourceImagePreview(filePath);
+                SourceImageSource = null;
                 HasSourceImage = true;
-                StatusBarMessage = $"Loaded: {Path.GetFileName(filePath)}";
+                StatusBarMessage = $"Loading preview: {Path.GetFileName(filePath)}…";
                 _logger.LogInfo($"Image selected: {filePath}");
+                await LoadSourceImagePreviewAsync(filePath);
             }
         }
 
-        private void LoadSourceImagePreview(string imagePath)
+        private async Task LoadSourceImagePreviewAsync(string imagePath)
         {
             try
             {
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.UriSource = new Uri(imagePath, UriKind.Absolute);
-                bitmap.EndInit();
-                bitmap.Freeze();
+                // Decoded off the UI thread: from a network share the read can take minutes, and
+                // doing it inline froze the whole window. Frozen, the bitmap can cross threads.
+                var bitmap = await Task.Run(() =>
+                {
+                    var b = new BitmapImage();
+                    b.BeginInit();
+                    b.CacheOption = BitmapCacheOption.OnLoad;
+                    b.UriSource = new Uri(imagePath, UriKind.Absolute);
+                    b.EndInit();
+                    b.Freeze();
+                    return b;
+                });
 
+                // Another image may have been picked while this one was loading.
+                if (SourceImagePath != imagePath) return;
                 SourceImageSource = bitmap;
+                StatusBarMessage = $"Loaded: {Path.GetFileName(imagePath)}";
                 _logger.LogInfo("Source image preview loaded");
             }
             catch (Exception ex)
             {
+                if (SourceImagePath != imagePath) return;
                 _logger.LogError($"Error loading source image preview: {ex.Message}");
                 System.Windows.MessageBox.Show($"Error loading image:\n{ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }
@@ -2175,6 +2191,7 @@ namespace FlipPix.UI.ViewModels
                     IsGenerating = true;
                     HasResultImage = false;
                     ResultImageSource = null;
+                    _resultPreviewItem = null;
                 });
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
@@ -2385,13 +2402,15 @@ namespace FlipPix.UI.ViewModels
                     item.Progress = 95;
                 });
 
-                // Give ComfyUI time to save the image
-                _logger.LogInfo("Waiting for image to be saved...");
-                await Task.Delay(3000, cancellationToken);
+                // No fixed wait: ComfyUI records the history before it reports the prompt finished,
+                // and the retry loop below covers a slow file system.
 
                 // First, try to get the specific output file from this prompt's history
                 _logger.LogInfo($"Getting output file for prompt ID: {promptId}");
                 List<byte[]> outputImages = new();
+                // Set when outputImages holds only a preview of this remote file.
+                string? pendingRemoteFile = null;
+                string pendingRemoteSubfolder = "";
                 int retryCount = 0;
                 int maxRetries = 8;
 
@@ -2406,11 +2425,13 @@ namespace FlipPix.UI.ViewModels
                     cancellationToken.ThrowIfCancellationRequested();
 
                     // Try to get the specific file from this prompt's history first
-                    outputImages = await GetOutputImageFromPromptHistory(promptId, item.SelectedWorkflow);
+                    (outputImages, pendingRemoteFile, pendingRemoteSubfolder) =
+                        await GetOutputImageFromPromptHistory(promptId, item.SelectedWorkflow);
 
                     // Fallback to scanning output folder if history lookup fails
                     if (!outputImages.Any())
                     {
+                        pendingRemoteFile = null;
                         _logger.LogInfo("History lookup failed, falling back to folder scan...");
                         outputImages = await GetMostRecentImageFromOutput(item.SelectedWorkflow);
                     }
@@ -2442,6 +2463,12 @@ namespace FlipPix.UI.ViewModels
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");
+
+                    if (pendingRemoteFile != null)
+                    {
+                        await ShowPreviewAndFetchFullImageAsync(item, outputImage, outputPath, pendingRemoteFile, pendingRemoteSubfolder);
+                        return;
+                    }
 
                     await File.WriteAllBytesAsync(outputPath, outputImage);
                     await LocalCopyService.CopyImageAsync(outputPath);
@@ -3843,7 +3870,12 @@ namespace FlipPix.UI.ViewModels
             return dimensions[Math.Min(aspectRatioIndex, dimensions.Length - 1)];
         }
 
-        private async Task<List<byte[]>> GetOutputImageFromPromptHistory(string promptId, TextGeneratorWorkflow workflow)
+        /// <summary>
+        /// The output image recorded in this prompt's history. From a remote ComfyUI it is a small
+        /// re-encoded preview and <c>RemoteFilename</c> names the full PNG still to download (see
+        /// <see cref="FinishFullImageDownloadAsync"/>); null there means the bytes are the original.
+        /// </summary>
+        private async Task<(List<byte[]> Images, string? RemoteFilename, string RemoteSubfolder)> GetOutputImageFromPromptHistory(string promptId, TextGeneratorWorkflow workflow)
         {
             var images = new List<byte[]>();
 
@@ -3871,7 +3903,7 @@ namespace FlipPix.UI.ViewModels
                 if (!response.IsSuccessStatusCode)
                 {
                     _logger.LogWarning($"History request failed with status: {response.StatusCode}");
-                    return images;
+                    return (images, null, "");
                 }
 
                 var responseContent = await response.Content.ReadAsStringAsync();
@@ -3882,7 +3914,7 @@ namespace FlipPix.UI.ViewModels
                 if (historyData == null || !historyData.ContainsKey(promptId))
                 {
                     _logger.LogWarning($"Prompt ID {promptId} not found in history response");
-                    return images;
+                    return (images, null, "");
                 }
 
                 var promptData = historyData[promptId];
@@ -3891,7 +3923,7 @@ namespace FlipPix.UI.ViewModels
                 if (!promptData.TryGetProperty("outputs", out var outputs))
                 {
                     _logger.LogWarning("Prompt data found but no 'outputs' property");
-                    return images;
+                    return (images, null, "");
                 }
 
                 _logger.LogInfo("Found 'outputs' property in prompt data");
@@ -3924,13 +3956,24 @@ namespace FlipPix.UI.ViewModels
 
                                     if (isRemoteComfyUI)
                                     {
+                                        // Over a slow link the PNG can take a minute; fetch a re-encoded
+                                        // copy (~10x smaller) to show now and get the PNG afterwards.
+                                        var preview = await _comfyUIService.HttpClient.DownloadOutputImageAsync(
+                                            filename, subfolder, preview: PreviewFormat);
+                                        if (preview != null)
+                                        {
+                                            images.Add(preview);
+                                            _logger.LogInfo($"Downloaded preview from prompt history ({preview.Length} bytes); full image follows in the background");
+                                            return (images, filename, subfolder);
+                                        }
+
                                         // Download via HTTP
                                         var imageData = await _comfyUIService.HttpClient.DownloadOutputImageAsync(filename, subfolder);
                                         if (imageData != null)
                                         {
                                             images.Add(imageData);
                                             _logger.LogInfo($"Successfully downloaded image from prompt history ({imageData.Length} bytes)");
-                                            return images; // Return immediately with the specific image
+                                            return (images, null, ""); // Return immediately with the specific image
                                         }
                                     }
                                     else
@@ -3950,7 +3993,7 @@ namespace FlipPix.UI.ViewModels
                                                 var imageData = await File.ReadAllBytesAsync(fullPath);
                                                 images.Add(imageData);
                                                 _logger.LogInfo($"Successfully loaded image from local path ({imageData.Length} bytes)");
-                                                return images;
+                                                return (images, null, "");
                                             }
                                         }
                                     }
@@ -3967,7 +4010,7 @@ namespace FlipPix.UI.ViewModels
                 _logger.LogError($"Error getting output from prompt history: {ex.Message}");
             }
 
-            return images;
+            return (images, null, "");
         }
 
         private async Task<List<byte[]>> GetMostRecentImageFromOutput(TextGeneratorWorkflow workflow)
@@ -4424,6 +4467,7 @@ namespace FlipPix.UI.ViewModels
             if (item == null || string.IsNullOrEmpty(item.OutputImagePath) || !File.Exists(item.OutputImagePath))
                 return;
 
+            _resultPreviewItem = null;
             ResultImagePath = item.OutputImagePath;
             LoadResultPreview(item.OutputImagePath);
             HasResultImage = true;
@@ -4441,15 +4485,116 @@ namespace FlipPix.UI.ViewModels
         {
             try
             {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = imagePath,
-                    UseShellExecute = true
-                });
+                FlipPix.UI.Services.ImageOpener.Open(imagePath);
             }
             catch (Exception ex)
             {
                 _logger.LogError($"Error opening image in default viewer: {ex.Message}");
+            }
+        }
+
+        /// <summary>The preview format asked of ComfyUI. WebP is smallest, but WPF can only decode
+        /// it when Windows has the WebP codec, so Windows gets JPEG.</summary>
+        private static string PreviewFormat => OperatingSystem.IsWindows() ? "jpeg;90" : "webp;90";
+
+        // The queue item whose preview the result panel is showing while its PNG downloads.
+        private ImageAnalyzerQueueItem? _resultPreviewItem;
+
+        // One full-size download at a time, so they don't split the link with the next preview.
+        private readonly SemaphoreSlim _fullImageDownloads = new(1, 1);
+
+        /// <summary>
+        /// Shows a remote result's preview at once and lets the queue move on, while the PNG downloads
+        /// in the background. HasResultImage (which enables Open and the send-to buttons) stays false
+        /// until the PNG is saved, so nothing is ever handed the lossy preview.
+        /// </summary>
+        private async Task ShowPreviewAndFetchFullImageAsync(ImageAnalyzerQueueItem item, byte[] preview,
+            string outputPath, string remoteFile, string remoteSubfolder)
+        {
+            var previewDir = Path.Combine(Path.GetTempPath(), "flippix-previews");
+            Directory.CreateDirectory(previewDir);
+            var previewPath = Path.Combine(previewDir,
+                Path.GetFileNameWithoutExtension(outputPath) + (PreviewFormat.StartsWith("webp") ? ".webp" : ".jpg"));
+            await File.WriteAllBytesAsync(previewPath, preview);
+
+            item.ShowPreviewThumbnail(previewPath);
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            {
+                if (item == CurrentQueueItem)
+                {
+                    LoadResultPreview(previewPath);
+                    _resultPreviewItem = item;
+                    ImageInfo = "Preview, full-quality image downloading…";
+                }
+                ProcessingProgress = 100;
+                item.Progress = 100;
+                ProcessingStatus = "Complete! Full-quality image downloading…";
+                StatusBarMessage = $"Image generated - downloading {Path.GetFileName(outputPath)}…";
+            });
+
+            _ = FinishFullImageDownloadAsync(item, outputPath, previewPath, remoteFile, remoteSubfolder);
+        }
+
+        private async Task FinishFullImageDownloadAsync(ImageAnalyzerQueueItem item, string outputPath,
+            string previewPath, string remoteFile, string remoteSubfolder)
+        {
+            try
+            {
+                await _fullImageDownloads.WaitAsync(App.ShutdownToken);
+                byte[]? data;
+                try
+                {
+                    data = await _comfyUIService.HttpClient.DownloadOutputImageAsync(remoteFile, remoteSubfolder, App.ShutdownToken);
+                }
+                finally
+                {
+                    _fullImageDownloads.Release();
+                }
+
+                if (data == null)
+                {
+                    // Keep the preview rather than lose the image; ComfyUI still has the PNG.
+                    outputPath = Path.ChangeExtension(outputPath, Path.GetExtension(previewPath));
+                    File.Copy(previewPath, outputPath, overwrite: true);
+                    _logger.LogWarning($"Full image {remoteFile} could not be downloaded; saved the preview as {outputPath}");
+                }
+                else
+                {
+                    await File.WriteAllBytesAsync(outputPath, data);
+                }
+                await LocalCopyService.CopyImageAsync(outputPath);
+                _logger.LogInfo($"Output saved: {outputPath}");
+
+                item.OutputImagePath = outputPath;
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                {
+                    // Swap in the PNG only if the panel still shows this item's preview; a newer
+                    // generation that has started since owns it now.
+                    if (_resultPreviewItem == item)
+                    {
+                        _resultPreviewItem = null;
+                        ResultImagePath = outputPath;
+                        LoadResultPreview(outputPath);
+                        HasResultImage = true;
+                    }
+                    if (!IsGenerating)
+                    {
+                        ProcessingStatus = "Complete!";
+                        StatusBarMessage = $"Image generated - {Path.GetFileName(outputPath)}";
+                    }
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                // App closing; the image is still in ComfyUI's output folder.
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error finishing full image download for {remoteFile}: {ex.Message}");
+            }
+            finally
+            {
+                try { File.Delete(previewPath); } catch { }
             }
         }
 
@@ -4484,11 +4629,7 @@ namespace FlipPix.UI.ViewModels
                 var folder = Path.GetDirectoryName(ResultImagePath);
                 if (!string.IsNullOrEmpty(folder) && Directory.Exists(folder))
                 {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = folder,
-                        UseShellExecute = true
-                    });
+                    FlipPix.UI.Services.FolderOpener.Open(folder);
                 }
             }
             catch (Exception ex)
@@ -4503,11 +4644,7 @@ namespace FlipPix.UI.ViewModels
             {
                 if (!string.IsNullOrEmpty(ResultImagePath) && File.Exists(ResultImagePath))
                 {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = ResultImagePath,
-                        UseShellExecute = true
-                    });
+                    FlipPix.UI.Services.ImageOpener.Open(ResultImagePath);
                 }
             }
             catch (Exception ex)

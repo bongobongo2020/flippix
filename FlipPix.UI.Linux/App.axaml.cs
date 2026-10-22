@@ -91,6 +91,12 @@ public partial class App : Application
         Controls.Menus.Initialize();
         WindowsToolShims.Install(logger);
 
+        // A Chromebook's Linux apps can't reach the Gallery, the Files app or a video player: the
+        // shell hands files and folders to Chrome, which can't read the container's files. Show
+        // them in FlipPix's own viewers instead.
+        if (DesktopIntegration.IsChromeOS)
+            InAppViewers.Register();
+
         desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
         desktop.Exit += (_, _) =>
         {

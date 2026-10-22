@@ -45,6 +45,19 @@ public class ComfyUIHttpClient : IDisposable
     private DateTime _objectInfoCacheUtc;
     private static readonly TimeSpan ObjectInfoCacheTtl = TimeSpan.FromMinutes(5);
 
+    // One /object_info download at a time, shared by every caller. Over a slow link (a remote
+    // server reached through a relay) it can take minutes, and each of the several pre-submit
+    // checks used to start its own fetch, wait 20s and give up: 100s added to every prompt. Now
+    // a caller waits at most ObjectInfoWaitBudget, the download carries on in the background for
+    // the next submit, and after one wait times out later callers don't wait at all for a while.
+    private readonly object _objectInfoLock = new();
+    private Task<string?>? _objectInfoFetch;
+    private int _objectInfoGeneration;
+    private DateTime _objectInfoSlowUntilUtc;
+    private static readonly TimeSpan ObjectInfoWaitBudget = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan ObjectInfoFetchTimeout = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan ObjectInfoSlowBackoff = TimeSpan.FromMinutes(5);
+
     // Model-weight file extensions whose subfolder separator must match the host OS.
     private static readonly string[] ModelFileExtensions =
         { ".safetensors", ".ckpt", ".pt", ".pth", ".bin", ".gguf", ".sft", ".onnx" };
@@ -761,7 +774,12 @@ public class ComfyUIHttpClient : IDisposable
         }
     }
 
-    public async Task<byte[]?> DownloadOutputImageAsync(string filename, string subfolder = "", CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Downloads an output image through /view. With <paramref name="preview"/> (e.g. "webp;90" or
+    /// "jpeg;90") ComfyUI re-encodes it first, typically ~10x smaller than the PNG, for a quick
+    /// look over a slow link.
+    /// </summary>
+    public async Task<byte[]?> DownloadOutputImageAsync(string filename, string subfolder = "", CancellationToken cancellationToken = default, string? preview = null)
     {
         try
         {
@@ -782,6 +800,10 @@ public class ComfyUIHttpClient : IDisposable
             if (!string.IsNullOrEmpty(subfolder))
             {
                 url += $"&subfolder={Uri.EscapeDataString(subfolder)}";
+            }
+            if (!string.IsNullOrEmpty(preview))
+            {
+                url += $"&type=output&preview={Uri.EscapeDataString(preview)}";
             }
 
             // Log the full URL for debugging
@@ -1602,38 +1624,83 @@ public class ComfyUIHttpClient : IDisposable
     }
 
     /// <summary>
-    /// Returns the full /object_info JSON, cached briefly (see <see cref="ObjectInfoCacheTtl"/>).
-    /// Null on failure.
+    /// Returns the full /object_info JSON, cached (see <see cref="ObjectInfoCacheTtl"/>). An expired
+    /// copy is returned at once while a fresh one downloads in the background. With no copy, waits
+    /// for the download up to <see cref="ObjectInfoWaitBudget"/>. Null when there is nothing to use,
+    /// which callers treat as "skip the optional pre-submit checks".
     /// </summary>
     private async Task<string?> GetObjectInfoJsonAsync(CancellationToken cancellationToken)
     {
-        if (_objectInfoCacheJson != null && (DateTime.UtcNow - _objectInfoCacheUtc) < ObjectInfoCacheTtl)
-            return _objectInfoCacheJson;
+        string? cached;
+        Task<string?> fetch;
+        bool skipWait;
+        lock (_objectInfoLock)
+        {
+            cached = _objectInfoCacheJson;
+            if (cached != null && (DateTime.UtcNow - _objectInfoCacheUtc) < ObjectInfoCacheTtl)
+                return cached;
+            // Task.Run so the fetch never starts running while this lock is held.
+            fetch = _objectInfoFetch ??= Task.Run(FetchObjectInfoAsync);
+            skipWait = DateTime.UtcNow < _objectInfoSlowUntilUtc;
+        }
 
+        // Stale is fine for validation, and the model resolver invalidates after an install.
+        if (cached != null) return cached;
+        if (skipWait) return null;
+
+        var finished = await Task.WhenAny(fetch, Task.Delay(ObjectInfoWaitBudget, cancellationToken));
+        // Only a real caller cancel propagates; a slow server just means no validation this time.
+        cancellationToken.ThrowIfCancellationRequested();
+        if (finished == fetch) return await fetch;
+
+        lock (_objectInfoLock)
+            _objectInfoSlowUntilUtc = DateTime.UtcNow + ObjectInfoSlowBackoff;
+        _logger.LogWarning($"GetObjectInfoJsonAsync: /object_info is slow (no reply within {ObjectInfoWaitBudget.TotalSeconds:0}s); " +
+            "skipping pre-submit validation. The download continues in the background for later submits.");
+        return null;
+    }
+
+    /// <summary>The one background download behind <see cref="GetObjectInfoJsonAsync"/>.</summary>
+    private async Task<string?> FetchObjectInfoAsync()
+    {
+        int generation;
+        lock (_objectInfoLock) generation = _objectInfoGeneration;
         try
         {
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            cts.CancelAfter(TimeSpan.FromSeconds(20));
+            using var cts = new CancellationTokenSource(ObjectInfoFetchTimeout);
             var response = await _httpClient.GetAsync("/object_info", cts.Token);
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning($"GetObjectInfoJsonAsync: /object_info returned {response.StatusCode}");
-                return _objectInfoCacheJson;
+                return null;
             }
             var json = await response.Content.ReadAsStringAsync(cts.Token);
-            _objectInfoCacheJson = json;
-            _objectInfoCacheUtc = DateTime.UtcNow;
+            lock (_objectInfoLock)
+            {
+                // A fetch begun before an invalidation (e.g. a model install) must not repopulate.
+                if (generation == _objectInfoGeneration)
+                {
+                    _objectInfoCacheJson = json;
+                    _objectInfoCacheUtc = DateTime.UtcNow;
+                    _objectInfoSlowUntilUtc = default;
+                }
+            }
             return json;
         }
-        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        catch (Exception ex)
         {
-            // ComfyUI builds /object_info on every request and it can take >20s while the server is
-            // busy. Everything that reads it is optional pre-submit validation, so a slow or failed
-            // fetch must not block the job: fall back to the last good copy, else null (= skip checks).
-            // Only a real caller cancel propagates.
-            _logger.LogWarning($"GetObjectInfoJsonAsync: /object_info fetch failed ({ex.Message}); " +
-                (_objectInfoCacheJson != null ? "using the previous copy." : "skipping pre-submit validation."));
-            return _objectInfoCacheJson;
+            // ComfyUI builds /object_info on every request and it can be slow while the server is
+            // busy, or over a slow link. Everything that reads it is optional pre-submit validation.
+            _logger.LogWarning($"GetObjectInfoJsonAsync: /object_info fetch failed ({ex.Message}); skipping pre-submit validation.");
+            return null;
+        }
+        finally
+        {
+            lock (_objectInfoLock)
+            {
+                if (generation == _objectInfoGeneration)
+                    _objectInfoFetch = null;
+            }
         }
     }
 
@@ -2092,7 +2159,13 @@ public class ComfyUIHttpClient : IDisposable
     /// </summary>
     public void InvalidateObjectInfoCache()
     {
-        _objectInfoCacheJson = null;
+        lock (_objectInfoLock)
+        {
+            _objectInfoCacheJson = null;
+            _objectInfoFetch = null;
+            _objectInfoSlowUntilUtc = default;
+            _objectInfoGeneration++;
+        }
     }
 
     private static bool HasModelExtension(string s)

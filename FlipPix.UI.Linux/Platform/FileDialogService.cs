@@ -37,20 +37,40 @@ public class FileDialogService : IFileDialogService
         => _settingsService.GetLastBrowseFolder(persistKey)
            ?? (string.IsNullOrEmpty(hint) ? null : hint);
 
+    /// <summary>
+    /// Saves the folder in the background. The existence checks here and in SettingsService are
+    /// round trips to the disk, and on a ChromeOS share each can block for seconds, so they must
+    /// not run on the UI thread.
+    /// </summary>
     private void RememberDirectory(string? path, string? persistKey)
     {
         if (string.IsNullOrEmpty(path)) return;
-        var dir = Directory.Exists(path) ? path : Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
-            _settingsService.SetLastBrowseFolder(persistKey, dir);
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                var dir = Directory.Exists(path) ? path : Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+                    _settingsService.SetLastBrowseFolder(persistKey, dir);
+            }
+            catch
+            {
+                // Only the remembered start folder is lost.
+            }
+        });
     }
 
     private async Task<IStorageFolder?> GetStartFolderAsync(string? hint, string? persistKey)
     {
-        if (_topLevel == null) return null;
-        var dir = EffectiveDirectory(hint, persistKey);
-        if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return null;
-        return await _topLevel.StorageProvider.TryGetFolderFromPathAsync(dir);
+        var topLevel = _topLevel;
+        if (topLevel == null) return null;
+        var dir = await Task.Run(() =>
+        {
+            var d = EffectiveDirectory(hint, persistKey);
+            return string.IsNullOrEmpty(d) || !Directory.Exists(d) ? null : d;
+        });
+        if (dir == null) return null;
+        return await topLevel.StorageProvider.TryGetFolderFromPathAsync(dir);
     }
 
     private static List<FilePickerFileType> ParseFilter(string filter)
@@ -79,7 +99,11 @@ public class FileDialogService : IFileDialogService
 
         if (IsImageFilter(filter) && _topLevel is Window ownerWindow)
         {
-            var picker = new ImagePickerWindow(EffectiveDirectory(initialDirectory, persistKey));
+            // Unchecked: the picker lists the folder in the background and falls back to the home
+            // folder if it has gone, so the window opens without waiting on the disk.
+            var start = _settingsService.PeekLastBrowseFolder(persistKey)
+                        ?? (string.IsNullOrEmpty(initialDirectory) ? null : initialDirectory);
+            var picker = new ImagePickerWindow(start);
             var result = await picker.ShowDialog<string?>(ownerWindow);
             if (!string.IsNullOrEmpty(result)) RememberDirectory(result, persistKey);
             return result;

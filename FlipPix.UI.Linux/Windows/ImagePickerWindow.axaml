@@ -31,7 +31,11 @@
             <DockPanel>
                 <Button DockPanel.Dock="Left" Content="↑ Up" Width="60" Margin="0,0,8,0" Height="34"
                         Command="{Binding GoUpCommand}" Classes="secondary"/>
-                <TextBox x:Name="PathBox" Text="{Binding CurrentPath, Mode=TwoWay}"
+                <TextBlock DockPanel.Dock="Right" Text="Updating…" Margin="8,0,0,0"
+                           VerticalAlignment="Center" FontSize="11" Foreground="#6C757D"
+                           IsVisible="{Binding IsRefreshing}"
+                           ToolTip.Tip="Showing this folder as it was last time while its current contents are read."/>
+                <TextBox x:Name="PathBox" Text="{Binding CurrentPath, Mode=OneWay}"
                          Height="34" VerticalContentAlignment="Center" FontSize="12"
                          KeyDown="PathBox_KeyDown"/>
             </DockPanel>
@@ -41,71 +45,110 @@
         <Border DockPanel.Dock="Bottom" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="0,1,0,0" Padding="10,8">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
-                    <Button Content="Cancel" Width="80" Height="34" Click="CancelButton_Click" Classes="secondary"/>
-                    <Button Content="OK" Width="80" Height="34" Click="OkButton_Click"
+                    <Button x:Name="CancelButton" Content="Cancel" Width="80" Height="34" Click="CancelButton_Click" Classes="secondary"/>
+                    <Button x:Name="OkButton" Content="OK" Width="80" Height="34" Click="OkButton_Click"
                             Background="#FF6B35" Foreground="White" BorderThickness="0" FontWeight="Bold" CornerRadius="5"/>
                 </StackPanel>
-                <TextBlock Text="Selected: " VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" Margin="0,0,6,0"/>
-                <TextBox Text="{Binding SelectedPath, Mode=TwoWay}" Height="34" VerticalContentAlignment="Center" FontSize="11"
+                <TextBlock x:Name="SelectedLabel" Text="Selected: " VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" Margin="0,0,6,0"/>
+                <TextBox x:Name="SelectedBox" Text="{Binding SelectedPath, Mode=TwoWay}" Height="34" VerticalContentAlignment="Center" FontSize="11"
                          Margin="0,0,12,0"/>
+                <TextBlock x:Name="BrowseHint" IsVisible="False" VerticalAlignment="Center" FontSize="12" Foreground="#6C757D"
+                           Text="Double-click a picture or video to open it."/>
             </DockPanel>
         </Border>
 
-        <!-- Image grid -->
-        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-            <ItemsControl ItemsSource="{Binding Items}" Margin="8">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <WrapPanel Orientation="Horizontal"/>
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Border Width="128" Height="148" Margin="4"
-                                Classes="pickerItem"
-                                Classes.selected="{Binding IsSelected}"
-                                PointerPressed="Item_PointerPressed"
-                                DoubleTapped="Item_DoubleTapped">
-                            <StackPanel Margin="4">
-                                <!-- Thumbnail area -->
-                                <Border Height="100" Background="#F0F2F5" CornerRadius="4" ClipToBounds="True">
-                                    <Grid>
-                                        <!-- Folder icon -->
-                                        <TextBlock Text="📁" FontSize="44"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                   IsVisible="{Binding IsDirectory}"/>
+        <!-- Image grid: a virtualized list of rows, so only the rows on screen get controls
+             and only their thumbnails are read. Columns follow the window width. -->
+        <Grid>
+            <ScrollViewer x:Name="GridScroller"
+                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                          SizeChanged="GridScroller_SizeChanged">
+                <ItemsControl x:Name="RowsList" ItemsSource="{Binding Rows}" Margin="8"
+                              ContainerPrepared="RowsList_ContainerPrepared"
+                              ContainerClearing="RowsList_ContainerClearing">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <VirtualizingStackPanel Orientation="Vertical"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <ItemsControl ItemsSource="{Binding Cells}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Width="128" Height="148" Margin="4"
+                                                Classes="pickerItem"
+                                                Classes.selected="{Binding IsSelected}"
+                                                PointerPressed="Item_PointerPressed"
+                                                DoubleTapped="Item_DoubleTapped">
+                                            <StackPanel Margin="4">
+                                                <!-- Thumbnail area -->
+                                                <Border Height="100" Background="#F0F2F5" CornerRadius="4" ClipToBounds="True">
+                                                    <Grid>
+                                                        <!-- Folder icon -->
+                                                        <TextBlock Text="📁" FontSize="44"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                   IsVisible="{Binding IsDirectory}"/>
 
-                                        <!-- Image: loaded thumbnail -->
-                                        <Image Source="{Binding Thumbnail}" Stretch="Uniform" Margin="2"
-                                               IsVisible="{Binding Thumbnail, Converter={x:Static cv:ObjectConverters.IsNotNull}}"/>
+                                                        <!-- Image: loaded thumbnail -->
+                                                        <Image Source="{Binding Thumbnail}" Stretch="Uniform" Margin="2"
+                                                               IsVisible="{Binding Thumbnail, Converter={x:Static cv:ObjectConverters.IsNotNull}}"/>
 
-                                        <!-- Image: placeholder while loading -->
-                                        <TextBlock Text="🖼" FontSize="40"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                   IsVisible="{Binding Thumbnail, Converter={x:Static cv:ObjectConverters.IsNull}}"
-                                                   Opacity="0.3">
-                                            <TextBlock.IsVisible>
-                                                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                                    <Binding Path="Thumbnail" Converter="{x:Static cv:ObjectConverters.IsNull}"/>
-                                                    <Binding Path="IsDirectory" Converter="{x:Static BoolConverters.Not}"/>
-                                                </MultiBinding>
-                                            </TextBlock.IsVisible>
-                                        </TextBlock>
-                                    </Grid>
-                                </Border>
+                                                        <!-- Image: placeholder while loading -->
+                                                        <TextBlock Text="{Binding PlaceholderGlyph}" FontSize="40"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                   Opacity="0.3">
+                                                            <TextBlock.IsVisible>
+                                                                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                                                    <Binding Path="Thumbnail" Converter="{x:Static cv:ObjectConverters.IsNull}"/>
+                                                                    <Binding Path="IsDirectory" Converter="{x:Static BoolConverters.Not}"/>
+                                                                </MultiBinding>
+                                                            </TextBlock.IsVisible>
+                                                        </TextBlock>
 
-                                <!-- Filename -->
-                                <TextBlock Text="{Binding Name}" FontSize="10"
-                                           TextTrimming="CharacterEllipsis"
-                                           HorizontalAlignment="Center"
-                                           Margin="2,4,2,0"
-                                           MaxWidth="118"
-                                           ToolTip.Tip="{Binding Name}"/>
-                            </StackPanel>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </ScrollViewer>
+                                                        <!-- Play badge on video thumbnails -->
+                                                        <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                Width="32" Height="32" CornerRadius="16" Background="#99000000"
+                                                                IsHitTestVisible="False">
+                                                            <Border.IsVisible>
+                                                                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                                                    <Binding Path="IsVideo"/>
+                                                                    <Binding Path="Thumbnail" Converter="{x:Static cv:ObjectConverters.IsNotNull}"/>
+                                                                </MultiBinding>
+                                                            </Border.IsVisible>
+                                                            <TextBlock Text="▶" Foreground="White" FontSize="14"
+                                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                    </Grid>
+                                                </Border>
+
+                                                <!-- Filename -->
+                                                <TextBlock Text="{Binding Name}" FontSize="10"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           HorizontalAlignment="Center"
+                                                           Margin="2,4,2,0"
+                                                           MaxWidth="118"
+                                                           ToolTip.Tip="{Binding Name}"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <!-- Loading / empty / error message -->
+            <TextBlock Text="{Binding StatusText}"
+                       IsVisible="{Binding StatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       FontSize="14" Foreground="#6C757D"/>
+        </Grid>
     </DockPanel>
 </Window>

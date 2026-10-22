@@ -1116,11 +1116,7 @@ namespace FlipPix.UI.ViewModels
                 var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "camera-angles");
                 if (Directory.Exists(outputDir))
                 {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = outputDir,
-                        UseShellExecute = true
-                    });
+                    FlipPix.UI.Services.FolderOpener.Open(outputDir);
                 }
                 else
                 {

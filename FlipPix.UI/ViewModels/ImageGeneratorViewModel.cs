@@ -3394,11 +3394,7 @@ namespace FlipPix.UI.ViewModels
         {
             try
             {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = imagePath,
-                    UseShellExecute = true
-                });
+                FlipPix.UI.Services.ImageOpener.Open(imagePath);
             }
             catch (Exception ex)
             {
@@ -3447,11 +3443,7 @@ namespace FlipPix.UI.ViewModels
                 var folder = Path.GetDirectoryName(ResultImagePath);
                 if (!string.IsNullOrEmpty(folder) && Directory.Exists(folder))
                 {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = folder,
-                        UseShellExecute = true
-                    });
+                    FlipPix.UI.Services.FolderOpener.Open(folder);
                 }
             }
             catch (Exception ex)
@@ -3466,11 +3458,7 @@ namespace FlipPix.UI.ViewModels
             {
                 if (!string.IsNullOrEmpty(ResultImagePath) && File.Exists(ResultImagePath))
                 {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = ResultImagePath,
-                        UseShellExecute = true
-                    });
+                    FlipPix.UI.Services.ImageOpener.Open(ResultImagePath);
                 }
             }
             catch (Exception ex)

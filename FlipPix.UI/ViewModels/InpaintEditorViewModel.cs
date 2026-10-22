@@ -459,13 +459,13 @@ namespace FlipPix.UI.ViewModels
         {
             var folder = Path.GetDirectoryName(ResultImagePath);
             if (!string.IsNullOrEmpty(folder) && Directory.Exists(folder))
-                Process.Start(new ProcessStartInfo { FileName = folder, UseShellExecute = true });
+                FlipPix.UI.Services.FolderOpener.Open(folder);
         }
 
         private void OpenResultImage()
         {
             if (File.Exists(ResultImagePath))
-                Process.Start(new ProcessStartInfo { FileName = ResultImagePath, UseShellExecute = true });
+                FlipPix.UI.Services.ImageOpener.Open(ResultImagePath);
         }
 
         private static void TryDeleteTempFile(string path)

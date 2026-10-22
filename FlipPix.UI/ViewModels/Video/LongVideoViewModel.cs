@@ -948,7 +948,7 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 var folder = Path.GetDirectoryName(item.OutputVideoPath);
                 if (!string.IsNullOrEmpty(folder) && Directory.Exists(folder))
-                    Process.Start("explorer.exe", folder);
+                    FlipPix.UI.Services.FolderOpener.Open(folder);
             }
         }
 

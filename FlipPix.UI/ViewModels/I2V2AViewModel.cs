@@ -457,11 +457,7 @@ namespace FlipPix.UI.ViewModels
                     var folder = Path.GetDirectoryName(outputVideo);
                     if (!string.IsNullOrEmpty(folder))
                     {
-                        Process.Start(new ProcessStartInfo
-                        {
-                            FileName = folder,
-                            UseShellExecute = true
-                        });
+                        FlipPix.UI.Services.FolderOpener.Open(folder);
                     }
                 }
                 else
@@ -507,11 +503,7 @@ namespace FlipPix.UI.ViewModels
                     var folder = Path.GetDirectoryName(ResultVideoPath);
                     if (!string.IsNullOrEmpty(folder))
                     {
-                        Process.Start(new ProcessStartInfo
-                        {
-                            FileName = folder,
-                            UseShellExecute = true
-                        });
+                        FlipPix.UI.Services.FolderOpener.Open(folder);
                     }
                 }
                 catch (Exception ex)
@@ -528,11 +520,7 @@ namespace FlipPix.UI.ViewModels
             {
                 try
                 {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = ResultVideoPath,
-                        UseShellExecute = true
-                    });
+                    FlipPix.UI.Services.VideoOpener.Open(ResultVideoPath);
                 }
                 catch (Exception ex)
                 {
