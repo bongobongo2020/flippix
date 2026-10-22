@@ -832,6 +832,56 @@ public class ComfyUIHttpClient : IDisposable
         }
     }
 
+    /// <summary>
+    /// Streams one file from /view straight to <paramref name="destinationPath"/>, never holding it in
+    /// memory. False when the server does not have it or the transfer fails; a partial file is removed.
+    /// For a finished output this is the fast way to fetch it from a remote server — reading it through a
+    /// mounted share can be far slower (ChromeOS's Linux container reaches shares through a file bridge).
+    /// </summary>
+    public async Task<bool> DownloadViewToFileAsync(
+        string filename, string subfolder, string type, string destinationPath,
+        CancellationToken cancellationToken = default)
+    {
+        var url = $"/view?filename={Uri.EscapeDataString(filename)}" +
+                  $"&subfolder={Uri.EscapeDataString(subfolder ?? string.Empty)}" +
+                  $"&type={Uri.EscapeDataString(type)}";
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromMinutes(30));
+            using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning($"DownloadViewToFileAsync: {url} returned {response.StatusCode}");
+                return false;
+            }
+
+            await using (var source = await response.Content.ReadAsStreamAsync(cts.Token))
+            await using (var target = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None,
+                                                     1 << 20, useAsync: true))
+            {
+                await source.CopyToAsync(target, 1 << 20, cts.Token);
+            }
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            TryDelete(destinationPath);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning($"DownloadViewToFileAsync: {url} failed: {ex.Message}");
+            TryDelete(destinationPath);
+            return false;
+        }
+
+        static void TryDelete(string path)
+        {
+            try { if (File.Exists(path)) File.Delete(path); } catch { /* best effort */ }
+        }
+    }
+
     public async Task<byte[]?> DownloadOutputVideoAsync(string filename, string subfolder = "", CancellationToken cancellationToken = default)
     {
         try

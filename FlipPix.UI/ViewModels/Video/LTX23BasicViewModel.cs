@@ -734,7 +734,6 @@ namespace FlipPix.UI.ViewModels.Video
 
                 // Record existing video files BEFORE execution so we only pick up the new one.
                 var existingFiles = GetExistingVideoFiles("*.mp4", StoryOutputSubfolders);
-                AddLog($"Recording {existingFiles.Count} existing video files before execution");
 
                 var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(msg =>
                 {
@@ -756,10 +755,13 @@ namespace FlipPix.UI.ViewModels.Video
                 ProcessingProgress = 95;
                 ProcessingStatus = "Waiting for output video...";
 
-                var outputVideo = await WaitForNewVideoAsync(
-                    existingFiles, "*.mp4",
-                    TimeSpan.FromMinutes(15), TimeSpan.FromSeconds(5),
-                    StoryOutputSubfolders);
+                // /history names the file; the folder watch is the fallback. Some story graphs save a first
+                // pass and a final one — the final one runs last.
+                var outputVideo = await TryGetVideoFromHistoryAsync(promptId, preferLast: true)
+                    ?? await WaitForNewVideoAsync(
+                        existingFiles, "*.mp4",
+                        TimeSpan.FromMinutes(15), TimeSpan.FromSeconds(5),
+                        StoryOutputSubfolders);
 
                 if (outputVideo == null || !File.Exists(outputVideo))
                     throw new Exception("No output video was produced within the timeout.");

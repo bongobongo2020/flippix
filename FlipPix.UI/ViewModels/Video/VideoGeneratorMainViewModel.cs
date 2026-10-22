@@ -1826,7 +1826,6 @@ namespace FlipPix.UI.ViewModels.Video
 
                 // Record existing video files BEFORE execution
                 var existingFilesBeforeExecution = GetExistingVideoFiles("*.mp4", "testrun", "testrun/vid", "video", "intpups", "intp", "ups", "ltx2.3/my");
-                AddLog($"Recording {existingFilesBeforeExecution.Count} existing video files before execution");
 
                 var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
                 {
@@ -1849,12 +1848,14 @@ namespace FlipPix.UI.ViewModels.Video
                 ProcessingProgress = 95;
                 AddLog("Looking for generated video...");
 
-                var outputVideo = await WaitForNewVideoAsync(
-                    existingFilesBeforeExecution,
-                    "*.mp4",
-                    TimeSpan.FromSeconds(60),
-                    TimeSpan.FromSeconds(2),
-                    "testrun", "testrun/vid", "video", "intpups", "intp", "ups", "ltx2.3/my");
+                // /history names the file; the folder watch is the fallback.
+                var outputVideo = await TryGetVideoFromHistoryAsync(promptId, preferLast: true)
+                    ?? await WaitForNewVideoAsync(
+                        existingFilesBeforeExecution,
+                        "*.mp4",
+                        TimeSpan.FromSeconds(60),
+                        TimeSpan.FromSeconds(2),
+                        "testrun", "testrun/vid", "video", "intpups", "intp", "ups", "ltx2.3/my");
 
                 if (outputVideo != null && File.Exists(outputVideo))
                 {

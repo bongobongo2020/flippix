@@ -1363,37 +1363,18 @@ namespace FlipPix.UI.ViewModels.Video
 
         private async Task<string?> ResolveOutputToLocalAsync(string videoFile)
         {
+            // Shared with every video tab: HTTP from /view for a remote server, the file on disk for a
+            // local one. See VideoProcessingBaseViewModel.FetchOutputFileAsync.
             try
             {
-                var settings = _settingsService.Settings;
-                if (settings != null)
-                {
-                    var baseUrl = GetComfyUIBaseUrl();
-                    bool isRemote = IsComfyUIRemote(new Uri(baseUrl).Host);
-                    string outputFolder = isRemote ? settings.RemoteOutputFolderPath : settings.OutputFolderPath;
-                    if (!string.IsNullOrEmpty(outputFolder))
-                    {
-                        var localPath = Path.Combine(outputFolder, videoFile.Replace('/', Path.DirectorySeparatorChar));
-                        if (File.Exists(localPath)) { await WaitForFileStableAsync(localPath); return localPath; }
-                    }
-                }
-
-                var parts = videoFile.Split('/');
-                var filename = parts.Last();
-                var subfolder = parts.Length > 1 ? string.Join("/", parts.Take(parts.Length - 1)) : "";
-                var bytes = await _comfyUIService.HttpClient.DownloadOutputVideoAsync(filename, subfolder);
-                if (bytes is { Length: > 0 })
-                {
-                    var tempPath = Path.Combine(Path.GetTempPath(), $"seeddir_{Guid.NewGuid():N}_{filename}");
-                    await File.WriteAllBytesAsync(tempPath, bytes);
-                    return tempPath;
-                }
+                return await FetchOutputFileAsync(videoFile);
             }
+            catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
                 AddLog($"Resolve output failed: {ex.Message}");
+                return null;
             }
-            return null;
         }
 
         private async Task<string?> DownloadRefToTempAsync(OutputFileRef r, CancellationToken token)

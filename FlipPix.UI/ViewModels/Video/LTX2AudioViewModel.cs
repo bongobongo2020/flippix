@@ -555,18 +555,22 @@ namespace FlipPix.UI.ViewModels.Video
                     }
                 });
 
+                var existingFiles = GetExistingVideoFiles("LTX2-AI2V_*.mp4");
                 var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress);
                 AddLog($"Workflow completed, prompt ID: {promptId}");
 
                 // Wait for output video
                 ProcessingProgress = 95;
                 ProcessingStatus = "Waiting for output video...";
-                var existingFiles = GetExistingVideoFiles("LTX2-AI2V_*.mp4");
-                var outputVideo = await WaitForNewVideoAsync(
-                    existingFiles,
-                    "LTX2-AI2V_*.mp4",
-                    TimeSpan.FromMinutes(15),
-                    TimeSpan.FromSeconds(5));
+                // /history names the file. The folder watch behind it can only work from a snapshot taken
+                // before submitting — this one used to be taken after the run, when the new file was already
+                // there to be counted as "existing".
+                var outputVideo = await TryGetVideoFromHistoryAsync(promptId)
+                    ?? await WaitForNewVideoAsync(
+                        existingFiles,
+                        "LTX2-AI2V_*.mp4",
+                        TimeSpan.FromMinutes(15),
+                        TimeSpan.FromSeconds(5));
 
                 if (outputVideo != null && File.Exists(outputVideo))
                 {

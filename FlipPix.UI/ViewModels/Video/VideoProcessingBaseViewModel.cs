@@ -257,9 +257,37 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>
-        /// Gets existing video files from output folders for tracking before workflow execution.
+        /// The output folder's video files as they were before a workflow was submitted, so
+        /// <see cref="WaitForNewVideoAsync"/> can tell the new one apart. Listed in the background: over
+        /// ChromeOS's bridge to a server share a recursive listing takes minutes, and it used to hold the
+        /// submission back for all of them. Only the folder-watch fallback ever awaits it — a tab that gets
+        /// its file from /history never does.
         /// </summary>
-        protected HashSet<string> GetExistingVideoFiles(string filePattern = "*.mp4", params string[] additionalSubfolders)
+        protected sealed class OutputSnapshot
+        {
+            internal OutputSnapshot(Task<HashSet<string>> files) => Files = files;
+            internal Task<HashSet<string>> Files { get; }
+        }
+
+        /// <summary>
+        /// Starts listing the existing video files in the output folders, without waiting for it — see
+        /// <see cref="OutputSnapshot"/>. Take it just before submitting.
+        /// </summary>
+        protected OutputSnapshot GetExistingVideoFiles(string filePattern = "*.mp4", params string[] additionalSubfolders)
+        {
+            var files = Task.Run(() =>
+            {
+                try { return ListExistingVideoFiles(filePattern, additionalSubfolders); }
+                catch (Exception ex)
+                {
+                    AddLog($"Output folder listing failed: {ex.Message}");
+                    return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                }
+            });
+            return new OutputSnapshot(files);
+        }
+
+        private HashSet<string> ListExistingVideoFiles(string filePattern, string[] additionalSubfolders)
         {
             var existingFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var settings = _settingsService.Settings;
@@ -301,7 +329,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// Waits for a new video file to appear in the output folder.
         /// </summary>
         protected async Task<string?> WaitForNewVideoAsync(
-            HashSet<string> existingFiles,
+            OutputSnapshot snapshot,
             string filePattern = "*.mp4",
             TimeSpan? maxWaitTime = null,
             TimeSpan? checkInterval = null,
@@ -335,6 +363,7 @@ namespace FlipPix.UI.ViewModels.Video
             }
 
             AddLog($"Monitoring output folder: {outputFolder} (subfolders: {string.Join(", ", additionalSubfolders.DefaultIfEmpty("none"))})");
+            var existingFiles = await snapshot.Files;
 
             var actualMaxWait = maxWaitTime ?? TimeSpan.FromSeconds(60);
             var actualCheckInterval = checkInterval ?? TimeSpan.FromSeconds(2);
@@ -369,14 +398,19 @@ namespace FlipPix.UI.ViewModels.Video
                         foldersToCheck.Add(subfolderPath);
                 }
 
-                var currentFiles = new List<string>();
-                foreach (var folder in foldersToCheck)
+                // Off the UI thread: over a slow share one listing can take longer than a tick.
+                var currentFiles = await Task.Run(() =>
                 {
-                    // Recursive: workflows like DaSiWa write into dated subfolders (video/2026-06-17/...)
-                    try { currentFiles.AddRange(Directory.GetFiles(folder, filePattern, SearchOption.AllDirectories)); }
-                    catch (IOException) { }               // share hiccup — retried next tick
-                    catch (UnauthorizedAccessException) { }
-                }
+                    var found = new List<string>();
+                    foreach (var folder in foldersToCheck)
+                    {
+                        // Recursive: workflows like DaSiWa write into dated subfolders (video/2026-06-17/...)
+                        try { found.AddRange(Directory.GetFiles(folder, filePattern, SearchOption.AllDirectories)); }
+                        catch (IOException) { }               // share hiccup — retried next tick
+                        catch (UnauthorizedAccessException) { }
+                    }
+                    return found;
+                });
 
                 var newFiles = currentFiles.Where(f => !existingFiles.Contains(f)).ToList();
 
@@ -418,14 +452,18 @@ namespace FlipPix.UI.ViewModels.Video
         /// Tries to resolve the output video path using ComfyUI's history API.
         /// Returns a local file path if found, or null if not available.
         /// </summary>
-        protected async Task<string?> TryGetVideoFromHistoryAsync(string promptId)
+        /// <param name="preferLast">For a graph with more than one video sink (a first pass and a final one):
+        /// take the last video ComfyUI reports, which is the last sink to run — the one a folder watch
+        /// would have picked as the newest file.</param>
+        protected async Task<string?> TryGetVideoFromHistoryAsync(string promptId, bool preferLast = false)
         {
             try
             {
                 var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesForPromptAsync(promptId);
-                var videoFile = outputFiles.FirstOrDefault(f =>
+                var videos = outputFiles.Where(f =>
                     f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) ||
                     f.EndsWith(".webm", StringComparison.OrdinalIgnoreCase));
+                var videoFile = preferLast ? videos.LastOrDefault() : videos.FirstOrDefault();
 
                 if (videoFile == null)
                 {
@@ -435,49 +473,93 @@ namespace FlipPix.UI.ViewModels.Video
 
                 AddLog($"History API: found video output: {videoFile}");
 
-                // Try to resolve to a local path
-                var settings = _settingsService.Settings;
-                if (settings != null)
-                {
-                    var baseUrl = GetComfyUIBaseUrl();
-                    bool isRemote = IsComfyUIRemote(new Uri(baseUrl).Host);
-                    string outputFolder = settings.ResolveOutputFolder(isRemote);
-
-                    if (!string.IsNullOrEmpty(outputFolder))
-                    {
-                        // videoFile is "subfolder/filename" or just "filename"
-                        var localPath = Path.Combine(outputFolder, videoFile.Replace('/', Path.DirectorySeparatorChar));
-                        if (File.Exists(localPath))
-                        {
-                            await WaitForFileStableAsync(localPath);
-                            AddLog($"History API: resolved local path: {localPath}");
-                            return localPath;
-                        }
-                        AddLog($"History API: local path not found at {localPath}, will download via /view");
-                    }
-                }
-
-                // Download via /view endpoint and save to temp
-                var parts = videoFile.Split('/');
-                var filename = parts.Last();
-                var subfolder = parts.Length > 1 ? string.Join("/", parts.Take(parts.Length - 1)) : "";
-
-                var videoBytes = await _comfyUIService.HttpClient.DownloadOutputVideoAsync(filename, subfolder);
-                if (videoBytes != null && videoBytes.Length > 0)
-                {
-                    var tempPath = Path.Combine(Path.GetTempPath(), $"flippix_history_{Guid.NewGuid():N}_{filename}");
-                    await File.WriteAllBytesAsync(tempPath, videoBytes);
-                    AddLog($"History API: downloaded video to temp: {tempPath} ({videoBytes.Length / 1024.0 / 1024.0:F2} MB)");
-                    return tempPath;
-                }
-
-                AddLog($"History API: download via /view failed for {videoFile}");
-                return null;
+                var local = await FetchOutputFileAsync(videoFile);
+                if (local == null) AddLog($"History API: could not fetch {videoFile}");
+                return local;
             }
             catch (Exception ex)
             {
                 AddLog($"History API lookup failed: {ex.Message}");
                 return null;
+            }
+        }
+
+        /// <summary>Where <see cref="FetchOutputFileAsync"/> puts downloads; pruned of files over 3 days old.</summary>
+        private static string DownloadFolder => Path.Combine(Path.GetTempPath(), "flippix-downloads");
+
+        /// <summary>Whether a path came from <see cref="FetchOutputFileAsync"/>'s download folder, and so
+        /// can be moved rather than copied.</summary>
+        protected static bool IsDownloadedCopy(string path) =>
+            Path.GetFullPath(path).StartsWith(Path.GetFullPath(DownloadFolder) + Path.DirectorySeparatorChar,
+                                              StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Brings a finished ComfyUI output — "subfolder/name", as /history reports it — to a file this
+        /// machine can read quickly.
+        ///
+        /// <para>On Linux with a remote server it is streamed over HTTP from /view first. Reading it through
+        /// the mounted output share instead (and then copying it out) is what kept a finished take waiting
+        /// for minutes on ChromeOS, whose Linux container reaches shares through a slow file bridge. Windows
+        /// reads an SMB share quickly, so there — and for a local server — the file is used where it lies,
+        /// with no copy piling up in temp. Either way the other route is the fallback.</para>
+        /// </summary>
+        protected async Task<string?> FetchOutputFileAsync(string outputFile, CancellationToken token = default)
+        {
+            var parts = outputFile.Replace('\\', '/').Split('/');
+            var filename = parts.Last();
+            var subfolder = parts.Length > 1 ? string.Join("/", parts.Take(parts.Length - 1)) : string.Empty;
+
+            var isRemote = IsComfyUIRemote(new Uri(GetComfyUIBaseUrl()).Host);
+            var downloadFirst = isRemote && OperatingSystem.IsLinux();
+            if (downloadFirst)
+            {
+                var downloaded = await DownloadOutputAsync(filename, subfolder, token);
+                if (downloaded != null) return downloaded;
+            }
+
+            var settings = _settingsService.Settings;
+            var outputFolder = settings?.ResolveOutputFolder(isRemote);
+            if (!string.IsNullOrEmpty(outputFolder))
+            {
+                var localPath = Path.Combine(outputFolder, outputFile.Replace('/', Path.DirectorySeparatorChar));
+                if (await Task.Run(() => File.Exists(localPath), token))
+                {
+                    await WaitForFileStableAsync(localPath);
+                    AddLog($"Output resolved on disk: {localPath}");
+                    return localPath;
+                }
+            }
+
+            return downloadFirst ? null : await DownloadOutputAsync(filename, subfolder, token);
+        }
+
+        private async Task<string?> DownloadOutputAsync(string filename, string subfolder, CancellationToken token)
+        {
+            var folder = DownloadFolder;
+            Directory.CreateDirectory(folder);
+            PruneDownloads(folder);
+
+            var target = Path.Combine(folder, $"{Guid.NewGuid():N}_{filename}");
+            var started = DateTime.UtcNow;
+            if (!await _comfyUIService.HttpClient.DownloadViewToFileAsync(filename, subfolder, "output", target, token))
+            {
+                AddLog($"Download via /view failed for {subfolder}/{filename}");
+                return null;
+            }
+
+            var mb = new FileInfo(target).Length / 1024.0 / 1024.0;
+            AddLog($"Downloaded {filename} over HTTP ({mb:F1} MB in {(DateTime.UtcNow - started).TotalSeconds:F1}s)");
+            return target;
+
+            static void PruneDownloads(string dir)
+            {
+                try
+                {
+                    foreach (var f in Directory.EnumerateFiles(dir))
+                        if (DateTime.UtcNow - File.GetLastWriteTimeUtc(f) > TimeSpan.FromDays(3))
+                            File.Delete(f);
+                }
+                catch { /* a file in use is retried next time */ }
             }
         }
 
