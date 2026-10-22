@@ -86,11 +86,32 @@ namespace FlipPix.UI.ViewModels.Video
             set { if (_showSettings != value) { _showSettings = value; OnPropertyChanged(); } }
         }
 
-        /// <summary>Whether 💎 Ultra's pictures 5–9 and audio/video slots are open.</summary>
+        /// <summary>Whether the folded reference slots are open: 💎 Ultra's pictures 5–9 and audio/video on
+        /// Windows; every picture after the first (and Ultra's audio/video) on Linux.</summary>
         public bool ShowMoreReferences
         {
             get => _showMoreReferences;
             set { if (_showMoreReferences != value) { _showMoreReferences = value; OnPropertyChanged(); } }
+        }
+
+        /// <summary>Picture 1 — the one slot the Linux rail always shows.</summary>
+        public MiniMaxI2VReference FirstReference => References[0];
+
+        /// <summary>Every other picture slot the current workflow takes — 2–4, or 2–9 on Ultra — folded
+        /// behind <see cref="ShowMoreReferences"/> on the Linux rail.</summary>
+        public IReadOnlyList<MiniMaxI2VReference> MoreReferences =>
+            References.Skip(1).Concat(IsUltra ? ExtraReferences : Enumerable.Empty<MiniMaxI2VReference>()).ToList();
+
+        /// <summary>The note on the folded slots' toggle, so a loaded picture is never hidden silently.</summary>
+        public string MoreReferencesNote
+        {
+            get
+            {
+                var range = IsUltra ? "pictures 2–9, audio, video" : "pictures 2–4";
+                var loaded = MoreReferences.Count(r => r.HasImage)
+                           + (IsUltra ? AudioReferences.Count(a => a.HasFile) + VideoReferences.Count(v => v.HasFile) : 0);
+                return loaded > 0 ? $"{range} · {loaded} loaded" : range;
+            }
         }
 
         /// <summary>Deliberately not gated on another analysis or a render — that is the point of it.</summary>

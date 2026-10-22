@@ -191,6 +191,8 @@ namespace FlipPix.UI.ViewModels.Video
             OnPropertyChanged(nameof(IsRef2VA));
             OnPropertyChanged(nameof(WorkflowSummary));
             OnPropertyChanged(nameof(ReferenceLimitNote));
+            OnPropertyChanged(nameof(MoreReferences));
+            OnPropertyChanged(nameof(MoreReferencesNote));
             RaiseUltraState();
             OnCanExecuteChanged();
         }
@@ -236,6 +238,7 @@ namespace FlipPix.UI.ViewModels.Video
             OnPropertyChanged(nameof(UltraMediaSummary));
             OnPropertyChanged(nameof(UltraResolvedAspect));
             OnPropertyChanged(nameof(UltraCanvasSummary));
+            OnPropertyChanged(nameof(MoreReferencesNote));
             OnCanExecuteChanged();
         }
 
