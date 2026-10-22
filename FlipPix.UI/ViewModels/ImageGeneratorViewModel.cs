@@ -889,7 +889,9 @@ namespace FlipPix.UI.ViewModels
                 ProcessingStatus = "Updating workflow parameters...";
                 ProcessingProgress = 10;
 
-                var updatedWorkflow = UpdateWorkflowParameters(workflow);
+                // Into the model's own output folder (Moss/, Krea2/, ...) rather than loose in output/.
+                var updatedWorkflow = OutputFolders.RouteSaves(
+                    UpdateWorkflowParameters(workflow), OutputFolders.ForTextWorkflow(SelectedWorkflow));
                 _lastWorkflow = updatedWorkflow; // Store for later use in image retrieval
 
                 // Execute workflow
@@ -3019,8 +3021,10 @@ namespace FlipPix.UI.ViewModels
             return workflowDict;
         }
 
-        private async Task<List<byte[]>> GetOutputImagesFromComfyUI(string promptId)
+        private async Task<List<byte[]>> GetOutputImagesFromComfyUI(string promptId, TextGeneratorWorkflow? workflow = null)
         {
+            // A queued item names its own model; the one on screen may have changed since it was queued.
+            var wf = workflow ?? SelectedWorkflow;
             var images = new List<byte[]>();
 
             try
@@ -3122,13 +3126,13 @@ namespace FlipPix.UI.ViewModels
                     // Scoped to Zimage: other workflows (e.g. Qwen 2512 ConvRot) also use node id 107,
                     // and must not be redirected into the ZImage output subfolder.
                     var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(_lastWorkflow.GetRawText());
-                    bool isAmateurZimageApi = SelectedWorkflow == TextGeneratorWorkflow.Zimage
+                    bool isAmateurZimageApi = wf == TextGeneratorWorkflow.Zimage
                         && workflowDict != null
                         && (workflowDict.ContainsKey("760") || workflowDict.ContainsKey("107"));
 
                     // For Zimage (Zib-Zit workflow), the output is in a subdirectory: ZImage/%date/
                     string searchDirectory;
-                    if (SelectedWorkflow == TextGeneratorWorkflow.Zimage && !isAmateurZimageApi)
+                    if (wf == TextGeneratorWorkflow.Zimage && !isAmateurZimageApi)
                     {
                         // Look in ZImage subdirectory with today's date (for Zib-Zit workflow)
                         var dateSubdir = DateTime.Now.ToString("yyyy_MM_dd");
@@ -3143,7 +3147,11 @@ namespace FlipPix.UI.ViewModels
                     }
                     else
                     {
-                        searchDirectory = comfyUIOutputDir;
+                        // Each model saves into its own folder (see OutputFolders); files from before that
+                        // are still loose in the output folder itself.
+                        var modelFolder = OutputFolders.ForTextWorkflow(wf);
+                        var routed = modelFolder == null ? null : Path.Combine(comfyUIOutputDir, modelFolder);
+                        searchDirectory = routed != null && Directory.Exists(routed) ? routed : comfyUIOutputDir;
                     }
 
                     if (!Directory.Exists(comfyUIOutputDir))
@@ -3172,7 +3180,7 @@ namespace FlipPix.UI.ViewModels
                             imageFiles = new List<string>();
                         }
                     }
-                    else if (SelectedWorkflow == TextGeneratorWorkflow.Zimage)
+                    else if (wf == TextGeneratorWorkflow.Zimage)
                     {
                         // Zib-Zit workflow: files are named like "False__0_blur_02.png"
                         // Just look for all PNG files in the subdirectory and sort by modification time
@@ -3208,7 +3216,7 @@ namespace FlipPix.UI.ViewModels
                     else
                     {
                         // Other workflows use prefix-based file naming
-                        var prefix = SelectedWorkflow switch
+                        var prefix = wf switch
                         {
                             TextGeneratorWorkflow.Qwen2512 => "qwen2512_",
                             TextGeneratorWorkflow.Klien => "F2K_txt2img_",
@@ -3219,8 +3227,8 @@ namespace FlipPix.UI.ViewModels
                             TextGeneratorWorkflow.Moss => "Moss_",
                             _ => "z-image_"
                         };
-                        imageFiles = Directory.GetFiles(comfyUIOutputDir, $"{prefix}*.png")
-                            .OrderByDescending(f => ExtractFileNumber(f)) // Sort by extracted number for proper numeric ordering
+                        imageFiles = Directory.GetFiles(searchDirectory, $"{prefix}*.png")
+                            .OrderByDescending(f => ExtractFileNumber(f, wf)) // Sort by extracted number for proper numeric ordering
                             .ToList();
                     }
 
@@ -3253,7 +3261,7 @@ namespace FlipPix.UI.ViewModels
                         AddLog($"Error listing files: {ex.Message}");
                     }
 
-                    var workflowName = SelectedWorkflow.ToString();
+                    var workflowName = wf.ToString();
                     AddLog($"Found {imageFiles.Count} {workflowName} PNG files in output directory");
 
                     if (imageFiles.Any())
@@ -3336,7 +3344,7 @@ namespace FlipPix.UI.ViewModels
             return images;
         }
 
-        private int ExtractFileNumber(string filePath)
+        private int ExtractFileNumber(string filePath, TextGeneratorWorkflow workflow)
         {
             var fileName = Path.GetFileNameWithoutExtension(filePath);
 
@@ -3344,7 +3352,7 @@ namespace FlipPix.UI.ViewModels
             // Zimage: "z-image_12345_" pattern
             // Qwen: "qwen2512_00001_" pattern (5-digit zero-padded)
             // Klien: "F2K_txt2img_00001_" pattern (5-digit zero-padded)
-            var patterns = SelectedWorkflow switch
+            var patterns = workflow switch
             {
                 TextGeneratorWorkflow.Qwen2512 => new[] { @"qwen2512_(\d+)_", @"qwen2512_(\d+)$" },
                 TextGeneratorWorkflow.Klien => new[] { @"F2K_txt2img_(\d+)_", @"F2K_txt2img_(\d+)$" },
@@ -4240,7 +4248,9 @@ namespace FlipPix.UI.ViewModels
                 SelectedWorkflow = queueItem.SelectedWorkflow;
                 UsePromptEnhancer = queueItem.UsePromptEnhancer;
 
-                var updatedWorkflow = UpdateWorkflowParameters(workflow);
+                // Into the model's own output folder (Moss/, Krea2/, ...) rather than loose in output/.
+                var updatedWorkflow = OutputFolders.RouteSaves(
+                    UpdateWorkflowParameters(workflow), OutputFolders.ForTextWorkflow(SelectedWorkflow));
                 _lastWorkflow = updatedWorkflow; // needed by GetOutputImagesFromComfyUI for workflow detection
 
                 // Restore original properties
@@ -4306,7 +4316,7 @@ namespace FlipPix.UI.ViewModels
                     }
 
                     _cancellationTokenSource.Token.ThrowIfCancellationRequested();
-                    outputImages = await GetOutputImagesFromComfyUI(promptId);
+                    outputImages = await GetOutputImagesFromComfyUI(promptId, queueItem.SelectedWorkflow);
                     retryCount++;
                 }
 

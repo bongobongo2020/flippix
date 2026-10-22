@@ -676,6 +676,9 @@ namespace FlipPix.UI.ViewModels.Video
                 });
 
                 var existingFiles = GetExistingVideoFiles("*.mp4", OutputSubfolder);
+                // A sink whose graph saves under a plain name goes into its own folder (ltx_control/)
+                // rather than loose in output/ (see OutputFolders).
+                updatedWorkflow = OutputFolders.RouteSaves(updatedWorkflow, OutputSubfolder);
                 var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress);
                 AddLog($"Workflow submitted, ID: {promptId}");
 

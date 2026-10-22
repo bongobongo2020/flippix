@@ -1232,7 +1232,8 @@ namespace FlipPix.UI.ViewModels
             dict.Remove(ResolutionNode);
 
             // RetrieveOutputImageAsync matches saved files by this prefix.
-            UpdateNode(dict, SaveImageNode, inputs => inputs["filename_prefix"] = SavePrefix);
+            // Into output/gram/ rather than loose in output/ (see OutputFolders).
+            UpdateNode(dict, SaveImageNode, inputs => inputs["filename_prefix"] = OutputFolders.Prefix(OutputFolders.Ideogram, SavePrefix));
 
             // Node 186 (PrimitiveStringMultiline) feeds node 185's `import_json`.
             // With import_mode "always" this document, not the widgets, describes the
@@ -2000,7 +2001,9 @@ namespace FlipPix.UI.ViewModels
                 if (i > 0) { AddLog($"Retry {i}/{maxRetries}..."); await Task.Delay(retryDelayMs, token); }
                 token.ThrowIfCancellationRequested();
 
-                var files = Directory.GetFiles(outputDir, $"{savePrefix}*.png", SearchOption.AllDirectories)
+                // The tab's own folder (see OutputFolders) when it exists, else the whole tree.
+                var ownDir = Path.Combine(outputDir, OutputFolders.Ideogram);
+                var files = Directory.GetFiles(Directory.Exists(ownDir) ? ownDir : outputDir, $"{savePrefix}*.png", SearchOption.AllDirectories)
                     .Where(f => !Path.GetFileName(f).StartsWith("ComfyUI_temp_", StringComparison.OrdinalIgnoreCase))
                     .OrderByDescending(File.GetLastWriteTime).ToList();
                 if (!files.Any())

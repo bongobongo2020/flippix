@@ -2347,7 +2347,10 @@ namespace FlipPix.UI.ViewModels
                     SelectedKreaLoras = new ObservableCollection<KreaLoraSelection>(
                         item.SelectedKreaLoras.Select(d => d.ToSelection()));
 
-                var updatedWorkflow = UpdateWorkflowForGenerationSimple(workflow, item.SelectedWorkflow);
+                // Into the model's own output folder (Moss/, Krea2/, ...) rather than loose in output/.
+                var updatedWorkflow = OutputFolders.RouteSaves(
+                    UpdateWorkflowForGenerationSimple(workflow, item.SelectedWorkflow),
+                    OutputFolders.ForTextWorkflow(item.SelectedWorkflow));
 
                 // Restore original properties
                 AnalysisText = originalAnalysisText;
@@ -4121,8 +4124,13 @@ namespace FlipPix.UI.ViewModels
                     }
                     else
                     {
-                        // Get files with the specific prefix
-                        allFiles = Directory.GetFiles(comfyUIOutputDir, $"{filePrefix}*.png", SearchOption.AllDirectories);
+                        // Get files with the specific prefix — in the model's own folder (see OutputFolders),
+                        // or across the whole tree for files saved before that.
+                        var modelFolder = OutputFolders.ForTextWorkflow(workflow);
+                        var routed = modelFolder == null ? null : Path.Combine(comfyUIOutputDir, modelFolder);
+                        allFiles = routed != null && Directory.Exists(routed)
+                            ? Directory.GetFiles(routed, $"{filePrefix}*.png", SearchOption.AllDirectories)
+                            : Directory.GetFiles(comfyUIOutputDir, $"{filePrefix}*.png", SearchOption.AllDirectories);
                     }
 
                     _logger.LogInfo($"Found {allFiles.Length} total matching files");

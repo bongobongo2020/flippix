@@ -343,7 +343,7 @@ namespace FlipPix.UI.ViewModels
                 AddLog($"LoRA: {LoraName}  Strength: {LoraStrength}");
 
                 // SaveImage prefix
-                UpdateWorkflowNode(workflowDict, "3", inputs => inputs["filename_prefix"] = "klein-inpaint");
+                UpdateWorkflowNode(workflowDict, "3", inputs => inputs["filename_prefix"] = OutputFolders.Prefix(OutputFolders.KleinInpaint, "klein-inpaint")); // into output/klein-inpaint/
 
                 var updatedWorkflow = JsonSerializer.SerializeToElement(workflowDict);
 
@@ -499,7 +499,8 @@ namespace FlipPix.UI.ViewModels
 
                     _cts!.Token.ThrowIfCancellationRequested();
 
-                    var files = Directory.GetFiles(outputDir, "klein-inpaint_*.png", SearchOption.AllDirectories)
+                    var ownDir = Path.Combine(outputDir, OutputFolders.KleinInpaint); // the tab's own folder, else the whole tree
+                    var files = Directory.GetFiles(Directory.Exists(ownDir) ? ownDir : outputDir, "klein-inpaint_*.png", SearchOption.AllDirectories)
                         .OrderByDescending(File.GetLastWriteTime)
                         .ToList();
 

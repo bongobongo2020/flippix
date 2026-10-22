@@ -248,7 +248,7 @@ namespace FlipPix.UI.ViewModels
                 AddLog($"Updated image node: {uploadedFilename} [input]");
 
                 // Update SaveImage prefix so we can find the result
-                UpdateWorkflowNode(workflowDict, "378", inputs => inputs["filename_prefix"] = "qwen-inpaint");
+                UpdateWorkflowNode(workflowDict, "378", inputs => inputs["filename_prefix"] = OutputFolders.Prefix(OutputFolders.QwenInpaint, "qwen-inpaint")); // into output/qwen-inpaint/
 
                 // Randomize KSampler seed (node 500 is baked into the workflow JSON)
                 var seed = new Random().NextInt64(0, 999_999_999_999_999L);
@@ -416,7 +416,8 @@ namespace FlipPix.UI.ViewModels
 
                     _cts!.Token.ThrowIfCancellationRequested();
 
-                    var files = Directory.GetFiles(outputDir, "qwen-inpaint_*.png", SearchOption.AllDirectories)
+                    var ownDir = Path.Combine(outputDir, OutputFolders.QwenInpaint); // the tab's own folder, else the whole tree
+                    var files = Directory.GetFiles(Directory.Exists(ownDir) ? ownDir : outputDir, "qwen-inpaint_*.png", SearchOption.AllDirectories)
                         .OrderByDescending(File.GetLastWriteTime)
                         .ToList();
 

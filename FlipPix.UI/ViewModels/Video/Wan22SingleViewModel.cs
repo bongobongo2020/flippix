@@ -522,7 +522,9 @@ namespace FlipPix.UI.ViewModels.Video
                 WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "57", "noise_seed", seed);
                 WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "58", "noise_seed", seed);
                 var filenamePrefix = $"{DateTime.Now:yyyyMMdd_HHmmss}_Wan2.2";
-                WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "304", "filename_prefix", filenamePrefix);
+                // Into output/wan22_single/ rather than loose in output/ (see OutputFolders); the lookup below
+                // searches every subfolder for the name.
+                WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "304", "filename_prefix", $"wan22_single/{filenamePrefix}");
                 // Match video dimensions to image aspect ratio
                 WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "131", "value", vidW); // Width constant
                 WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "130", "value", vidH); // Height constant

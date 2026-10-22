@@ -799,7 +799,9 @@ namespace FlipPix.UI.ViewModels
                     { "cfg", QwenCfg },
                     { "seed", new Random().NextInt64(0, 999_999_999_999_999L) }
                 });
-                WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "461", "filename_prefix", filenamePrefix);
+                // Into output/camera-angles/ rather than loose in output/ (see OutputFolders).
+                WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "461", "filename_prefix",
+                    OutputFolders.Prefix(OutputFolders.CameraAngles, filenamePrefix));
 
                 var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
 
@@ -820,7 +822,7 @@ namespace FlipPix.UI.ViewModels
 
                 var retrieved = await _imageRetriever.GetOutputImagesAsync(
                     _comfyUIService.HttpClient, _settingsService, _logger, AddLog,
-                    specificFolder: null, expectedPattern: filenamePrefix, promptId: promptId,
+                    specificFolder: OutputFolders.CameraAngles, expectedPattern: filenamePrefix, promptId: promptId,
                     maxRetries: 20, retryDelayMs: 5000, ct: token);
 
                 var bytes = retrieved.FirstOrDefault();
@@ -885,7 +887,8 @@ namespace FlipPix.UI.ViewModels
 
             WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, modelNodeId, new Dictionary<string, object>
             {
-                { "filename_prefix", filenamePrefix },
+                // Into output/camera-angles/ rather than loose in output/ (see OutputFolders).
+                { "filename_prefix", OutputFolders.Prefix(OutputFolders.CameraAngles, filenamePrefix) },
                 { "subfolder", subfolderName }
             });
 
@@ -1042,8 +1045,10 @@ namespace FlipPix.UI.ViewModels
                         if (!Directory.Exists(searchDir))
                         {
                             AddLog($"Subfolder not found: {searchDir}");
-                            // Fall back to searching in the main output directory, but only for recent files
-                            searchDir = comfyUIOutputDir;
+                            // Fall back to the tab's own output folder (see OutputFolders) — or, for a server that
+                            // has never saved there, the main output directory — but only for recent files.
+                            var anglesDir = Path.Combine(comfyUIOutputDir, OutputFolders.CameraAngles);
+                            searchDir = Directory.Exists(anglesDir) ? anglesDir : comfyUIOutputDir;
                             AddLog($"Falling back to: {searchDir} (will only load recent files)");
                         }
 

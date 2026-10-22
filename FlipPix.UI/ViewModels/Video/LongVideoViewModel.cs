@@ -759,7 +759,7 @@ namespace FlipPix.UI.ViewModels.Video
             WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "57", "noise_seed", seed);
             WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "58", "noise_seed", seed);
             WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "304", "filename_prefix",
-                $"{DateTime.Now:yyyyMMdd_HHmmss}_LongVid_i{iteration}");
+                $"{RawSubfolder}/{DateTime.Now:yyyyMMdd_HHmmss}_LongVid_i{iteration}");
             WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "131", "value", vidW);
             WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "130", "value", vidH);
             WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "445", "width", vidW);
@@ -804,7 +804,7 @@ namespace FlipPix.UI.ViewModels.Video
             WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "5001:4967", "noise_seed", seed);
             WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "5012:5009", "noise_seed", seed);
             WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "4852", "filename_prefix",
-                $"{DateTime.Now:yyyyMMdd_HHmmss}_LongVid_LTX_i{iteration}");
+                $"{RawSubfolder}/{DateTime.Now:yyyyMMdd_HHmmss}_LongVid_LTX_i{iteration}");
             WorkflowNodeUpdater.UpdateNodeInputMultiple(ref rawJson, "5013:3059",
                 new Dictionary<string, object> { { "width", itemWidth }, { "height", itemHeight } });
 
@@ -856,6 +856,12 @@ namespace FlipPix.UI.ViewModels.Video
             return finalPath;
         }
 
+        /// <summary>
+        /// Where ComfyUI saves each iteration's clip, under its output folder — kept apart from the LongVideo
+        /// folder the finished copies go to, and out of the top of output/ (see OutputFolders).
+        /// </summary>
+        private const string RawSubfolder = "longvideo_raw";
+
         private async Task<string?> WaitForVideoByTimestampAsync(
             DateTime after, TimeSpan maxWait, TimeSpan checkInterval)
         {
@@ -872,9 +878,10 @@ namespace FlipPix.UI.ViewModels.Video
                 return null;
             }
 
-            // Only monitor the direct output folder, not subdirectories, to avoid
-            // picking up previously-copied files from the LongVideo subfolder.
-            AddLog($"Monitoring: {outputFolder}  (files newer than {after:HH:mm:ss})");
+            // Only the folder the clips are saved to (and, for older graphs, the top of the output folder) —
+            // never the LongVideo subfolder our own copies go to.
+            var rawFolder = Path.Combine(outputFolder, RawSubfolder);
+            AddLog($"Monitoring: {rawFolder}  (files newer than {after:HH:mm:ss})");
 
             string? trackedCandidate = null;
             long lastSize = -1;
@@ -886,10 +893,10 @@ namespace FlipPix.UI.ViewModels.Video
 
                 if (!Directory.Exists(outputFolder)) continue;
 
-                // Search top-level only — the LongVideo subfolder is inside outputFolder
-                // and searching AllDirectories would pick up our own copied files.
-                var candidate = Directory
-                    .GetFiles(outputFolder, "*.mp4", SearchOption.TopDirectoryOnly)
+                // Top level of each, not AllDirectories: that would pick up our own copies in LongVideo/.
+                var candidate = new[] { rawFolder, outputFolder }
+                    .Where(Directory.Exists)
+                    .SelectMany(d => Directory.GetFiles(d, "*.mp4", SearchOption.TopDirectoryOnly))
                     .Where(f => File.GetLastWriteTime(f) > after)
                     .OrderByDescending(f => File.GetLastWriteTime(f))
                     .FirstOrDefault();

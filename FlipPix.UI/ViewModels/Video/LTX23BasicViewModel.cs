@@ -749,6 +749,9 @@ namespace FlipPix.UI.ViewModels.Video
                 });
 
                 ProcessingStatus = "Executing workflow...";
+                // A sink whose graph saves under a plain name goes into video/, one of the folders watched below
+                // rather than loose in output/ (see OutputFolders).
+                updatedWorkflow = OutputFolders.RouteSaves(updatedWorkflow, "video");
                 var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress);
                 AddLog($"Workflow submitted (prompt ID: {promptId})");
 
