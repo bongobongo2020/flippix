@@ -164,7 +164,6 @@ namespace FlipPix.UI.ViewModels.Video
 
         private readonly IFileDialogService _fileDialogService;
         private readonly LMStudioService _lmStudioService;
-        private CancellationTokenSource? _analyzeCts;
 
         /// <summary>This tab's own prompt store. Deliberately not the Character tab's: a take here is a
         /// base pass plus segments written against a numbered picture order, which is not what that
@@ -253,6 +252,9 @@ namespace FlipPix.UI.ViewModels.Video
 
             // After the render card: the Ultra card offers its checkpoint into the model list InitRender seeded.
             InitUltra();
+
+            // Analyze & Queue — see MiniMaxI2VViewModel.Analysis.cs.
+            InitAnalysis();
 
             // Only once every command exists: restoring a queue notifies all of them.
             _queue.CollectionChanged += (_, _) => UpdateQueueStatus();
@@ -1026,122 +1028,6 @@ namespace FlipPix.UI.ViewModels.Video
 
         #region Analysis (references → Ref2VA prompt)
 
-        private async Task AnalyzeAsync()
-        {
-            if (!CanAnalyze) return;
-
-            IsAnalyzing = true;
-            _analyzeCts?.Dispose();
-            _analyzeCts = new CancellationTokenSource();
-            var token = _analyzeCts.Token;
-
-            try
-            {
-                var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://alien:8080";
-                await _lmStudioService.SetBaseUrlAsync(baseUrl);
-
-                var models = await _lmStudioService.GetAvailableModelsAsync(token);
-                var model = _settingsService.Settings?.LMStudioSettings?.SelectedModel ?? string.Empty;
-                if (string.IsNullOrEmpty(model) && models.Count > 0)
-                    model = models[0].Id ?? models[0].Name ?? string.Empty;
-                if (string.IsNullOrEmpty(model))
-                {
-                    MessageBox.Show("No LM Studio / llama-server model available. Ensure the server is running and a model is loaded.",
-                        "LM Studio Unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
-                var promptFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
-                    "prompts", "prompt2json", SystemPromptFile);
-                if (!File.Exists(promptFilePath))
-                    throw new FileNotFoundException($"System prompt not found: {promptFilePath}");
-                var systemPrompt = await File.ReadAllTextAsync(promptFilePath, token);
-
-                // An empty set for the take to be staged in, rendered into a free slot first — see
-                // MiniMaxI2VViewModel.LocationPlate.cs.
-                await EnsureLocationPlateAsync(model, token);
-
-                // Ultra reads all nine slots; the Ref2VA graph only ever takes the first four.
-                var pictures = IsUltra ? UltraPictures : FilledReferences;
-                AddLog($"Writing the Ref2VA prompt — {pictures.Count} picture(s) → {_lmStudioService.DescribeTarget(model)}");
-
-                // Captured before the reply lands: ApplyAnalyzedPrompt overwrites the box with segment 1,
-                // and the repair pass needs the user's original idea to have anything to advance toward.
-                var draft = Prompt.Trim();
-
-                var result = await _lmStudioService.AnalyzeMultipleImagesWithSystemPromptAsync(
-                    model,
-                    pictures.Select(p => p.Path).ToList(),
-                    BuildAnalyzeRequest(pictures),
-                    systemPrompt,
-                    maxTokens: 4000,
-                    cancellationToken: token);
-
-                ApplyAnalyzedPrompt(CleanLLMOutput(result));
-                await RepairMissingSegmentsAsync(model, systemPrompt, pictures, draft, token);
-
-                // Filed as soon as it exists, not only when it renders: a prompt worth keeping is often
-                // one the user reads, edits and never queues.
-                await SaveCurrentPromptAsync(manual: false);
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception ex)
-            {
-                AddLog($"ERROR during analysis: {ex.Message}");
-                MessageBox.Show($"Analysis failed:\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-            finally
-            {
-                IsAnalyzing = false;
-                _analyzeCts?.Dispose();
-                _analyzeCts = null;
-            }
-        }
-
-        /// <summary>
-        /// The user message: what each picture is, the draft idea, and — when the take is continued — the
-        /// per-segment durations the model has to pace its beats against.
-        /// </summary>
-        private string BuildAnalyzeRequest(IReadOnlyList<MiniMaxI2VReference> pictures)
-        {
-            var lines = new List<string>
-            {
-                $"You are given {pictures.Count} reference picture(s), in order:"
-            };
-            for (var i = 0; i < pictures.Count; i++)
-                lines.Add(pictures[i].IsLocationPlate
-                    ? $"  <Picture {i + 1}> — {LocationPlateNote}"
-                    : $"  <Picture {i + 1}> — {Path.GetFileNameWithoutExtension(pictures[i].Path)}");
-
-            lines.Add(string.Empty);
-            if (IsUltra)
-            {
-                lines.AddRange(UltraMediaInstructions());
-                lines.Add($"Write ONE segment. Target duration: {Ultra.DurationSeconds:0.#} seconds.");
-            }
-            else if (Continuations.Count == 0)
-            {
-                lines.Add($"Write ONE segment. Target duration: {LengthSeconds} seconds.");
-            }
-            else
-            {
-                lines.Add($"Write {Continuations.Count + 1} segments, in order, separated by the segment markers:");
-                lines.Add($"  Segment 1 — {LengthSeconds} seconds.");
-                for (var i = 0; i < Continuations.Count; i++)
-                    lines.Add($"  Segment {i + 2} — {Continuations[i].Seconds} seconds, continuing directly out of segment {i + 1}.");
-            }
-
-            lines.AddRange(StereoInstructions());
-
-            lines.Add(string.Empty);
-            lines.Add("Draft idea from the user:");
-            lines.Add(string.IsNullOrWhiteSpace(Prompt)
-                ? "(none — build a single natural beat out of what the pictures show, and add nothing beyond it)"
-                : Prompt.Trim());
-
-            return string.Join("\n", lines);
-        }
-
         /// <summary>
         /// What the model has to be told when &lt;Picture 1&gt; is a stereo pair, over and above the wording
         /// already sitting in the draft-idea box.
@@ -1182,145 +1068,6 @@ namespace FlipPix.UI.ViewModels.Video
             };
         }
 
-        /// <summary>
-        /// Splits the reply on the segment markers and drops the blocks into the base prompt and the
-        /// continuation slots. A reply with no markers is treated as the base prompt alone, so a model
-        /// that ignored the segment instruction never silently blanks a continuation.
-        /// </summary>
-        private void ApplyAnalyzedPrompt(string reply)
-        {
-            if (string.IsNullOrWhiteSpace(reply))
-            {
-                AddLog("WARNING: Analysis returned an empty result");
-                return;
-            }
-
-            // "No music" in words gets music; the field is written N/A instead.
-            var blocks = SplitSegments(reply).Select(H3SpecPrompt.NormalizeMusicSections).ToList();
-            Prompt = blocks[0];
-            AddLog($"Segment 1 prompt written ({blocks[0].Length} chars)");
-
-            // Ultra renders one pass; continuations belong to the Ref2VA workflow and are left as they were.
-            for (var i = 0; i < (IsUltra ? 0 : Continuations.Count); i++)
-            {
-                if (i + 1 >= blocks.Count)
-                {
-                    AddLog($"WARNING: no segment {i + 2} in the reply — continuation {i + 1} is still empty");
-                    continue;
-                }
-                Continuations[i].Prompt = blocks[i + 1];
-                AddLog($"Segment {i + 2} prompt written ({blocks[i + 1].Length} chars)");
-            }
-
-            OnCanExecuteChanged();
-        }
-
-        /// <summary>
-        /// Re-asks for any continuation the first reply left empty, one at a time.
-        ///
-        /// <para>A single reply carrying every segment is cheaper and keeps the take coherent, so it stays
-        /// the first attempt — but whether the model emits the <c>=== SEGMENT n ===</c> markers is sampling
-        /// luck, and the same prompt and model produce them on one run and not the next. Rather than hope,
-        /// each missing segment is requested on its own, with the segment before it supplied as context so
-        /// the continuation still picks up where its predecessor ended.</para>
-        ///
-        /// <para>Deliberately sequential: segment 3's context is segment 2, which may itself have just been
-        /// repaired. Running these in parallel would hand segment 3 an empty predecessor.</para>
-        /// </summary>
-        private async Task RepairMissingSegmentsAsync(
-            string model, string systemPrompt, IReadOnlyList<MiniMaxI2VReference> pictures,
-            string draft, CancellationToken token)
-        {
-            if (IsUltra || Continuations.All(c => !string.IsNullOrWhiteSpace(c.Prompt))) return;
-
-            var missing = Continuations.Count(c => string.IsNullOrWhiteSpace(c.Prompt));
-            AddLog($"{missing} continuation(s) came back without a segment marker — asking for them one at a time");
-
-            foreach (var segment in Continuations)
-            {
-                if (!string.IsNullOrWhiteSpace(segment.Prompt)) continue;
-                token.ThrowIfCancellationRequested();
-
-                var previous = segment.Index <= 1 ? Prompt : Continuations[segment.Index - 2].Prompt;
-                if (string.IsNullOrWhiteSpace(previous))
-                {
-                    AddLog($"WARNING: continuation {segment.Index} has no preceding segment to continue from — skipped");
-                    continue;
-                }
-
-                var reply = await _lmStudioService.AnalyzeMultipleImagesWithSystemPromptAsync(
-                    model,
-                    pictures.Select(p => p.Path).ToList(),
-                    BuildRepairRequest(pictures, segment, previous, draft),
-                    systemPrompt,
-                    maxTokens: 2500,
-                    cancellationToken: token);
-
-                // The reply should be one segment, but a model that ignored "no marker" would wrap it —
-                // take the first block either way.
-                var text = H3SpecPrompt.NormalizeMusicSections(
-                    SplitSegments(CleanLLMOutput(reply)).FirstOrDefault() ?? string.Empty);
-                if (string.IsNullOrWhiteSpace(text))
-                {
-                    AddLog($"WARNING: continuation {segment.Index} still came back empty");
-                    continue;
-                }
-
-                segment.Prompt = text;
-                AddLog($"Continuation {segment.Index} written on retry ({text.Length} chars)");
-            }
-
-            OnCanExecuteChanged();
-        }
-
-        /// <summary>
-        /// Asks for exactly one continuation.
-        ///
-        /// <para>The user's draft is supplied alongside the preceding segment, and that is not optional.
-        /// The Ref2VA system prompt forbids inventing action, so a request carrying only the previous
-        /// segment leaves the model nothing it is permitted to write — and it answers by restating that
-        /// segment almost verbatim. The draft is what makes advancing the action a compliant answer.</para>
-        /// </summary>
-        private string BuildRepairRequest(
-            IReadOnlyList<MiniMaxI2VReference> pictures, MiniMaxI2VSegment segment,
-            string previous, string draft)
-        {
-            var lines = new List<string>
-            {
-                $"You are given {pictures.Count} reference picture(s), in order:"
-            };
-            for (var i = 0; i < pictures.Count; i++)
-                lines.Add(pictures[i].IsLocationPlate
-                    ? $"  <Picture {i + 1}> — {LocationPlateNote}"
-                    : $"  <Picture {i + 1}> — {Path.GetFileNameWithoutExtension(pictures[i].Path)}");
-
-            lines.Add(string.Empty);
-            lines.Add("The user's idea for the WHOLE take:");
-            lines.Add(string.IsNullOrWhiteSpace(draft)
-                ? "(none given — carry the action forward naturally from the segment below, one new beat only)"
-                : draft);
-
-            lines.Add(string.Empty);
-            lines.Add($"The take runs as {Continuations.Count + 1} segments of "
-                      + $"{LengthSeconds}s + {string.Join("s + ", Continuations.Select(c => c.Seconds))}s.");
-            lines.Add($"Write ONLY segment {segment.Index + 1}, lasting {segment.Seconds} seconds — the part of "
-                      + "the user's idea that falls in that stretch, and nothing from any other segment.");
-            lines.Add("Output the six Ref2VA fields exactly once. Do NOT write a segment marker line.");
-            lines.Add("Its first interval restarts at 0.0s — timestamps are local to this segment, not cumulative.");
-            lines.Add("Re-establish the subjects by their <Subject N> bindings, and keep wardrobe, setting and "
-                      + "lighting identical so nothing drifts across the join.");
-
-            lines.AddRange(StereoInstructions());
-
-            lines.Add(string.Empty);
-            lines.Add("The segment immediately before yours is below. It is CONTEXT ONLY — your segment starts "
-                      + "where it ends and must carry the action forward. Do not repeat its events, do not "
-                      + "re-describe its beat, and do not copy its detailed_description:");
-            lines.Add(previous.Trim());
-
-            return string.Join("\n", lines);
-        }
-
         /// <summary>Splits on any line whose first non-space run is the segment marker.</summary>
         internal static List<string> SplitSegments(string reply)
         {
@@ -1349,7 +1096,11 @@ namespace FlipPix.UI.ViewModels.Video
         public ObservableCollection<MiniMaxI2VQueueItem> Queue => _queue;
 
         public bool HasQueueItems => _queue.Count > 0;
-        public bool HasPendingItems => _queue.Any(x => x.ItemStatus == QueueItemStatus.Pending);
+        public bool HasPendingItems => _queue.Any(IsRunnable);
+
+        /// <summary>Pending and with its prompt written — a row still being analyzed is not.</summary>
+        private static bool IsRunnable(MiniMaxI2VQueueItem item) =>
+            item.ItemStatus == QueueItemStatus.Pending && !item.NeedsAnalysis;
         public bool HasFailedItems => _queue.Any(x => x.ItemStatus == QueueItemStatus.Failed);
 
         /// <summary>True while the drain loop is alive — one ComfyUI submission at a time.</summary>
@@ -1405,23 +1156,33 @@ namespace FlipPix.UI.ViewModels.Video
                 return;
             }
 
-            // A host-RAM blowout does not fail one job — the kernel kills ComfyUI, which loses whatever
-            // was rendering and every item queued behind it. Worth a confirm rather than a log line.
-            if (IsMemoryOverLimit)
-            {
-                var proceed = MessageBox.Show(
-                    $"{MemoryWarning}\n\n" +
-                    "The continuation loop keeps every pass's frames in system RAM at once, so a long " +
-                    "take can exhaust the server rather than just this job — and that takes down the " +
-                    "whole queue with it.\n\n" +
-                    "Shorten the take, remove continuations, lower the quality, or turn off the detail " +
-                    "pass.\n\nQueue it anyway?",
-                    "Likely to run out of memory",
-                    MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
-                if (proceed != MessageBoxResult.Yes) return;
-            }
+            if (!ConfirmMemoryRisk()) return;
+            EnqueueItem(BuildRef2VAQueueItem());
+        }
 
-            var item = new MiniMaxI2VQueueItem
+        /// <summary>
+        /// A host-RAM blowout does not fail one job — the kernel kills ComfyUI, which loses whatever was
+        /// rendering and every item queued behind it. Worth a confirm rather than a log line.
+        /// </summary>
+        private bool ConfirmMemoryRisk()
+        {
+            if (!IsMemoryOverLimit) return true;
+            var proceed = MessageBox.Show(
+                $"{MemoryWarning}\n\n" +
+                "The continuation loop keeps every pass's frames in system RAM at once, so a long " +
+                "take can exhaust the server rather than just this job — and that takes down the " +
+                "whole queue with it.\n\n" +
+                "Shorten the take, remove continuations, lower the quality, or turn off the detail " +
+                "pass.\n\nQueue it anyway?",
+                "Likely to run out of memory",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+            return proceed == MessageBoxResult.Yes;
+        }
+
+        /// <summary>Freezes the Ref2VA half of the form into a queue item.</summary>
+        private MiniMaxI2VQueueItem BuildRef2VAQueueItem()
+        {
+            return new MiniMaxI2VQueueItem
             {
                 ReferencePaths = FilledReferences.Select(r => r.Path).ToList(),
                 Prompt = Prompt.Trim(),
@@ -1452,8 +1213,6 @@ namespace FlipPix.UI.ViewModels.Video
                 UpscaleSteps = UpscaleSteps,
                 UseRife = UseRife,
             };
-
-            EnqueueItem(item);
         }
 
         private void EnqueueItem(MiniMaxI2VQueueItem item)
@@ -1484,6 +1243,7 @@ namespace FlipPix.UI.ViewModels.Video
         {
             // A Processing item is mid-submission; removing it would orphan the run, not stop it.
             if (item == null || item.ItemStatus == QueueItemStatus.Processing) return;
+            CancelAnalysis(item);
             _queue.Remove(item);
             SaveQueueToFile();
             UpdateQueueStatus();
@@ -1492,6 +1252,7 @@ namespace FlipPix.UI.ViewModels.Video
         private void ClearQueue()
         {
             _queueCts?.Cancel();
+            CancelAllAnalyses();
             _queue.Clear();
             SaveQueueToFile();
             UpdateQueueStatus();
@@ -1506,6 +1267,12 @@ namespace FlipPix.UI.ViewModels.Video
             if (failed.Count == 0) return;
             foreach (var item in failed)
             {
+                // A row whose prompt was never written goes back through the writer, not to the GPU.
+                if (item.NeedsAnalysis)
+                {
+                    RetryAnalysis(item);
+                    continue;
+                }
                 item.ItemStatus = QueueItemStatus.Pending;
                 item.ErrorMessage = null;
             }
@@ -1516,13 +1283,15 @@ namespace FlipPix.UI.ViewModels.Video
 
         private void UpdateQueueStatus()
         {
-            var pending = _queue.Count(x => x.ItemStatus == QueueItemStatus.Pending);
+            var analyzing = _queue.Count(x => x.Status == MiniMaxI2VQueueItem.AnalyzingStatus);
+            var pending = _queue.Count(IsRunnable);
             var running = _queue.Count(x => x.ItemStatus == QueueItemStatus.Processing);
             var done = _queue.Count(x => x.ItemStatus == QueueItemStatus.Completed);
             var failed = _queue.Count(x => x.ItemStatus == QueueItemStatus.Failed);
             QueueStatus = _queue.Count == 0
                 ? string.Empty
-                : $"{pending} pending • {running} running • {done} done • {failed} failed";
+                : (analyzing > 0 ? $"{analyzing} writing prompt • " : string.Empty) +
+                  $"{pending} pending • {running} running • {done} done • {failed} failed";
 
             OnPropertyChanged(nameof(HasQueueItems));
             OnPropertyChanged(nameof(HasPendingItems));
@@ -1776,7 +1545,7 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 MiniMaxI2VQueueItem? item;
                 while (!token.IsCancellationRequested &&
-                       (item = _queue.FirstOrDefault(x => x.ItemStatus == QueueItemStatus.Pending)) != null)
+                       (item = _queue.FirstOrDefault(IsRunnable)) != null)
                 {
                     item.ItemStatus = QueueItemStatus.Processing;
                     item.StartedAt = DateTime.Now;
@@ -2094,7 +1863,8 @@ namespace FlipPix.UI.ViewModels.Video
 
                 // Completed items are session history, not pending work — keeping them out stops the queue
                 // file (and therefore startup) from growing without bound.
-                var pending = _queue.Where(q => q.ItemStatus != QueueItemStatus.Completed).ToList();
+                // A row still waiting for its prompt cannot be resumed — its analysis lives in memory only.
+                var pending = _queue.Where(q => q.ItemStatus != QueueItemStatus.Completed && !q.NeedsAnalysis).ToList();
                 File.WriteAllText(QueueFilePath,
                     JsonSerializer.Serialize(pending, new JsonSerializerOptions { WriteIndented = true }));
             }
@@ -2152,6 +1922,19 @@ namespace FlipPix.UI.ViewModels.Video
                 {
                     ProcessingStatus = "Connecting to ComfyUI...";
                     await _comfyUIService.ConnectAsync();
+                }
+
+                // A plate written by Analyze & Queue is rendered here, on this item's own turn on the GPU. Before
+                // the pre-flight, so the room it checks for is what H3 has once Qwen has been and gone.
+                if (!string.IsNullOrEmpty(item.LocationPlatePrompt))
+                {
+                    ProcessingStatus = "Rendering the location plate...";
+                    var plate = await RenderLocationPlateAsync(item.LocationPlatePrompt, item.AspectRatio,
+                                    holdsLease: true, outerToken)
+                                ?? throw new Exception("The location plate could not be rendered — see the log, then 🔄 Retry.");
+                    item.ReferencePaths.Insert(Math.Clamp(item.LocationPlateIndex, 0, item.ReferencePaths.Count), plate);
+                    item.LocationPlatePrompt = null;
+                    SaveQueueToFile();
                 }
 
                 // With the lease held, so freeing memory cannot pull models out from under another tab.
@@ -2916,9 +2699,11 @@ namespace FlipPix.UI.ViewModels.Video
         {
             base.OnCanExecuteChanged();
             OnPropertyChanged(nameof(CanAnalyze));
+            OnPropertyChanged(nameof(CanAnalyzeAndQueue));
             OnPropertyChanged(nameof(CanGenerate));
             OnPropertyChanged(nameof(GenerateBlockedReason));
             AnalyzeCommand.NotifyCanExecuteChanged();
+            AnalyzeAndQueueCommand?.NotifyCanExecuteChanged();
             GenerateCommand.NotifyCanExecuteChanged();
             CancelCommand.NotifyCanExecuteChanged();
             PlayVideoCommand.NotifyCanExecuteChanged();

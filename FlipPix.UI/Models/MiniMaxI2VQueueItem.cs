@@ -21,9 +21,39 @@ namespace FlipPix.UI.Models
     /// </summary>
     public class MiniMaxI2VQueueItem : BaseQueueItem
     {
+        /// <summary>The row's status while Analyze &amp; Queue is still writing its prompt.</summary>
+        public const string AnalyzingStatus = "Analyzing";
+
+        /// <summary>
+        /// True from Analyze &amp; Queue until the prompt lands. Such a row is never picked up by the render
+        /// loop, and is not written to the queue file — its analysis lives in memory only.
+        /// </summary>
+        [JsonIgnore]
+        public bool NeedsAnalysis { get; set; }
+
+        /// <summary>Refreshes the row once the background writer has replaced the draft with the prompt.</summary>
+        public void NotifyPromptChanged()
+        {
+            OnPropertyChanged(nameof(Prompt));
+            OnPropertyChanged(nameof(PromptPreview));
+            OnPropertyChanged(nameof(DisplayText));
+        }
+
         /// <summary>Reference picture paths in slot order — this is the &lt;Picture N&gt; numbering the
         /// prompt was written against, so the order is part of the job, not a detail.</summary>
         public List<string> ReferencePaths { get; set; } = new();
+
+        /// <summary>
+        /// A location plate the prompt was written against but that is not rendered yet: Analyze &amp; Queue writes
+        /// the plate's prompt with the take's and leaves the Qwen render to the start of this row's turn on the
+        /// GPU, so writing the next prompt never waits for the video in progress. Cleared once the plate is
+        /// rendered and spliced into <see cref="ReferencePaths"/> at <see cref="LocationPlateIndex"/>.
+        /// </summary>
+        public string? LocationPlatePrompt { get; set; }
+
+        /// <summary>Where the plate goes in <see cref="ReferencePaths"/> — the &lt;Picture N&gt; it was
+        /// described as, zero-based.</summary>
+        public int LocationPlateIndex { get; set; }
 
         /// <summary>The base pass's Ref2VA prompt.</summary>
         public string Prompt { get; set; } = string.Empty;
@@ -146,6 +176,10 @@ namespace FlipPix.UI.Models
             {
                 var body = Prompt.Replace("\r", " ").Replace("\n", " ").Trim();
                 while (body.Contains("  ")) body = body.Replace("  ", " ");
+                if (NeedsAnalysis)
+                    body = body.Length == 0
+                        ? "✍️ Writing the prompt from the pictures…"
+                        : $"✍️ Writing the prompt from: {body}";
                 return body.Length <= 140 ? body : body[..140] + "…";
             }
         }

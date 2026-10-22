@@ -20,6 +20,11 @@ namespace FlipPix.UI.ViewModels.Video
     /// left, right and far, and nobody in it (<c>prompts/prompt2json/h3-location-plate.md</c>) — renders it at the
     /// clip's aspect, and then writes the Ref2VA prompt with that picture declared as the setting.</para>
     ///
+    /// <para><b>When it renders.</b> ✨ Analyze &amp; Queue writes the plate's prompt with the take's and hands the
+    /// writer that description in place of the picture; the Qwen render waits for the row's own turn on the GPU
+    /// (see <c>GenerateItemAsync</c>), so a new prompt never waits for the video in progress. ✎ Write prompt renders
+    /// it at once and puts it in the first free slot, where later Analyzes reuse it.</para>
+    ///
     /// <para><b>When it does nothing.</b> The switch is off; a plate is already in a slot (it is reused — clear the
     /// slot to get a new one); all four slots are full; or <c>&lt;Picture 1&gt;</c> is a stereo pair, which is
     /// already the setting. A plate that fails to render is logged and Analyze carries on without one.</para>
@@ -76,40 +81,21 @@ namespace FlipPix.UI.ViewModels.Video
             References.Skip(1).FirstOrDefault(r => !r.HasImage);
 
         /// <summary>
-        /// Renders the plate if one is wanted and there is room. Never throws for a render failure — the plate is
-        /// an improvement to the take, not a requirement of it — but does honour cancellation.
+        /// Asks the LLM for the plate's prompt — the place the draft happens in, with its landmarks placed. Needs no
+        /// GPU, so it runs straight away even while a video renders. Null when nothing usable came back; never
+        /// throws for that, since the plate is an improvement to the take rather than a requirement of it.
         /// </summary>
-        private async Task EnsureLocationPlateAsync(string model, CancellationToken token)
+        private async Task<string?> WriteLocationPlatePromptAsync(string model, AnalysisJob job, CancellationToken token)
         {
-            if (!AutoLocationPlate) return;
-            if (References.Any(r => r.IsLocationPlate && r.HasImage))
-            {
-                AddLog("Location plate: reusing the one already in the references.");
-                return;
-            }
-            if (PrimaryStereo != StereoLayout.None)
-            {
-                AddLog("Location plate: skipped — Picture 1 is a stereo pair and already sets the scene.");
-                return;
-            }
-            var slot = FreePlateSlot();
-            if (slot == null)
-            {
-                AddLog("Location plate: skipped — all four reference slots are full.");
-                return;
-            }
-
-            WorkflowQueueCoordinator.WorkflowLease? lease = null;
             try
             {
-                // ── The plate prompt ──────────────────────────────────────────
                 var systemPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "prompt2json",
                                               LocationPlatePromptFile);
                 var system = await File.ReadAllTextAsync(systemPath, token);
-                var pictures = FilledReferences.Select(p => p.Path).ToList();
+                var pictures = job.Pictures.Where(p => !p.IsLocationPlate).Select(p => p.Path).ToList();
                 var request = new StringBuilder()
                     .AppendLine("Draft idea for the video:")
-                    .AppendLine(string.IsNullOrWhiteSpace(Prompt) ? "(none — choose a place that suits the pictures)" : Prompt.Trim())
+                    .AppendLine(string.IsNullOrWhiteSpace(job.Draft) ? "(none — choose a place that suits the pictures)" : job.Draft)
                     .AppendLine()
                     .Append(pictures.Count > 0
                         ? "The attached pictures are the characters. Take only what they wear and their era from them; the place is yours to write."
@@ -118,26 +104,49 @@ namespace FlipPix.UI.ViewModels.Video
 
                 AddLog("Location plate: writing the plate prompt...");
                 var reply = pictures.Count > 0
-                    ? await _lmStudioService.AnalyzeMultipleImagesWithSystemPromptAsync(
-                        model, pictures, request, system, maxTokens: 600, cancellationToken: token)
+                    ? await Task.Run(() => _lmStudioService.AnalyzeMultipleImagesWithSystemPromptAsync(
+                        model, pictures, request, system, maxTokens: 600, cancellationToken: token), token)
                     : await _lmStudioService.SendTextChatAsync(model, system, request, cancellationToken: token);
                 var platePrompt = CleanLLMOutput(reply).Trim().Trim('"');
                 if (platePrompt.Length < 20)
                 {
                     AddLog("Location plate: the writer returned nothing usable — Analyze carries on without one.");
-                    return;
+                    return null;
                 }
                 AddLog($"Location plate prompt: {platePrompt}");
+                return platePrompt;
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                AddLog($"Location plate: failed ({ex.Message}) — Analyze carries on without one.");
+                return null;
+            }
+        }
 
-                // ── The render ────────────────────────────────────────────────
-                var (w, h) = H3Canvas.Resolve(ResolvedAspectRatio, LocationPlateMegapixels, 16);
-                var runToken = $"plate_{DateTime.Now:yyyyMMddHHmmss}";
+        /// <summary>
+        /// Renders a plate from its prompt with Qwen Image and returns the local path, or null when it could not be
+        /// made (the reason is logged). <paramref name="holdsLease"/> is true when the caller already has the GPU —
+        /// a queued take renders its plate at the start of its own turn — and false for ✎ Write prompt, which
+        /// waits its turn like any other job.
+        /// </summary>
+        private async Task<string?> RenderLocationPlateAsync(
+            string platePrompt, string aspect, bool holdsLease, CancellationToken token)
+        {
+            WorkflowQueueCoordinator.WorkflowLease? lease = null;
+            try
+            {
+                var (w, h) = H3Canvas.Resolve(aspect, LocationPlateMegapixels, 16);
+                var runToken = $"plate_{DateTime.Now:yyyyMMddHHmmssfff}";
                 var seed = Random.Shared.NextInt64(0, 1_000_000_000_000_000L);
                 var (json, saveNode) = await CastPhotoWorkflows.BuildLocationPlateAsync(
                     $"{OutputSubfolder}/{runToken}", seed, platePrompt, w, h);
 
-                AddLog("Location plate: waiting for the GPU...");
-                lease = await _workflowCoordinator.AcquireAsync("MiniMaxI2V", token);
+                if (!holdsLease)
+                {
+                    AddLog("Location plate: waiting for the GPU...");
+                    lease = await _workflowCoordinator.AcquireAsync("MiniMaxI2V", token);
+                }
                 if (!await _comfyUIService.DetectAndRestartIfCrashedAsync(s => AddLog($"[Auto-Restart] {s}")))
                     throw new Exception("ComfyUI is not running.");
                 if (!_comfyUIService.IsConnected) await _comfyUIService.ConnectAsync();
@@ -154,14 +163,14 @@ namespace FlipPix.UI.ViewModels.Video
                 if (local == null || !File.Exists(local))
                     throw new Exception("the plate was not produced.");
 
-                slot.SetLocationPlate(local);
-                AddLog($"Location plate: Picture {slot.Slot} — {Path.GetFileName(local)}.");
-                OnPropertyChanged(nameof(LocationPlateSummary));
+                AddLog($"Location plate: {Path.GetFileName(local)}.");
+                return local;
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
-                AddLog($"Location plate: failed ({ex.Message}) — Analyze carries on without one.");
+                AddLog($"Location plate: failed ({ex.Message}).");
+                return null;
             }
             finally
             {

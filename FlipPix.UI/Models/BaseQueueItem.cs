@@ -211,6 +211,7 @@ namespace FlipPix.UI.Models
         {
             "Pending" => "Pending ⏳",
             "Queued" => "Queued ⏳",
+            "Analyzing" => "Writing prompt ✍️",
             "Processing" => "Processing ⚙️",
             "Completed" => "Completed ✅",
             "Failed" => "Failed ❌",
@@ -226,6 +227,7 @@ namespace FlipPix.UI.Models
         {
             "Pending" => "#007BFF",
             "Queued" => "#007BFF",
+            "Analyzing" => "#8E44AD",
             "Processing" => "#FF6B35",
             "Completed" => "#28A745",
             "Failed" => "#DC3545",
