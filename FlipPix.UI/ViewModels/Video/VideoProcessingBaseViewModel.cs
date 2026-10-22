@@ -300,26 +300,44 @@ namespace FlipPix.UI.ViewModels.Video
             if (string.IsNullOrEmpty(outputFolder) || !Directory.Exists(outputFolder))
                 return existingFiles;
 
-            // Check main folder (recursive: some workflows write into dated subfolders, e.g. video/2026-06-17/)
-            foreach (var file in Directory.GetFiles(outputFolder, filePattern, SearchOption.AllDirectories))
-            {
-                existingFiles.Add(file);
-            }
-
-            // Check subfolders (recursive, in case they live outside outputFolder or have nested dated folders)
-            foreach (var subfolder in additionalSubfolders)
-            {
-                var subfolderPath = Path.Combine(outputFolder, subfolder);
-                if (Directory.Exists(subfolderPath))
-                {
-                    foreach (var file in Directory.GetFiles(subfolderPath, filePattern, SearchOption.AllDirectories))
-                    {
-                        existingFiles.Add(file);
-                    }
-                }
-            }
-
+            existingFiles.UnionWith(ScanOutputVideos(outputFolder, filePattern, additionalSubfolders));
             return existingFiles;
+        }
+
+        /// <summary>
+        /// The video files a tab's output can land in. With subfolders named, that is each of them
+        /// recursively (dated folders such as video/2026-06-17/ live inside one) plus the files directly in
+        /// the output folder — where a graph whose sink has no folder in its prefix writes — without
+        /// descending into every other tab's folder. With none named, the whole tree.
+        ///
+        /// <para>The whole tree is every take any tab ever rendered: thousands of entries, which over
+        /// ChromeOS's bridge to a server share takes minutes to list, every tick of the wait.</para>
+        /// </summary>
+        private static List<string> ScanOutputVideos(string outputFolder, string filePattern, string[] subfolders)
+        {
+            var found = new List<string>();
+            void Scan(string folder, SearchOption option)
+            {
+                try
+                {
+                    if (Directory.Exists(folder))
+                        found.AddRange(Directory.GetFiles(folder, filePattern, option));
+                }
+                catch (IOException) { }               // share hiccup — retried next tick
+                catch (UnauthorizedAccessException) { }
+            }
+
+            if (subfolders.Length == 0)
+            {
+                Scan(outputFolder, SearchOption.AllDirectories);
+                return found;
+            }
+
+            Scan(outputFolder, SearchOption.TopDirectoryOnly);
+            foreach (var subfolder in subfolders.Distinct(StringComparer.OrdinalIgnoreCase))
+                Scan(Path.Combine(outputFolder, subfolder), SearchOption.AllDirectories);
+            // A subfolder nested in another named one ("testrun" and "testrun/vid") is listed twice.
+            return found.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         }
 
         /// <summary>How often the wait loop below writes a "still waiting" line, regardless of tick rate.</summary>
@@ -389,28 +407,10 @@ namespace FlipPix.UI.ViewModels.Video
                 }
                 consecutiveUnreachable = 0;
 
-                // Rebuild folder list each iteration so subfolders created during generation are picked up
-                var foldersToCheck = new List<string> { outputFolder };
-                foreach (var subfolder in additionalSubfolders)
-                {
-                    var subfolderPath = Path.Combine(outputFolder, subfolder);
-                    if (Directory.Exists(subfolderPath))
-                        foldersToCheck.Add(subfolderPath);
-                }
-
-                // Off the UI thread: over a slow share one listing can take longer than a tick.
-                var currentFiles = await Task.Run(() =>
-                {
-                    var found = new List<string>();
-                    foreach (var folder in foldersToCheck)
-                    {
-                        // Recursive: workflows like DaSiWa write into dated subfolders (video/2026-06-17/...)
-                        try { found.AddRange(Directory.GetFiles(folder, filePattern, SearchOption.AllDirectories)); }
-                        catch (IOException) { }               // share hiccup — retried next tick
-                        catch (UnauthorizedAccessException) { }
-                    }
-                    return found;
-                });
+                // The same places the snapshot listed, so the two compare like for like; a subfolder created
+                // during generation is picked up because each tick looks again. Off the UI thread: over a
+                // slow share one listing can take longer than a tick.
+                var currentFiles = await Task.Run(() => ScanOutputVideos(outputFolder, filePattern, additionalSubfolders));
 
                 var newFiles = currentFiles.Where(f => !existingFiles.Contains(f)).ToList();
 
