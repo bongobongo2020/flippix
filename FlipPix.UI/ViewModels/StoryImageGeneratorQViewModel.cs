@@ -55,7 +55,10 @@ namespace FlipPix.UI.ViewModels
         /// <summary>MOSS Serenity text-to-image mode (workflow/image/moss-serenity-API2.json).</summary>
         public const string MossMode = "Moss";
 
-        public static readonly IReadOnlyList<string> WorkflowModes = new[] { "Qwen", "Klein", "FireRed", "StoryImageZ", "Krea2", "krea2-edit", MossMode };
+        /// <summary>Qwen Image 2.1 edit mode (workflow/image/qwen-edit/image_qwen_image_2_1_image_edit-changephoto.json).</summary>
+        public const string Qwen21Mode = "Qwen 2.1";
+
+        public static readonly IReadOnlyList<string> WorkflowModes = new[] { "Qwen", Qwen21Mode, "Klein", "FireRed", "StoryImageZ", "Krea2", "krea2-edit", MossMode };
 
         private string _selectedWorkflowMode = "Qwen";
         public string SelectedWorkflowMode
@@ -63,9 +66,19 @@ namespace FlipPix.UI.ViewModels
             get => _selectedWorkflowMode;
             set
             {
+                var previous = _selectedWorkflowMode;
                 if (SetProperty(ref _selectedWorkflowMode, value))
                 {
-                    if (value == "Klein")
+                    // Qwen 2.1 is the only mode authored at a real CFG (no lightning LoRA);
+                    // put the shared default back when leaving it.
+                    if (value == Qwen21Mode)
+                        Cfg = 3.5;
+                    else if (previous == Qwen21Mode)
+                        Cfg = DefaultCfg;
+
+                    if (value == Qwen21Mode)
+                        Steps = 25; // as authored, no speed LoRA
+                    else if (value == "Klein")
                         Steps = 20;
                     else if (value == "FireRed")
                         Steps = 8;
@@ -1555,6 +1568,11 @@ namespace FlipPix.UI.ViewModels
                 workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "firered-image-edit-1.1API.json");
                 AddLog("Using FireRed workflow");
             }
+            else if (SelectedWorkflowMode == Qwen21Mode)
+            {
+                workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "qwen-edit", "image_qwen_image_2_1_image_edit-changephoto.json");
+                AddLog("Using Qwen 2.1 workflow (Qwen Image 2.1 INT8 ConvRot edit)");
+            }
             else
             {
                 workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "qwen-edit", "Qwen_Edit_2511_INT8_Convrot_WF.json");
@@ -1576,6 +1594,8 @@ namespace FlipPix.UI.ViewModels
                 updatedWorkflow = UpdateKleinWorkflowParameters(workflow, uploadedImageName, item.Prompt, item.Index, jsonFileName);
             else if (SelectedWorkflowMode == "FireRed")
                 updatedWorkflow = UpdateFireRedWorkflowParameters(workflow, uploadedImageName, item.Prompt, item.Index, jsonFileName);
+            else if (SelectedWorkflowMode == Qwen21Mode)
+                updatedWorkflow = UpdateQwen21WorkflowParameters(workflow, uploadedImageName, item.Prompt, item.Index, jsonFileName);
             else
                 updatedWorkflow = UpdateQwenWorkflowParameters(workflow, uploadedImageName, item.Prompt, item.Index, jsonFileName);
 
@@ -1631,6 +1651,44 @@ namespace FlipPix.UI.ViewModels
             {
                 root.Remove("115:116");
                 root.Remove("115:112");
+                workflowJson = root.ToJsonString();
+            }
+
+            return JsonSerializer.Deserialize<JsonElement>(workflowJson);
+        }
+
+        private JsonElement UpdateQwen21WorkflowParameters(JsonElement workflow, string inputImageName, string promptText, int imageIndex, string jsonFileName)
+        {
+            var workflowJson = workflow.GetRawText();
+
+            // image_qwen_image_2_1_image_edit-changephoto.json node map (same graph as the
+            // Qwen Edit 2.1 tab). "459:" ids are literal subgraph keys in the API export.
+            // Node 470 - LoadImage (the scene being edited)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "470", "image", inputImageName);
+            // Node 459:474 - TextEncodeQwenImage21 (prompt + negative in one node)
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "459:474", new Dictionary<string, object>
+            {
+                { "prompt", promptText },
+                { "negative_prompt", NegativePrompt }
+            });
+            // Node 459:458 - KSampler. Switch 459:468 stays off, so the latent comes from the
+            // text encoder and the output keeps the source image's size.
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "459:458", new Dictionary<string, object>
+            {
+                { "seed", Random.Shared.NextInt64(0, long.MaxValue) },
+                { "steps", Steps },
+                { "cfg", Cfg },
+                { "denoise", Denoise }
+            });
+            // Node 461 - SaveImageAdvanced
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "461", "filename_prefix", $"{jsonFileName}/{jsonFileName}-{imageIndex}");
+
+            // Drop the ImageCompare (472): it is an output node whose temp images would land in
+            // /history beside the saved one and confuse the "any png" fallback.
+            var root = JsonNode.Parse(workflowJson)?.AsObject();
+            if (root != null)
+            {
+                root.Remove("472");
                 workflowJson = root.ToJsonString();
             }
 
