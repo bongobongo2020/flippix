@@ -744,7 +744,7 @@
                                     <ProgressBar Value="{Binding QueueProgress, Mode=OneWay}"
                                                 Maximum="{Binding QueueTotal, Mode=OneWay}"
                                                 Height="16"
-                                                Foreground="#FF6B35"
+                                                Foreground="{StaticResource BrandBrush}"
                                                 Margin="0,0,0,5"/>
 
                                     <!-- Pause/Resume/Cancel Buttons -->

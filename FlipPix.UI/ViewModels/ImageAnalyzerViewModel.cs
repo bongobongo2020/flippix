@@ -1607,13 +1607,7 @@ namespace FlipPix.UI.ViewModels
                 // doing it inline froze the whole window. Frozen, the bitmap can cross threads.
                 var bitmap = await Task.Run(() =>
                 {
-                    var b = new BitmapImage();
-                    b.BeginInit();
-                    b.CacheOption = BitmapCacheOption.OnLoad;
-                    b.UriSource = new Uri(imagePath, UriKind.Absolute);
-                    b.EndInit();
-                    b.Freeze();
-                    return b;
+                    return BitmapLoader.Load(imagePath);
                 });
 
                 // Another image may have been picked while this one was loading.
@@ -4571,12 +4565,7 @@ namespace FlipPix.UI.ViewModels
         {
             try
             {
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.UriSource = new Uri(imagePath, UriKind.Absolute);
-                bitmap.EndInit();
-                bitmap.Freeze();
+                var bitmap = BitmapLoader.Load(imagePath);
 
                 ResultImageSource = bitmap;
 

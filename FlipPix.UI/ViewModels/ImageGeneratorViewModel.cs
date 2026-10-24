@@ -3399,12 +3399,7 @@ namespace FlipPix.UI.ViewModels
         {
             try
             {
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.UriSource = new Uri(imagePath, UriKind.Absolute);
-                bitmap.EndInit();
-                bitmap.Freeze();
+                var bitmap = BitmapLoader.Load(imagePath);
 
                 ResultImageSource = bitmap;
 

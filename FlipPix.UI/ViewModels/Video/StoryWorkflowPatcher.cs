@@ -236,11 +236,9 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 if (!string.IsNullOrEmpty(imagePath) && File.Exists(imagePath))
                 {
-                    var bi = new BitmapImage();
-                    bi.BeginInit();
-                    bi.UriSource = new Uri(imagePath, UriKind.Absolute);
-                    bi.CacheOption = BitmapCacheOption.OnLoad;
-                    bi.EndInit();
+                    // Header-only read: only the dimensions are needed, not the pixels.
+                    using var fs = File.OpenRead(imagePath);
+                    var bi = BitmapFrame.Create(fs, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
 
                     int imgW = bi.PixelWidth;
                     int imgH = bi.PixelHeight;

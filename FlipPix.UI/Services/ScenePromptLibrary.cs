@@ -194,13 +194,7 @@ namespace FlipPix.UI.Services
             {
                 Directory.CreateDirectory(ThumbFolder);
 
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.DecodePixelWidth = ThumbnailWidth;
-                bitmap.UriSource = new Uri(sourceImagePath, UriKind.Absolute);
-                bitmap.EndInit();
-                bitmap.Freeze();
+                var bitmap = BitmapLoader.Load(sourceImagePath, ThumbnailWidth);
 
                 var encoder = new JpegBitmapEncoder { QualityLevel = 82 };
                 encoder.Frames.Add(BitmapFrame.Create(bitmap));
@@ -224,14 +218,7 @@ namespace FlipPix.UI.Services
             if (path == null) return null;
             try
             {
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.DecodePixelWidth = ThumbnailWidth;
-                bitmap.UriSource = new Uri(path, UriKind.Absolute);
-                bitmap.EndInit();
-                bitmap.Freeze();
-                return bitmap;
+                return BitmapLoader.Load(path, ThumbnailWidth);
             }
             catch
             {

@@ -602,13 +602,7 @@ namespace FlipPix.UI.ViewModels
                 // Use IgnoreImageCache so WPF doesn't serve a stale cached bitmap
                 // when the same path was used before (shouldn't happen with gen-numbered
                 // filenames, but belt-and-suspenders).
-                var bmp = new BitmapImage();
-                bmp.BeginInit();
-                bmp.CacheOption = BitmapCacheOption.OnLoad;
-                bmp.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
-                bmp.UriSource = new Uri(path, UriKind.Absolute);
-                bmp.EndInit();
-                bmp.Freeze();
+                var bmp = BitmapLoader.Load(path);
                 FramePreviewSource = bmp;
                 HasFramePreview = true;
             }
@@ -1021,13 +1015,7 @@ namespace FlipPix.UI.ViewModels
 
         private static BitmapImage LoadBitmap(string path)
         {
-            var bmp = new BitmapImage();
-            bmp.BeginInit();
-            bmp.CacheOption = BitmapCacheOption.OnLoad;
-            bmp.UriSource = new Uri(path, UriKind.Absolute);
-            bmp.EndInit();
-            bmp.Freeze();
-            return bmp;
+            return BitmapLoader.Load(path);
         }
 
         private static bool IsImageExt(string f) =>

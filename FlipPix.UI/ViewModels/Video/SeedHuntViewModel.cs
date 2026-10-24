@@ -398,12 +398,7 @@ namespace FlipPix.UI.ViewModels.Video
             }
             try
             {
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.UriSource = new Uri(ImagePath, UriKind.Absolute);
-                bitmap.EndInit();
-                bitmap.Freeze();
+                var bitmap = BitmapLoader.Load(ImagePath);
                 ImagePreview = bitmap;
                 var fi = new FileInfo(ImagePath);
                 ImageInfo = $"{bitmap.PixelWidth}×{bitmap.PixelHeight} • {fi.Length / 1024}KB";
@@ -758,13 +753,7 @@ namespace FlipPix.UI.ViewModels.Video
                 }
                 if (!File.Exists(outPath) || new FileInfo(outPath).Length == 0) return null;
 
-                var bmp = new BitmapImage();
-                bmp.BeginInit();
-                bmp.CacheOption = BitmapCacheOption.OnLoad;
-                bmp.UriSource = new Uri(outPath, UriKind.Absolute);
-                bmp.EndInit();
-                bmp.Freeze();
-                return bmp;
+                return BitmapLoader.Load(outPath);
             }
             catch (Exception ex)
             {

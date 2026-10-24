@@ -951,12 +951,7 @@ namespace FlipPix.UI.ViewModels.Video
             }
             try
             {
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.UriSource = new Uri(CharacterImagePath, UriKind.Absolute);
-                bitmap.EndInit();
-                bitmap.Freeze();
+                var bitmap = BitmapLoader.Load(CharacterImagePath);
                 CharacterImagePreview = bitmap;
                 var fi = new FileInfo(CharacterImagePath);
                 CharacterImageInfo = $"{bitmap.PixelWidth}x{bitmap.PixelHeight} • {fi.Length / 1024}KB";

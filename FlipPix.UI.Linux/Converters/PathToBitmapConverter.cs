@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using Avalonia;
 using Avalonia.Data.Converters;
+using Avalonia.Media;
 using Avalonia.Media.Imaging;
 
 namespace FlipPix.UI.Linux.Converters;
@@ -17,6 +19,7 @@ public class PathToBitmapConverter : IValueConverter
     public static readonly PathToBitmapConverter Instance = new();
 
     private const int CacheSize = 64;
+    private const int MaxWidth = 1280;
     private static readonly Dictionary<string, (DateTime Stamp, Bitmap Bitmap)> Cache = new();
     private static readonly LinkedList<string> Order = new();
 
@@ -49,6 +52,15 @@ public class PathToBitmapConverter : IValueConverter
             }
 
             var bitmap = new Bitmap(path);
+            if (bitmap.PixelSize.Width > MaxWidth)
+            {
+                // Path-bound images are previews/thumbnails; keep cached entries from holding full-res pixels.
+                var full = bitmap;
+                bitmap = full.CreateScaledBitmap(
+                    new PixelSize(MaxWidth, Math.Max(1, full.PixelSize.Height * MaxWidth / full.PixelSize.Width)),
+                    BitmapInterpolationMode.HighQuality);
+                full.Dispose();
+            }
             lock (Cache)
             {
                 Cache[path] = (stamp, bitmap);

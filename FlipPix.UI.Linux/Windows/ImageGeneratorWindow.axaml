@@ -2147,7 +2147,7 @@
                                 </Grid.ColumnDefinitions>
                                 <!-- Style selector -->
                                 <StackPanel Grid.Column="0">
-                                    <TextBlock Text="🎨 ZStyle" FontWeight="SemiBold" FontSize="12" Foreground="#166534" Margin="0,0,0,8"/>
+                                    <TextBlock Text="🎨 ZStyle" FontWeight="SemiBold" FontSize="12" Foreground="{StaticResource SuccessTextBrush}" Margin="0,0,0,8"/>
                                     <ComboBox ItemsSource="{Binding StoryGeneratorQ.ZStyleNames}"
                                               SelectedIndex="{Binding StoryGeneratorQ.ZSelectedStyleIndex, Mode=TwoWay}"
                                               Height="32"
@@ -2159,7 +2159,7 @@
                                 </StackPanel>
                                 <!-- LoRA settings -->
                                 <StackPanel Grid.Column="2" Grid.ColumnSpan="1">
-                                    <TextBlock Text="🔧 LoRA" FontWeight="SemiBold" FontSize="12" Foreground="#166534" Margin="0,0,0,8"/>
+                                    <TextBlock Text="🔧 LoRA" FontWeight="SemiBold" FontSize="12" Foreground="{StaticResource SuccessTextBrush}" Margin="0,0,0,8"/>
                                     <CheckBox Content="Enable LoRA"
                                               IsChecked="{Binding StoryGeneratorQ.ZLoraEnabled, Mode=TwoWay}"
                                               FontSize="12"
@@ -2239,7 +2239,7 @@
                                 </StackPanel>
                                 <!-- Orientation selector -->
                                 <StackPanel Grid.Column="4">
-                                    <TextBlock Text="📐 Orientation" FontWeight="SemiBold" FontSize="12" Foreground="#166534" Margin="0,0,0,8"/>
+                                    <TextBlock Text="📐 Orientation" FontWeight="SemiBold" FontSize="12" Foreground="{StaticResource SuccessTextBrush}" Margin="0,0,0,8"/>
                                     <ComboBox ItemsSource="{x:Static vm:StoryImageGeneratorQViewModel.ZOrientations}"
                                               SelectedItem="{Binding StoryGeneratorQ.ZSelectedOrientation, Mode=TwoWay}"
                                               Height="32"
@@ -2851,7 +2851,7 @@
                                                                 Width="18"
                                                                 Height="18"
                                                                 Padding="0"
-                                                                Background="#E5E7EB"
+                                                                Background="{StaticResource BorderBrush}"
                                                                 BorderThickness="0"
                                                                 FontSize="9"
                                                                 FontWeight="Bold"
@@ -2995,7 +2995,7 @@
                                                                              Width="120"
                                                                              Margin="0,6,0,0"
                                                                              Foreground="{StaticResource AccentVioletBrush}"
-                                                                             Background="#E5E7EB"
+                                                                             Background="{StaticResource BorderBrush}"
                                                                              BorderThickness="0"
                                                                              Classes="s42"
                                                                              Classes.s42_0="{Binding Status, Converter={x:Static conv:WpfConverters.Equal}, ConverterParameter=Processing}">
@@ -3118,7 +3118,7 @@
                                              FontFamily="Consolas, DejaVu Sans Mono, Liberation Mono, monospace"
                                              FontSize="10"
                                              Background="Transparent"
-                                             Foreground="#D1D5DB"
+                                             Foreground="{StaticResource BorderStrongBrush}"
                                              BorderThickness="0"
                                              Padding="12"/>
                                 </ScrollViewer>
@@ -3785,7 +3785,7 @@
                                              Maximum="100"
                                              Height="8"
                                              Margin="0,10,0,0"
-                                             Background="#E5E7EB"
+                                             Background="{StaticResource BorderBrush}"
                                              Foreground="{StaticResource SuccessTextBrush}"/>
                                 <TextBlock Text="{Binding AmateurGenerator.ProcessingStatus}"
                                            FontSize="12"
@@ -4093,7 +4093,7 @@
                                                     Margin="0,0,8,0"/>
                                             <Button Content="Reset to Camera Angles"
                                                     Command="{Binding CameraAngle.ResetToCameraAnglesCommand}"
-                                                    Background="#E5E7EB"
+                                                    Background="{StaticResource BorderBrush}"
                                                     Foreground="{StaticResource TextPrimaryBrush}"
                                                     BorderThickness="0"
                                                     Padding="12,7"
@@ -4274,7 +4274,7 @@
                                              Height="8"
                                              Margin="0,10,0,5"
                                              Foreground="{StaticResource SuccessTextBrush}"
-                                             Background="#E5E7EB"/>
+                                             Background="{StaticResource BorderBrush}"/>
                                 <TextBlock Text="{Binding CameraAngle.ProcessingStatus}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
                             </StackPanel>
                         </Border>
@@ -4561,7 +4561,7 @@
                                                              Maximum="100"
                                                              Height="8"
                                                              Foreground="{StaticResource AccentIndigoBrush}"
-                                                             Background="#E5E7EB"/>
+                                                             Background="{StaticResource BorderBrush}"/>
                                             </StackPanel>
                                             <!-- Status message -->
                                             <TextBlock Text="{Binding InpaintEditor.StatusMessage}"
@@ -4955,7 +4955,7 @@
                                                              Maximum="100"
                                                              Height="8"
                                                              Foreground="{StaticResource AccentVioletBrush}"
-                                                             Background="#E5E7EB"/>
+                                                             Background="{StaticResource BorderBrush}"/>
                                             </StackPanel>
                                             <TextBlock Text="{Binding KleinInpaintEditor.StatusMessage}"
                                                        FontSize="12"
@@ -5339,7 +5339,7 @@
                                                      Maximum="100"
                                                      Height="6"
                                                      Margin="0,4,0,0"
-                                                     Background="#E5E7EB"
+                                                     Background="{StaticResource BorderBrush}"
                                                      Foreground="{StaticResource DangerBrush}"/>
                                     </StackPanel>
                                 </StackPanel>
@@ -5359,8 +5359,8 @@
                                     Padding="12,8"
                                     Margin="0,0,0,10">
                                 <StackPanel>
-                                    <TextBlock Text="Klein Flux 2 — Control Net Pipeline" FontSize="12" FontWeight="SemiBold" Foreground="#15803D"/>
-                                    <TextBlock FontSize="11" Foreground="#166534" Margin="0,4,0,0" TextWrapping="Wrap">QwenVL analyzes the pose image → DWPose extracts skeleton → Klein Flux 2 generates
+                                    <TextBlock Text="Klein Flux 2 — Control Net Pipeline" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}"/>
+                                    <TextBlock FontSize="11" Foreground="{StaticResource SuccessTextBrush}" Margin="0,4,0,0" TextWrapping="Wrap">QwenVL analyzes the pose image → DWPose extracts skeleton → Klein Flux 2 generates
                                         with your reference subject in the target pose</TextBlock>
                                 </StackPanel>
                             </Border>
@@ -5891,7 +5891,7 @@
                                                      Maximum="100"
                                                      Height="6"
                                                      Margin="0,4,0,0"
-                                                     Background="#E5E7EB"
+                                                     Background="{StaticResource BorderBrush}"
                                                      Foreground="{StaticResource DangerBrush}"/>
                                     </StackPanel>
                                 </StackPanel>
@@ -6183,7 +6183,7 @@
                         </StackPanel>
                     </ScrollViewer>
                     <!-- Column separator -->
-                    <Border Grid.Column="1" Background="#E5E7EB" Margin="0,10,0,10"/>
+                    <Border Grid.Column="1" Background="{StaticResource BorderBrush}" Margin="0,10,0,10"/>
                     <!-- RIGHT COLUMN: Result -->
                     <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" Padding="12,12,12,12">
                         <StackPanel>
@@ -6580,7 +6580,7 @@
                                                      Maximum="100"
                                                      Height="6"
                                                      Margin="0,4,0,0"
-                                                     Background="#E5E7EB"
+                                                     Background="{StaticResource BorderBrush}"
                                                      Foreground="{StaticResource DangerBrush}"/>
                                     </StackPanel>
                                 </StackPanel>
@@ -6862,7 +6862,7 @@
                                                      Maximum="100"
                                                      Height="6"
                                                      Margin="0,4,0,0"
-                                                     Background="#E5E7EB"
+                                                     Background="{StaticResource BorderBrush}"
                                                      Foreground="{StaticResource DangerBrush}"/>
                                     </StackPanel>
                                 </StackPanel>
@@ -7106,7 +7106,7 @@
                                                      Maximum="100"
                                                      Height="6"
                                                      Margin="0,4,0,0"
-                                                     Background="#E5E7EB"
+                                                     Background="{StaticResource BorderBrush}"
                                                      Foreground="{StaticResource DangerBrush}"/>
                                     </StackPanel>
                                 </StackPanel>
@@ -7711,7 +7711,7 @@
                                                      Maximum="100"
                                                      Height="6"
                                                      Margin="0,4,0,0"
-                                                     Background="#E5E7EB"
+                                                     Background="{StaticResource BorderBrush}"
                                                      Foreground="{StaticResource AccentIndigoBrush}"/>
                                     </StackPanel>
                                 </StackPanel>

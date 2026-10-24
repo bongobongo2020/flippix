@@ -1223,12 +1223,7 @@ namespace FlipPix.UI.ViewModels.Video
             if (string.IsNullOrEmpty(path) || !File.Exists(path)) return null;
             try
             {
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.UriSource = new Uri(path, UriKind.Absolute);
-                bitmap.EndInit();
-                bitmap.Freeze();
+                var bitmap = BitmapLoader.Load(path);
                 var fi = new FileInfo(path);
                 info = $"{bitmap.PixelWidth}×{bitmap.PixelHeight} • {fi.Length / 1024}KB";
                 return bitmap;

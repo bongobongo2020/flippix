@@ -2293,13 +2293,7 @@ namespace FlipPix.UI.ViewModels.Video
                 }
                 if (!File.Exists(outPath) || new FileInfo(outPath).Length == 0) return null;
 
-                var bmp = new BitmapImage();
-                bmp.BeginInit();
-                bmp.CacheOption = BitmapCacheOption.OnLoad;
-                bmp.UriSource = new Uri(outPath, UriKind.Absolute);
-                bmp.EndInit();
-                bmp.Freeze();
-                return bmp;
+                return BitmapLoader.Load(outPath);
             }
             catch (Exception ex)
             {

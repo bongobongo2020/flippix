@@ -464,12 +464,7 @@ namespace FlipPix.UI.ViewModels
             {
                 try
                 {
-                    var bitmap = new BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.UriSource = new Uri(InputImagePath, UriKind.Absolute);
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.EndInit();
-                    bitmap.Freeze();
+                    var bitmap = BitmapLoader.Load(InputImagePath);
 
                     InputImagePreview = bitmap;
                 }

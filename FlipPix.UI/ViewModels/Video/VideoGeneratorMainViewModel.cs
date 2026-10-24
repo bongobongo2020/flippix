@@ -1131,12 +1131,7 @@ namespace FlipPix.UI.ViewModels.Video
 
             try
             {
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.UriSource = new Uri(ImageFilePath);
-                bitmap.EndInit();
-                bitmap.Freeze();
+                var bitmap = BitmapLoader.Load(ImageFilePath);
 
                 ImagePreviewSource = bitmap;
                 var fileInfo = new FileInfo(ImageFilePath);
@@ -1161,12 +1156,7 @@ namespace FlipPix.UI.ViewModels.Video
 
             try
             {
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.UriSource = new Uri(FirstFrameImagePath);
-                bitmap.EndInit();
-                bitmap.Freeze();
+                var bitmap = BitmapLoader.Load(FirstFrameImagePath);
 
                 FirstFrameImagePreview = bitmap;
                 var fileInfo = new FileInfo(FirstFrameImagePath);
@@ -1191,12 +1181,7 @@ namespace FlipPix.UI.ViewModels.Video
 
             try
             {
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.UriSource = new Uri(LastFrameImagePath);
-                bitmap.EndInit();
-                bitmap.Freeze();
+                var bitmap = BitmapLoader.Load(LastFrameImagePath);
 
                 LastFrameImagePreview = bitmap;
                 var fileInfo = new FileInfo(LastFrameImagePath);
@@ -2195,11 +2180,9 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 if (!string.IsNullOrEmpty(imagePath) && File.Exists(imagePath))
                 {
-                    var bi = new BitmapImage();
-                    bi.BeginInit();
-                    bi.UriSource = new Uri(imagePath, UriKind.Absolute);
-                    bi.CacheOption = BitmapCacheOption.OnLoad;
-                    bi.EndInit();
+                    // Header-only read: only the dimensions are needed, not the pixels.
+                    using var fs = File.OpenRead(imagePath);
+                    var bi = BitmapFrame.Create(fs, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
 
                     int imgW = bi.PixelWidth;
                     int imgH = bi.PixelHeight;

@@ -1015,13 +1015,7 @@ namespace FlipPix.UI.ViewModels
 
         private static BitmapImage LoadBitmap(string path)
         {
-            var bmp = new BitmapImage();
-            bmp.BeginInit();
-            bmp.CacheOption = BitmapCacheOption.OnLoad;
-            bmp.UriSource = new Uri(path, UriKind.Absolute);
-            bmp.EndInit();
-            bmp.Freeze();
-            return bmp;
+            return BitmapLoader.Load(path);
         }
 
         private static bool IsImageExt(string f) =>

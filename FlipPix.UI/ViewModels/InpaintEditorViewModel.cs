@@ -184,12 +184,7 @@ namespace FlipPix.UI.ViewModels
             SourceImagePath = path;
             try
             {
-                var bmp = new BitmapImage();
-                bmp.BeginInit();
-                bmp.CacheOption = BitmapCacheOption.OnLoad;
-                bmp.UriSource = new Uri(path, UriKind.Absolute);
-                bmp.EndInit();
-                bmp.Freeze();
+                var bmp = BitmapLoader.Load(path);
                 SourceImageSource = bmp;
                 HasSourceImage = true;
                 AddLog($"Loaded image: {Path.GetFileName(path)} ({bmp.PixelWidth}x{bmp.PixelHeight})");
@@ -442,12 +437,7 @@ namespace FlipPix.UI.ViewModels
         {
             try
             {
-                var bmp = new BitmapImage();
-                bmp.BeginInit();
-                bmp.CacheOption = BitmapCacheOption.OnLoad;
-                bmp.UriSource = new Uri(path, UriKind.Absolute);
-                bmp.EndInit();
-                bmp.Freeze();
+                var bmp = BitmapLoader.Load(path);
                 ResultImageSource = bmp;
             }
             catch (Exception ex)

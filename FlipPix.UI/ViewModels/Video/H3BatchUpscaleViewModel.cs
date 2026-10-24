@@ -387,14 +387,7 @@ namespace FlipPix.UI.ViewModels.Video
         {
             try
             {
-                var bmp = new BitmapImage();
-                bmp.BeginInit();
-                bmp.CacheOption = BitmapCacheOption.OnLoad;
-                bmp.UriSource = new Uri(path, UriKind.Absolute);
-                bmp.DecodePixelWidth = 160;
-                bmp.EndInit();
-                bmp.Freeze();
-                return bmp;
+                return BitmapLoader.Load(path, 160);
             }
             catch { return null; }
         }

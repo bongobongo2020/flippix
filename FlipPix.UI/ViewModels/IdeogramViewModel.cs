@@ -2052,26 +2052,13 @@ namespace FlipPix.UI.ViewModels
 
         private static BitmapImage LoadBitmap(string path)
         {
-            var bmp = new BitmapImage();
-            bmp.BeginInit();
-            bmp.CacheOption = BitmapCacheOption.OnLoad;
-            bmp.UriSource = new Uri(path, UriKind.Absolute);
-            bmp.EndInit();
-            bmp.Freeze();
-            return bmp;
+            return BitmapLoader.Load(path);
         }
 
         /// <summary>Loads an image decoded down to gallery-thumbnail size to keep memory low.</summary>
         private static BitmapImage LoadThumbnail(string path)
         {
-            var bmp = new BitmapImage();
-            bmp.BeginInit();
-            bmp.CacheOption = BitmapCacheOption.OnLoad;
-            bmp.DecodePixelWidth = 192;
-            bmp.UriSource = new Uri(path, UriKind.Absolute);
-            bmp.EndInit();
-            bmp.Freeze();
-            return bmp;
+            return BitmapLoader.Load(path, 192);
         }
 
         private static bool IsImageExt(string f) =>

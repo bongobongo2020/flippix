@@ -495,12 +495,7 @@ namespace FlipPix.UI.ViewModels
             {
                 try
                 {
-                    var bitmap = new BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.UriSource = new Uri(InputImagePath, UriKind.Absolute);
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.EndInit();
-                    bitmap.Freeze();
+                    var bitmap = BitmapLoader.Load(InputImagePath);
 
                     InputImagePreview = bitmap;
                 }
@@ -520,14 +515,7 @@ namespace FlipPix.UI.ViewModels
         {
             try
             {
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.UriSource = new Uri(imagePath, UriKind.Absolute);
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.DecodePixelWidth = 200; // Limit size for thumbnail
-                bitmap.EndInit();
-                bitmap.Freeze();
-                return bitmap;
+                return BitmapLoader.Load(imagePath, 200);
             }
             catch (Exception ex)
             {
