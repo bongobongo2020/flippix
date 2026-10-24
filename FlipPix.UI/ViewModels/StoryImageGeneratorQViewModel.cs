@@ -1813,23 +1813,7 @@ namespace FlipPix.UI.ViewModels
                             }
                             else
                             {
-                                // Strategy 3: Fall back to scanning recent history with pattern matching
-                                AddLog($"No output files in history for prompt {promptId}, trying general pattern match...");
-
-                                var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesAsync();
-                                AddLog($"Found {outputFiles.Count} potential output files in recent history");
-
-                                imageFiles = outputFiles.Where(f =>
-                                    f.EndsWith(".png") &&
-                                    (f.Contains(expectedPattern) || f.Contains($"{jsonFileName}/{expectedPattern}")))
-                                    .ToList();
-
-                                AddLog($"Looking for pattern: {expectedPattern} (with or without subfolder prefix)");
-
-                                if (!imageFiles.Any())
-                                {
-                                    AddLog($"No matching files found. Available files: {string.Join(", ", outputFiles.Take(5))}");
-                                }
+                                AddLog($"No output files in history for prompt {promptId} yet");
                             }
                         }
 

@@ -439,15 +439,16 @@ public sealed class JobManager : IDisposable
 
     private async Task SaveAsync()
     {
-        string jobs, made;
-        lock (_lock)
-        {
-            jobs = JsonSerializer.Serialize(_jobs);
-            made = JsonSerializer.Serialize(_madeOrder.Select(k => new KeyValuePair<string, MadeRecord>(k, _made[k])).ToList());
-        }
         await _saveGate.WaitAsync();
         try
         {
+            // Copied once the gate is held, so a save that started earlier can't overwrite a newer one.
+            string jobs, made;
+            lock (_lock)
+            {
+                jobs = JsonSerializer.Serialize(_jobs);
+                made = JsonSerializer.Serialize(_madeOrder.Select(k => new KeyValuePair<string, MadeRecord>(k, _made[k])).ToList());
+            }
             await WriteAtomicAsync(_jobsFile, jobs);
             await WriteAtomicAsync(_madeFile, made);
         }
