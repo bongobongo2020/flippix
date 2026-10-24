@@ -341,6 +341,9 @@ namespace FlipPix.UI.ViewModels.Video
             SelectCharacter1Command = new RelayCommand(async () => await PickCharacterAsync(_character1));
             SelectCharacter2Command = new RelayCommand(async () => await PickCharacterAsync(_character2));
             ClearCharacter2Command = new RelayCommand(() => _character2.Clear());
+            _character1.SelectCommand = SelectCharacter1Command;
+            _character2.SelectCommand = SelectCharacter2Command;
+            _character2.ClearCommand = ClearCharacter2Command;
             GenerateCastZimageLoraCommand = new RelayCommand<CastPhotoWorkflows.CastLora>(
                 async lora => await GenerateCastPhotoAsync(CastPhotoMenuSlot, "zimage", lora),
                 _ => CanGenerateCastPhoto(CastPhotoMenuSlot));
@@ -4750,6 +4753,15 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>1 or 2 — the character's position in the cast.</summary>
         public int Index { get; }
+
+        /// <summary>The card's Browse… and ✕ buttons, set by the two-hander tab that owns it; null hides ✕.</summary>
+        public ICommand? SelectCommand { get; set; }
+        public ICommand? ClearCommand { get; set; }
+
+        /// <summary>The line under the card naming which reference H3 receives.</summary>
+        public string PictureCaption => Index == 1
+            ? "<Picture 1> · the first reference H3 receives"
+            : $"<Picture {Index}> · optional — leave empty for a one-character video";
 
         /// <summary>
         /// What this character <b>is</b>. It is not cosmetic: it goes into the wardrobe request (a costume

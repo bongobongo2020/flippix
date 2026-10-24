@@ -560,6 +560,207 @@
                         <Grid x:Name="H3VrRoot" DataContext="{Binding H3VrVM}" Style="{StaticResource TabPageStyle}">
                             <Grid.Resources>
                                 <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource AccentIndigoColor}"/>
+                                <!-- One character card. Content is a CharacterSlot; the host ContentControl keeps the
+                                     tab ViewModel as its DataContext, which the ✨ Generate menu reads through Tag. -->
+                                <DataTemplate x:Key="CastCharacterCardTemplate">
+                                    <StackPanel>
+                                        <!-- The sex is a real input, not a label: it goes into the
+                                             wardrobe request, into the sheet builder's instruction
+                                             and into the reference line H3 reads. -->
+                                        <Grid Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11" FontWeight="Bold"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                                            <ComboBox Grid.Column="1" ItemsSource="{Binding SexOptions}"
+                                                      SelectedItem="{Binding Sex, Mode=TwoWay}"
+                                                      Width="86" Height="24" FontSize="10"
+                                                      ToolTip="Male or female. The wardrobe pass dresses this character accordingly, the character sheet is generated as that person, and the prompt names them so H3 uses the right pronouns."/>
+                                        </Grid>
+                                        <!-- Part — who this character is in the story. Filled by the story's
+                                             automatic cast; see H3CastViewModel.Cast.cs. -->
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="Part" FontSize="10" VerticalAlignment="Center"
+                                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
+                                            <TextBox Grid.Column="1"
+                                                     Text="{Binding Role, UpdateSourceTrigger=LostFocus}"
+                                                     Height="24" FontSize="10" Padding="5,0"
+                                                     VerticalContentAlignment="Center"
+                                                     BorderBrush="{StaticResource BorderBrush}" Background="White"
+                                                     ToolTip="Who this character is in the story — &quot;the detective&quot;, &quot;her younger brother&quot;. A pasted or loaded story fills this in automatically; edit it freely — the tab never overwrites a card you have made your own. It reaches the wardrobe pass and the ✨ Generate button, so the photo and the outfit match the part."/>
+                                        </Grid>
+                                        <TextBlock Text="{Binding PictureCaption}"
+                                                   FontSize="9" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="98"/>
+                                                <ColumnDefinition Width="6"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Source photo -->
+                                            <Border Grid.Column="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                    CornerRadius="6" Background="{StaticResource SurfaceAltBrush}" Height="92"
+                                                    Style="{StaticResource CastThumbnailStyle}" Tag="{Binding SourcePath}">
+                                                <Grid>
+                                                    <TextBlock Text="Photo"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                               Foreground="{StaticResource TextMutedBrush}" FontSize="10">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding SourcePreview}" Value="{x:Null}">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <Image Source="{Binding SourcePreview}" Stretch="Uniform"/>
+                                                </Grid>
+                                            </Border>
+
+                                            <!-- Built sheet -->
+                                            <Border Grid.Column="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                    CornerRadius="6" Background="{StaticResource SurfaceAltBrush}" Height="92"
+                                                    Style="{StaticResource CastThumbnailStyle}" Tag="{Binding SheetPath}">
+                                                <Grid>
+                                                    <TextBlock Text="Sheet → H3"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                               Foreground="{StaticResource TextMutedBrush}" FontSize="10">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding SheetPreview}" Value="{x:Null}">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <Image Source="{Binding SheetPreview}" Stretch="Uniform"/>
+                                                </Grid>
+                                            </Border>
+                                        </Grid>
+
+                                        <Grid Margin="0,6,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Button Grid.Column="0" Content="Browse…" Command="{Binding SelectCommand}"
+                                                    Height="26" Padding="8,0" FontSize="11"
+                                                    Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                            <Button Grid.Column="1" Content="✕" Command="{Binding ClearCommand}"
+                                                    Visibility="{Binding ClearCommand, Converter={StaticResource NotNullToVisibilityConverter}}"
+                                                    IsEnabled="{Binding HasSource}"
+                                                    Height="26" Width="26" FontSize="11" Margin="4,0,0,0"
+                                                    ToolTip="Clear the second character and run as a single-reference scene."
+                                                    Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                        </Grid>
+                                        <!-- ✨ Generate — this character's photo, rendered by one of the Image
+                                             Generator's base workflows instead of browsed for. -->
+                                        <Button Content="✨ Generate photo ▾" Margin="0,4,0,0"
+                                                Click="CastGenerateButton_Click"
+                                                Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ContentControl}}"
+                                                IsEnabled="{Binding CanGeneratePhoto}"
+                                                Height="26" Padding="8,0" FontSize="11"
+                                                Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                ToolTip="Generates this character's photo instead of browsing for one — their Part and the locked wardrobe become the prompt, and the result lands in this card as if it had been browsed. Z-Image, Z-Famegrid and Krea2 open into a LoRA list (the same folders the Image Generator reads); Krea2-Spicy's and Qwen 2.5.1.2's LoRAs are baked into their workflows.&#x0a;&#x0a;Needs the character to be described first: a Part on the card, or the story's automatic cast. The character sheet is not built until you press 🪪 Build Character Sheet, so you can re-generate or swap photos first.">
+                                            <!-- Tag carries the tab's ViewModel across the ContextMenu boundary;
+                                                 the card's DataContext is the CharacterSlot each command takes. -->
+                                            <Button.ContextMenu>
+                                                <!-- The menu remembers whose card it opened on: the window sets
+                                                     CastPhotoMenuSlot as it opens. -->
+                                                <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}"
+                                                             Opened="CastPhotoMenu_Opened">
+                                                    <MenuItem Header="Z-Image ▸ pick the LoRA" ItemsSource="{Binding CastZimageLoraMenu}">
+                                                        <MenuItem.ItemContainerStyle>
+                                                            <Style TargetType="MenuItem">
+                                                                <Setter Property="Header" Value="{Binding Name}"/>
+                                                                <Setter Property="Command"
+                                                                        Value="{Binding DataContext.GenerateCastZimageLoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                                <Setter Property="CommandParameter" Value="{Binding}"/>
+                                                            </Style>
+                                                        </MenuItem.ItemContainerStyle>
+                                                    </MenuItem>
+                                                    <MenuItem Header="Z-Famegrid ▸ pick the LoRA" ItemsSource="{Binding CastFamegridLoraMenu}">
+                                                        <MenuItem.ItemContainerStyle>
+                                                            <Style TargetType="MenuItem">
+                                                                <Setter Property="Header" Value="{Binding Name}"/>
+                                                                <Setter Property="Command"
+                                                                        Value="{Binding DataContext.GenerateCastFamegridLoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                                <Setter Property="CommandParameter" Value="{Binding}"/>
+                                                            </Style>
+                                                        </MenuItem.ItemContainerStyle>
+                                                    </MenuItem>
+                                                    <MenuItem Header="Krea2 ▸ pick the LoRA" ItemsSource="{Binding CastKrea2LoraMenu}">
+                                                        <MenuItem.ItemContainerStyle>
+                                                            <Style TargetType="MenuItem">
+                                                                <Setter Property="Header" Value="{Binding Name}"/>
+                                                                <Setter Property="Command"
+                                                                        Value="{Binding DataContext.GenerateCastKrea2LoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                                <Setter Property="CommandParameter" Value="{Binding}"/>
+                                                            </Style>
+                                                        </MenuItem.ItemContainerStyle>
+                                                    </MenuItem>
+                                                    <MenuItem Header="Krea2-Spicy — spicy mirror-selfie look"
+                                                              Command="{Binding GenerateCastKrea2SpicyCommand}"
+                                                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                    <MenuItem Header="Qwen 2.5.1.2 — detailed illustration"
+                                                              Command="{Binding GenerateCastQwenCommand}"
+                                                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                </ContextMenu>
+                                            </Button.ContextMenu>
+                                        </Button>
+                                        <TextBlock Text="{Binding PhotoPhase}" FontSize="9" Margin="0,3,0,0"
+                                                   Foreground="{DynamicResource TabAccentBrush}" FontStyle="Italic"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <CheckBox Content="This image is already a character sheet"
+                                                  IsChecked="{Binding UseSourceAsSheet}"
+                                                  IsEnabled="{Binding HasSource}"
+                                                  FontSize="10" Margin="0,6,0,0"
+                                                  Foreground="{StaticResource TextSecondaryBrush}"
+                                                  ToolTip="Skip the Qwen pass and send the loaded image to H3 as it is."/>
+                                        <Grid Margin="0,6,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="Panels" FontSize="10" VerticalAlignment="Center"
+                                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
+                                            <ComboBox Grid.Column="1" ItemsSource="{Binding PanelSplitOptions}"
+                                                      DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                      SelectedValue="{Binding SelectedPanelSplit, Mode=TwoWay}"
+                                                      IsEnabled="{Binding HasSheet}" Height="24" FontSize="10"
+                                                      ToolTip="H3 conditions on each reference image as ONE subject, so a three-panel sheet handed over whole is a three-panel grid it will happily render into the video — the same person standing next to themselves against a studio wall.&#x0a;&#x0a;The sheet is therefore cut back into its separate views before it is sent, one reference per view. Auto looks for the background gaps between the figures; a number splits evenly; Whole sheet is the old single-collage behaviour, kept for comparison."/>
+                                        </Grid>
+                                        <TextBlock Text="{Binding SheetStatus}" FontSize="9" Margin="0,4,0,0"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding PanelStatus}" FontSize="9" Margin="0,2,0,0"
+                                                   Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                   TextWrapping="Wrap"/>
+                                        <!-- The outfit this character's sheet is (or will be) built in. -->
+                                        <TextBlock Text="{Binding ExpectedWardrobe, StringFormat=👗 {0}}"
+                                                   Visibility="{Binding ExpectedWardrobe, Converter={StaticResource StringToVisibilityConverter}}"
+                                                   FontSize="9" Margin="0,2,0,0"
+                                                   Foreground="{DynamicResource TabAccentBrush}" FontStyle="Italic"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </DataTemplate>
                             </Grid.Resources>
                             <!-- The rail's column is Auto, not 340, so folding the Border away really
                                  gives its width to the board rather than leaving a 340px hole. -->
@@ -742,386 +943,10 @@
                                                             ToolTip="Throws away everything the story derived about the cast: both cards' Part, the sex of any card whose photo has not already answered it, and the wardrobe.&#x0a;&#x0a;Press it after pasting a DIFFERENT story. The automatic pass never overwrites a card that already says something, so without this the new film keeps the previous one's parts — and the wardrobe is then re-derived around characters who are not in it.&#x0a;&#x0a;Photos, built sheets and the prompt box are left alone. The story in the box re-casts itself a couple of seconds later; run Analyze afterwards to rewrite the clips."/>
                                                 </Grid>
 
-                                                <!-- Character 1 -->
-                                                <StackPanel DataContext="{Binding Character1}" Margin="0,0,0,10">
-                                                    <!-- The sex is a real input, not a label: it goes into the
-                                                         wardrobe request, into the sheet builder's instruction
-                                                         and into the reference line H3 reads. -->
-                                                    <Grid Margin="0,0,0,4">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="*"/>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11" FontWeight="Bold"
-                                                                   VerticalAlignment="Center"
-                                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
-                                                        <ComboBox Grid.Column="1" ItemsSource="{Binding SexOptions}"
-                                                                  SelectedItem="{Binding Sex, Mode=TwoWay}"
-                                                                  Width="86" Height="24" FontSize="10"
-                                                                  ToolTip="Male or female. The wardrobe pass dresses this character accordingly, the character sheet is generated as that person, and the prompt names them so H3 uses the right pronouns."/>
-                                                    </Grid>
-                                                    <!-- Part — who this character is in the story. Filled by the story's
-                                                         automatic cast; see H3CastViewModel.Cast.cs. -->
-                                                    <Grid Margin="0,0,0,6">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                            <ColumnDefinition Width="*"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Grid.Column="0" Text="Part" FontSize="10" VerticalAlignment="Center"
-                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
-                                                        <TextBox Grid.Column="1"
-                                                                 Text="{Binding Role, UpdateSourceTrigger=LostFocus}"
-                                                                 Height="24" FontSize="10" Padding="5,0"
-                                                                 VerticalContentAlignment="Center"
-                                                                 BorderBrush="{StaticResource BorderBrush}" Background="White"
-                                                                 ToolTip="Who this character is in the story — &quot;the detective&quot;, &quot;her younger brother&quot;. A pasted or loaded story fills this in automatically; edit it freely — the tab never overwrites a card you have made your own. It reaches the wardrobe pass and the ✨ Generate button, so the photo and the outfit match the part."/>
-                                                    </Grid>
-                                                    <TextBlock Text="&lt;Picture 1&gt; · the first reference H3 receives"
-                                                               FontSize="9" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
-                                                    <Grid>
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="98"/>
-                                                            <ColumnDefinition Width="6"/>
-                                                            <ColumnDefinition Width="*"/>
-                                                        </Grid.ColumnDefinitions>
-
-                                                        <!-- Source photo -->
-                                                        <Border Grid.Column="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                                CornerRadius="6" Background="{StaticResource SurfaceAltBrush}" Height="92"
-                                                                Style="{StaticResource CastThumbnailStyle}" Tag="{Binding SourcePath}">
-                                                            <Grid>
-                                                                <TextBlock Text="Photo"
-                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10">
-                                                                    <TextBlock.Style>
-                                                                        <Style TargetType="TextBlock">
-                                                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding SourcePreview}" Value="{x:Null}">
-                                                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </TextBlock.Style>
-                                                                </TextBlock>
-                                                                <Image Source="{Binding SourcePreview}" Stretch="Uniform"/>
-                                                            </Grid>
-                                                        </Border>
-
-                                                        <!-- Built sheet -->
-                                                        <Border Grid.Column="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                                CornerRadius="6" Background="{StaticResource SurfaceAltBrush}" Height="92"
-                                                                Style="{StaticResource CastThumbnailStyle}" Tag="{Binding SheetPath}">
-                                                            <Grid>
-                                                                <TextBlock Text="Sheet → H3"
-                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10">
-                                                                    <TextBlock.Style>
-                                                                        <Style TargetType="TextBlock">
-                                                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding SheetPreview}" Value="{x:Null}">
-                                                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </TextBlock.Style>
-                                                                </TextBlock>
-                                                                <Image Source="{Binding SheetPreview}" Stretch="Uniform"/>
-                                                            </Grid>
-                                                        </Border>
-                                                    </Grid>
-
-                                                    <Button Content="Browse…"
-                                                            Command="{Binding DataContext.SelectCharacter1Command, ElementName=H3VrRoot}"
-                                                            Height="26" Padding="8,0" FontSize="11" Margin="0,6,0,0"
-                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
-                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
-                                                    <!-- ✨ Generate — this character's photo, rendered by one of the Image
-                                                         Generator's base workflows instead of browsed for. -->
-                                                    <Button Content="✨ Generate photo ▾" Margin="0,4,0,0"
-                                                            Click="CastGenerateButton_Click"
-                                                            Tag="{Binding DataContext, ElementName=H3VrRoot}"
-                                                            IsEnabled="{Binding CanGeneratePhoto}"
-                                                            Height="26" Padding="8,0" FontSize="11"
-                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
-                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                            ToolTip="Generates this character's photo instead of browsing for one — their Part and the locked wardrobe become the prompt, and the result lands in this card as if it had been browsed. Z-Image, Z-Famegrid and Krea2 open into a LoRA list (the same folders the Image Generator reads); Krea2-Spicy's and Qwen 2.5.1.2's LoRAs are baked into their workflows.&#x0a;&#x0a;Needs the character to be described first: a Part on the card, or the story's automatic cast. The character sheet is not built until you press 🪪 Build Character Sheet, so you can re-generate or swap photos first.">
-                                                        <!-- Tag carries the tab's ViewModel across the ContextMenu boundary;
-                                                             the card's DataContext is the CharacterSlot each command takes. -->
-                                                        <Button.ContextMenu>
-                                                            <!-- The menu remembers whose card it opened on: the window sets
-                                                                 CastPhotoMenuSlot as it opens. -->
-                                                            <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}"
-                                                                         Opened="CastPhotoMenu_Opened">
-                                                                <MenuItem Header="Z-Image ▸ pick the LoRA" ItemsSource="{Binding CastZimageLoraMenu}">
-                                                                    <MenuItem.ItemContainerStyle>
-                                                                        <Style TargetType="MenuItem">
-                                                                            <Setter Property="Header" Value="{Binding Name}"/>
-                                                                            <Setter Property="Command"
-                                                                                    Value="{Binding DataContext.GenerateCastZimageLoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                                                                            <Setter Property="CommandParameter" Value="{Binding}"/>
-                                                                        </Style>
-                                                                    </MenuItem.ItemContainerStyle>
-                                                                </MenuItem>
-                                                                <MenuItem Header="Z-Famegrid ▸ pick the LoRA" ItemsSource="{Binding CastFamegridLoraMenu}">
-                                                                    <MenuItem.ItemContainerStyle>
-                                                                        <Style TargetType="MenuItem">
-                                                                            <Setter Property="Header" Value="{Binding Name}"/>
-                                                                            <Setter Property="Command"
-                                                                                    Value="{Binding DataContext.GenerateCastFamegridLoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                                                                            <Setter Property="CommandParameter" Value="{Binding}"/>
-                                                                        </Style>
-                                                                    </MenuItem.ItemContainerStyle>
-                                                                </MenuItem>
-                                                                <MenuItem Header="Krea2 ▸ pick the LoRA" ItemsSource="{Binding CastKrea2LoraMenu}">
-                                                                    <MenuItem.ItemContainerStyle>
-                                                                        <Style TargetType="MenuItem">
-                                                                            <Setter Property="Header" Value="{Binding Name}"/>
-                                                                            <Setter Property="Command"
-                                                                                    Value="{Binding DataContext.GenerateCastKrea2LoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                                                                            <Setter Property="CommandParameter" Value="{Binding}"/>
-                                                                        </Style>
-                                                                    </MenuItem.ItemContainerStyle>
-                                                                </MenuItem>
-                                                                <MenuItem Header="Krea2-Spicy — spicy mirror-selfie look"
-                                                                          Command="{Binding GenerateCastKrea2SpicyCommand}"
-                                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                                                                <MenuItem Header="Qwen 2.5.1.2 — detailed illustration"
-                                                                          Command="{Binding GenerateCastQwenCommand}"
-                                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                                                            </ContextMenu>
-                                                        </Button.ContextMenu>
-                                                    </Button>
-                                                    <TextBlock Text="{Binding PhotoPhase}" FontSize="9" Margin="0,3,0,0"
-                                                               Foreground="{DynamicResource TabAccentBrush}" FontStyle="Italic"
-                                                               TextTrimming="CharacterEllipsis"/>
-                                                    <CheckBox Content="This image is already a character sheet"
-                                                              IsChecked="{Binding UseSourceAsSheet}"
-                                                              IsEnabled="{Binding HasSource}"
-                                                              FontSize="10" Margin="0,6,0,0"
-                                                              Foreground="{StaticResource TextSecondaryBrush}"
-                                                              ToolTip="Skip the Qwen pass and send the loaded image to H3 as it is."/>
-                                                    <Grid Margin="0,6,0,0">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                            <ColumnDefinition Width="*"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Grid.Column="0" Text="Panels" FontSize="10" VerticalAlignment="Center"
-                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
-                                                        <ComboBox Grid.Column="1" ItemsSource="{Binding PanelSplitOptions}"
-                                                                  DisplayMemberPath="Label" SelectedValuePath="Value"
-                                                                  SelectedValue="{Binding SelectedPanelSplit, Mode=TwoWay}"
-                                                                  IsEnabled="{Binding HasSheet}" Height="24" FontSize="10"
-                                                                  ToolTip="H3 conditions on each reference image as ONE subject, so a three-panel sheet handed over whole is a three-panel grid it will happily render into the video — the same person standing next to themselves against a studio wall.&#x0a;&#x0a;The sheet is therefore cut back into its separate views before it is sent, one reference per view. Auto looks for the background gaps between the figures; a number splits evenly; Whole sheet is the old single-collage behaviour, kept for comparison."/>
-                                                    </Grid>
-                                                    <TextBlock Text="{Binding SheetStatus}" FontSize="9" Margin="0,4,0,0"
-                                                               Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic"
-                                                               TextTrimming="CharacterEllipsis"/>
-                                                    <TextBlock Text="{Binding PanelStatus}" FontSize="9" Margin="0,2,0,0"
-                                                               Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
-                                                               TextWrapping="Wrap"/>
-                                                    <!-- The outfit this character's sheet is (or will be) built in. -->
-                                                    <TextBlock Text="{Binding ExpectedWardrobe, StringFormat=👗 {0}}"
-                                                               Visibility="{Binding ExpectedWardrobe, Converter={StaticResource StringToVisibilityConverter}}"
-                                                               FontSize="9" Margin="0,2,0,0"
-                                                               Foreground="{DynamicResource TabAccentBrush}" FontStyle="Italic"
-                                                               TextWrapping="Wrap"/>
-                                                </StackPanel>
-
-                                                <!-- Character 2 -->
-                                                <StackPanel DataContext="{Binding Character2}" Margin="0,0,0,8">
-                                                    <Grid Margin="0,0,0,4">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="*"/>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11" FontWeight="Bold"
-                                                                   VerticalAlignment="Center"
-                                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
-                                                        <ComboBox Grid.Column="1" ItemsSource="{Binding SexOptions}"
-                                                                  SelectedItem="{Binding Sex, Mode=TwoWay}"
-                                                                  Width="86" Height="24" FontSize="10"
-                                                                  ToolTip="Male or female. The wardrobe pass dresses this character accordingly, the character sheet is generated as that person, and the prompt names them so H3 uses the right pronouns."/>
-                                                    </Grid>
-                                                    <!-- Part — who this character is in the story. Filled by the story's
-                                                         automatic cast; see H3CastViewModel.Cast.cs. -->
-                                                    <Grid Margin="0,0,0,6">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                            <ColumnDefinition Width="*"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Grid.Column="0" Text="Part" FontSize="10" VerticalAlignment="Center"
-                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
-                                                        <TextBox Grid.Column="1"
-                                                                 Text="{Binding Role, UpdateSourceTrigger=LostFocus}"
-                                                                 Height="24" FontSize="10" Padding="5,0"
-                                                                 VerticalContentAlignment="Center"
-                                                                 BorderBrush="{StaticResource BorderBrush}" Background="White"
-                                                                 ToolTip="Who this character is in the story — &quot;the detective&quot;, &quot;her younger brother&quot;. A pasted or loaded story fills this in automatically; edit it freely — the tab never overwrites a card you have made your own. It reaches the wardrobe pass and the ✨ Generate button, so the photo and the outfit match the part."/>
-                                                    </Grid>
-                                                    <TextBlock Text="&lt;Picture 2&gt; · optional — leave empty for a one-character video"
-                                                               FontSize="9" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
-                                                    <Grid>
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="98"/>
-                                                            <ColumnDefinition Width="6"/>
-                                                            <ColumnDefinition Width="*"/>
-                                                        </Grid.ColumnDefinitions>
-
-                                                        <Border Grid.Column="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                                CornerRadius="6" Background="{StaticResource SurfaceAltBrush}" Height="92"
-                                                                Style="{StaticResource CastThumbnailStyle}" Tag="{Binding SourcePath}">
-                                                            <Grid>
-                                                                <TextBlock Text="Photo"
-                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10">
-                                                                    <TextBlock.Style>
-                                                                        <Style TargetType="TextBlock">
-                                                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding SourcePreview}" Value="{x:Null}">
-                                                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </TextBlock.Style>
-                                                                </TextBlock>
-                                                                <Image Source="{Binding SourcePreview}" Stretch="Uniform"/>
-                                                            </Grid>
-                                                        </Border>
-
-                                                        <Border Grid.Column="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                                CornerRadius="6" Background="{StaticResource SurfaceAltBrush}" Height="92"
-                                                                Style="{StaticResource CastThumbnailStyle}" Tag="{Binding SheetPath}">
-                                                            <Grid>
-                                                                <TextBlock Text="Sheet → H3"
-                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10">
-                                                                    <TextBlock.Style>
-                                                                        <Style TargetType="TextBlock">
-                                                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding SheetPreview}" Value="{x:Null}">
-                                                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </TextBlock.Style>
-                                                                </TextBlock>
-                                                                <Image Source="{Binding SheetPreview}" Stretch="Uniform"/>
-                                                            </Grid>
-                                                        </Border>
-                                                    </Grid>
-
-                                                    <Grid Margin="0,6,0,0">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="*"/>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <Button Grid.Column="0" Content="Browse…"
-                                                                Command="{Binding DataContext.SelectCharacter2Command, ElementName=H3VrRoot}"
-                                                                Height="26" Padding="8,0" FontSize="11" Margin="0,0,4,0"
-                                                                Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
-                                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
-                                                        <Button Grid.Column="1" Content="✕"
-                                                                Command="{Binding DataContext.ClearCharacter2Command, ElementName=H3VrRoot}"
-                                                                IsEnabled="{Binding HasSource}"
-                                                                Height="26" Width="26" FontSize="11"
-                                                                ToolTip="Clear the second character and run as a single-reference scene."
-                                                                Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
-                                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
-                                                    </Grid>
-                                                    <!-- ✨ Generate — this character's photo, rendered by one of the Image
-                                                         Generator's base workflows instead of browsed for. -->
-                                                    <Button Content="✨ Generate photo ▾" Margin="0,4,0,0"
-                                                            Click="CastGenerateButton_Click"
-                                                            Tag="{Binding DataContext, ElementName=H3VrRoot}"
-                                                            IsEnabled="{Binding CanGeneratePhoto}"
-                                                            Height="26" Padding="8,0" FontSize="11"
-                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
-                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                            ToolTip="Generates this character's photo instead of browsing for one — their Part and the locked wardrobe become the prompt, and the result lands in this card as if it had been browsed. Z-Image, Z-Famegrid and Krea2 open into a LoRA list (the same folders the Image Generator reads); Krea2-Spicy's and Qwen 2.5.1.2's LoRAs are baked into their workflows.&#x0a;&#x0a;Needs the character to be described first: a Part on the card, or the story's automatic cast. The character sheet is not built until you press 🪪 Build Character Sheet, so you can re-generate or swap photos first.">
-                                                        <!-- Tag carries the tab's ViewModel across the ContextMenu boundary;
-                                                             the card's DataContext is the CharacterSlot each command takes. -->
-                                                        <Button.ContextMenu>
-                                                            <!-- The menu remembers whose card it opened on: the window sets
-                                                                 CastPhotoMenuSlot as it opens. -->
-                                                            <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}"
-                                                                         Opened="CastPhotoMenu_Opened">
-                                                                <MenuItem Header="Z-Image ▸ pick the LoRA" ItemsSource="{Binding CastZimageLoraMenu}">
-                                                                    <MenuItem.ItemContainerStyle>
-                                                                        <Style TargetType="MenuItem">
-                                                                            <Setter Property="Header" Value="{Binding Name}"/>
-                                                                            <Setter Property="Command"
-                                                                                    Value="{Binding DataContext.GenerateCastZimageLoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                                                                            <Setter Property="CommandParameter" Value="{Binding}"/>
-                                                                        </Style>
-                                                                    </MenuItem.ItemContainerStyle>
-                                                                </MenuItem>
-                                                                <MenuItem Header="Z-Famegrid ▸ pick the LoRA" ItemsSource="{Binding CastFamegridLoraMenu}">
-                                                                    <MenuItem.ItemContainerStyle>
-                                                                        <Style TargetType="MenuItem">
-                                                                            <Setter Property="Header" Value="{Binding Name}"/>
-                                                                            <Setter Property="Command"
-                                                                                    Value="{Binding DataContext.GenerateCastFamegridLoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                                                                            <Setter Property="CommandParameter" Value="{Binding}"/>
-                                                                        </Style>
-                                                                    </MenuItem.ItemContainerStyle>
-                                                                </MenuItem>
-                                                                <MenuItem Header="Krea2 ▸ pick the LoRA" ItemsSource="{Binding CastKrea2LoraMenu}">
-                                                                    <MenuItem.ItemContainerStyle>
-                                                                        <Style TargetType="MenuItem">
-                                                                            <Setter Property="Header" Value="{Binding Name}"/>
-                                                                            <Setter Property="Command"
-                                                                                    Value="{Binding DataContext.GenerateCastKrea2LoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                                                                            <Setter Property="CommandParameter" Value="{Binding}"/>
-                                                                        </Style>
-                                                                    </MenuItem.ItemContainerStyle>
-                                                                </MenuItem>
-                                                                <MenuItem Header="Krea2-Spicy — spicy mirror-selfie look"
-                                                                          Command="{Binding GenerateCastKrea2SpicyCommand}"
-                                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                                                                <MenuItem Header="Qwen 2.5.1.2 — detailed illustration"
-                                                                          Command="{Binding GenerateCastQwenCommand}"
-                                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                                                            </ContextMenu>
-                                                        </Button.ContextMenu>
-                                                    </Button>
-                                                    <TextBlock Text="{Binding PhotoPhase}" FontSize="9" Margin="0,3,0,0"
-                                                               Foreground="{DynamicResource TabAccentBrush}" FontStyle="Italic"
-                                                               TextTrimming="CharacterEllipsis"/>
-                                                    <CheckBox Content="This image is already a character sheet"
-                                                              IsChecked="{Binding UseSourceAsSheet}"
-                                                              IsEnabled="{Binding HasSource}"
-                                                              FontSize="10" Margin="0,6,0,0"
-                                                              Foreground="{StaticResource TextSecondaryBrush}"/>
-                                                    <Grid Margin="0,6,0,0">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                            <ColumnDefinition Width="*"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Grid.Column="0" Text="Panels" FontSize="10" VerticalAlignment="Center"
-                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
-                                                        <ComboBox Grid.Column="1" ItemsSource="{Binding PanelSplitOptions}"
-                                                                  DisplayMemberPath="Label" SelectedValuePath="Value"
-                                                                  SelectedValue="{Binding SelectedPanelSplit, Mode=TwoWay}"
-                                                                  IsEnabled="{Binding HasSheet}" Height="24" FontSize="10"
-                                                                  ToolTip="How this character's sheet is cut into separate reference images before it is sent to H3. Auto finds the gaps between the figures."/>
-                                                    </Grid>
-                                                    <TextBlock Text="{Binding SheetStatus}" FontSize="9" Margin="0,4,0,0"
-                                                               Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic"
-                                                               TextTrimming="CharacterEllipsis"/>
-                                                    <TextBlock Text="{Binding PanelStatus}" FontSize="9" Margin="0,2,0,0"
-                                                               Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
-                                                               TextWrapping="Wrap"/>
-                                                    <!-- The outfit this character's sheet is (or will be) built in. -->
-                                                    <TextBlock Text="{Binding ExpectedWardrobe, StringFormat=👗 {0}}"
-                                                               Visibility="{Binding ExpectedWardrobe, Converter={StaticResource StringToVisibilityConverter}}"
-                                                               FontSize="9" Margin="0,2,0,0"
-                                                               Foreground="{DynamicResource TabAccentBrush}" FontStyle="Italic"
-                                                               TextWrapping="Wrap"/>
-                                                </StackPanel>
+                                                <ContentControl Content="{Binding Character1}" ContentTemplate="{StaticResource CastCharacterCardTemplate}"
+                                                                Margin="0,0,0,10" Focusable="False"/>
+                                                <ContentControl Content="{Binding Character2}" ContentTemplate="{StaticResource CastCharacterCardTemplate}"
+                                                                Margin="0,0,0,8" Focusable="False"/>
 
                                                 <Button Content="{Binding BuildSheetsButtonText}"
                                                         Command="{Binding BuildSheetsCommand}"
