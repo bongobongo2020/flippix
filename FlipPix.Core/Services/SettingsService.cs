@@ -13,17 +13,21 @@ namespace FlipPix.Core.Services
     {
         private readonly string _settingsFilePath;
         private readonly ReaderWriterLockSlim _lock = new();
+        private readonly object _fileLock = new();
+        private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
         private IAppLogger? _logger;
         private ComfyUISettings _settings;
 
         public SettingsService()
+            : this(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FlipPix", "settings.json"))
         {
-            var appDataFolder = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "FlipPix"
-            );
-            Directory.CreateDirectory(appDataFolder);
-            _settingsFilePath = Path.Combine(appDataFolder, "settings.json");
+        }
+
+        /// <summary>Uses <paramref name="settingsFilePath"/> instead of the per-user AppData file (tests).</summary>
+        public SettingsService(string settingsFilePath)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsFilePath)!);
+            _settingsFilePath = settingsFilePath;
 
             _settings = LoadSettings();
         }
@@ -64,13 +68,6 @@ namespace FlipPix.Core.Services
 
         public void SaveSettings(ComfyUISettings settings)
         {
-            // Serialize outside the lock to minimize lock duration
-            var options = new JsonSerializerOptions
-            {
-                WriteIndented = true
-            };
-            var json = JsonSerializer.Serialize(settings, options);
-
             _lock.EnterWriteLock();
             try
             {
@@ -81,18 +78,48 @@ namespace FlipPix.Core.Services
                 _lock.ExitWriteLock();
             }
 
-            // File I/O outside the lock - settings are already updated in memory
             try
             {
-                // Write to temp file first, then rename for atomic operation
-                var tempPath = _settingsFilePath + ".tmp";
-                File.WriteAllText(tempPath, json);
-                File.Move(tempPath, _settingsFilePath, overwrite: true);
+                WriteToDisk();
             }
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "Failed to save settings to disk");
                 throw new Exception($"Failed to save settings: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Writes the current in-memory settings atomically (temp file, then rename). Serializing inside
+        /// _fileLock means the last write to land is always the newest state, and a unique temp name keeps
+        /// concurrent writers — or a second app instance — from moving each other's file away.
+        /// </summary>
+        private void WriteToDisk()
+        {
+            lock (_fileLock)
+            {
+                string json;
+                _lock.EnterReadLock();
+                try
+                {
+                    json = JsonSerializer.Serialize(_settings, JsonOptions);
+                }
+                finally
+                {
+                    _lock.ExitReadLock();
+                }
+
+                var tempPath = $"{_settingsFilePath}.{Guid.NewGuid():N}.tmp";
+                try
+                {
+                    File.WriteAllText(tempPath, json);
+                    File.Move(tempPath, _settingsFilePath, overwrite: true);
+                }
+                catch
+                {
+                    try { File.Delete(tempPath); } catch { /* best effort; the original error matters */ }
+                    throw;
+                }
             }
         }
 
@@ -153,8 +180,6 @@ namespace FlipPix.Core.Services
         {
             if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder)) return;
 
-            string json;
-
             _lock.EnterWriteLock();
             try
             {
@@ -162,21 +187,15 @@ namespace FlipPix.Core.Services
                 if (!string.IsNullOrEmpty(key))
                     _settings.LastBrowseFolders[key] = folder;
                 _settings.LastBrowseFolders[GlobalBrowseKey] = folder;
-
-                // Serialize while holding the lock to capture consistent state
-                json = JsonSerializer.Serialize(_settings, new JsonSerializerOptions { WriteIndented = true });
             }
             finally
             {
                 _lock.ExitWriteLock();
             }
 
-            // File I/O outside the lock
             try
             {
-                var tempPath = _settingsFilePath + ".tmp";
-                File.WriteAllText(tempPath, json);
-                File.Move(tempPath, _settingsFilePath, overwrite: true);
+                WriteToDisk();
             }
             catch (Exception ex)
             {
