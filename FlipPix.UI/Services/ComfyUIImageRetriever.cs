@@ -137,28 +137,6 @@ namespace FlipPix.UI.Services
                             }
                         }
 
-                        // Strategy 2: Fall back to scanning recent history with pattern matching
-                        if (!imageFiles.Any())
-                        {
-                            var outputFiles = await httpClient.GetOutputFilesAsync();
-                            Log($"Found {outputFiles.Count} potential output files in recent history");
-
-                            imageFiles = outputFiles.Where(f =>
-                                f.EndsWith(".png") &&
-                                (string.IsNullOrEmpty(expectedPattern) || f.Contains(expectedPattern)))
-                                .ToList();
-
-                            if (!string.IsNullOrEmpty(expectedPattern))
-                            {
-                                Log($"Looking for pattern: {expectedPattern}");
-                            }
-
-                            if (!imageFiles.Any())
-                            {
-                                Log($"No matching files found. Available files: {string.Join(", ", outputFiles.Take(5))}");
-                            }
-                        }
-
                         // Download the image
                         if (imageFiles.Any())
                         {

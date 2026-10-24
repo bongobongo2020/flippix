@@ -1120,12 +1120,7 @@ namespace FlipPix.UI.ViewModels
                         }
                         else
                         {
-                            var fallbackImage = await _comfyUIService.HttpClient.TryDownloadRecentOutputAsync(promptId);
-                            if (fallbackImage != null)
-                            {
-                                images.Add(fallbackImage);
-                                AddLog($"Successfully downloaded image via fallback method ({fallbackImage.Length} bytes)");
-                            }
+                            AddLog("No output files found for this prompt yet");
                         }
                     }
                     else

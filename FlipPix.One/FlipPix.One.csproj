@@ -36,6 +36,17 @@
     <Compile Include="..\FlipPix.UI\Services\LlmSampling.cs" Link="Shared\LlmSampling.cs" />
   </ItemGroup>
 
+  <!--
+    The phone remote's story recipe and graph loader, the same code as the phone app needs; shared as
+    source so a fix reaches both. They live in FlipPix.Remote.Engine and use this app's VideoRecipe.
+  -->
+  <ItemGroup>
+    <Compile Include="..\FlipPix.Remote\Engine\StoryRecipe.cs" Link="Shared\StoryRecipe.cs" />
+    <Compile Include="..\FlipPix.Remote\Engine\Workflows.cs" Link="Shared\Workflows.cs" />
+    <Using Include="FlipPix.One.Services" />
+    <Using Include="FlipPix.Remote.Engine" />
+  </ItemGroup>
+
   <ItemGroup>
     <!-- Only the graphs the phone drives are shipped, embedded so no file system is assumed. -->
     <EmbeddedResource Include="..\workflow\image\krea\krea2RealismV1_krea2RealismV1WF.json" LogicalName="wf/krea2.json" />

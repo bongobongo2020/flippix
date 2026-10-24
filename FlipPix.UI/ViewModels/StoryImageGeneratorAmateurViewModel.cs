@@ -440,8 +440,8 @@ namespace FlipPix.UI.ViewModels
                     {
                         AddLog("Detected remote ComfyUI server, downloading generated image...");
 
-                        var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesAsync();
-                        AddLog($"Found {outputFiles.Count} potential output files");
+                        var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesForPromptAsync(promptId);
+                        AddLog($"Found {outputFiles.Count} output file(s) for prompt {promptId}");
 
                         var imageFiles = outputFiles.Where(f =>
                             f.EndsWith(".png") &&
@@ -459,15 +459,6 @@ namespace FlipPix.UI.ViewModels
                             {
                                 images.Add(imageData);
                                 AddLog($"Successfully downloaded image ({imageData.Length} bytes)");
-                            }
-                        }
-                        else
-                        {
-                            var fallbackImage = await _comfyUIService.HttpClient.TryDownloadRecentOutputAsync(promptId);
-                            if (fallbackImage != null)
-                            {
-                                images.Add(fallbackImage);
-                                AddLog($"Successfully downloaded image via fallback method ({fallbackImage.Length} bytes)");
                             }
                         }
                     }

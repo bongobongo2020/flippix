@@ -157,7 +157,9 @@ public sealed class LibraryIndex
         var result = new List<LibraryEntry>(files.Count);
         foreach (var dir in files.GroupBy(f => f.DirectoryName ?? "", StringComparer.OrdinalIgnoreCase))
         {
-            var byName = dir.ToDictionary(f => f.Name, StringComparer.OrdinalIgnoreCase);
+            // TryAdd: on Linux "A.png" and "a.png" can share a folder, and ToDictionary would throw on them.
+            var byName = new Dictionary<string, FileInfo>(StringComparer.OrdinalIgnoreCase);
+            foreach (var f in dir) byName.TryAdd(f.Name, f);
             var consumed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             // Videos first, so their sidecars are known before the pictures are listed.

@@ -29,6 +29,10 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="FlipPix.Tests" />
+  </ItemGroup>
+
   <!--
     The desktop's story-chain logic, compiled in unchanged: the beat sheet (story -> exactly N beats),
     the continuity plan (one place, hour and light per clip) and the one-call-per-clip writer. They talk

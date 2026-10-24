@@ -3092,23 +3092,8 @@ namespace FlipPix.UI.ViewModels
                     }
                     else
                     {
-                        AddLog("No output files found for this prompt, trying fallback approach...");
-
-                        // Try the fallback approach
-                        var fallbackImage = await _comfyUIService.HttpClient.TryDownloadRecentOutputAsync(promptId);
-                        if (fallbackImage != null)
-                        {
-                            images.Add(fallbackImage);
-                            AddLog($"Successfully downloaded image via fallback method ({fallbackImage.Length} bytes)");
-                        }
-                        else
-                        {
-                            AddLog("Failed to download image using all available methods");
-                            AddLog("This might be due to:");
-                            AddLog("- ComfyUI output folder not being accessible via HTTP");
-                            AddLog("- Different filename pattern than expected");
-                            AddLog("- ComfyUI server configuration preventing file access");
-                        }
+                        // The history entry can land a moment after completion; the caller retries.
+                        AddLog("No output files found for this prompt yet");
                     }
                 }
                 else

@@ -4057,48 +4057,9 @@ namespace FlipPix.UI.ViewModels
 
                 if (isRemoteComfyUI)
                 {
-                    _logger.LogInfo("Fetching file list from remote ComfyUI...");
-                    var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesAsync();
-                    _logger.LogInfo($"Found {outputFiles.Count} total output files");
-
-                    // Filter files based on workflow
-                    IEnumerable<string> matchingFiles;
-                    if (workflow == TextGeneratorWorkflow.Zimage)
-                    {
-                        // Get ZI files (new format) or z-image files (old format)
-                        matchingFiles = outputFiles.Where(f => (f.Contains("ZI") || f.Contains("z-image")) && f.EndsWith(".png"));
-                    }
-                    else
-                    {
-                        // Get files with the specific prefix
-                        matchingFiles = outputFiles.Where(f => f.Contains(filePrefix) && f.EndsWith(".png"));
-                    }
-
-                    var filteredFiles = matchingFiles.ToList();
-
-                    if (filteredFiles.Any())
-                    {
-                        // Get the last one (they're typically already sorted by name which includes number)
-                        var newestFile = filteredFiles.Last();
-                        _logger.LogInfo($"✓ Selected newest file: {newestFile}");
-
-                        // Parse the path to extract subfolder and filename
-                        var lastSlash = newestFile.LastIndexOf('/');
-                        var subfolder = lastSlash > 0 ? newestFile.Substring(0, lastSlash) : "";
-                        var filename = lastSlash > 0 ? newestFile.Substring(lastSlash + 1) : newestFile;
-                        _logger.LogInfo($"  Subfolder: '{subfolder}', Filename: '{filename}'");
-
-                        var imageData = await _comfyUIService.HttpClient.DownloadOutputImageAsync(filename, subfolder);
-                        if (imageData != null)
-                        {
-                            images.Add(imageData);
-                            _logger.LogInfo($"✓ Downloaded image ({imageData.Length} bytes)");
-                        }
-                    }
-                    else
-                    {
-                        _logger.LogWarning($"No matching files found in remote output for prefix: {filePrefix}");
-                    }
+                    // Without a prompt id, the remote history can only offer a guess, maybe another run's
+                    // file; the caller's next retry reads this prompt's history again instead.
+                    _logger.LogInfo("Remote ComfyUI: no folder to scan; waiting for this prompt's history entry");
                 }
                 else
                 {
@@ -4339,7 +4300,7 @@ namespace FlipPix.UI.ViewModels
                         }
                     }
 
-                    var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesAsync();
+                    var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesForPromptAsync(promptId);
                     _logger.LogInfo($"Found {outputFiles.Count} total output files");
 
                     // Look for z-image files (path may include subfolder like ZImage/2026_01_15/ZI_00001.png)

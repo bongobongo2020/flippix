@@ -29,6 +29,9 @@ public sealed partial class RemoteHost : ObservableObject, IAsyncDisposable
 {
     private const int MaxWrongCodes = 5;
     private static readonly TimeSpan CodeLifetime = TimeSpan.FromMinutes(15);
+    // A new code alone doesn't stop guessing (each try is still 1 in a million); the pause makes a
+    // million tries take months instead of minutes.
+    private static readonly TimeSpan WrongCodePause = TimeSpan.FromMinutes(1);
 
     private readonly Action<Action> _dispatch;
     private readonly string _configPath;
@@ -41,6 +44,7 @@ public sealed partial class RemoteHost : ObservableObject, IAsyncDisposable
     private string _code = "";
     private DateTime _codeIssued;
     private int _wrongCodes;
+    private DateTime _pairingPausedUntil;
     private bool _loaded;
     private bool _applying;
 
@@ -251,8 +255,9 @@ public sealed partial class RemoteHost : ObservableObject, IAsyncDisposable
     }
 
     /// <summary>
-    /// Trades the code on screen for a token. Five wrong guesses replace the code, so it can't be
-    /// worked through; a used code is replaced too, so each one pairs a single phone.
+    /// Trades the code on screen for a token. Five wrong guesses replace the code and refuse every try
+    /// for a minute, so it can't be worked through; a used code is replaced too, so each one pairs a
+    /// single phone.
     /// </summary>
     internal PairResponse? TryPair(string code, string deviceName)
     {
@@ -262,6 +267,7 @@ public sealed partial class RemoteHost : ObservableObject, IAsyncDisposable
         var reissue = false;
         lock (_configLock)
         {
+            if (DateTime.UtcNow < _pairingPausedUntil) return null;
             var fresh = DateTime.UtcNow - _codeIssued < CodeLifetime;
             if (_code.Length == 6 && fresh && CryptographicOperations.FixedTimeEquals(
                     System.Text.Encoding.ASCII.GetBytes(code), System.Text.Encoding.ASCII.GetBytes(_code)))
@@ -272,7 +278,12 @@ public sealed partial class RemoteHost : ObservableObject, IAsyncDisposable
                 _config.Devices.Add(device);
                 reissue = true;
             }
-            else if (++_wrongCodes >= MaxWrongCodes || !fresh)
+            else if (++_wrongCodes >= MaxWrongCodes)
+            {
+                _pairingPausedUntil = DateTime.UtcNow + WrongCodePause;
+                reissue = true;
+            }
+            else if (!fresh)
             {
                 reissue = true;
             }
@@ -320,14 +331,18 @@ public sealed partial class RemoteHost : ObservableObject, IAsyncDisposable
 
     private async Task SaveConfigAsync()
     {
-        string snapshot;
-        lock (_configLock) snapshot = System.Text.Json.JsonSerializer.Serialize(_config);
         try
         {
             await Task.Run(() =>
             {
-                lock (_saveLock) // one writer at a time
+                // One writer at a time, each copying the config only once it holds the lock, so an older
+                // copy (one with a phone since removed) can never be written after a newer one.
+                lock (_saveLock)
+                {
+                    string snapshot;
+                    lock (_configLock) snapshot = System.Text.Json.JsonSerializer.Serialize(_config);
                     System.Text.Json.JsonSerializer.Deserialize<RemoteConfig>(snapshot)!.Save(_configPath);
+                }
             });
         }
         catch (Exception ex)
@@ -393,17 +408,25 @@ public sealed partial class RemoteHost : ObservableObject, IAsyncDisposable
         try
         {
             var ruleName = "FlipPix Phone Remote";
-            var psi = new ProcessStartInfo
+            // "add rule" never replaces, so drop the old one first; private networks only, never café Wi-Fi.
+            foreach (var arguments in new[]
             {
-                FileName = "netsh",
-                Arguments = $"advfirewall firewall add rule name=\"{ruleName}\" dir=in action=allow protocol=TCP localport={port}",
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-            };
-            using var p = Process.Start(psi);
-            p?.WaitForExit(5000);
+                $"advfirewall firewall delete rule name=\"{ruleName}\"",
+                $"advfirewall firewall add rule name=\"{ruleName}\" dir=in action=allow protocol=TCP localport={port} profile=private",
+            })
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "netsh",
+                    Arguments = arguments,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                };
+                using var p = Process.Start(psi);
+                p?.WaitForExit(5000);
+            }
         }
         catch
         {
