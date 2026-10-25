@@ -20,10 +20,10 @@ namespace FlipPix.UI.Models
         /// <summary>Enable Spectrum forecasting.</summary>
         public bool Spectrum { get; set; }
 
-        /// <summary>Turbo LoRA loader: off, normal, or larryvrh.</summary>
+        /// <summary>Turbo LoRA loader: off, normal, or larryvrh. Anything but "off" loads <see cref="TurboLora"/>.</summary>
         public string TurboLoader { get; set; } = "off";
 
-        /// <summary>Path to the turbo LoRA file.</summary>
+        /// <summary>Turbo LoRA file, as the ComfyUI server lists it (loras folder, forward slashes).</summary>
         public string TurboLora { get; set; } = string.Empty;
 
         /// <summary>Turbo LoRA strength (0-1).</summary>
@@ -44,7 +44,24 @@ namespace FlipPix.UI.Models
         /// <summary>Sigma shift for audio.</summary>
         public int ShiftAudio { get; set; } = 3;
 
-        /// <summary>Creates the built-in presets from the workflow.</summary>
+        /// <summary>The H3 diffusion model (unet folder) the preset samples with.</summary>
+        public string Model { get; set; } = VanillaModel;
+
+        /// <summary>Base Ref2VA model — full quality at 20+ steps, or with a turbo LoRA at few steps.</summary>
+        public const string VanillaModel = "h3-minimax/minimax_h3_ref2va_pruned_int8_convrot.safetensors";
+
+        /// <summary>Ref2VA with the turbo distillation fused in — 8 steps, no LoRA.</summary>
+        public const string FusedTurboModel = "h3-minimax/minimax_h3_fused_refdelta_r1024_turbo8_mystic07_int8_convrot.safetensors";
+
+        /// <summary>The step count a preset is built for, so a hand-typed count far below it can be flagged —
+        /// a distilled or vanilla model sampled with too few steps comes out smeared, not just softer.</summary>
+        public static int MinimumSteps(string model, string turboLoader) =>
+            turboLoader != "off" ? 3 : model == FusedTurboModel ? 6 : 16;
+
+        /// <summary>
+        /// The built-in presets. Every one is a model + LoRA + step count that belong together: the step count
+        /// alone means nothing if the model it was tuned for is not what is loaded.
+        /// </summary>
         public static List<H3EditorPreset> GetBuiltInPresets()
         {
             return new List<H3EditorPreset>
@@ -52,9 +69,7 @@ namespace FlipPix.UI.Models
                 new()
                 {
                     Name = "vanilla",
-                    Attention = "comfy_kitchen",
-                    SparseAttention = "none",
-                    Spectrum = false,
+                    Model = VanillaModel,
                     TurboLoader = "off",
                     Steps = 20,
                     Sampler = "res_multistep",
@@ -64,12 +79,21 @@ namespace FlipPix.UI.Models
                 },
                 new()
                 {
+                    Name = "fused turbo8",
+                    Model = FusedTurboModel,
+                    TurboLoader = "off",
+                    Steps = 8,
+                    Sampler = "res_multistep",
+                    Scheduler = "simple",
+                    ShiftVideo = 12,
+                    ShiftAudio = 3
+                },
+                new()
+                {
                     Name = "larryvrh",
-                    Attention = "comfy_kitchen",
-                    SparseAttention = "none",
-                    Spectrum = false,
+                    Model = VanillaModel,
                     TurboLoader = "larryvrh",
-                    TurboLora = @"h3\minimax_h3_turbo_v4_step600_ema_pruned_comfyui.safetensors",
+                    TurboLora = "H3/larryminimax_h3_turbo_v4_step600_ema.safetensors",
                     TurboStrength = 1.0,
                     Steps = 8,
                     Sampler = "res_multistep",
@@ -80,11 +104,9 @@ namespace FlipPix.UI.Models
                 new()
                 {
                     Name = "lightx2v",
-                    Attention = "comfy_kitchen",
-                    SparseAttention = "none",
-                    Spectrum = false,
+                    Model = VanillaModel,
                     TurboLoader = "normal",
-                    TurboLora = @"h3\minimax_h3_ref2v_lightx2v_turbo_4step_v0.1_resized_avg_rank_20_bf16.safetensors",
+                    TurboLora = "H3/minimax_h3_ref2v_lightx2v_turbo_4step_v0.1_resized_avg_rank_20_bf16.safetensors",
                     TurboStrength = 1.0,
                     Steps = 8,
                     Sampler = "res_multistep",
@@ -94,25 +116,10 @@ namespace FlipPix.UI.Models
                 },
                 new()
                 {
-                    Name = "vanilla 8 steps",
-                    Attention = "comfy_kitchen",
-                    SparseAttention = "none",
-                    Spectrum = false,
-                    TurboLoader = "off",
-                    Steps = 8,
-                    Sampler = "res_multistep",
-                    Scheduler = "simple",
-                    ShiftVideo = 12,
-                    ShiftAudio = 3
-                },
-                new()
-                {
                     Name = "taomate",
-                    Attention = "comfy_kitchen",
-                    SparseAttention = "none",
-                    Spectrum = false,
+                    Model = VanillaModel,
                     TurboLoader = "normal",
-                    TurboLora = @"h3\taomate_h3_3step_comfy.safetensors",
+                    TurboLora = "H3/taomate_h3_3step_comfy.safetensors",
                     TurboStrength = 1.0,
                     Steps = 3,
                     Sampler = "res_multistep",

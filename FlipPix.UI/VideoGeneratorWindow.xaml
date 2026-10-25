@@ -5667,13 +5667,125 @@
                                 <!-- ═══ VIDEO PREVIEW (Main Area) ═══════════════════════════════════ -->
                                 <Border Grid.Row="1" Background="#1a1a1a" Margin="8,6,8,0" CornerRadius="4">
                                     <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="*"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
                                         <!-- Placeholder text when no video -->
                                         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                                             <TextBlock Text="▶" FontSize="48" Foreground="#333" HorizontalAlignment="Center"/>
                                             <TextBlock Text="Video Preview" Foreground="#444" FontSize="12" HorizontalAlignment="Center" Margin="0,8,0,0"/>
                                         </StackPanel>
-                                        <!-- Actual video player -->
-                                        <MediaElement x:Name="H3EditorVideoPlayer" LoadedBehavior="Manual" UnloadedBehavior="Stop" Stretch="Uniform" Visibility="{Binding PreviewVideoPath, Converter={StaticResource StringToVisibilityConverter}}" MediaOpened="H3EditorPlayer_MediaOpened" MediaEnded="H3EditorPlayer_MediaEnded" MediaFailed="H3EditorPlayer_MediaFailed"/>
+                                        <!-- Actual video player. ScrubbingEnabled shows the seeked frame while paused. -->
+                                        <MediaElement x:Name="H3EditorVideoPlayer" LoadedBehavior="Manual" UnloadedBehavior="Stop" Stretch="Uniform" ScrubbingEnabled="True" IsMuted="{Binding IsPreviewMuted}" Visibility="{Binding PreviewVideoPath, Converter={StaticResource StringToVisibilityConverter}}" MediaOpened="H3EditorPlayer_MediaOpened" MediaEnded="H3EditorPlayer_MediaEnded" MediaFailed="H3EditorPlayer_MediaFailed"/>
+
+                                        <!-- Scrub bar: drag/click to seek (snaps to frames), step frames, cut at the playhead. -->
+                                        <Grid Grid.Row="1" Margin="8,4,8,6" Visibility="{Binding PreviewVideoPath, Converter={StaticResource StringToVisibilityConverter}}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                                <Button Grid.Column="0" Content="◂|" Width="26" FontSize="10" FontFamily="Segoe UI Symbol" ToolTip="Back one frame" Click="H3EditorFrameBack_Click" Margin="0,0,2,0" Height="22" Background="#3d3d3d" Foreground="#ddd" BorderThickness="0" Cursor="Hand">
+                                                    <Button.Template>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
+                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
+                                                                </Trigger>
+                                                                <Trigger Property="IsEnabled" Value="False">
+                                                                    <Setter Property="Opacity" Value="0.4"/>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Button.Template>
+                                                </Button>
+                                                <Button Grid.Column="1" Content="|▸" Width="26" FontSize="10" FontFamily="Segoe UI Symbol" ToolTip="Forward one frame" Click="H3EditorFrameForward_Click" Margin="0,0,6,0" Height="22" Background="#3d3d3d" Foreground="#ddd" BorderThickness="0" Cursor="Hand">
+                                                    <Button.Template>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
+                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
+                                                                </Trigger>
+                                                                <Trigger Property="IsEnabled" Value="False">
+                                                                    <Setter Property="Opacity" Value="0.4"/>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Button.Template>
+                                                </Button>
+                                            <Slider x:Name="H3EditorScrub" Grid.Column="2" VerticalAlignment="Center"
+                                                    Minimum="0" Maximum="{Binding PreviewDurationSeconds}"
+                                                    SmallChange="0.0416667" LargeChange="1"
+                                                    IsMoveToPointEnabled="True"
+                                                    ToolTip="Drag or click to scrub. With the bar focused, ← → step one frame and PgUp/PgDn one second."
+                                                    ValueChanged="H3EditorScrub_ValueChanged"
+                                                    Thumb.DragStarted="H3EditorScrub_DragStarted"
+                                                    Thumb.DragCompleted="H3EditorScrub_DragCompleted"/>
+                                            <TextBlock Grid.Column="3" Text="{Binding PlayheadDisplay}" FontFamily="Consolas" FontSize="11"
+                                                       Foreground="#ccc" VerticalAlignment="Center" Margin="8,0"/>
+                                            <StackPanel Grid.Column="4" Orientation="Horizontal">
+                                                <Button Content="⇤ Trim start" Padding="8,0" FontSize="10" Command="{Binding TrimStartToPlayheadCommand}" ToolTip="Cut away everything before the playhead" Margin="0,0,3,0" Height="22" Background="#3d3d3d" Foreground="#ddd" BorderThickness="0" Cursor="Hand">
+                                                    <Button.Template>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
+                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
+                                                                </Trigger>
+                                                                <Trigger Property="IsEnabled" Value="False">
+                                                                    <Setter Property="Opacity" Value="0.4"/>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Button.Template>
+                                                </Button>
+                                                <Button Content="✂ Split" Padding="8,0" FontSize="10" Command="{Binding SplitAtPlayheadCommand}" ToolTip="Split this clip into two at the playhead" Margin="0,0,3,0" Height="22" Background="#3d3d3d" Foreground="#ddd" BorderThickness="0" Cursor="Hand">
+                                                    <Button.Template>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
+                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
+                                                                </Trigger>
+                                                                <Trigger Property="IsEnabled" Value="False">
+                                                                    <Setter Property="Opacity" Value="0.4"/>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Button.Template>
+                                                </Button>
+                                                <Button Content="Trim end ⇥" Padding="8,0" FontSize="10" Command="{Binding TrimEndToPlayheadCommand}" ToolTip="Cut away everything after the playhead" Height="22" Background="#3d3d3d" Foreground="#ddd" BorderThickness="0" Cursor="Hand">
+                                                    <Button.Template>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
+                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
+                                                                </Trigger>
+                                                                <Trigger Property="IsEnabled" Value="False">
+                                                                    <Setter Property="Opacity" Value="0.4"/>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Button.Template>
+                                                </Button>
+                                            </StackPanel>
+                                        </Grid>
                                     </Grid>
                                 </Border>
 
@@ -5688,7 +5800,7 @@
 
                                         <!-- Playback controls -->
                                         <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Button Content="|◀" Width="26" Height="22" FontSize="9" FontFamily="Segoe UI Symbol" Background="#3d3d3d" Foreground="#aaa" BorderThickness="0" Cursor="Hand" ToolTip="Previous clip" Margin="0,0,2,0">
+                                            <Button Content="|◀" Width="26" Height="22" FontSize="9" FontFamily="Segoe UI Symbol" Background="#3d3d3d" Foreground="#aaa" BorderThickness="0" Cursor="Hand" ToolTip="Previous clip" Command="{Binding PreviousClipCommand}" Margin="0,0,2,0">
                                                 <Button.Template>
                                                     <ControlTemplate TargetType="Button">
                                                         <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="0">
@@ -5702,7 +5814,7 @@
                                                     </ControlTemplate>
                                                 </Button.Template>
                                             </Button>
-                                            <Button Content="▶" Width="30" Height="22" FontSize="12" FontFamily="Segoe UI Symbol" Background="#3d3d3d" Foreground="#ddd" BorderThickness="0" Cursor="Hand" ToolTip="Play/Pause" Margin="0,0,2,0">
+                                            <Button x:Name="H3EditorPlayButton" Content="▶" Width="30" Height="22" FontSize="12" FontFamily="Segoe UI Symbol" Background="#3d3d3d" Foreground="#ddd" BorderThickness="0" Cursor="Hand" ToolTip="Play/Pause" Click="H3EditorPlayPause_Click" Margin="0,0,2,0">
                                                 <Button.Template>
                                                     <ControlTemplate TargetType="Button">
                                                         <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="0">
@@ -5716,7 +5828,7 @@
                                                     </ControlTemplate>
                                                 </Button.Template>
                                             </Button>
-                                            <Button Content="■" Width="26" Height="22" FontSize="10" FontFamily="Segoe UI Symbol" Background="#3d3d3d" Foreground="#aaa" BorderThickness="0" Cursor="Hand" ToolTip="Stop" Margin="0,0,2,0">
+                                            <Button Content="■" Width="26" Height="22" FontSize="10" FontFamily="Segoe UI Symbol" Background="#3d3d3d" Foreground="#aaa" BorderThickness="0" Cursor="Hand" ToolTip="Stop" Click="H3EditorStop_Click" Margin="0,0,2,0">
                                                 <Button.Template>
                                                     <ControlTemplate TargetType="Button">
                                                         <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="0">
@@ -5730,7 +5842,21 @@
                                                     </ControlTemplate>
                                                 </Button.Template>
                                             </Button>
-                                            <Button Content="▶|" Width="26" Height="22" FontSize="9" FontFamily="Segoe UI Symbol" Background="#3d3d3d" Foreground="#aaa" BorderThickness="0" Cursor="Hand" ToolTip="Next clip">
+                                            <Button Content="▶|" Width="26" Height="22" FontSize="9" FontFamily="Segoe UI Symbol" Background="#3d3d3d" Foreground="#aaa" BorderThickness="0" Cursor="Hand" ToolTip="Next clip" Command="{Binding NextClipCommand}">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="0">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                            <Button Content="{Binding MuteGlyph}" Width="30" Height="22" FontSize="11" Background="#3d3d3d" Foreground="#ddd" BorderThickness="0" Cursor="Hand" ToolTip="{Binding MuteTip}" Command="{Binding ToggleMuteCommand}" Margin="6,0,0,0">
                                                 <Button.Template>
                                                     <ControlTemplate TargetType="Button">
                                                         <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="0">
@@ -5765,7 +5891,7 @@
                                                 </Button.Template>
                                             </Button>
                                             <Rectangle Width="1" Fill="#444" Margin="6,4"/>
-                                            <Button Content="Cut" Height="24" Padding="8,0" FontSize="10" Background="#3d3d3d" Foreground="#ccc" BorderThickness="0" Cursor="Hand" Command="{Binding CutClipCommand}" CommandParameter="{Binding SelectedClip}" ToolTip="Cut selected clip" Margin="0,0,3,0">
+                                            <Button Content="Cut" Height="24" Padding="8,0" FontSize="10" Background="#3d3d3d" Foreground="#ccc" BorderThickness="0" Cursor="Hand" Command="{Binding CutClipCommand}" CommandParameter="{Binding SelectedClip}" ToolTip="Split the previewed clip at the playhead (a clip not rendered yet: halve its duration)" Margin="0,0,3,0">
                                                 <Button.Template>
                                                     <ControlTemplate TargetType="Button">
                                                         <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">

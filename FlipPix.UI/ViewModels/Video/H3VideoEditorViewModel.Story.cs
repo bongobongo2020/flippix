@@ -758,7 +758,7 @@ namespace FlipPix.UI.ViewModels.Video
 
                 // Calculate clip duration
                 var clipDuration = TargetDurationSeconds / _storyBeats.Count;
-                clipDuration = Math.Max(2.5, Math.Min(15.0, clipDuration)); // Clamp 2.5-15s
+                clipDuration = Math.Max(5.0, Math.Min(15.0, clipDuration)); // H3's trained range is ~5-15 s
 
                 for (int i = 0; i < _storyBeats.Count; i++)
                 {
@@ -911,6 +911,20 @@ namespace FlipPix.UI.ViewModels.Video
             return string.Empty;
         }
 
+        /// <summary>
+        /// Writes one clip's prompt in H3's reference format. Every clip is <b>one continuous take</b>: when clips
+        /// are chained the first second is the previous clip's real tail, and a hard cut inside the clip lets the
+        /// model wander off and snap back to that pin (prompting guide, Rule 28). So:
+        /// <list type="bullet">
+        /// <item>a chained clip opens on how the last one ended and holds it, silent, for about two seconds — the
+        /// pack's "airlock" — before this beat's action starts (Rules 27, 29);</item>
+        /// <item>the beat's sentences play in order inside that one take, under one camera move that rotates
+        /// clip to clip so consecutive endings never match, at medium-or-closer framing (Rule 36);</item>
+        /// <item>the prompt is only things H3 can see or hear — no instructions about clips, joins or the
+        /// viewer, which the text encoder renders as noise rather than obeys;</item>
+        /// <item>the score is the same for every clip (none), so the soundtrack does not change at each join.</item>
+        /// </list>
+        /// </summary>
         private string BuildClipPrompt(
             StoryBeatSheet.StoryBeat beat,
             int clipIndex,
@@ -922,194 +936,112 @@ namespace FlipPix.UI.ViewModels.Video
         {
             var sb = new StringBuilder();
 
-            // subject_definitions
-            var subjectDefs = H3SpecPrompt.BuildSubjectDefinitions(cast, env, StorySetting);
             sb.AppendLine("subject_definitions:");
-            sb.AppendLine(subjectDefs);
+            sb.AppendLine(H3SpecPrompt.BuildSubjectDefinitions(cast, env, StorySetting));
             sb.AppendLine();
 
-            // summary with mode marker
+            var action = TagSubjects(beat.Text, cast.Count);
+
             sb.AppendLine("summary:");
-            sb.Append(H3SpecPrompt.SummaryMarker);
-            sb.Append(" ");
-            sb.AppendLine(beat.Text);
-            if (beat.PartCount > 1)
-            {
-                sb.AppendLine(StoryBeatSheet.DescribePart(beat));
-            }
+            sb.AppendLine($"{H3SpecPrompt.SummaryMarker} {action}");
             sb.AppendLine();
 
-            // retention_analysis
             sb.AppendLine("retention_analysis:");
             sb.AppendLine(H3SpecPrompt.BuildRetentionAnalysis(cast));
             sb.AppendLine();
 
-            // detailed_description with shot breakdown
             sb.AppendLine("detailed_description:");
-            var shots = H3SpecPrompt.ShotCount(clipDuration);
-            var cutTimes = H3ResearchPrompt.CutTimes(clipDuration, shots);
-
-            // Add continuity sentence
             var sceneSentence = StoryContinuity.SceneSentence(env);
             if (!string.IsNullOrEmpty(sceneSentence))
-            {
                 sb.AppendLine($"Continuity of place and time: {sceneSentence}");
-            }
-
-            // Add beat-to-beat narrative continuity handoff
-            if (previousBeat.HasValue && !string.IsNullOrEmpty(previousBeat.Value.Text))
-            {
-                sb.AppendLine();
-                sb.AppendLine(BuildBeatContinuityHandoff(previousBeat.Value, beat, cast.Count, clipIndex));
-                sb.AppendLine();
-            }
-
-            // Generate shot descriptions
-            for (int s = 0; s < shots; s++)
-            {
-                if (s == 0)
-                {
-                    if (previousBeat.HasValue)
-                    {
-                        // First shot picks up directly from previous beat's ending
-                        sb.Append($"[Shot 1] Picking up immediately from the previous clip: ");
-                    }
-                    else
-                    {
-                        sb.Append($"[Shot 1] ");
-                    }
-                }
-                else
-                {
-                    var cutTime = cutTimes[s - 1];
-                    sb.Append($"[Shot {s + 1}] At {cutTime}, ");
-                }
-
-                // Distribute beat action across shots
-                var shotFraction = (double)s / shots;
-                var actionPart = GetShotAction(beat.Text, s, shots, isLastClip);
-
-                // Add subject tags
-                for (int c = 0; c < cast.Count; c++)
-                {
-                    if (actionPart.Contains($"CHARACTER {c + 1}", StringComparison.OrdinalIgnoreCase) ||
-                        (c == 0 && !actionPart.Contains("<Subject", StringComparison.OrdinalIgnoreCase)))
-                    {
-                        actionPart = actionPart.Replace($"CHARACTER {c + 1}", $"<Subject {c + 1}>", StringComparison.OrdinalIgnoreCase);
-                    }
-                }
-
-                // Ensure at least one subject is tagged
-                if (!actionPart.Contains("<Subject"))
-                {
-                    actionPart = $"<Subject 1> {actionPart}";
-                }
-
-                sb.AppendLine(actionPart);
-            }
-
-            // Add ending momentum for non-last clips
-            if (!isLastClip)
-            {
-                sb.AppendLine();
-                sb.AppendLine("CLIP ENDING: This clip ends mid-action, with characters in motion and the scene unresolved. The final frame shows momentum carrying forward into the next clip — no pauses, no held poses, no resolution.");
-            }
-
+            sb.AppendLine(BuildContinuousTake(action, clipIndex, cast.Count, previousBeat, clipDuration, isLastClip));
             sb.AppendLine();
 
-            // overall_soundscape
             sb.AppendLine("overall_soundscape:");
             sb.AppendLine(BuildSoundscape(beat.Text, env));
             sb.AppendLine();
 
-            // non_diegetic_music
             sb.AppendLine("non_diegetic_music:");
-            sb.AppendLine(BuildMusicCue(clipIndex, isLastClip, _storyBeats.Count));
+            sb.AppendLine("N/A");
 
             return sb.ToString();
         }
 
-        /// <summary>
-        /// Builds the beat-to-beat narrative continuity handoff for seamless clip transitions.
-        /// This is used at populate time when we don't have the previous clip's generated content yet.
-        /// </summary>
-        private string BuildBeatContinuityHandoff(StoryBeatSheet.StoryBeat previousBeat, StoryBeatSheet.StoryBeat currentBeat, int castCount, int clipIndex)
+        /// <summary>One camera move per clip, rotated so a clip never ends on the framing the next one opens on
+        /// twice running. Medium distance or closer — H3 loses faces in wide shots.</summary>
+        private static readonly string[] TakeCameraMoves =
         {
-            var sb = new StringBuilder();
+            "The camera tracks alongside at medium distance at slow speed, keeping every face clearly visible",
+            "The camera pushes in with small amplitude at slow speed from a medium shot toward a medium close-up",
+            "The camera arcs slowly around the action at medium close distance",
+            "The camera trucks right with small amplitude, holding a medium shot",
+            "The camera pulls out with small amplitude at slow speed from a medium close-up to a medium shot",
+        };
 
-            sb.AppendLine($"NARRATIVE CONTINUITY — This is clip {clipIndex + 1} of a continuous sequence. The viewer just watched:");
-            sb.AppendLine($"  PREVIOUS BEAT: {previousBeat.Text}");
-            sb.AppendLine();
-            sb.AppendLine("This clip picks up IMMEDIATELY from there:");
-            sb.AppendLine("- Same positions, same states, same ongoing actions as the previous beat's ending");
-            sb.AppendLine("- Any motion started in the previous beat continues naturally into this one");
-            sb.AppendLine("- No jump cuts, no time skips, no position resets — this is ONE continuous film");
+        private string BuildContinuousTake(
+            string action, int clipIndex, int castCount, StoryBeatSheet.StoryBeat? previousBeat,
+            double clipDuration, bool isLastClip)
+        {
+            var sentences = Sentences(action);
+            if (sentences.Count == 0) sentences.Add(action.Trim().TrimEnd('.'));
 
-            // Extract ending state from previous beat for specific handoff
-            var prevEnding = ExtractBeatEnding(previousBeat.Text);
-            if (!string.IsNullOrEmpty(prevEnding))
+            var lead = castCount > 0 && !action.Contains("<Subject", StringComparison.Ordinal) ? "<Subject 1>" : null;
+            var sb = new StringBuilder("[Shot 1] Shot 1 is one continuous take with no cuts. ");
+
+            var chained = previousBeat.HasValue && ChainClips;
+            if (chained)
             {
-                sb.AppendLine();
-                sb.AppendLine($"The previous clip ended with: {prevEnding}");
-                sb.AppendLine("[Shot 1] must show this state continuing, not restarting.");
+                var ending = Sentences(TagSubjects(previousBeat!.Value.Text, castCount)).LastOrDefault();
+                sb.Append("It opens on the last moment of the previous clip");
+                sb.Append(string.IsNullOrEmpty(ending) ? ". " : $": {ending}. ");
+                sb.Append("For the first two seconds the camera holds that same framing, with the same people in the same " +
+                          "positions, while they breathe, shift their weight and glance toward what comes next; nobody " +
+                          "speaks and every mouth stays closed. ");
+                sb.Append("Then ");
             }
+
+            var move = TakeCameraMoves[clipIndex % TakeCameraMoves.Length];
+            if (lead != null) sb.Append($"{lead} is the focus. ");
+            sb.Append(string.Join(". ", sentences)).Append(". ");
+            sb.Append(move).Append(". ");
+
+            sb.Append(isLastClip
+                ? "In the final seconds the motion settles naturally as the action concludes."
+                : "Through the final second everyone is still moving, the action carried on mid-motion.");
+
+            if (!MentionsSpeech(action))
+                sb.Append(" No one speaks; mouths stay closed apart from breathing and effort.");
 
             return sb.ToString();
         }
 
-        /// <summary>
-        /// Extracts the likely ending state from a beat's text — the last sentence or action phrase.
-        /// </summary>
-        private string ExtractBeatEnding(string beatText)
+        /// <summary>Every "CHARACTER N" the beat sheet wrote becomes the subject tag H3 binds to a picture.</summary>
+        private static string TagSubjects(string text, int castCount)
         {
-            if (string.IsNullOrWhiteSpace(beatText)) return string.Empty;
-
-            // Split into sentences and take the last one
-            var sentences = beatText.Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(s => s.Trim())
-                .Where(s => s.Length > 5)
-                .ToList();
-
-            return sentences.Count > 0 ? sentences.Last() : beatText.Trim();
+            if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+            return System.Text.RegularExpressions.Regex.Replace(
+                text, @"\bCHARACTER\s+(\d)\b",
+                m => int.Parse(m.Groups[1].Value) is var n && n >= 1 && n <= Math.Max(1, castCount)
+                    ? $"<Subject {n}>"
+                    : m.Value,
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         }
 
-        private string GetShotAction(string beatText, int shotIndex, int totalShots, bool isLastClip)
-        {
-            // Split the beat into rough parts for each shot
-            var sentences = beatText.Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(s => s.Trim())
-                .Where(s => s.Length > 5)
+        private static List<string> Sentences(string text) =>
+            System.Text.RegularExpressions.Regex.Split(text ?? string.Empty, @"(?<=[.!?])\s+")
+                .Select(s => s.Trim().TrimEnd('.', '!', '?').Trim())
+                .Where(s => s.Length > 3)
                 .ToList();
 
-            if (sentences.Count == 0)
-            {
-                return beatText;
-            }
-
-            // Distribute sentences across shots
-            var sentenceIndex = (int)((double)shotIndex / totalShots * sentences.Count);
-            sentenceIndex = Math.Min(sentenceIndex, sentences.Count - 1);
-
-            var action = sentences[sentenceIndex];
-
-            // Add camera direction based on shot position
-            var cameraMove = shotIndex switch
-            {
-                0 => "Medium shot, the camera pushes in slowly as",
-                1 => "Wide shot, the camera tracks laterally following the action as",
-                _ when shotIndex == totalShots - 1 && isLastClip => "Close-up, the camera holds steady on",
-                _ when shotIndex == totalShots - 1 => "Medium close-up, the camera continues moving as",
-                _ => "Medium shot, the camera adjusts to follow"
-            };
-
-            return $"{cameraMove} {action}.";
-        }
+        private static bool MentionsSpeech(string text) =>
+            System.Text.RegularExpressions.Regex.IsMatch(text ?? string.Empty,
+                @"<d>|""|\b(say|says|said|tell|tells|told|shout|shouts|yell|yells|ask|asks|reply|replies|whisper|whispers|speak|speaks|calls out|scream|screams)\b",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
         private string BuildSoundscape(string beatText, StoryContinuity.Environment env)
         {
             var sb = new StringBuilder();
 
-            // Environment sounds
             if (!env.IsEmpty)
             {
                 if (!env.Interior)
@@ -1128,44 +1060,15 @@ namespace FlipPix.UI.ViewModels.Video
                 }
             }
 
-            // Action sounds
+            // Physical sounds only: naming speech here asks the audio for a second, untagged voice (Rule 8).
             var lower = beatText.ToLowerInvariant();
             if (lower.Contains("fight") || lower.Contains("punch") || lower.Contains("kick"))
                 sb.Append("impact sounds, grunts of exertion, ");
             if (lower.Contains("run") || lower.Contains("chase"))
                 sb.Append("rapid footsteps, heavy breathing, ");
-            if (lower.Contains("speak") || lower.Contains("say") || lower.Contains("tell"))
-                sb.Append("clear dialogue, ");
 
             sb.Append("natural movement foley.");
             return sb.ToString();
-        }
-
-        private string BuildMusicCue(int clipIndex, bool isLastClip, int totalClips)
-        {
-            // Build escalating score based on position in story
-            var intensity = (double)clipIndex / totalClips;
-
-            if (clipIndex == 0)
-            {
-                return "Tense orchestral underscore begins, low strings and subtle percussion, building anticipation.";
-            }
-            else if (isLastClip)
-            {
-                return "Score reaches climax with full orchestration, then resolves as the action concludes.";
-            }
-            else if (intensity > 0.7)
-            {
-                return "Intense action score, driving percussion, brass accents, building toward the climax.";
-            }
-            else if (intensity > 0.4)
-            {
-                return "Score intensifies, strings become more urgent, percussion drives the rhythm forward.";
-            }
-            else
-            {
-                return "Underscore continues, tension building steadily, strings and subtle percussion.";
-            }
         }
 
         // ── Settings Persistence & Command Notifications ──────────────────────────────────────────

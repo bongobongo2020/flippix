@@ -482,7 +482,7 @@ public class H3VideoEditorSettings
     public bool AudioDeclick { get; set; }
 
     // Timeline settings
-    public double DefaultClipDuration { get; set; } = 5.0;
+    public double DefaultClipDuration { get; set; } = 10.0;
     public bool ChainClips { get; set; } = true;
     public string AspectRatio { get; set; } = "16:9 (Widescreen)";
     public double Megapixels { get; set; } = 0.5;
@@ -522,6 +522,7 @@ public class H3TimelineClipState
     public string ThumbnailPath { get; set; } = string.Empty;
     public string State { get; set; } = "Pending"; // Pending, Queued, Rendering, Rendered, Failed
     public bool UseMotionContext { get; set; } = true;
+    public string ContextLatentFolder { get; set; } = string.Empty;
 }
 
 /// <summary>A user-saved preset for the H3 Video Editor.</summary>

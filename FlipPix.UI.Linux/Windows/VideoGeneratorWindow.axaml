@@ -7685,7 +7685,7 @@
                         </Border>
                         <!-- ═══ VIDEO PREVIEW (Main Area) ═══════════════════════════════════ -->
                         <Border Grid.Row="1" Background="#1a1a1a" Margin="8,6,8,0" CornerRadius="4">
-                            <Grid>
+                            <Grid RowDefinitions="*,Auto">
                                 <!-- Placeholder text when no video -->
                                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                                     <TextBlock Text="▶" FontSize="48" Foreground="#333" HorizontalAlignment="Center"/>
@@ -7694,10 +7694,28 @@
                                 <!-- Actual video player -->
                                 <ctrl:VideoPreview x:Name="H3EditorVideoPlayer"
                                                    Stretch="Uniform"
+                                                   IsMuted="{Binding IsPreviewMuted}"
                                                    IsVisible="{Binding PreviewVideoPath, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
                                                    MediaOpened="H3EditorPlayer_MediaOpened"
                                                    MediaEnded="H3EditorPlayer_MediaEnded"
                                                    MediaFailed="H3EditorPlayer_MediaFailed"/>
+                                <!-- Scrub bar: drag/click to seek (snaps to frames), step frames, cut at the playhead. -->
+                                <Grid Grid.Row="1" Margin="8,4,8,6" ColumnDefinitions="Auto,Auto,*,Auto,Auto"
+                                      IsVisible="{Binding PreviewVideoPath, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                    <Button Grid.Column="0" Content="◂|" Width="26" FontSize="10" ToolTip.Tip="Back one frame" Click="H3EditorFrameBack_Click" Margin="0,0,2,0" Height="22" Background="#3d3d3d" Foreground="#ddd" BorderThickness="0" Cursor="Hand"/>
+                                    <Button Grid.Column="1" Content="|▸" Width="26" FontSize="10" ToolTip.Tip="Forward one frame" Click="H3EditorFrameForward_Click" Margin="0,0,6,0" Height="22" Background="#3d3d3d" Foreground="#ddd" BorderThickness="0" Cursor="Hand"/>
+                                    <Slider x:Name="H3EditorScrub" Grid.Column="2" VerticalAlignment="Center"
+                                            Minimum="0" Maximum="{Binding PreviewDurationSeconds}"
+                                            SmallChange="0.0416667" LargeChange="1"
+                                            ToolTip.Tip="Drag or click to scrub. With the bar focused, ← → step one frame."/>
+                                    <TextBlock Grid.Column="3" Text="{Binding PlayheadDisplay}" FontFamily="DejaVu Sans Mono, monospace" FontSize="11"
+                                               Foreground="#ccc" VerticalAlignment="Center" Margin="8,0"/>
+                                    <StackPanel Grid.Column="4" Orientation="Horizontal">
+                                    <Button Content="⇤ Trim start" Padding="8,0" FontSize="10" Command="{Binding TrimStartToPlayheadCommand}" ToolTip.Tip="Cut away everything before the playhead" Margin="0,0,3,0" Height="22" Background="#3d3d3d" Foreground="#ddd" BorderThickness="0" Cursor="Hand"/>
+                                    <Button Content="✂ Split" Padding="8,0" FontSize="10" Command="{Binding SplitAtPlayheadCommand}" ToolTip.Tip="Split this clip into two at the playhead" Margin="0,0,3,0" Height="22" Background="#3d3d3d" Foreground="#ddd" BorderThickness="0" Cursor="Hand"/>
+                                    <Button Content="Trim end ⇥" Padding="8,0" FontSize="10" Command="{Binding TrimEndToPlayheadCommand}" ToolTip.Tip="Cut away everything after the playhead" Height="22" Background="#3d3d3d" Foreground="#ddd" BorderThickness="0" Cursor="Hand"/>
+                                    </StackPanel>
+                                </Grid>
                             </Grid>
                         </Border>
                         <!-- ═══ TRANSPORT & TIMELINE CONTROLS ═══════════════════════════════ -->
@@ -7720,6 +7738,7 @@
                                             BorderThickness="0"
                                             Cursor="Hand"
                                             ToolTip.Tip="Previous clip"
+                                            Command="{Binding PreviousClipCommand}"
                                             Margin="0,0,2,0"
                                             Classes="t52">
                                         <Button.Styles>
@@ -7742,7 +7761,7 @@
                                             <ControlTheme TargetType="Button"/>
                                         </Button.Theme>
                                     </Button>
-                                    <Button Content="▶"
+                                    <Button x:Name="H3EditorPlayButton" Content="▶"
                                             Width="30"
                                             Height="22"
                                             FontSize="12"
@@ -7752,6 +7771,7 @@
                                             BorderThickness="0"
                                             Cursor="Hand"
                                             ToolTip.Tip="Play/Pause"
+                                            Click="H3EditorPlayPause_Click"
                                             Margin="0,0,2,0"
                                             Classes="t53">
                                         <Button.Styles>
@@ -7784,6 +7804,7 @@
                                             BorderThickness="0"
                                             Cursor="Hand"
                                             ToolTip.Tip="Stop"
+                                            Click="H3EditorStop_Click"
                                             Margin="0,0,2,0"
                                             Classes="t54">
                                         <Button.Styles>
@@ -7816,12 +7837,41 @@
                                             BorderThickness="0"
                                             Cursor="Hand"
                                             ToolTip.Tip="Next clip"
+                                            Command="{Binding NextClipCommand}"
                                             Classes="t55">
                                         <Button.Styles>
                                             <Style Selector="Button.t55:pointerover /template/ Border#Bd">
                                                 <Setter Property="Background" Value="#4d4d4d"/>
                                             </Style>
                                         </Button.Styles>
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="0">
+                                                    <ContentPresenter HorizontalAlignment="Center"
+                                                                      VerticalAlignment="Center"
+                                                                      Content="{TemplateBinding Content}"
+                                                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                                      Name="PART_ContentPresenter"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <Button.Theme>
+                                            <ControlTheme TargetType="Button"/>
+                                        </Button.Theme>
+                                    </Button>
+                                    <Button Content="{Binding MuteGlyph}"
+                                            Width="30"
+                                            Height="22"
+                                            FontSize="11"
+                                            FontFamily="Noto Color Emoji, Noto Sans Symbols 2, DejaVu Sans"
+                                            Background="#3d3d3d"
+                                            Foreground="#ddd"
+                                            BorderThickness="0"
+                                            Cursor="Hand"
+                                            ToolTip.Tip="{Binding MuteTip}"
+                                            Command="{Binding ToggleMuteCommand}"
+                                            Margin="6,0,0,0"
+                                            Classes="t52">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="0">

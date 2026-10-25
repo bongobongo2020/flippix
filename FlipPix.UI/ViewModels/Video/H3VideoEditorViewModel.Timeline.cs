@@ -17,7 +17,7 @@ namespace FlipPix.UI.ViewModels.Video
         public ObservableCollection<H3TimelineClip> BrowserClips { get; } = new();
 
         [ObservableProperty]
-        private double _defaultClipDuration = 5.0;
+        private double _defaultClipDuration = 10.0;
 
         [ObservableProperty]
         private bool _chainClips = true;
@@ -148,10 +148,23 @@ namespace FlipPix.UI.ViewModels.Video
         public RelayCommand PrependClipCommand { get; private set; } = null!;
         public RelayCommand AppendClipCommand { get; private set; } = null!;
 
-        /// <summary>Splits a clip at the midpoint, creating two clips.</summary>
+        /// <summary>
+        /// Cut. A rendered clip showing in the preview is split at the playhead (the video itself, frame-exact);
+        /// a clip not rendered yet has its planned duration split in half.
+        /// </summary>
         public void CutClip(H3TimelineClip? clip)
         {
             if (clip == null) return;
+            if (clip == PreviewedClip)
+            {
+                if (CanEditAtPlayhead) _ = EditAtPlayheadAsync(ClipEdit.Split);
+                return;
+            }
+            if (clip.IsRendered)
+            {
+                AddLog($"Play clip {clip.DisplayIndex} in the preview and move the playhead to where it should be cut.");
+                return;
+            }
             var index = TimelineClips.IndexOf(clip);
             if (index < 0) return;
 
