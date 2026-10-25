@@ -236,7 +236,8 @@ namespace FlipPix.UI.ViewModels.Video
                 var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, ct);
                 if (byNode.TryGetValue(saveNodeId, out var outputs) && outputs.Count > 0)
                 {
-                    var videoFile = outputs[0];
+                    // The Ultra graph's VHS sink can list its metadata .png beside the .mp4.
+                    var videoFile = outputs.FirstOrDefault(f => f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase)) ?? outputs[0];
                     return await ResolveVideoToLocalAsync(videoFile);
                 }
 
@@ -486,6 +487,9 @@ namespace FlipPix.UI.ViewModels.Video
         private async Task<(JsonObject workflow, string saveNodeId, string thumbnailNodeId, string? contextFolder)>
             BuildClipWorkflowWithSaveNodeAsync(H3TimelineClip clip, string?[] uploadedImages)
         {
+            if (IsUltra)
+                return await BuildUltraClipWorkflowAsync(clip, uploadedImages);
+
             var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ChainWorkflowPath);
             if (!File.Exists(workflowPath))
                 throw new FileNotFoundException($"Workflow file not found: {ChainWorkflowPath}");

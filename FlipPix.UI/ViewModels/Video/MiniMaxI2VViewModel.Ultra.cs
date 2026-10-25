@@ -35,7 +35,7 @@ namespace FlipPix.UI.ViewModels.Video
     /// </summary>
     public partial class MiniMaxI2VViewModel
     {
-        private const string UltraWorkflowFileName = "workflow/video/h3-minimax/h3-minimax-ultra.json";
+        internal const string UltraWorkflowFileName = "workflow/video/h3-minimax/h3-minimax-ultra.json";
 
         public const int MaxUltraPictures = 9;
         public const int MaxUltraAudios = 3;
@@ -53,16 +53,21 @@ namespace FlipPix.UI.ViewModels.Video
         private const string UltraMotionFlag = "223";       // PrimitiveBoolean "Fighting High Motion Fix"
         private const string UltraShift = "219";            // MiniMaxH3SigmaShift
         private const string UltraPrompt = "190";           // PrimitiveStringMultiline
-        private const string UltraDuration = "111";         // PrimitiveFloat, seconds
+        internal const string UltraDuration = "111";         // PrimitiveFloat, seconds
         private const string UltraResolution = "112";       // ResolutionSelector
-        private const string UltraRef2V = "121";            // MiniMaxH3ReferenceToVideo
+        internal const string UltraRef2V = "121";            // MiniMaxH3ReferenceToVideo
         private const string UltraScheduler = "165";        // BasicScheduler
-        private const string UltraSelfLift = "224";         // SelfLiftH3Sampler
-        private const string UltraSink = "163";             // VHS_VideoCombine
+        internal const string UltraSelfLift = "224";         // SelfLiftH3Sampler
+        internal const string UltraSink = "163";             // VHS_VideoCombine
         private const string UltraBlockSwap = "138";        // UniBlockSwap — authored bypassed, grafted on demand
+        internal const string UltraVideoVae = "4";          // VAELoader, video
+        internal const string UltraAudioVae = "5";          // VAELoader, audio
+        internal const string UltraNegative = "225";        // ConditioningZeroOut of the positive
+        internal const string UltraDecode = "153";          // VAEDecode
+        internal const string UltraDecodeAudio = "159";     // VAEDecodeAudio
 
         /// <summary>ResolutionSelector's multiple in the authored graph.</summary>
-        private const int UltraResolutionMultiple = 32;
+        internal const int UltraResolutionMultiple = 32;
 
         /// <summary>
         /// Seconds per Gpx of the finished canvas, learned separately from the Ref2VA graph's figure: SelfLift
@@ -334,7 +339,19 @@ namespace FlipPix.UI.ViewModels.Video
             ? "✓ Every dial is on the workflow's tested value."
             : "Changed from the workflow's tested values — ↺ puts them back.";
 
-        public IReadOnlyList<DiffusionModelOption> UltraTextEncoderOptions { get; } = new[]
+        public IReadOnlyList<DiffusionModelOption> UltraTextEncoderOptions => UltraTextEncoders;
+
+        public IReadOnlyList<string> UltraAttentionOptions => UltraAttentions;
+
+        public IReadOnlyList<string> UltraSchedulerOptions => UltraSchedulers;
+
+        public IReadOnlyList<string> UltraUpscalerOptions => UltraUpscalers;
+
+        public IReadOnlyList<MegapixelOption> UltraMegapixelOptions => UltraMegapixels;
+
+        // The card's lists, shared with 🎬 H3 Video Editor's Ultra preset so both offer the same choices.
+
+        internal static readonly IReadOnlyList<DiffusionModelOption> UltraTextEncoders = new[]
         {
             new DiffusionModelOption(MiniMaxI2VUltraOptions.AuthoredTextEncoder, "qwen3vl 32b nvfp4 awq (workflow)"),
             new DiffusionModelOption(MiniMaxI2VUltraOptions.AlternateTextEncoder,
@@ -342,13 +359,13 @@ namespace FlipPix.UI.ViewModels.Video
             new DiffusionModelOption("qwen3vl_32b_minimax_h3-w4a8_convrot.safetensors", "qwen3vl 32b w4a8 convrot"),
         };
 
-        public IReadOnlyList<string> UltraAttentionOptions { get; } =
+        internal static readonly IReadOnlyList<string> UltraAttentions =
             new[] { "comfy kitchen attention", "pytorch attention" };
 
-        public IReadOnlyList<string> UltraSchedulerOptions { get; } =
+        internal static readonly IReadOnlyList<string> UltraSchedulers =
             new[] { "beta", "simple", "normal", "sgm_uniform", "karras", "exponential", "linear_quadratic", "kl_optimal" };
 
-        public IReadOnlyList<string> UltraUpscalerOptions { get; } = new[]
+        internal static readonly IReadOnlyList<string> UltraUpscalers = new[]
         {
             MiniMaxI2VUltraOptions.AuthoredUpscaler,
             "minimax_h3_latent_upscaler_3d_bf16.safetensors",
@@ -359,7 +376,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>The authored graph's own size table (16:9, multiple 32) — its MarkdownNote, row for row
         /// from 1.0 MP up.</summary>
-        public IReadOnlyList<MegapixelOption> UltraMegapixelOptions { get; } = new[]
+        internal static readonly IReadOnlyList<MegapixelOption> UltraMegapixels = new[]
         {
             new MegapixelOption(0.7, "0.7 MP — 1152×640"),
             new MegapixelOption(0.9, "0.9 MP — 1280×736"),
@@ -386,7 +403,7 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>The authored frame expression: <c>max(5, round(s·24))</c> snapped up to H3's 17k+5 grid.</summary>
-        private static int UltraFrameCount(double seconds)
+        internal static int UltraFrameCount(double seconds)
         {
             var f = Math.Max(5, (int)Math.Round(seconds * 24, MidpointRounding.ToEven));
             return f + (5 - (f % 17)) % 17;
@@ -397,14 +414,14 @@ namespace FlipPix.UI.ViewModels.Video
 
         public string UltraSamplingSummary => UltraSamplingSummaryFor(Ultra);
 
-        private static string UltraSamplingSummaryFor(MiniMaxI2VUltraOptions o) =>
+        internal static string UltraSamplingSummaryFor(MiniMaxI2VUltraOptions o) =>
             $"euler · {o.Scheduler} · {o.Steps} steps · cfg {o.Cfg:0.0} · first {UltraTransitionFor(o)} at " +
             $"{o.LowresScale:0.00}× → {LabelFor(o.UpscalerModel)}" +
             $"{(o.HighresTiling ? " · tiled" : string.Empty)} · shift {o.ShiftVideo:0.##}/{o.ShiftAudio:0.##}";
 
         public string UltraLoraSummary => UltraLoraSummaryFor(Ultra);
 
-        private static string UltraLoraSummaryFor(MiniMaxI2VUltraOptions o)
+        internal static string UltraLoraSummaryFor(MiniMaxI2VUltraOptions o)
         {
             var on = new List<string>();
             if (o.UseMystic && o.MysticStrength > 0) on.Add($"MysticXXX {o.MysticStrength:0.00}");
@@ -416,16 +433,16 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>SelfLift's low-res evaluations, kept below the schedule so at least one step runs lifted.</summary>
-        private static int UltraTransitionFor(MiniMaxI2VUltraOptions o) =>
+        internal static int UltraTransitionFor(MiniMaxI2VUltraOptions o) =>
             Math.Clamp(o.TransitionStep, 1, Math.Max(1, o.Steps - 1));
 
         // ── Building the graph ──────────────────────────────────────────────────────────────────────
 
         /// <summary>
         /// Writes one Ultra item into h3-minimax-ultra.json. Everything not set here stays exactly as the
-        /// authored graph has it.
+        /// authored graph has it. 🎬 H3 Video Editor's Ultra preset builds its clips through this too.
         /// </summary>
-        private static string BuildUltraWorkflow(
+        internal static string BuildUltraWorkflow(
             string json, MiniMaxI2VQueueItem item,
             IReadOnlyList<string> pictures, IReadOnlyList<string> audios, IReadOnlyList<string> videos,
             long runSeed, string runToken, out int pruned)

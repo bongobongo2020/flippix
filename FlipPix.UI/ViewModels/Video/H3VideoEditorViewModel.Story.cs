@@ -413,7 +413,22 @@ namespace FlipPix.UI.ViewModels.Video
             if (rendered < TimelineClips.Count)
                 AddLog($"Upscaling and joining the {rendered} of {TimelineClips.Count} clips that rendered.");
 
-            var toJoin = await UpscaleClipsAsync();
+            // Ultra clips are already rendered at the finished canvas (full-res tiled), so a latent upscale on
+            // top would only multiply the size and the memory it needs.
+            List<string> toJoin;
+            if (IsUltra)
+            {
+                AddLog("💎 Ultra clips are full resolution already — joining them without the upscale pass.");
+                toJoin = TimelineClips
+                    .Where(c => c.IsRendered && !string.IsNullOrEmpty(c.OutputPath) && File.Exists(c.OutputPath))
+                    .OrderBy(c => c.Index)
+                    .Select(c => c.OutputPath!)
+                    .ToList();
+            }
+            else
+            {
+                toJoin = await UpscaleClipsAsync();
+            }
             if (_storyBatchCancelled) return;
 
             JoinedVideoPath = string.Empty;

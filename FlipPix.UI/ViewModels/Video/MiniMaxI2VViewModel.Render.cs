@@ -1032,7 +1032,7 @@ namespace FlipPix.UI.ViewModels.Video
             (name ?? string.Empty).Trim().Replace('\\', '/');
 
         /// <summary>What a dropdown shows: the filename, without the folder or the extension.</summary>
-        private static string LabelFor(string? name)
+        internal static string LabelFor(string? name)
         {
             if (string.IsNullOrWhiteSpace(name)) return "(workflow default)";
             var file = name.Replace('\\', '/');

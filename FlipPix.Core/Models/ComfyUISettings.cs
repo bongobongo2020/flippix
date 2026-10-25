@@ -470,6 +470,10 @@ public class H3VideoEditorSettings
     public int ShiftVideo { get; set; } = 12;
     public int ShiftAudio { get; set; } = 3;
 
+    /// <summary>The 💎 All-In-One Ultra preset's dials — the same card as 🌀 MiniMax I2V's, kept separately
+    /// so tuning one tab does not move the other.</summary>
+    public MiniMaxI2VUltraOptions Ultra { get; set; } = new();
+
     // Upscale settings
     public double UpscaleFactor { get; set; } = 2.0;
     public double RefineAmount { get; set; } = 0.2;

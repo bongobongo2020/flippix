@@ -52,6 +52,7 @@ namespace FlipPix.UI.ViewModels.Video
 
             // Initialize commands
             InitializeCommands();
+            InitializeUltra();
             InitializePresets();
             InitializeTimeline();
             InitializeStoryCommands();
@@ -202,15 +203,21 @@ N/A
         [ObservableProperty]
         private string _selectedAspectRatio = "16:9 (Widescreen)";
 
-        public ObservableCollection<string> AspectRatioOptions { get; } = new()
+        /// <summary>ResolutionSelector's own options — the only strings both graphs' canvas node accepts.</summary>
+        public ObservableCollection<string> AspectRatioOptions { get; } =
+            new(H3Canvas.AspectRatios.Select(a => a.Option));
+
+        partial void OnSelectedAspectRatioChanged(string value)
         {
-            "16:9 (Widescreen)",
-            "9:16 (Portrait)",
-            "4:3 (Standard)",
-            "3:4 (Portrait Standard)",
-            "1:1 (Square)",
-            "21:9 (Ultrawide)"
-        };
+            // Offered before the list matched ResolutionSelector, which rejects it; a saved one is moved on.
+            if (value == "9:16 (Portrait)")
+            {
+                SelectedAspectRatio = "9:16 (Portrait Widescreen)";
+                return;
+            }
+            OnPropertyChanged(nameof(UltraCanvasSummary));
+            SaveSettings();
+        }
 
         [ObservableProperty]
         private double _megapixels = 0.5;
@@ -759,7 +766,8 @@ N/A
                     RefineAmount = RefineAmount,
                     Crf = Crf,
                     Crossfade = Crossfade,
-                    LevelLock = LevelLock
+                    LevelLock = LevelLock,
+                    Ultra = Ultra.Clone()
                 },
                 JoinedVideoPath = JoinedVideoPath,
                 CurrentPrompt = PromptText
@@ -836,6 +844,11 @@ N/A
                 Crf = project.Settings.Crf;
                 Crossfade = project.Settings.Crossfade;
                 LevelLock = project.Settings.LevelLock;
+                if (project.Settings.Ultra != null)
+                {
+                    Ultra.CopyFrom(project.Settings.Ultra);
+                    OfferUltraModel();
+                }
             }
 
             // Restore reference images
