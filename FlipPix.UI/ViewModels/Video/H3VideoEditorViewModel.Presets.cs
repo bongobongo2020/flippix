@@ -48,9 +48,13 @@ namespace FlipPix.UI.ViewModels.Video
 
         private void ApplyPreset(string presetName)
         {
+            // "vanilla 8 steps" sampled the 20-step model at 8 steps with no turbo: replaced by the fused
+            // turbo model, which is what 8 steps actually needs.
+            if (presetName == "vanilla 8 steps") presetName = "fused turbo8";
             var preset = Presets.FirstOrDefault(p => p.Name == presetName);
             if (preset == null) return;
 
+            SelectedModel = preset.Model;
             SelectedAttention = preset.Attention;
             SelectedSparseAttention = preset.SparseAttention;
             Spectrum = preset.Spectrum;
@@ -73,6 +77,7 @@ namespace FlipPix.UI.ViewModels.Video
             var preset = new H3EditorPreset
             {
                 Name = name,
+                Model = SelectedModel,
                 Attention = SelectedAttention,
                 SparseAttention = SelectedSparseAttention,
                 Spectrum = Spectrum,
@@ -91,6 +96,11 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         // ── Engine Settings ──────────────────────────────────────────────────────────────────────
+
+        /// <summary>The H3 diffusion model clips are sampled with — set by the preset, never on its own, so the
+        /// step count and LoRA always match the model they were tuned for.</summary>
+        [ObservableProperty]
+        private string _selectedModel = H3EditorPreset.VanillaModel;
 
         [ObservableProperty]
         private string _selectedAttention = "comfy_kitchen";

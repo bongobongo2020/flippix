@@ -33,6 +33,13 @@ namespace FlipPix.UI.Models
         [NotifyPropertyChangedFor(nameof(DisplayIndex))]
         private int _index;
 
+        /// <summary>
+        /// Server folder (under ComfyUI output) holding this clip's sampled AV latent, saved by the chained
+        /// render so the next clip can continue from its tail. Empty until the clip renders chained; a clip
+        /// whose predecessor has none starts a new chain.
+        /// </summary>
+        public string ContextLatentFolder { get; set; } = string.Empty;
+
         /// <summary>1-based display index for the UI.</summary>
         public int DisplayIndex => Index + 1;
 

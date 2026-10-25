@@ -216,10 +216,134 @@ namespace FlipPix.UI
             else Dispatcher.Invoke(ApplyH3EditorSource);
         }
 
-        private void ApplyH3EditorSource() =>
+        private void ApplyH3EditorSource()
+        {
             ApplySharedPlayerSource(H3EditorVideoPlayer, _viewModel.H3VideoEditorVM.PreviewVideoPath);
+            SetH3EditorPlaying(!string.IsNullOrEmpty(_viewModel.H3VideoEditorVM.PreviewVideoPath));
+        }
 
-        private void H3EditorPlayer_MediaOpened(object sender, RoutedEventArgs e) => H3EditorVideoPlayer.Play();
+        private void H3EditorPlayer_MediaOpened(object sender, RoutedEventArgs e)
+        {
+            _viewModel.H3VideoEditorVM.PreviewDurationSeconds = H3EditorVideoPlayer.NaturalDuration.HasTimeSpan
+                ? H3EditorVideoPlayer.NaturalDuration.TimeSpan.TotalSeconds
+                : 0;
+            H3EditorVideoPlayer.Play();
+            SetH3EditorPlaying(true);
+        }
+
+        // ── Scrub bar ────────────────────────────────────────────────────────
+        // While playing, a timer moves the bar and the view model's playhead along with the player. Moving
+        // the bar (drag, click, arrow keys) seeks the player to the nearest frame; a drag pauses playback
+        // and resumes it on release. _syncingScrub marks the timer's own writes so they are not seeks.
+        private System.Windows.Threading.DispatcherTimer? _h3ScrubTimer;
+        private bool _syncingScrub;
+        private bool _scrubDragging;
+        private bool _resumeAfterScrub;
+
+        private void H3ScrubTick(object? sender, EventArgs e)
+        {
+            if (_scrubDragging || H3EditorVideoPlayer.Source == null) return;
+            ShowH3Playhead(H3EditorVideoPlayer.Position.TotalSeconds);
+        }
+
+        private void ShowH3Playhead(double seconds)
+        {
+            _syncingScrub = true;
+            H3EditorScrub.Value = seconds;
+            _syncingScrub = false;
+            _viewModel.H3VideoEditorVM.PlayheadSeconds = seconds;
+        }
+
+        private void SeekH3Editor(double seconds)
+        {
+            if (H3EditorVideoPlayer.Source == null) return;
+            var t = ClampPreviewSeek(H3EditorVideoPlayer,
+                ViewModels.Video.H3VideoEditorViewModel.SnapToFrame(seconds),
+                ViewModels.Video.H3VideoEditorViewModel.PreviewFps);
+            H3EditorVideoPlayer.Position = TimeSpan.FromSeconds(t);
+            ShowH3Playhead(t);
+        }
+
+        private void H3EditorScrub_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_syncingScrub) return;
+            SeekH3Editor(e.NewValue);
+        }
+
+        private void H3EditorScrub_DragStarted(object sender, System.Windows.Controls.Primitives.DragStartedEventArgs e)
+        {
+            _scrubDragging = true;
+            _resumeAfterScrub = _h3EditorPlaying;
+            if (_h3EditorPlaying)
+            {
+                H3EditorVideoPlayer.Pause();
+                SetH3EditorPlaying(false);
+            }
+        }
+
+        private void H3EditorScrub_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
+        {
+            _scrubDragging = false;
+            SeekH3Editor(H3EditorScrub.Value);
+            if (_resumeAfterScrub)
+            {
+                H3EditorVideoPlayer.Play();
+                SetH3EditorPlaying(true);
+            }
+        }
+
+        private void H3EditorFrameBack_Click(object sender, RoutedEventArgs e) => StepH3Frame(-1);
+        private void H3EditorFrameForward_Click(object sender, RoutedEventArgs e) => StepH3Frame(+1);
+
+        /// <summary>Pauses and moves exactly one frame, so a cut point can be found frame by frame.</summary>
+        private void StepH3Frame(int frames)
+        {
+            if (H3EditorVideoPlayer.Source == null) return;
+            if (_h3EditorPlaying)
+            {
+                H3EditorVideoPlayer.Pause();
+                SetH3EditorPlaying(false);
+            }
+            var vm = _viewModel.H3VideoEditorVM;
+            SeekH3Editor(vm.PlayheadSeconds + frames / ViewModels.Video.H3VideoEditorViewModel.PreviewFps);
+        }
+
+        // MediaElement in Manual mode reports no play state of its own, so the transport tracks it.
+        private bool _h3EditorPlaying;
+
+        private void SetH3EditorPlaying(bool playing)
+        {
+            _h3EditorPlaying = playing;
+            if (H3EditorPlayButton != null) H3EditorPlayButton.Content = playing ? "⏸" : "▶";
+
+            _h3ScrubTimer ??= new System.Windows.Threading.DispatcherTimer(
+                TimeSpan.FromMilliseconds(40), System.Windows.Threading.DispatcherPriority.Background,
+                H3ScrubTick, Dispatcher);
+            if (playing) _h3ScrubTimer.Start();
+            else
+            {
+                _h3ScrubTimer.Stop();
+                // Leave the bar on the frame the player paused at.
+                if (!_scrubDragging && H3EditorVideoPlayer?.Source != null)
+                    ShowH3Playhead(H3EditorVideoPlayer.Position.TotalSeconds);
+            }
+        }
+
+        private void H3EditorPlayPause_Click(object sender, RoutedEventArgs e)
+        {
+            if (H3EditorVideoPlayer.Source == null) return;
+            if (_h3EditorPlaying) H3EditorVideoPlayer.Pause();
+            else H3EditorVideoPlayer.Play();
+            SetH3EditorPlaying(!_h3EditorPlaying);
+        }
+
+        private void H3EditorStop_Click(object sender, RoutedEventArgs e)
+        {
+            if (H3EditorVideoPlayer.Source == null) return;
+            H3EditorVideoPlayer.Stop(); // rewinds; Play starts from the top
+            SetH3EditorPlaying(false);
+            ShowH3Playhead(0);
+        }
 
         private void H3EditorPlayer_MediaEnded(object sender, RoutedEventArgs e)
         {

@@ -58,6 +58,7 @@ namespace FlipPix.UI.ViewModels.Video
                     StatusText = "Starting...";
                 }
                 using var lease = await _workflowCoordinator.AcquireAsync("h3_video_editor", _renderCts.Token);
+                await EnsureChainNodesAsync(_renderCts.Token);
 
                 for (int i = 0; i < pendingClips.Count; i++)
                 {
@@ -150,7 +151,8 @@ namespace FlipPix.UI.ViewModels.Video
 
             // Build the workflow JSON based on h3_obvpm_timeline workflow
             AddLog($"Building workflow for clip {clip.DisplayIndex}...");
-            var (workflow, saveNodeId, thumbnailNodeId) = await BuildClipWorkflowWithSaveNodeAsync(clip, uploadedImages);
+            var (workflow, saveNodeId, thumbnailNodeId, contextFolder) = await BuildClipWorkflowWithSaveNodeAsync(clip, uploadedImages);
+            clip.ContextLatentFolder = string.Empty; // the old take's latent no longer belongs to this clip
 
             // Log workflow summary
             AddLog($"Workflow has {workflow.Count} nodes, {workflow.ToJsonString().Length} chars");
@@ -179,6 +181,7 @@ namespace FlipPix.UI.ViewModels.Video
                 }
 
                 AddLog($"Clip {clip.DisplayIndex} completed with prompt ID: {promptId}");
+                clip.ContextLatentFolder = contextFolder ?? string.Empty;
 
                 // Get the output video path from the save node
                 var outputPath = await ResolveClipOutputPathAsync(promptId, saveNodeId, clip.DisplayIndex, ct);
@@ -200,6 +203,9 @@ namespace FlipPix.UI.ViewModels.Video
             catch (Exception ex)
             {
                 AddLog($"ERROR generating clip {clip.DisplayIndex}: {ex.Message}");
+                if (ex.Message.Contains("context_latent", StringComparison.OrdinalIgnoreCase))
+                    AddLog("  The previous clip was rendered at another size, and a chain can't change resolution. " +
+                           "Restore the aspect ratio/megapixels or regenerate from the first clip.");
                 if (ex.InnerException != null)
                 {
                     AddLog($"  Inner error: {ex.InnerException.Message}");
@@ -418,97 +424,228 @@ namespace FlipPix.UI.ViewModels.Video
             return null;
         }
 
-        // Two workflows: one with reference images, one without (text-to-video)
-        private const string H3RefWorkflowPath = "workflow/video/h3-minimax/video_minimax_h3_r2v.json";
-        private const string H3TextWorkflowPath = "workflow/video/h3-minimax/h3-singularity.json";
+        // ── The clip graph ─────────────────────────────────────────────────────────────────────────
+        //
+        // One graph for every clip (workflow/video/h3-minimax/h3-editor-chain.json): Ref2VA conditioning →
+        // H3 Motion Context → sampler on the sigma-shifted model, with the preset's model and turbo LoRA.
+        // Clip 2 onward pins the last 22 frames (and the last 0.75 s of sound) of the clip before it as
+        // never-denoised rows, so it continues that take instead of starting a new one; the pinned head is
+        // cut afterwards, picture and sound together, so the clips butt-join with no seam. This is the
+        // pack's README wiring and the one H3 Express's 🔗 chain already uses.
+        //
+        // With no reference pictures the same graph runs as text-to-video (every ref input removed).
 
-        // Node IDs in video_minimax_h3_r2v.json (reference-to-video)
-        private const string RefPromptNodeId = "138";        // PrimitiveStringMultiline - prompt text
-        private const string RefResolutionNodeId = "115";    // ResolutionSelector - aspect ratio, megapixels
-        private const string RefDurationNodeId = "132";      // PrimitiveFloat - duration in seconds
-        private const string RefSaveVideoNodeId = "92";      // SaveVideo - filename_prefix
-        private const string RefSchedulerNodeId = "124";     // BasicScheduler - steps
-        private const string RefSamplerNodeId = "123";       // KSamplerSelect - sampler_name
-        private const string Picture1NodeId = "137";         // LoadImage for Picture 1 (ref_image_0)
-        private const string Picture2NodeId = "139";         // LoadImage for Picture 2 (ref_image_1)
-        private const string RefSeedNodeId = "129";          // RandomNoise - noise_seed
-        private const string RefNodeId = "136";              // MiniMaxH3ReferenceToVideo - ref_images inputs
+        private const string ChainWorkflowPath = "workflow/video/h3-minimax/h3-editor-chain.json";
+        private const string ChainRoot = "h3_editor_ctx";
 
-        // Node IDs in h3-singularity.json (text-to-video, no reference images)
-        private const string TextPromptNodeId = "22:11";     // PrimitiveStringMultiline - prompt text
-        private const string TextResolutionNodeId = "22:9";  // ResolutionSelector - aspect ratio, megapixels
-        private const string TextDurationNodeId = "22:23";   // PrimitiveFloat - duration in seconds
-        private const string TextSaveVideoNodeId = "18";     // VHS_VideoCombine - preview_1
-        private const string TextStepsNodeId = "22:8";       // INTConstant - steps
-        private const string TextSamplerNodeId = "22:6";     // KSamplerSelect - sampler_name
-        // Text workflow has multiple RandomNoise nodes for different passes
-        private static readonly string[] TextSeedNodeIds = { "125:17", "133:128", "143:138", "135:27" };
+        /// <summary>The pack's tested window: 22 frames = 0.92 s, a whole number of latent steps.</summary>
+        private const int ChainContextFrames = 22;
+        private const int ChainFrameRate = 24;
 
-        private async Task<JsonObject> BuildClipWorkflowAsync(H3TimelineClip clip, string?[] uploadedImages)
-        {
-            var (workflow, _, _) = await BuildClipWorkflowWithSaveNodeAsync(clip, uploadedImages);
-            return workflow;
-        }
+        private static readonly string[] PictureNodeIds = { "img1", "img2", "img3", "img4" };
 
-        // Node IDs for dynamically added thumbnail extraction
+        /// <summary>Whether the server has the Motion Context pack; null = not asked (or could not be).</summary>
+        private bool? _chainNodesOk;
+
         private const string ThumbnailExtractNodeId = "h3ve_thumb_extract";
         private const string ThumbnailSaveNodeId = "h3ve_thumb_save";
 
-        // Source node for images in text-to-video workflow (feeds into VHS_VideoCombine "18")
-        private const string TextImagesSourceNodeId = "176";
-
-        private async Task<(JsonObject workflow, string saveNodeId, string thumbnailNodeId)> BuildClipWorkflowWithSaveNodeAsync(H3TimelineClip clip, string?[] uploadedImages)
+        /// <summary>Asks the server once per generate run whether chaining can work at all.</summary>
+        private async Task EnsureChainNodesAsync(CancellationToken ct)
         {
-            // Determine which workflow to use based on whether we have images
-            bool hasImages = uploadedImages.Any(img => !string.IsNullOrEmpty(img));
-            var workflowFile = hasImages ? H3RefWorkflowPath : H3TextWorkflowPath;
-            var saveNodeId = hasImages ? RefSaveVideoNodeId : TextSaveVideoNodeId;
-
-            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, workflowFile);
-            if (!File.Exists(workflowPath))
-            {
-                AddLog($"ERROR: Workflow file not found: {workflowPath}");
-                throw new FileNotFoundException($"Workflow file not found: {workflowFile}");
-            }
-
-            try
-            {
-                var json = await File.ReadAllTextAsync(workflowPath);
-                var workflow = System.Text.Json.JsonSerializer.Deserialize<JsonObject>(json);
-                if (workflow == null)
-                {
-                    throw new Exception("Failed to parse workflow JSON");
-                }
-
-                AddLog($"Loaded {(hasImages ? "reference-to-video" : "text-to-video")} workflow with {workflow.Count} nodes");
-
-                // Patch the workflow with clip-specific values
-                PatchWorkflowForClip(workflow, clip, uploadedImages, hasImages);
-
-                // Add thumbnail extraction nodes
-                AddThumbnailNodes(workflow, clip, hasImages);
-
-                return (workflow, saveNodeId, ThumbnailSaveNodeId);
-            }
-            catch (Exception ex)
-            {
-                AddLog($"ERROR loading workflow: {ex.Message}");
-                throw;
-            }
+            _chainNodesOk = await _comfyUIService.HttpClient.NodeClassExistsAsync("MiniMaxH3MotionContext", ct);
+            if (_chainNodesOk == false)
+                AddLog("⚠ The ComfyUI server has no MiniMaxH3MotionContext node (ComfyUI-H3-Motion-Context). Clips " +
+                       "render on their own, so they will not flow into each other until it is installed.");
         }
+
+        private bool ChainAvailable => ChainClips && _chainNodesOk != false;
+
+        /// <summary>The clip this one continues from, or null when it starts a chain.</summary>
+        private H3TimelineClip? ChainPredecessor(H3TimelineClip clip)
+        {
+            if (!ChainAvailable || !clip.UseMotionContext) return null;
+            var idx = TimelineClips.IndexOf(clip);
+            if (idx <= 0) return null;
+            var prev = TimelineClips[idx - 1];
+            return prev.IsRendered && !string.IsNullOrEmpty(prev.ContextLatentFolder) ? prev : null;
+        }
+
+        /// <summary>The length to render so the clip is still <paramref name="seconds"/> long once the
+        /// pinned head is cut — on the model's 17k+5 frame grid, nearest step.</summary>
+        private static double ChainedSeconds(double seconds)
+        {
+            var delivered = (int)Math.Round(seconds * ChainFrameRate);
+            var steps = Math.Max(2, (int)Math.Round((delivered + ChainContextFrames - 5) / 17.0));
+            return (5 + 17 * steps) / (double)ChainFrameRate;
+        }
+
+        private string ChainFolderFor(H3TimelineClip clip) =>
+            $"{ChainRoot}/{System.Text.RegularExpressions.Regex.Replace(ProjectFolder, "[^A-Za-z0-9_-]", "_")}/{clip.Id}";
+
+        private async Task<(JsonObject workflow, string saveNodeId, string thumbnailNodeId, string? contextFolder)>
+            BuildClipWorkflowWithSaveNodeAsync(H3TimelineClip clip, string?[] uploadedImages)
+        {
+            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ChainWorkflowPath);
+            if (!File.Exists(workflowPath))
+                throw new FileNotFoundException($"Workflow file not found: {ChainWorkflowPath}");
+
+            var workflow = System.Text.Json.JsonSerializer.Deserialize<JsonObject>(await File.ReadAllTextAsync(workflowPath))
+                           ?? throw new Exception("Failed to parse workflow JSON");
+
+            ApplyEngine(workflow);
+            ApplyClipInputs(workflow, clip);
+            ApplyReferences(workflow, uploadedImages);
+            var contextFolder = ApplyChain(workflow, clip);
+            AddThumbnailNodes(workflow, clip, workflow.ContainsKey("trim") ? "trim" : "decode");
+
+            return (workflow, "save", ThumbnailSaveNodeId, contextFolder);
+        }
+
+        /// <summary>Model, turbo LoRA, sigma shift, steps, sampler, scheduler — all from the preset.</summary>
+        private void ApplyEngine(JsonObject workflow)
+        {
+            Input(workflow, "unet")["unet_name"] = SelectedModel;
+
+            var useLora = SelectedTurboLoader != "off" && !string.IsNullOrWhiteSpace(TurboLora);
+            if (useLora)
+            {
+                Input(workflow, "lora")["lora_name"] = TurboLora.Replace('\\', '/');
+                Input(workflow, "lora")["strength_model"] = TurboStrength;
+            }
+            else
+            {
+                workflow.Remove("lora");
+                Input(workflow, "shift")["model"] = new JsonArray("unet", 0);
+            }
+
+            Input(workflow, "shift")["shift_video"] = (double)ShiftVideo;
+            Input(workflow, "shift")["shift_audio"] = (double)ShiftAudio;
+            Input(workflow, "sched")["steps"] = Steps;
+            Input(workflow, "sched")["scheduler"] = SelectedScheduler;
+            Input(workflow, "sampler")["sampler_name"] = SelectedSampler;
+
+            var minimum = H3EditorPreset.MinimumSteps(SelectedModel, useLora ? SelectedTurboLoader : "off");
+            AddLog($"Engine: {Path.GetFileName(SelectedModel)}" +
+                   (useLora ? $" + {Path.GetFileName(TurboLora)} @ {TurboStrength:0.##}" : "") +
+                   $", {Steps} steps {SelectedSampler}/{SelectedScheduler}, shift {ShiftVideo}/{ShiftAudio}");
+            if (Steps < minimum)
+                AddLog($"⚠ {Steps} steps is below what this model needs (≥{minimum}) — expect smeared, incoherent " +
+                       "motion. Pick a turbo preset for few steps.");
+        }
+
+        private void ApplyClipInputs(JsonObject workflow, H3TimelineClip clip)
+        {
+            Input(workflow, "prompt")["value"] = clip.Prompt;
+            Input(workflow, "res")["aspect_ratio"] = SelectedAspectRatio;
+            Input(workflow, "res")["megapixels"] = Megapixels;
+            Input(workflow, "seconds")["value"] = clip.DurationSeconds;
+            Input(workflow, "noise")["noise_seed"] = Random.Shared.NextInt64(0, 999_999_999_999_999L);
+            Input(workflow, "save")["filename_prefix"] = $"video/{ProjectFolder}/clip_{clip.DisplayIndex:D5}";
+        }
+
+        /// <summary>Up to four reference pictures, in slot order. Unused slots are removed from the graph so
+        /// ComfyUI never tries to load the template's placeholder.</summary>
+        private void ApplyReferences(JsonObject workflow, string?[] uploadedImages)
+        {
+            var refInputs = Input(workflow, "ref");
+            for (int i = 0; i < PictureNodeIds.Length; i++)
+                refInputs.Remove($"ref_images.ref_image_{i}");
+
+            // <Picture N> in the prompt is the Nth image the node receives, so a gap would renumber every
+            // picture after it.
+            var lastFilled = Array.FindLastIndex(uploadedImages, u => !string.IsNullOrEmpty(u));
+            if (lastFilled >= 0 && uploadedImages.Take(lastFilled).Any(string.IsNullOrEmpty))
+                AddLog("⚠ A Picture slot before the last filled one is empty — the pictures after it are renumbered " +
+                       "and no longer match the <Picture N> tags in the prompt. Fill the slots in order.");
+
+            var images = uploadedImages.Take(PictureNodeIds.Length).Where(u => !string.IsNullOrEmpty(u)).ToList();
+            for (int i = 0; i < PictureNodeIds.Length; i++)
+            {
+                if (i < images.Count)
+                {
+                    Input(workflow, PictureNodeIds[i])["image"] = images[i];
+                    refInputs[$"ref_images.ref_image_{i}"] = new JsonArray(PictureNodeIds[i], 0);
+                }
+                else
+                {
+                    workflow.Remove(PictureNodeIds[i]);
+                }
+            }
+            AddLog(images.Count > 0 ? $"References: {images.Count} picture(s)" : "No reference pictures — text-to-video");
+        }
+
+        /// <summary>
+        /// Wires the motion-context chain. Returns the folder this clip's latent is saved to (so the next clip
+        /// can continue from it), or null when nothing is saved.
+        /// </summary>
+        private string? ApplyChain(JsonObject workflow, H3TimelineClip clip)
+        {
+            if (!ChainAvailable)
+            {
+                // No pack (or chaining off): a plain Ref2VA render. Without the pack the trim node is missing
+                // too, so the decode feeds the video directly.
+                workflow.Remove("ctx_load");
+                workflow.Remove("ctx");
+                workflow.Remove("ctx_save");
+                Input(workflow, "guider")["conditioning"] = new JsonArray("ref", 0);
+                if (_chainNodesOk == false)
+                {
+                    workflow.Remove("trim");
+                    Input(workflow, "video")["images"] = new JsonArray("decode", 0);
+                    Input(workflow, "video")["audio"] = new JsonArray("decode_audio", 0);
+                }
+                else
+                {
+                    Input(workflow, "trim")["trim_frames"] = 0;
+                }
+                return null;
+            }
+
+            var folder = ChainFolderFor(clip);
+            Input(workflow, "ctx_save")["filename_prefix"] = $"{folder}/clip";
+            Input(workflow, "ctx_save")["clip_index"] = 1;
+
+            var prev = ChainPredecessor(clip);
+            if (prev != null)
+            {
+                Input(workflow, "ctx_load")["latent_path"] = prev.ContextLatentFolder;
+                Input(workflow, "ctx_load")["clip_index"] = 1;
+                var rendered = ChainedSeconds(clip.DurationSeconds);
+                Input(workflow, "seconds")["value"] = rendered;
+                AddLog($"🔗 Clip {clip.DisplayIndex} continues clip {prev.DisplayIndex}: {ChainContextFrames} frames pinned, " +
+                       $"rendered {rendered:0.##}s → ≈{clip.DurationSeconds:0.#}s delivered after the trim");
+            }
+            else
+            {
+                // Nothing to continue from: the clip seeds a chain.
+                workflow.Remove("ctx_load");
+                workflow.Remove("ctx");
+                Input(workflow, "guider")["conditioning"] = new JsonArray("ref", 0);
+                Input(workflow, "trim")["trim_frames"] = 0;
+                var idx = TimelineClips.IndexOf(clip);
+                AddLog(idx > 0 && clip.UseMotionContext
+                    ? $"🔗 Clip {clip.DisplayIndex} starts a new chain — clip {idx} has no chained render to continue from."
+                    : $"🔗 Clip {clip.DisplayIndex} starts the chain.");
+            }
+
+            var next = TimelineClips.IndexOf(clip) + 1;
+            if (next > 0 && next < TimelineClips.Count && TimelineClips[next].IsRendered && TimelineClips[next].UseMotionContext)
+                AddLog($"⚠ Clip {next + 1} was rendered continuing the take this replaces — regenerate it too or the join won't match.");
+
+            return folder;
+        }
+
+        private static JsonObject Input(JsonObject workflow, string nodeId) =>
+            workflow[nodeId]?["inputs"] as JsonObject
+            ?? throw new Exception($"Workflow node '{nodeId}' is missing — {ChainWorkflowPath} no longer matches the editor.");
 
         /// <summary>
         /// Adds nodes to extract and save the first frame as a thumbnail.
         /// This happens within ComfyUI so it's fast and doesn't require FFmpeg.
         /// </summary>
-        private void AddThumbnailNodes(JsonObject workflow, H3TimelineClip clip, bool hasImages)
+        private void AddThumbnailNodes(JsonObject workflow, H3TimelineClip clip, string imagesSourceNode)
         {
-            // Determine the source node for images based on workflow type
-            // Ref workflow uses node 122 (VAEDecode), Text workflow uses node 176 (VAEDecode)
-            var imagesSourceNode = hasImages ? "122" : TextImagesSourceNodeId;
-
-            // Add ImageFromBatch node to extract the first frame
-            // Note: ImageFromBatch uses "image" (singular) as input, and "batch_index" for position
             workflow[ThumbnailExtractNodeId] = new JsonObject
             {
                 ["inputs"] = new JsonObject
@@ -517,13 +654,9 @@ namespace FlipPix.UI.ViewModels.Video
                     ["batch_index"] = 0
                 },
                 ["class_type"] = "ImageFromBatch",
-                ["_meta"] = new JsonObject
-                {
-                    ["title"] = "Extract Thumbnail Frame"
-                }
+                ["_meta"] = new JsonObject { ["title"] = "Extract Thumbnail Frame" }
             };
 
-            // Add SaveImage node to save the extracted frame
             workflow[ThumbnailSaveNodeId] = new JsonObject
             {
                 ["inputs"] = new JsonObject
@@ -532,183 +665,8 @@ namespace FlipPix.UI.ViewModels.Video
                     ["filename_prefix"] = $"video/{ProjectFolder}/clip_{clip.DisplayIndex:D5}_thumb"
                 },
                 ["class_type"] = "SaveImage",
-                ["_meta"] = new JsonObject
-                {
-                    ["title"] = "Save Thumbnail"
-                }
+                ["_meta"] = new JsonObject { ["title"] = "Save Thumbnail" }
             };
-        }
-
-        private void PatchWorkflowForClip(JsonObject workflow, H3TimelineClip clip, string?[] uploadedImages, bool hasImages)
-        {
-            if (hasImages)
-            {
-                // Patch reference-to-video workflow (video_minimax_h3_r2v.json)
-                PatchRefWorkflow(workflow, clip, uploadedImages);
-            }
-            else
-            {
-                // Patch text-to-video workflow (h3-singularity.json)
-                PatchTextWorkflow(workflow, clip);
-            }
-        }
-
-        private void PatchRefWorkflow(JsonObject workflow, H3TimelineClip clip, string?[] uploadedImages)
-        {
-            // Patch prompt text
-            if (workflow[RefPromptNodeId] is JsonObject promptNode &&
-                promptNode["inputs"] is JsonObject promptInputs)
-            {
-                promptInputs["value"] = clip.Prompt;
-                AddLog($"Patched prompt in node {RefPromptNodeId}");
-            }
-
-            // Patch resolution
-            if (workflow[RefResolutionNodeId] is JsonObject resNode &&
-                resNode["inputs"] is JsonObject resInputs)
-            {
-                resInputs["aspect_ratio"] = SelectedAspectRatio;
-                resInputs["megapixels"] = Megapixels;
-                AddLog($"Patched resolution: {SelectedAspectRatio}, {Megapixels}MP");
-            }
-
-            // Patch duration
-            if (workflow[RefDurationNodeId] is JsonObject durNode &&
-                durNode["inputs"] is JsonObject durInputs)
-            {
-                durInputs["value"] = clip.DurationSeconds;
-                AddLog($"Patched duration: {clip.DurationSeconds}s");
-            }
-
-            // Patch steps
-            if (workflow[RefSchedulerNodeId] is JsonObject schedNode &&
-                schedNode["inputs"] is JsonObject schedInputs)
-            {
-                schedInputs["steps"] = Steps;
-                AddLog($"Patched steps: {Steps}");
-            }
-
-            // Patch sampler
-            if (workflow[RefSamplerNodeId] is JsonObject sampNode &&
-                sampNode["inputs"] is JsonObject sampInputs)
-            {
-                sampInputs["sampler_name"] = SelectedSampler;
-                AddLog($"Patched sampler: {SelectedSampler}");
-            }
-
-            // Patch save filename
-            if (workflow[RefSaveVideoNodeId] is JsonObject saveNode &&
-                saveNode["inputs"] is JsonObject saveInputs)
-            {
-                saveInputs["filename_prefix"] = $"video/{ProjectFolder}/clip_{clip.DisplayIndex:D5}";
-                AddLog($"Patched filename prefix: video/{ProjectFolder}/clip_{clip.DisplayIndex:D5}");
-            }
-
-            // Patch reference images using the uploaded filenames. Images fill the
-            // ref slots in order; unused slots are removed so ComfyUI doesn't try to
-            // load the template's placeholder image (which won't exist on the server).
-            var pictureNodeIds = new[] { Picture1NodeId, Picture2NodeId };
-            var images = uploadedImages.Take(2).Where(img => !string.IsNullOrEmpty(img)).ToList();
-            var refNodeInputs = (workflow[RefNodeId] as JsonObject)?["inputs"] as JsonObject;
-
-            for (int i = 0; i < pictureNodeIds.Length; i++)
-            {
-                if (i < images.Count)
-                {
-                    if (workflow[pictureNodeIds[i]] is JsonObject picNode &&
-                        picNode["inputs"] is JsonObject picInputs)
-                    {
-                        picInputs["image"] = images[i];
-                        AddLog($"Patched Picture {i + 1} in node {pictureNodeIds[i]}: {images[i]}");
-                    }
-                }
-                else
-                {
-                    workflow.Remove(pictureNodeIds[i]);
-                    refNodeInputs?.Remove($"ref_images.ref_image_{i}");
-                    AddLog($"Removed unused reference image node {pictureNodeIds[i]}");
-                }
-            }
-
-            // Randomize seed for different outputs on regeneration
-            var seed = Random.Shared.NextInt64(0, 999_999_999_999_999L);
-            if (workflow[RefSeedNodeId] is JsonObject seedNode &&
-                seedNode["inputs"] is JsonObject seedInputs)
-            {
-                seedInputs["noise_seed"] = seed;
-                AddLog($"Patched seed: {seed}");
-            }
-        }
-
-        private void PatchTextWorkflow(JsonObject workflow, H3TimelineClip clip)
-        {
-            // Patch prompt text
-            if (workflow[TextPromptNodeId] is JsonObject promptNode &&
-                promptNode["inputs"] is JsonObject promptInputs)
-            {
-                promptInputs["value"] = clip.Prompt;
-                AddLog($"Patched prompt in node {TextPromptNodeId}");
-            }
-
-            // Patch resolution
-            if (workflow[TextResolutionNodeId] is JsonObject resNode &&
-                resNode["inputs"] is JsonObject resInputs)
-            {
-                resInputs["aspect_ratio"] = SelectedAspectRatio;
-                resInputs["megapixels"] = Megapixels;
-                AddLog($"Patched resolution: {SelectedAspectRatio}, {Megapixels}MP");
-            }
-
-            // Patch duration
-            if (workflow[TextDurationNodeId] is JsonObject durNode &&
-                durNode["inputs"] is JsonObject durInputs)
-            {
-                durInputs["value"] = clip.DurationSeconds;
-                AddLog($"Patched duration: {clip.DurationSeconds}s");
-            }
-
-            // Patch steps (INTConstant in this workflow)
-            if (workflow[TextStepsNodeId] is JsonObject stepsNode &&
-                stepsNode["inputs"] is JsonObject stepsInputs)
-            {
-                stepsInputs["value"] = Steps;
-                AddLog($"Patched steps: {Steps}");
-            }
-
-            // Patch sampler
-            if (workflow[TextSamplerNodeId] is JsonObject sampNode &&
-                sampNode["inputs"] is JsonObject sampInputs)
-            {
-                sampInputs["sampler_name"] = SelectedSampler;
-                AddLog($"Patched sampler: {SelectedSampler}");
-            }
-
-            // Patch save filename (VHS_VideoCombine in this workflow)
-            if (workflow[TextSaveVideoNodeId] is JsonObject saveNode &&
-                saveNode["inputs"] is JsonObject saveInputs)
-            {
-                saveInputs["filename_prefix"] = $"video/{ProjectFolder}/clip_{clip.DisplayIndex:D5}";
-                AddLog($"Patched filename prefix: video/{ProjectFolder}/clip_{clip.DisplayIndex:D5}");
-            }
-
-            // Randomize seeds for different outputs on regeneration
-            // Text workflow has multiple RandomNoise nodes for different passes
-            var baseSeed = Random.Shared.NextInt64(0, 999_999_999_999_999L);
-            var seedsPatched = 0;
-            for (int i = 0; i < TextSeedNodeIds.Length; i++)
-            {
-                var nodeId = TextSeedNodeIds[i];
-                if (workflow[nodeId] is JsonObject seedNode &&
-                    seedNode["inputs"] is JsonObject seedInputs)
-                {
-                    seedInputs["noise_seed"] = baseSeed + i;
-                    seedsPatched++;
-                }
-            }
-            if (seedsPatched > 0)
-                AddLog($"Patched {seedsPatched} seed(s) starting at: {baseSeed}");
-
-            AddLog("Using text-to-video workflow (no reference images)");
         }
 
         private static (int width, int height) GetResolution(string aspectRatio, double megapixels)
@@ -832,7 +790,7 @@ namespace FlipPix.UI.ViewModels.Video
                 AddLog($"Concatenating {clipPaths.Count} clips...");
 
                 // Build FFmpeg arguments
-                var args = Crossfade && CrossfadeFrames > 0
+                var args = Crossfade && CrossfadeFrames > 0 && !ChainAvailable
                     ? BuildCrossfadeArgs(clipPaths, outputPath, listFile)
                     : $"-y -f concat -safe 0 -i \"{listFile}\" -c:v libx264 -crf {Crf} -c:a aac \"{outputPath}\"";
 

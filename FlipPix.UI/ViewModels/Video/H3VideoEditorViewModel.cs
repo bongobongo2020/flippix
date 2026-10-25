@@ -55,6 +55,7 @@ namespace FlipPix.UI.ViewModels.Video
             InitializePresets();
             InitializeTimeline();
             InitializeStoryCommands();
+            InitializeScrub();
 
             // Load saved settings
             LoadSettings();
@@ -231,6 +232,7 @@ N/A
             GenerateClipsCommand?.NotifyCanExecuteChanged();
             RegenerateClipCommand?.NotifyCanExecuteChanged();
             CancelCommand?.NotifyCanExecuteChanged();
+            NotifyEditCommands();
         }
 
         /// <summary>Whether the log panel is open; generation opens it so progress is visible.</summary>
@@ -265,6 +267,50 @@ N/A
 
         [ObservableProperty]
         private H3TimelineClip? _selectedClip;
+
+        /// <summary>Mutes the preview player's sound; the clips themselves are untouched.</summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(MuteGlyph))]
+        [NotifyPropertyChangedFor(nameof(MuteTip))]
+        private bool _isPreviewMuted;
+
+        public string MuteGlyph => IsPreviewMuted ? "🔇" : "🔊";
+
+        public string MuteTip => IsPreviewMuted
+            ? "Muted — click to hear the clip"
+            : "Playing sound — click to mute";
+
+        public RelayCommand ToggleMuteCommand { get; private set; } = null!;
+        public RelayCommand PreviousClipCommand { get; private set; } = null!;
+        public RelayCommand NextClipCommand { get; private set; } = null!;
+
+        /// <summary>
+        /// Steps the selection to the neighbouring clip and previews it. Pending clips are skipped when a rendered
+        /// one lies further that way, so the transport plays through the film; with none, it just moves the
+        /// selection one place.
+        /// </summary>
+        private void StepClip(int direction)
+        {
+            if (TimelineClips.Count == 0) return;
+
+            var current = SelectedClip != null
+                ? TimelineClips.IndexOf(SelectedClip)
+                : TimelineClips.ToList().FindIndex(c => c.OutputPath == PreviewVideoPath);
+            var start = current < 0 ? (direction > 0 ? -1 : TimelineClips.Count) : current;
+
+            H3TimelineClip? target = null;
+            for (int i = start + direction; i >= 0 && i < TimelineClips.Count; i += direction)
+            {
+                if (TimelineClips[i].IsRendered) { target = TimelineClips[i]; break; }
+            }
+            var adjacent = start + direction;
+            target ??= adjacent >= 0 && adjacent < TimelineClips.Count ? TimelineClips[adjacent] : null;
+            if (target == null) return;
+
+            SelectClip(target);
+            if (target.IsRendered && File.Exists(target.OutputPath))
+                PreviewVideoPath = target.OutputPath;
+        }
 
         partial void OnSelectedClipChanged(H3TimelineClip? value)
         {
@@ -310,6 +356,9 @@ N/A
             SelectClipCommand = new RelayCommand<H3TimelineClip>(SelectClip);
             EditClipPromptCommand = new RelayCommand<H3TimelineClip>(EditClipPrompt);
             RegenerateClipCommand = new RelayCommand<H3TimelineClip>(c => _ = RegenerateClipAsync(c), _ => !IsGenerating);
+            ToggleMuteCommand = new RelayCommand(() => IsPreviewMuted = !IsPreviewMuted);
+            PreviousClipCommand = new RelayCommand(() => StepClip(-1));
+            NextClipCommand = new RelayCommand(() => StepClip(+1));
             CopyLogCommand = new RelayCommand(CopyLog);
             ClearLogCommand = new RelayCommand(ClearLog);
         }
@@ -374,6 +423,7 @@ N/A
             try
             {
                 using var lease = await _workflowCoordinator.AcquireAsync("h3_video_editor", _renderCts.Token);
+                await EnsureChainNodesAsync(_renderCts.Token);
 
                 clip.State = H3ClipState.Rendering;
                 await GenerateSingleClipAsync(clip, _renderCts.Token);
@@ -479,6 +529,7 @@ N/A
                         OutputPath = savedClip.OutputPath,
                         ThumbnailPath = savedClip.ThumbnailPath,
                         UseMotionContext = savedClip.UseMotionContext,
+                        ContextLatentFolder = savedClip.ContextLatentFolder ?? string.Empty,
                         State = ParseClipState(savedClip.State)
                     };
 
@@ -578,7 +629,8 @@ N/A
                     OutputPath = clip.OutputPath,
                     ThumbnailPath = clip.ThumbnailPath,
                     State = clip.State.ToString(),
-                    UseMotionContext = clip.UseMotionContext
+                    UseMotionContext = clip.UseMotionContext,
+                    ContextLatentFolder = clip.ContextLatentFolder
                 });
             }
         }
@@ -725,7 +777,8 @@ N/A
                     OutputPath = clip.OutputPath,
                     ThumbnailPath = clip.ThumbnailPath,
                     State = clip.State.ToString(),
-                    UseMotionContext = clip.UseMotionContext
+                    UseMotionContext = clip.UseMotionContext,
+                    ContextLatentFolder = clip.ContextLatentFolder
                 });
             }
 
@@ -804,7 +857,8 @@ N/A
                     DurationSeconds = savedClip.DurationSeconds,
                     OutputPath = savedClip.OutputPath ?? string.Empty,
                     ThumbnailPath = savedClip.ThumbnailPath ?? string.Empty,
-                    UseMotionContext = savedClip.UseMotionContext
+                    UseMotionContext = savedClip.UseMotionContext,
+                    ContextLatentFolder = savedClip.ContextLatentFolder ?? string.Empty
                 };
 
                 // Restore state and verify files exist
