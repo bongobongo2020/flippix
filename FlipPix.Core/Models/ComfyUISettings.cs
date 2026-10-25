@@ -506,6 +506,11 @@ public class H3VideoEditorSettings
     public double TargetDurationSeconds { get; set; } = 30.0;
     public string CastPhotoEngine { get; set; } = "krea2spicy";
     public bool AutoGenerateCast { get; set; } = true;
+    /// <summary>Story mode's clip prompt writer: "h3-rewriter" (an LLM writes each beat to the official H3
+    /// format) or "template" (the code template).</summary>
+    public string StoryPromptWriter { get; set; } = "h3-rewriter";
+    /// <summary>Story mode renders an empty location plate per place and sends it with the clips set there.</summary>
+    public bool StoryLocationPlates { get; set; } = true;
     public string LastStoryFolder { get; set; } = string.Empty;
 
     // Custom presets saved by the user
@@ -527,6 +532,8 @@ public class H3TimelineClipState
     public string State { get; set; } = "Pending"; // Pending, Queued, Rendering, Rendered, Failed
     public bool UseMotionContext { get; set; } = true;
     public string ContextLatentFolder { get; set; } = string.Empty;
+    public string LocationPlatePath { get; set; } = string.Empty;
+    public int LocationPictureIndex { get; set; }
 }
 
 /// <summary>A user-saved preset for the H3 Video Editor.</summary>

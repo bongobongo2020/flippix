@@ -478,6 +478,11 @@ N/A
             var settings = _settingsService.Settings?.H3VideoEditor;
             if (settings == null) return;
 
+            // Read before anything is assigned: each assignment below saves the settings, and that save would
+            // write these two fields' defaults over the saved values before they were read.
+            var savedPromptWriter = settings.StoryPromptWriter;
+            var savedLocationPlates = settings.StoryLocationPlates;
+
             SelectedPresetName = settings.Preset;
             Steps = settings.Steps;
             SelectedSampler = settings.Sampler;
@@ -510,6 +515,9 @@ N/A
             TargetDurationSeconds = settings.TargetDurationSeconds;
             CastPhotoEngine = settings.CastPhotoEngine;
             AutoGenerateCast = settings.AutoGenerateCast;
+            StoryPromptWriter = string.IsNullOrWhiteSpace(savedPromptWriter)
+                ? H3RewriterBeatWriter.RewriterWriter : savedPromptWriter;
+            StoryLocationPlates = savedLocationPlates;
 
             // Restore timeline from crash recovery
             RestoreTimeline(settings);
@@ -537,6 +545,8 @@ N/A
                         ThumbnailPath = savedClip.ThumbnailPath,
                         UseMotionContext = savedClip.UseMotionContext,
                         ContextLatentFolder = savedClip.ContextLatentFolder ?? string.Empty,
+                        LocationPlatePath = savedClip.LocationPlatePath ?? string.Empty,
+                        LocationPictureIndex = savedClip.LocationPictureIndex,
                         State = ParseClipState(savedClip.State)
                     };
 
@@ -613,6 +623,8 @@ N/A
             settings.H3VideoEditor.TargetDurationSeconds = TargetDurationSeconds;
             settings.H3VideoEditor.CastPhotoEngine = CastPhotoEngine;
             settings.H3VideoEditor.AutoGenerateCast = AutoGenerateCast;
+            settings.H3VideoEditor.StoryPromptWriter = StoryPromptWriter;
+            settings.H3VideoEditor.StoryLocationPlates = StoryLocationPlates;
 
             // Save timeline state for crash recovery
             SaveTimelineState(settings.H3VideoEditor);
@@ -637,7 +649,9 @@ N/A
                     ThumbnailPath = clip.ThumbnailPath,
                     State = clip.State.ToString(),
                     UseMotionContext = clip.UseMotionContext,
-                    ContextLatentFolder = clip.ContextLatentFolder
+                    ContextLatentFolder = clip.ContextLatentFolder,
+                    LocationPlatePath = clip.LocationPlatePath,
+                    LocationPictureIndex = clip.LocationPictureIndex
                 });
             }
         }
@@ -786,7 +800,9 @@ N/A
                     ThumbnailPath = clip.ThumbnailPath,
                     State = clip.State.ToString(),
                     UseMotionContext = clip.UseMotionContext,
-                    ContextLatentFolder = clip.ContextLatentFolder
+                    ContextLatentFolder = clip.ContextLatentFolder,
+                    LocationPlatePath = clip.LocationPlatePath,
+                    LocationPictureIndex = clip.LocationPictureIndex
                 });
             }
 
@@ -871,7 +887,9 @@ N/A
                     OutputPath = savedClip.OutputPath ?? string.Empty,
                     ThumbnailPath = savedClip.ThumbnailPath ?? string.Empty,
                     UseMotionContext = savedClip.UseMotionContext,
-                    ContextLatentFolder = savedClip.ContextLatentFolder ?? string.Empty
+                    ContextLatentFolder = savedClip.ContextLatentFolder ?? string.Empty,
+                    LocationPlatePath = savedClip.LocationPlatePath ?? string.Empty,
+                    LocationPictureIndex = savedClip.LocationPictureIndex
                 };
 
                 // Restore state and verify files exist

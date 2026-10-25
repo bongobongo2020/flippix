@@ -72,6 +72,72 @@ namespace FlipPix.UI.Services
             }
         }
 
+        // ── llama.cpp LoRA adapters ──────────────────────────────────────────────────────────────────
+        //
+        // llama-server started with --lora serves GET/POST /lora-adapters, which read and set each adapter's
+        // global scale without a restart. The H3 Video Editor turns the MiniMax-H3 prompt-rewriter LoRA on only
+        // while it writes clip prompts and off for the story analysis around it. Every other server (LM Studio,
+        // Ollama, vLLM) answers 404 here, which reads as "no adapters" and changes nothing.
+
+        /// <summary>The server's LoRA adapters as (id, scale), or null when it is not a llama-server with
+        /// adapters loaded. Never throws.</summary>
+        public async Task<List<(int Id, double Scale)>?> GetLoraScalesAsync(CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                cts.CancelAfter(TimeSpan.FromSeconds(5));
+                using var response = await _httpClient.GetAsync($"{_baseUrl.TrimEnd('/')}/lora-adapters", cts.Token);
+                if (!response.IsSuccessStatusCode) return null;
+
+                var node = JsonNode.Parse(await response.Content.ReadAsStringAsync(cts.Token)) as JsonArray;
+                if (node == null || node.Count == 0) return null;
+
+                var list = new List<(int Id, double Scale)>();
+                foreach (var item in node)
+                {
+                    var id = item?["id"]?.GetValue<int>();
+                    var scale = item?["scale"]?.GetValue<double>() ?? 0.0;
+                    if (id.HasValue) list.Add((id.Value, scale));
+                }
+                return list.Count > 0 ? list : null;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>Sets each listed adapter's global scale on a llama-server. False when the server refused or
+        /// is not a llama-server. Never throws except for the caller's own cancellation.</summary>
+        public async Task<bool> SetLoraScalesAsync(IEnumerable<(int Id, double Scale)> scales, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var body = new JsonArray(scales
+                    .Select(s => (JsonNode)new JsonObject { ["id"] = s.Id, ["scale"] = s.Scale })
+                    .ToArray());
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                cts.CancelAfter(TimeSpan.FromSeconds(5));
+                using var content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
+                using var response = await _httpClient.PostAsync($"{_baseUrl.TrimEnd('/')}/lora-adapters", content, cts.Token);
+                _logger.LogInfo($"SetLoraScalesAsync: {body.ToJsonString()} → {(int)response.StatusCode}");
+                return response.IsSuccessStatusCode;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public async Task<List<LMStudioModel>> GetAvailableModelsAsync(CancellationToken cancellationToken = default)
         {
             await _semaphore.WaitAsync(cancellationToken);

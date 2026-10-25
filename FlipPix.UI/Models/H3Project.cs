@@ -55,6 +55,8 @@ namespace FlipPix.UI.Models
         public string State { get; set; } = "Pending";
         public bool UseMotionContext { get; set; }
         public string? ContextLatentFolder { get; set; }
+        public string? LocationPlatePath { get; set; }
+        public int LocationPictureIndex { get; set; }
     }
 
     public class H3ProjectReferenceImages

@@ -7416,6 +7416,26 @@
                                                     <x:String>famegrid</x:String>
                                                 </ComboBox>
                                             </StackPanel>
+                                            <!-- Clip prompt writer + location plates -->
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                <TextBlock Text="Prompts"
+                                                           FontSize="10"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,6,0"/>
+                                                <ComboBox ItemsSource="{Binding StoryPromptWriters}"
+                                                          SelectedItem="{Binding StoryPromptWriter}"
+                                                          Width="90"
+                                                          Height="22"
+                                                          FontSize="9"
+                                                          ToolTip.Tip="h3-rewriter: the LLM writes each beat to the official MiniMax H3 prompt format (uses the H3 rewriter LoRA on a llama-server). template: the built-in code template."/>
+                                                <CheckBox Content="🏞️ Plates"
+                                                          IsChecked="{Binding StoryLocationPlates}"
+                                                          FontSize="10"
+                                                          VerticalAlignment="Center"
+                                                          Margin="8,0,0,0"
+                                                          ToolTip.Tip="Render one empty location plate per place (Qwen Image) and send it with every clip set there"/>
+                                            </StackPanel>
                                             <!-- Status -->
                                             <TextBlock Text="{Binding StoryStatus}"
                                                        FontSize="9"

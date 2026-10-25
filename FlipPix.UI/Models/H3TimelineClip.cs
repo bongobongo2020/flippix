@@ -165,6 +165,16 @@ namespace FlipPix.UI.Models
         [ObservableProperty]
         private bool _useMotionContext = true;
 
+        /// <summary>Story mode's location plate for this clip — an empty picture of the place, sent after the cast
+        /// pictures. Empty when the clip has none.</summary>
+        [ObservableProperty]
+        private string _locationPlatePath = string.Empty;
+
+        /// <summary>The <c>&lt;Picture N&gt;</c> number the clip's prompt gives the plate, or 0. Checked at render
+        /// time against where the plate actually lands.</summary>
+        [ObservableProperty]
+        private int _locationPictureIndex;
+
         private static string FormatTime(double seconds)
         {
             var ts = TimeSpan.FromSeconds(seconds);
