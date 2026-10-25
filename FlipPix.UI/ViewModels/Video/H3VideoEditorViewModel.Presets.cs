@@ -14,6 +14,8 @@ namespace FlipPix.UI.ViewModels.Video
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(SelectedPreset))]
+        [NotifyPropertyChangedFor(nameof(IsUltra))]
+        [NotifyPropertyChangedFor(nameof(IsClassicEngine))]
         private string _selectedPresetName = "vanilla";
 
         public H3EditorPreset? SelectedPreset => Presets.FirstOrDefault(p => p.Name == SelectedPresetName);
@@ -54,6 +56,16 @@ namespace FlipPix.UI.ViewModels.Video
             var preset = Presets.FirstOrDefault(p => p.Name == presetName);
             if (preset == null) return;
 
+            if (preset.IsUltra)
+            {
+                // The Ultra card carries its own dials; the classic ones are left as they were, so picking a
+                // classic preset again later finds them untouched.
+                OfferUltraModel();
+                AddLog($"Applied preset: {presetName} — clips render through h3-minimax-ultra.json. " +
+                       UltraSamplingSummary);
+                return;
+            }
+
             SelectedModel = preset.Model;
             SelectedAttention = preset.Attention;
             SelectedSparseAttention = preset.SparseAttention;
@@ -72,6 +84,12 @@ namespace FlipPix.UI.ViewModels.Video
 
         private void SaveCurrentAsPreset()
         {
+            if (IsUltra)
+            {
+                AddLog("The Ultra card is saved as you edit it — ↺ puts it back on the workflow's tested values.");
+                return;
+            }
+
             // TODO: Show dialog to name the preset
             var name = $"Custom {Presets.Count(p => p.Name.StartsWith("Custom")) + 1}";
             var preset = new H3EditorPreset
@@ -218,7 +236,6 @@ namespace FlipPix.UI.ViewModels.Video
         partial void OnLevelLockChanged(bool value) => SaveSettings();
         partial void OnDefaultClipDurationChanged(double value) => SaveSettings();
         partial void OnChainClipsChanged(bool value) => SaveSettings();
-        partial void OnSelectedAspectRatioChanged(string value) => SaveSettings();
         partial void OnMegapixelsChanged(double value) => SaveSettings();
         partial void OnProjectFolderChanged(string value) => SaveSettings();
     }

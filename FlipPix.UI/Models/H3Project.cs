@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
@@ -97,6 +97,9 @@ namespace FlipPix.UI.Models
         public int Crf { get; set; } = 19;
         public bool Crossfade { get; set; }
         public bool LevelLock { get; set; }
+
+        // 💎 All-In-One Ultra preset (null in projects saved before it existed)
+        public FlipPix.Core.Models.MiniMaxI2VUltraOptions? Ultra { get; set; }
     }
 
     public class H3ProjectStoryMode

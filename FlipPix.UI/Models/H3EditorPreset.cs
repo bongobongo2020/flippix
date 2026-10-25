@@ -44,6 +44,16 @@ namespace FlipPix.UI.Models
         /// <summary>Sigma shift for audio.</summary>
         public int ShiftAudio { get; set; } = 3;
 
+        /// <summary>
+        /// True for the 💎 All-In-One Ultra entry: clips render through 🌀 MiniMax I2V's Ultra graph
+        /// (h3-minimax-ultra.json, SelfLift full-res tiled) with its own card of dials, and every engine field
+        /// above is ignored.
+        /// </summary>
+        public bool IsUltra { get; set; }
+
+        /// <summary>The dropdown name of the Ultra entry — also what settings store when it is picked.</summary>
+        public const string UltraName = "💎 All-In-One Ultra (Full-Res Tiled)";
+
         /// <summary>The H3 diffusion model (unet folder) the preset samples with.</summary>
         public string Model { get; set; } = VanillaModel;
 
@@ -126,6 +136,12 @@ namespace FlipPix.UI.Models
                     Scheduler = "simple",
                     ShiftVideo = 12,
                     ShiftAudio = 3
+                },
+                new()
+                {
+                    // Its dials live on H3VideoEditorSettings.Ultra, not here.
+                    Name = UltraName,
+                    IsUltra = true
                 }
             };
         }
