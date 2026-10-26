@@ -58,7 +58,10 @@ namespace FlipPix.UI.ViewModels
         /// <summary>Qwen Image 2.1 edit mode (workflow/image/qwen-edit/image_qwen_image_2_1_image_edit-changephoto.json).</summary>
         public const string Qwen21Mode = "Qwen 2.1";
 
-        public static readonly IReadOnlyList<string> WorkflowModes = new[] { "Qwen", Qwen21Mode, "Klein", "FireRed", "StoryImageZ", "Krea2", "krea2-edit", MossMode };
+        /// <summary>FIBO 2 edit mode (workflow/image/fibo2-API.json).</summary>
+        public const string FiboMode = "Fibo";
+
+        public static readonly IReadOnlyList<string> WorkflowModes = new[] { "Qwen", Qwen21Mode, "Klein", "FireRed", "StoryImageZ", "Krea2", "krea2-edit", MossMode, FiboMode };
 
         private string _selectedWorkflowMode = "Qwen";
         public string SelectedWorkflowMode
@@ -88,6 +91,8 @@ namespace FlipPix.UI.ViewModels
                         Steps = 12; // Krea2 Edit (turbo LoRA + identity edit LoRA)
                     else if (value == MossMode)
                         Steps = 12; // as authored in moss-serenity-API2.json (display only)
+                    else if (value == FiboMode)
+                        Steps = 8; // FIBO 2 edit turbo, as authored
                     else
                         Steps = DefaultSteps;
 
@@ -1573,6 +1578,11 @@ namespace FlipPix.UI.ViewModels
                 workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "qwen-edit", "image_qwen_image_2_1_image_edit-changephoto.json");
                 AddLog("Using Qwen 2.1 workflow (Qwen Image 2.1 INT8 ConvRot edit)");
             }
+            else if (SelectedWorkflowMode == FiboMode)
+            {
+                workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "fibo2-API.json");
+                AddLog("Using Fibo workflow (FIBO 2 edit turbo INT8 ConvRot)");
+            }
             else
             {
                 workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "qwen-edit", "Qwen_Edit_2511_INT8_Convrot_WF.json");
@@ -1596,6 +1606,8 @@ namespace FlipPix.UI.ViewModels
                 updatedWorkflow = UpdateFireRedWorkflowParameters(workflow, uploadedImageName, item.Prompt, item.Index, jsonFileName);
             else if (SelectedWorkflowMode == Qwen21Mode)
                 updatedWorkflow = UpdateQwen21WorkflowParameters(workflow, uploadedImageName, item.Prompt, item.Index, jsonFileName);
+            else if (SelectedWorkflowMode == FiboMode)
+                updatedWorkflow = UpdateFiboWorkflowParameters(workflow, uploadedImageName, item.Prompt, item.Index, jsonFileName);
             else
                 updatedWorkflow = UpdateQwenWorkflowParameters(workflow, uploadedImageName, item.Prompt, item.Index, jsonFileName);
 
@@ -1689,6 +1701,48 @@ namespace FlipPix.UI.ViewModels
             if (root != null)
             {
                 root.Remove("472");
+                workflowJson = root.ToJsonString();
+            }
+
+            return JsonSerializer.Deserialize<JsonElement>(workflowJson);
+        }
+
+        private JsonElement UpdateFiboWorkflowParameters(JsonElement workflow, string inputImageName, string promptText, int imageIndex, string jsonFileName)
+        {
+            var workflowJson = workflow.GetRawText();
+
+            // fibo2-API.json node map.
+            // Node 38 - LoadImage (the scene being edited, referenced as <image_1>)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "38", "image", inputImageName);
+            // Node 49 - PrimitiveStringMultiline feeding TextEncodeFibo2 (node 4)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "49", "value", promptText);
+            // Node 4 - TextEncodeFibo2 (negative; the latent is sized ~4 MP from the input image)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "4", "negative_prompt", NegativePrompt);
+            // Node 35 - KSampler
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "35", new Dictionary<string, object>
+            {
+                { "seed", Random.Shared.NextInt64(0, long.MaxValue) },
+                { "steps", Steps },
+                { "cfg", Cfg },
+                { "denoise", Denoise }
+            });
+
+            // The workflow only ends in a PreviewImage (node 16); swap it for a SaveImage on
+            // the VAEDecode (node 7) so the output lands in the per-session subfolder.
+            var root = JsonNode.Parse(workflowJson)?.AsObject();
+            if (root != null)
+            {
+                root.Remove("16");
+                root["16"] = new JsonObject
+                {
+                    ["inputs"] = new JsonObject
+                    {
+                        ["filename_prefix"] = $"{jsonFileName}/{jsonFileName}-{imageIndex}",
+                        ["images"] = new JsonArray("7", 0)
+                    },
+                    ["class_type"] = "SaveImage",
+                    ["_meta"] = new JsonObject { ["title"] = "Save Image (FlipPix)" }
+                };
                 workflowJson = root.ToJsonString();
             }
 

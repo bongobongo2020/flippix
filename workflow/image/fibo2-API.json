@@ -1,0 +1,230 @@
+{
+  "1": {
+    "inputs": {
+      "unet_name": "fibo2_edit_turbo_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "2": {
+    "inputs": {
+      "clip_name": "qwen3vl_4b_bf16.safetensors",
+      "type": "fibo2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "3": {
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "4": {
+    "inputs": {
+      "prompt": [
+        "49",
+        0
+      ],
+      "negative_prompt": "",
+      "width": [
+        "40",
+        1
+      ],
+      "height": [
+        "41",
+        1
+      ],
+      "batch_size": 1,
+      "clip": [
+        "2",
+        0
+      ],
+      "images.image_1": [
+        "38",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "TextEncodeFibo2",
+    "_meta": {
+      "title": "TextEncodeFibo2"
+    }
+  },
+  "7": {
+    "inputs": {
+      "samples": [
+        "35",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "16": {
+    "inputs": {
+      "images": [
+        "7",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "34": {
+    "inputs": {
+      "scale_x": [
+        "37",
+        0
+      ],
+      "shift_x": 0,
+      "scale_y": [
+        "36",
+        0
+      ],
+      "shift_y": 0,
+      "scale_t": 1,
+      "shift_t": 0,
+      "model": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "ScaleROPE",
+    "_meta": {
+      "title": "ScaleROPE"
+    }
+  },
+  "35": {
+    "inputs": {
+      "seed": 1080705714229444,
+      "steps": 8,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "34",
+        0
+      ],
+      "positive": [
+        "4",
+        0
+      ],
+      "negative": [
+        "4",
+        1
+      ],
+      "latent_image": [
+        "4",
+        2
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "36": {
+    "inputs": {
+      "Number": 0.8
+    },
+    "class_type": "Float",
+    "_meta": {
+      "title": "Float"
+    }
+  },
+  "37": {
+    "inputs": {
+      "Number": 0.85
+    },
+    "class_type": "Float",
+    "_meta": {
+      "title": "Float"
+    }
+  },
+  "38": {
+    "inputs": {
+      "image": "f2k-txt2img_20261024_011455.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "39": {
+    "inputs": {
+      "image": [
+        "38",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "Get Image Size"
+    }
+  },
+  "40": {
+    "inputs": {
+      "expression": "round(a * sqrt(4000000 / (a*b)) / 8) * 8",
+      "values.a": [
+        "39",
+        0
+      ],
+      "values.b": [
+        "39",
+        1
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Math Expression"
+    }
+  },
+  "41": {
+    "inputs": {
+      "expression": "round(b * sqrt(4000000 / (a*b)) / 8) * 8",
+      "values.a": [
+        "39",
+        0
+      ],
+      "values.b": [
+        "39",
+        1
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Math Expression"
+    }
+  },
+  "49": {
+    "inputs": {
+      "value": "in <image_1>, make the woman kick the man in the face with blood spattering out of his face."
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Text (Multiline)"
+    }
+  }
+}
