@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Uninstaller for FlipPix Companion. Removes the companion app, shortcuts, config files,
+    firewall rules, and optionally the install folder. Self-deletes after completion.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>Uninstall-FlipPix-Companion</AssemblyName>
+    <RootNamespace>FlipPix.Companion.Uninstall</RootNamespace>
+    <Product>Uninstall FlipPix Companion</Product>
+    <ApplicationIcon>..\flippix.ico</ApplicationIcon>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+</Project>
