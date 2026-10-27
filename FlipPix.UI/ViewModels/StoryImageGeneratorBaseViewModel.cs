@@ -78,7 +78,7 @@ namespace FlipPix.UI.ViewModels
             SelectPromptJsonCommand = new RelayCommand(SelectPromptJson);
             SelectInputImageCommand = new RelayCommand(SelectInputImage);
             LoadPromptsCommand = new RelayCommand(async () => await LoadPromptsAsync(), () => CanLoadPrompts);
-            ProcessQueueCommand = new RelayCommand(async () => await ProcessQueueAsync(), () => CanProcessQueue);
+            ProcessQueueCommand = new RelayCommand(async () => await GenerateStoryAsync(), () => !IsProcessingQueue);
             ClearQueueCommand = new RelayCommand(ClearQueue, () => QueueItems.Any());
             OpenOutputFolderCommand = new RelayCommand(OpenOutputFolder);
             CancelProcessingCommand = new RelayCommand(CancelProcessing, () => IsProcessing);
@@ -241,6 +241,7 @@ namespace FlipPix.UI.ViewModels
                     OnPropertyChanged(nameof(CanProcessQueue));
                     OnPropertyChanged(nameof(CanLoadPrompts));
                     LoadPromptsCommand.NotifyCanExecuteChanged();
+                    (ProcessQueueCommand as RelayCommand)?.NotifyCanExecuteChanged();
                 }
             }
         }
@@ -523,6 +524,39 @@ namespace FlipPix.UI.ViewModels
                 System.Windows.MessageBox.Show($"Error loading prompts:\n\n{ex.Message}", "Error",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        /// <summary>
+        /// Generate button: runs the queue, or fills it first when nothing is queued yet
+        /// (adding prompts auto-starts processing), so the click never silently does nothing.
+        /// </summary>
+        protected virtual async Task GenerateStoryAsync()
+        {
+            if (CanProcessQueue)
+            {
+                await ProcessQueueAsync();
+                return;
+            }
+
+            if (IsProcessingQueue) return;
+
+            if (CanLoadPrompts)
+            {
+                await LoadPromptsAsync();
+                return;
+            }
+
+            ShowNothingToGenerate();
+        }
+
+        protected virtual void ShowNothingToGenerate()
+        {
+            var need = RequiresInputImage
+                ? "Select a prompt JSON file and an input image, then click Generate Story again."
+                : "Select a prompt JSON file, then click Generate Story again.";
+            AddLog("Nothing to generate: the queue is empty");
+            System.Windows.MessageBox.Show($"The queue is empty.\n\n{need}", "Nothing to Generate",
+                MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         protected async Task ProcessQueueAsync()

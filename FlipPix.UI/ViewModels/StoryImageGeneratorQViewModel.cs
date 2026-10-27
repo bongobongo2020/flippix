@@ -429,6 +429,33 @@ namespace FlipPix.UI.ViewModels
             RestoreZLoraSettings();
         }
 
+        // --- Generate button ---
+
+        protected override async Task GenerateStoryAsync()
+        {
+            // No prompts queued and no JSON picked: write the story from the input image
+            // with Qwen VL instead (it adds the prompts and auto-starts the queue).
+            var hasPromptJson = !string.IsNullOrEmpty(PromptJsonFilePath) && File.Exists(PromptJsonFilePath);
+            if (!CanProcessQueue && !IsProcessingQueue && !hasPromptJson
+                && !string.IsNullOrEmpty(InputImagePath) && File.Exists(InputImagePath))
+            {
+                if (IsAnalyzingImage) return;
+                await AnalyzeImageWithQwenVLAsync();
+                return;
+            }
+
+            await base.GenerateStoryAsync();
+        }
+
+        protected override void ShowNothingToGenerate()
+        {
+            AddLog("Nothing to generate: the queue is empty");
+            System.Windows.MessageBox.Show(
+                "The queue is empty.\n\nSelect an input image (Generate Story will write the prompts with Qwen VL), " +
+                "or add prompts from a JSON file, then click Generate Story again.",
+                "Nothing to Generate", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
         // --- Overrides for folder saving ---
 
         protected override string GetPromptJsonInitialDirectory()
