@@ -5050,6 +5050,9 @@
                                                     <CheckBox Content="Export the first pass's audio" IsChecked="{Binding TwoPass.UseFirstPassAudio}" FontSize="11" Margin="0,8,0,0"
                                                               Foreground="{StaticResource TextPrimaryBrush}"
                                                               ToolTip="'Use first pass audio?' On as authored: the soundtrack comes from pass 1. Off exports pass 2's. A preview always uses pass 1's."/>
+                                                    <CheckBox Content="Live preview of the refining pass too" IsChecked="{Binding TwoPass.LivePreviewRefiningPass}" FontSize="11" Margin="0,4,0,0"
+                                                              Foreground="{StaticResource TextPrimaryBrush}"
+                                                              ToolTip="The workflow previews the first pass only. On adds the same preview node to the second pass, so the clip on the right keeps sharpening through the refinement. Display only — the video is the same either way."/>
                                                 </StackPanel>
                                             </Border>
 
@@ -5766,7 +5769,7 @@
                             <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
                             <Grid>
                                 <Grid.RowDefinitions>
-                                    <RowDefinition Height="240"/>  <!-- Reference strip -->
+                                    <RowDefinition Height="Auto"/> <!-- Reference strip / live preview -->
                                     <RowDefinition Height="3"/>    <!-- Progress bar -->
                                     <RowDefinition Height="Auto"/> <!-- Status row -->
                                     <RowDefinition Height="Auto"/> <!-- Queue -->
@@ -5774,8 +5777,22 @@
                                     <RowDefinition Height="Auto"/> <!-- Log -->
                                 </Grid.RowDefinitions>
 
-                                <!-- ─── Reference strip ───────────────────────────────────── -->
-                                <Border Grid.Row="0" Background="{StaticResource PlayerSurfaceBrush}">
+                                <!-- ─── Reference strip ───────────────────────────────────────
+                                     While a take renders on a graph with a live preview node, the strip grows
+                                     and shows the clip sharpening step by step instead. -->
+                                <Border Grid.Row="0">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Height" Value="240"/>
+                                            <Setter Property="Background" Value="{StaticResource PlayerSurfaceBrush}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasLivePreview}" Value="True">
+                                                    <Setter Property="Height" Value="400"/>
+                                                    <Setter Property="Background" Value="Black"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
                                     <Grid>
                                         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                             <StackPanel.Style>
@@ -5835,6 +5852,19 @@
                                                 <Run Text="{Binding TotalLengthSummary, Mode=OneWay}" FontFamily="Consolas"/>
                                             </TextBlock>
                                         </Border>
+
+                                        <!-- Live sampler preview (MiniMaxI2VViewModel.LivePreview.cs). -->
+                                        <Grid Background="Black"
+                                              Visibility="{Binding HasLivePreview, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <ctrl:LivePreviewPlayer Source="{Binding LivePreviewPath}" Margin="0,0,0,0"/>
+                                            <Border VerticalAlignment="Bottom" HorizontalAlignment="Left" Margin="10"
+                                                    CornerRadius="8" Padding="10,4"
+                                                    Background="{StaticResource SurfaceBrush}"
+                                                    BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1">
+                                                <TextBlock Text="{Binding LivePreviewCaption}" FontSize="10" FontFamily="Consolas"
+                                                           Foreground="{DynamicResource TabAccentBrush}"/>
+                                            </Border>
+                                        </Grid>
                                     </Grid>
                                 </Border>
 

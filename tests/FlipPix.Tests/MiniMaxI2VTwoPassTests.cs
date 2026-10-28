@@ -193,7 +193,9 @@ public sealed class MiniMaxI2VTwoPassTests
         Assert.Equal("100", LinkSource(built, "37", "model"));
         Assert.Equal("37", LinkSource(built, "12", "model"));
         Assert.Equal("12", LinkSource(built, "151:29", "model"));
-        Assert.Equal("37", LinkSource(built, "151:32", "model"));
+        // Pass 2 reads the same model through the added preview override (display only).
+        Assert.Equal("tp_preview2", LinkSource(built, "151:32", "model"));
+        Assert.Equal("37", LinkSource(built, "tp_preview2", "model"));
 
         // No RefMod, no continuation: the conditioning goes straight from Ref2V to both guiders.
         Assert.Equal("151:11", LinkSource(built, "151:29", "conditioning"));
@@ -206,6 +208,23 @@ public sealed class MiniMaxI2VTwoPassTests
         Assert.Equal(4242L, Inputs(built, "31")["noise_seed"]!.GetValue<long>());
         Assert.False(Inputs(built, "103")["value"]!.GetValue<bool>());
         Assert.Equal("minimax_i2v/mmi2v_test", Inputs(built, "73")["value"]!.GetValue<string>());
+        NoDanglingLinks(built);
+    }
+
+    [Fact]
+    public void Refining_pass_preview_is_a_copy_of_the_authored_one_and_optional()
+    {
+        var built = Built();
+        Assert.Equal("ModelPreviewOverrideKJ", built["tp_preview2"]!["class_type"]!.GetValue<string>());
+        foreach (var (name, value) in Inputs(built, "12"))
+            if (name != "model") Assert.True(JsonNode.DeepEquals(value, Inputs(built, "tp_preview2")[name]), name);
+
+        var off = Built(new MiniMaxI2VTwoPassOptions { LivePreviewRefiningPass = false });
+        Assert.False(off.ContainsKey("tp_preview2"));
+        Assert.Equal("37", LinkSource(off, "151:32", "model"));
+
+        // A preview-only take has no second pass to watch.
+        Assert.False(Built(new MiniMaxI2VTwoPassOptions { PreviewOnly = true }).ContainsKey("tp_preview2"));
         NoDanglingLinks(built);
     }
 

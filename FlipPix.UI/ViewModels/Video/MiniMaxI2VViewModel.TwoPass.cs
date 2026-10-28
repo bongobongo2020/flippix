@@ -84,11 +84,14 @@ namespace FlipPix.UI.ViewModels.Video
         internal const string TpRefModApply = "151:182";     // MiniMaxH3RefModApply
         internal const string TpUpscaler = "151:26";         // MinimaxH3LatentUpscaler3D
         internal const string TpSampler2 = "151:16";         // SamplerCustomAdvanced, pass 2
+        internal const string TpSampler2Guider = "151:32";   // BasicGuider, pass 2
         internal const string TpDecode = "151:25";           // VAEDecode
         internal const string TpSourceVideo = "151:105";     // VHS_LoadVideo, the video Continue extends
         internal const string TpSourceFrame = "151:134";     // ComfySwitchNode, the source's last frame
         internal const string TpLokkenNew = "152:135";       // LokkenVideoPostProcessing, the new clip
         internal const string TpLokkenSource = "152:136";    // LokkenVideoPostProcessing, the source
+        internal const string TpPreviewPass1 = "12";         // ModelPreviewOverrideKJ on the pass 1 model
+        internal const string TpPreviewPass2 = "tp_preview2"; // its copy on pass 2 — added, not authored
 
         /// <summary>The switches Normal mode collapses onto their false side, so no continuation node reaches
         /// the server: (switch, the input whose source replaces it).</summary>
@@ -800,6 +803,16 @@ namespace FlipPix.UI.ViewModels.Video
                 Link(root, TpSampler2, "sigmas", TpManualSigmas, 0);
             }
             SetInput(root, TpUpscaler, "model_name", o.LatentUpscaler);
+
+            // The authored graph previews pass 1 only. A copy of its preview override on pass 2's model lets
+            // the refinement be watched too; it changes nothing the sampler computes.
+            if (o.LivePreviewRefiningPass && !o.PreviewOnly)
+            {
+                var preview = root[TpPreviewPass1]!.DeepClone().AsObject();
+                preview["_meta"] = new JsonObject { ["title"] = "Model Preview Override (pass 2)" };
+                root[TpPreviewPass2] = preview;
+                Link(root, TpSampler2Guider, "model", TpPreviewPass2, 0);
+            }
             SetInput(root, TpPreview, "value", o.PreviewOnly);
             SetInput(root, TpUseFirstPassAudio, "value", o.UseFirstPassAudio);
 

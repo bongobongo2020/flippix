@@ -253,6 +253,7 @@ namespace FlipPix.UI.ViewModels.Video
             // After the render card: the Ultra card offers its checkpoint into the model list InitRender seeded.
             InitUltra();
             InitTwoPass();
+            InitLivePreview();
 
             // Analyze & Queue — see MiniMaxI2VViewModel.Analysis.cs.
             InitAnalysis();
@@ -1912,6 +1913,7 @@ namespace FlipPix.UI.ViewModels.Video
         private async Task GenerateItemAsync(MiniMaxI2VQueueItem item, CancellationToken outerToken)
         {
             IsProcessing = true;
+            ClearLivePreview();
             HasResult = false;
             ResultVideoPath = string.Empty;
             ResultVideoInfo = string.Empty;
@@ -2079,6 +2081,7 @@ namespace FlipPix.UI.ViewModels.Video
                 if (_progressTracker.IsRunning) _progressTracker.Finish(false);
                 lease?.Dispose();
                 IsProcessing = false;
+                ClearLivePreview();
                 OnCanExecuteChanged();
             }
         }

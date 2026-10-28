@@ -20,6 +20,13 @@ public interface IComfyUIService : IDisposable
     /// <summary>Raised when a node finishes executing and produces output.</summary>
     event EventHandler<NodeExecutedEventArgs>? NodeExecuted;
 
+    /// <summary>
+    /// Raised with the raw JSON of each <c>kj_preview_override</c> message: KJNodes' ModelPreviewOverrideKJ
+    /// sends one per sampler step, carrying a base64 JPEG (the starting noise) or an MP4 of the whole clip
+    /// as it stands at that step. Raised on the socket's thread.
+    /// </summary>
+    event EventHandler<string>? LivePreviewReceived;
+
     /// <summary>Gets whether the WebSocket is currently connected.</summary>
     bool IsConnected { get; }
 

@@ -61,6 +61,7 @@ public class MiniMaxI2VTwoPassOptions : INotifyPropertyChanged
     private string _latentUpscaler = AuthoredLatentUpscaler;
     private bool _previewOnly;
     private bool _useFirstPassAudio = true;
+    private bool _livePreviewRefiningPass = true;
 
     private string _attentionBackend = "comfy kitchen attention";
     private bool _useSparseAttention = true;
@@ -139,6 +140,10 @@ public class MiniMaxI2VTwoPassOptions : INotifyPropertyChanged
 
     /// <summary>87 "Use first pass audio?" — on as authored. Preview always uses it.</summary>
     public bool UseFirstPassAudio { get => _useFirstPassAudio; set => Set(ref _useFirstPassAudio, value); }
+
+    /// <summary>Not in the authored graph: a copy of its ModelPreviewOverrideKJ on the second pass, so the
+    /// live preview keeps sharpening through the refinement. Display only — the render is unchanged.</summary>
+    public bool LivePreviewRefiningPass { get => _livePreviewRefiningPass; set => Set(ref _livePreviewRefiningPass, value); }
 
     // ── Attention (37 ModelAttentionBackend, 100 BlockSparseAttention) ──────────────────────────────
     public string AttentionBackend { get => _attentionBackend; set => Set(ref _attentionBackend, value); }

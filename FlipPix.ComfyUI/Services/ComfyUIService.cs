@@ -25,6 +25,7 @@ public class ComfyUIService : IComfyUIService
     public event EventHandler<string>? ConnectionStatusChanged;
     /// <summary>Raised for each node's "executed" message (node finished + produced output).</summary>
     public event EventHandler<NodeExecutedEventArgs>? NodeExecuted;
+    public event EventHandler<string>? LivePreviewReceived;
 
     public bool IsConnected => _webSocketClient.IsConnected;
 
@@ -692,6 +693,10 @@ public class ComfyUIService : IComfyUIService
                 case "status":
                 case "crystools.monitor":
                 case "kaytool.resources":
+                    break;
+
+                case "kj_preview_override":
+                    if (!string.IsNullOrEmpty(message.RawData)) LivePreviewReceived?.Invoke(this, message.RawData);
                     break;
 
                 default:

@@ -16,6 +16,7 @@ public class ComfyUIWebSocketClient : IDisposable
     private CancellationTokenSource? _cancellationTokenSource;
     private bool _disposed = false;
     private readonly Queue<WebSocketMessage> _messageQueue = new();
+    private const int MaxQueuedMessages = 256;
     private readonly object _lockObject = new();
     private string? _clientId;
     private bool _isReconnecting = false;
@@ -235,7 +236,10 @@ public class ComfyUIWebSocketClient : IDisposable
 
             lock (_lockObject)
             {
+                // Nothing drains this queue on a schedule, and some messages are large (a live preview is
+                // a base64 MP4 per sampler step), so only the most recent ones are kept.
                 _messageQueue.Enqueue(message);
+                while (_messageQueue.Count > MaxQueuedMessages) _messageQueue.Dequeue();
             }
 
             MessageReceived?.Invoke(this, message);
