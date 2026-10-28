@@ -58,6 +58,7 @@ only fetches it on demand, from the Missing Models window, when one of those wor
 | ONNX Runtime | MIT |
 | SixLabors.ImageSharp | Six Labors Split License (Apache-2.0 under US$1M annual revenue; commercial license above) |
 | CommunityToolkit.Mvvm | MIT |
+| Openjutsu (`workflow/video/h3-minimax/character-swap/*.api.json` and the request logic ported in `CharacterSwapGraph.cs`, from [D3voz/openjutsu](https://github.com/D3voz/openjutsu) @ `1ee2997`) | MIT, © D3voz |
 
 ## ComfyUI custom-node packs installed for the iOS Companion (`scripts/flippix-custom-nodes-ios.txt`)
 

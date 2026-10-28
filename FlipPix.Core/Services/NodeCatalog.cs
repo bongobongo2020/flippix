@@ -70,6 +70,35 @@ public static class NodeCatalog
 
         // --- metadata / saving ---
         ["Image Saver"] = "https://github.com/alexopus/ComfyUI-Image-Saver",
+
+        // --- MiniMax H3 character swap (🔁 Character Swap tab, from Openjutsu) ---
+        ["H3OneClickSwapPlan"] = "https://github.com/D3voz/comfyui-h3-oneclick-swap",
+        ["H3AdvancedSwapPlan"] = "https://github.com/D3voz/comfyui-h3-oneclick-swap",
+        ["H3ObjectSwapPlan"] = "https://github.com/D3voz/comfyui-h3-oneclick-swap",
+        ["H3ObjectPlacementMask"] = "https://github.com/D3voz/comfyui-h3-oneclick-swap",
+        ["H3AddFitCheck"] = "https://github.com/D3voz/comfyui-h3-oneclick-swap",
+        ["H3AddMovingArea"] = "https://github.com/D3voz/comfyui-h3-oneclick-swap",
+        ["H3PaintedEditArea"] = "https://github.com/D3voz/comfyui-h3-oneclick-swap",
+        ["H3SoundtrackOrSilence"] = "https://github.com/D3voz/comfyui-h3-oneclick-swap",
+        ["H3SourceSlice"] = "https://github.com/D3voz/comfyui-h3-oneclick-swap",
+        ["H3PeopleMask"] = "https://github.com/D3voz/comfyui-h3-oneclick-swap",
+        ["H3GreyMannequins"] = "https://github.com/D3voz/comfyui-h3-oneclick-swap",
+        ["H3ClipShots"] = "https://github.com/D3voz/comfyui-h3-oneclick-swap",
+        ["H3FillShots"] = "https://github.com/D3voz/comfyui-h3-oneclick-swap",
+        ["H3TrackCrops"] = "https://github.com/D3voz/comfyui-h3-oneclick-swap",
+        ["H3TrackRoles"] = "https://github.com/D3voz/comfyui-h3-oneclick-swap",
+        ["H3RoleMask"] = "https://github.com/D3voz/comfyui-h3-oneclick-swap",
+        ["H3SubjectPrompt"] = "https://github.com/D3voz/comfyui-h3-oneclick-swap",
+        ["H3MontagePeople"] = "https://github.com/D3voz/comfyui-h3-oneclick-swap",
+        ["H3MontageTracks"] = "https://github.com/D3voz/comfyui-h3-oneclick-swap",
+        ["H3MontagePicks"] = "https://github.com/D3voz/comfyui-h3-oneclick-swap",
+        ["H3MontagePlan"] = "https://github.com/D3voz/comfyui-h3-oneclick-swap",
+        ["H3MontagePass"] = "https://github.com/D3voz/comfyui-h3-oneclick-swap",
+        ["H3FaceChunks"] = "https://github.com/D3voz/comfyui-h3-oneclick-swap",
+        ["H3FaceJoin"] = "https://github.com/D3voz/comfyui-h3-oneclick-swap",
+        ["MiniMaxH3FantasticVideoEditLatent"] = "https://github.com/Adudeguyman/ComfyUI-Fantastic-MiniMaxH3-PromptBuilder",
+        ["MiniMaxH3ChainAssemble"] = "https://github.com/ethanfel/ComfyUI-MiniMaxH3-Context-Loop",
+        ["MiniMaxH3ChainLoopStart"] = "https://github.com/ethanfel/ComfyUI-MiniMaxH3-Context-Loop",
     };
 
     // Node class -> a specific pip package it needs (that ComfyUI's Python may be missing) and the

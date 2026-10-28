@@ -53,6 +53,7 @@ namespace FlipPix.UI
             _viewModel.H3ExpressVM.PropertyChanged += H3ExpressVM_PropertyChanged;
             _viewModel.SeedUpscaleVM.PropertyChanged += SeedUpscaleVM_PropertyChanged;
             _viewModel.H3VideoEditorVM.PropertyChanged += H3VideoEditorVM_PropertyChanged;
+            _viewModel.CharacterSwapVM.PropertyChanged += CharacterSwapVM_PropertyChanged;
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
@@ -64,6 +65,7 @@ namespace FlipPix.UI
             ApplyH3ExpressSource();
             ApplySeedUpscaleSource();
             ApplyH3EditorSource();
+            ApplyCharacterSwapSource();
         }
 
         private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -159,6 +161,27 @@ namespace FlipPix.UI
             H3VrVideoPlayer.Position = System.TimeSpan.FromMilliseconds(1);
             H3VrVideoPlayer.Play();
         }
+
+        private void CharacterSwapVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(ViewModels.Video.CharacterSwapViewModel.ActivePreview)) return;
+            if (Dispatcher.CheckAccess()) ApplyCharacterSwapSource();
+            else Dispatcher.Invoke(ApplyCharacterSwapSource);
+        }
+
+        private void ApplyCharacterSwapSource() =>
+            ApplySharedPlayerSource(CharacterSwapPlayer, _viewModel.CharacterSwapVM.ActivePreview);
+
+        private void CharacterSwapPlayer_MediaOpened(object sender, RoutedEventArgs e) => CharacterSwapPlayer.Play();
+
+        private void CharacterSwapPlayer_MediaEnded(object sender, RoutedEventArgs e)
+        {
+            CharacterSwapPlayer.Position = System.TimeSpan.FromMilliseconds(1);
+            CharacterSwapPlayer.Play();
+        }
+
+        private void CharacterSwapLog_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) =>
+            (sender as System.Windows.Controls.TextBox)?.ScrollToEnd();
 
         private void H3VrPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e) =>
             _viewModel.H3VrVM.ReportPreviewFailed(e.ErrorException?.Message ?? "unknown media error");
@@ -710,6 +733,7 @@ namespace FlipPix.UI
             H3ExpressVideoPlayer?.Stop();
             SeedUpscaleVideoPlayer?.Stop();
             H3EditorVideoPlayer?.Stop();
+            CharacterSwapPlayer?.Stop();
         }
 
         protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
@@ -735,6 +759,7 @@ namespace FlipPix.UI
             _viewModel.Scail2VM.SeekRequested -= OnScail2SeekRequested;
             _viewModel.Scail2VM.PropertyChanged -= Scail2VM_PropertyChanged;
             _viewModel.H3VideoEditorVM.PropertyChanged -= H3VideoEditorVM_PropertyChanged;
+            _viewModel.CharacterSwapVM.PropertyChanged -= CharacterSwapVM_PropertyChanged;
             _viewModel.PlayRequested -= OnPlayRequested;
 
             if (_viewModel is IDisposable disposable)

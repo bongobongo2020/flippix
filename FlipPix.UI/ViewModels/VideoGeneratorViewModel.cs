@@ -85,6 +85,12 @@ namespace FlipPix.UI.ViewModels
         /// </summary>
         public H3BatchUpscaleViewModel H3BatchUpscaleVM { get; }
 
+        /// <summary>
+        /// Character Swap ViewModel — Openjutsu's one-click MiniMax H3 character swap: a source video and
+        /// 1–4 character photos in, the same video with those people replaced out.
+        /// </summary>
+        public CharacterSwapViewModel CharacterSwapVM { get; }
+
         // Bound to the main TabControl so code can switch tabs programmatically.
         // 0 = Scail 2 tab.
         private int _selectedTabIndex = 0;
@@ -192,6 +198,15 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
+            CharacterSwapVM = new CharacterSwapViewModel(
+                comfyUIService,
+                lmStudioService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
             // Forward PlayRequested events from sub-VMs
             MainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             Scail2VM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
@@ -209,6 +224,7 @@ namespace FlipPix.UI.ViewModels
             SeedUpscaleVM.PropertyChanged += ForwardPropertyChanged;
             H3VideoEditorVM.PropertyChanged += ForwardPropertyChanged;
             H3BatchUpscaleVM.PropertyChanged += ForwardPropertyChanged;
+            CharacterSwapVM.PropertyChanged += ForwardPropertyChanged;
 
             NavigateToImageGeneratorCommand = new RelayCommand(NavigateToImageGenerator);
 
@@ -448,6 +464,7 @@ namespace FlipPix.UI.ViewModels
                 SeedUpscaleVM.PropertyChanged -= ForwardPropertyChanged;
                 H3VideoEditorVM.PropertyChanged -= ForwardPropertyChanged;
                 H3BatchUpscaleVM.PropertyChanged -= ForwardPropertyChanged;
+                CharacterSwapVM.PropertyChanged -= ForwardPropertyChanged;
 
                 // Dispose all sub-ViewModels
                 (MainVM as IDisposable)?.Dispose();

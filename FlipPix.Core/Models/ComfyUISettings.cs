@@ -344,6 +344,9 @@ public class ComfyUISettings
     // H3 Batch Upscale settings
     public H3BatchUpscaleSettings H3BatchUpscale { get; set; } = new H3BatchUpscaleSettings();
 
+    // Character Swap tab (Openjutsu's MiniMax H3 one-click swap): the last choices on the page.
+    public CharacterSwapSettings CharacterSwap { get; set; } = new CharacterSwapSettings();
+
     // Painter (WAN 2.2 LightX2V) workflow model names — adjust to match your ComfyUI server
     public string PainterHighNoiseModel { get; set; } = @"wan\wan2.2_i2v_high_noise_14B_Q8_0.gguf";
     public string PainterLowNoiseModel { get; set; } = @"wan\wan2.2_i2v_low_noise_14B_Q8_0.gguf";
@@ -557,4 +560,21 @@ public class H3BatchUpscaleSettings
     public int ShiftVideo { get; set; } = 12;
     public int ShiftAudio { get; set; } = 3;
     public int Crf { get; set; } = 19;
+}
+
+public class CharacterSwapSettings
+{
+    public bool Advanced { get; set; }
+    public string Resolution { get; set; } = "736p";
+    public double ClipSeconds { get; set; } = 6;
+    public int MotionSize { get; set; } = 512;
+    public string Margin { get; set; } = "Normal";
+    public bool HatFix { get; set; }
+    public bool NoLipSync { get; set; }
+    public string Target { get; set; } = "person";
+    public int Steps { get; set; } = 6;
+    public string Model { get; set; } = string.Empty;
+    public string Lora { get; set; } = string.Empty;
+    public double LoraStrength { get; set; } = 1.0;
+    public string LastVideoFolder { get; set; } = string.Empty;
 }

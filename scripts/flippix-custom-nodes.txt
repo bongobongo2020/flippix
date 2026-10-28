@@ -24,6 +24,11 @@ https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite # VHS_* (LoadVideo, Vide
 https://github.com/Fannovel16/ComfyUI-Frame-Interpolation # RIFE VFI
 https://github.com/Fannovel16/comfyui_controlnet_aux    # CannyEdgePreprocessor, DWPreprocessor, AIO_Preprocessor, PixelPerfectResolution, OpenPose
 
+# --- MiniMax H3 character swap (Character Swap tab, from Openjutsu) ---
+https://github.com/D3voz/comfyui-h3-oneclick-swap      # H3OneClickSwapPlan, H3AdvancedSwapPlan, H3PeopleMask, H3GreyMannequins, H3SourceSlice, H3ClipShots, H3FillShots, H3TrackCrops, H3TrackRoles, H3RoleMask, H3SoundtrackOrSilence
+https://github.com/Adudeguyman/ComfyUI-Fantastic-MiniMaxH3-PromptBuilder # MiniMaxH3FantasticVideoEditLatent
+https://github.com/ethanfel/ComfyUI-MiniMaxH3-Context-Loop # MiniMaxH3Chain* (clip loop, checkpoints, final assembly)
+
 # --- LTX ---
 https://github.com/Lightricks/ComfyUI-LTXVideo          # LTXV* nodes (img2video, guides, schedulers, VAE)
 

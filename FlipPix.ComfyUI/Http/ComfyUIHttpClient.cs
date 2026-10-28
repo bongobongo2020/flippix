@@ -633,6 +633,25 @@ public class ComfyUIHttpClient : IDisposable
     }
 
     /// <summary>
+    /// Asks ComfyUI to stop the prompt it is running (POST /interrupt). Best-effort: false on failure.
+    /// </summary>
+    public async Task<bool> InterruptAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(_settings.ConnectionTimeout);
+            var response = await _httpClient.PostAsync("/interrupt", null, cts.Token);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning($"POST /interrupt failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Detects the path separator used by the connected ComfyUI host by reading
     /// system.os from /system_stats ("nt" → Windows '\', otherwise POSIX '/').
     /// Cached for the session; defaults to '/' (the POSIX/Linux case) if detection fails.
@@ -1224,6 +1243,13 @@ public class ComfyUIHttpClient : IDisposable
     /// </summary>
     public Task<List<string>> GetUnetFilenamesAsync(CancellationToken cancellationToken = default) =>
         GetComboOptionsAsync("UNETLoader", "unet_name", cancellationToken);
+
+    /// <summary>
+    /// Every file one loader offers for one input (e.g. <c>CLIPLoader.clip_name</c>,
+    /// <c>VAELoader.vae_name</c>), as the server names them. Empty when the server is unreachable.
+    /// </summary>
+    public Task<List<string>> GetModelFilenamesAsync(string nodeClass, string inputName, CancellationToken cancellationToken = default) =>
+        GetComboOptionsAsync(nodeClass, inputName, cancellationToken);
 
     /// <summary>
     /// The values one node class declares for one combo input, read from /object_info/&lt;class&gt;. Empty
