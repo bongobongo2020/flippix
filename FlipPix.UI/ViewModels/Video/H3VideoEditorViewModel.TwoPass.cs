@@ -468,6 +468,7 @@ namespace FlipPix.UI.ViewModels.Video
                 OnPropertyChanged(nameof(TwoPassReviewSummary));
                 OnPropertyChanged(nameof(CanProceedRefine));
                 OnPropertyChanged(nameof(IsAwaitingApproval));
+                OnPropertyChanged(nameof(AnalyzeBlockedHint));
                 OnPropertyChanged(nameof(GenerateLabel));
                 ProceedRefineCommand?.NotifyCanExecuteChanged();
                 NewTakePreviewCommand?.NotifyCanExecuteChanged();

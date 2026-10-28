@@ -24,6 +24,7 @@ namespace FlipPix.UI.ViewModels.Video
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(CanAnalyzeStory))]
         [NotifyPropertyChangedFor(nameof(CanPopulateTimeline))]
+        [NotifyPropertyChangedFor(nameof(AnalyzeBlockedHint))]
         private bool _storyModeEnabled;
 
         [ObservableProperty]
@@ -105,7 +106,47 @@ namespace FlipPix.UI.ViewModels.Video
             ImportStoryFolderCommand = new RelayCommand(async () => await ImportStoryFolderAsync());
             AnalyzeStoryCommand = new AsyncRelayCommand(AnalyzeStoryAsync, () => CanAnalyzeStory);
             PopulateTimelineCommand = new AsyncRelayCommand(PopulateTimelineAsync, () => CanPopulateTimeline);
-            ClearStoryCommand = new RelayCommand(ClearStory);
+            ClearStoryCommand = new RelayCommand(async () => await ClearStoryAsync());
+            AnalyzeStoryCommand.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(IAsyncRelayCommand.IsRunning))
+                    RaiseAnalyzeBlockedHint();
+            };
+        }
+
+        /// <summary>
+        /// Why Analyze is greyed out while an earlier story run is still going (it runs analyze → generate →
+        /// join as one command, and a 2-Pass run parks at the review until Proceed or Cancel). Empty otherwise.
+        /// </summary>
+        public string AnalyzeBlockedHint
+        {
+            get
+            {
+                if (!StoryModeEnabled || AnalyzeStoryCommand?.IsRunning != true || IsAnalyzing || IsPopulating)
+                    return string.Empty;
+                return IsAwaitingApproval
+                    ? "Analyze is waiting on the previous story run, parked at the review. Click \"Happy — proceed\", Cancel, or load another story to release it."
+                    : "Analyze is waiting on the previous story run to finish generating and joining. Cancel stops it.";
+            }
+        }
+
+        private void RaiseAnalyzeBlockedHint() => OnUi(() => OnPropertyChanged(nameof(AnalyzeBlockedHint)));
+
+        /// <summary>
+        /// Loading or clearing a story ends a previous story run parked at the 2-Pass review (its previews stay
+        /// on the timeline), and waits for it to unwind so its tail can't overwrite the new story's status.
+        /// </summary>
+        private async Task ReleaseParkedStoryRunAsync()
+        {
+            if (!IsAwaitingApproval) return;
+            _storyBatchCancelled = true; // a queued batch stops instead of moving on to its next story
+            CancelApproval();
+            var run = AnalyzeStoryCommand.ExecutionTask;
+            if (run != null)
+            {
+                try { await run; }
+                catch { /* the run logs its own errors */ }
+            }
         }
 
         // ── Story Import ──────────────────────────────────────────────────────────────────────────
@@ -125,8 +166,16 @@ namespace FlipPix.UI.ViewModels.Video
                     return;
                 }
 
+                await ReleaseParkedStoryRunAsync();
                 _storyQueue = new List<string>(); // a single import replaces any queued folder
                 await LoadStoryFileAsync(path);
+
+                if (!HasStory)
+                {
+                    AddLog($"Imported story: {StoryFileName} is empty — nothing to analyze.");
+                    StoryStatus = $"⚠ {StoryFileName} is empty — Analyze needs a story with text";
+                    return;
+                }
 
                 AddLog($"Imported story: {StoryFileName} ({StoryText.Length} chars)");
                 StoryStatus = $"Loaded: {StoryFileName}";
@@ -154,6 +203,8 @@ namespace FlipPix.UI.ViewModels.Video
                     return;
                 }
 
+                await ReleaseParkedStoryRunAsync();
+
                 // Each file is its own story: Analyze runs them one after another, each through
                 // analyze → populate → generate. The first is loaded now so the panel shows it.
                 _storyQueue = files;
@@ -163,7 +214,7 @@ namespace FlipPix.UI.ViewModels.Video
                 foreach (var file in files)
                     AddLog($"  {Path.GetFileName(file)}");
                 StoryStatus = files.Count == 1
-                    ? $"Loaded: {StoryFileName}"
+                    ? (HasStory ? $"Loaded: {StoryFileName}" : $"⚠ {StoryFileName} is empty — Analyze needs a story with text")
                     : $"Queued {files.Count} stories — Analyze runs them in order";
             }
             catch (Exception ex)
@@ -185,8 +236,9 @@ namespace FlipPix.UI.ViewModels.Video
             _storyWardrobe = string.Empty;
         }
 
-        private void ClearStory()
+        private async Task ClearStoryAsync()
         {
+            await ReleaseParkedStoryRunAsync();
             _storyQueue = new List<string>();
             StoryText = string.Empty;
             StoryFilePath = string.Empty;
@@ -1135,11 +1187,13 @@ namespace FlipPix.UI.ViewModels.Video
         partial void OnIsAnalyzingChanged(bool value)
         {
             NotifyStoryCommandsCanExecuteChanged();
+            RaiseAnalyzeBlockedHint();
         }
 
         partial void OnIsPopulatingChanged(bool value)
         {
             NotifyStoryCommandsCanExecuteChanged();
+            RaiseAnalyzeBlockedHint();
         }
 
         partial void OnTargetDurationSecondsChanged(double value) => SaveSettings();
