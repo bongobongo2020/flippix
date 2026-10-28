@@ -4113,7 +4113,7 @@
                                                             </ItemsPanelTemplate>
                                                         </ItemsControl.ItemsPanel>
                                                     </ItemsControl>
-                                                    <StackPanel Visibility="{Binding IsUltra, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <StackPanel Visibility="{Binding IsMediaWorkflow, Converter={StaticResource BooleanToVisibilityConverter}}">
                                                         <TextBlock TextWrapping="Wrap" Margin="0,0,0,6" FontSize="10" Foreground="{StaticResource TextMutedBrush}"
                                                                    Text="Up to 3 audio and 3 video clips, each 2–15 s and 15 s in total; at most 12 files across pictures, audio and video. Audio gives a voice, never the only reference."/>
                                                         <TextBlock Text="Reference audio" FontSize="10" FontWeight="SemiBold" Margin="0,4,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
@@ -4156,7 +4156,12 @@
                                                                             <ColumnDefinition Width="*"/>
                                                                             <ColumnDefinition Width="Auto"/>
                                                                             <ColumnDefinition Width="Auto"/>
+                                                                            <ColumnDefinition Width="Auto"/>
                                                                         </Grid.ColumnDefinitions>
+                                                                        <CheckBox Grid.Column="4" Content="♪" IsChecked="{Binding HasSoundtrack}" FontSize="11" Margin="6,0,0,0"
+                                                                                  VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}"
+                                                                                  Visibility="{Binding DataContext.IsTwoPass, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                                                  ToolTip="2-Pass: wire this clip's soundtrack in as its paired audio reference. Untick for a clip with no audio track — VHS cannot extract audio a file does not have."/>
                                                                         <TextBlock Text="{Binding Label}" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"
                                                                                    Foreground="{DynamicResource TabAccentBrush}"/>
                                                                         <TextBlock Grid.Column="1" Text="{Binding FileName}" FontSize="10" VerticalAlignment="Center"
@@ -4177,6 +4182,10 @@
                                                             </ItemsControl.ItemTemplate>
                                                         </ItemsControl>
                                                         <TextBlock Text="{Binding UltraMediaSummary}" FontSize="10" TextWrapping="Wrap" Margin="0,4,0,0"
+                                                                   Visibility="{Binding IsUltra, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                                        <TextBlock Text="{Binding TwoPassMediaSummary}" FontSize="10" TextWrapping="Wrap" Margin="0,4,0,0"
+                                                                   Visibility="{Binding IsTwoPass, Converter={StaticResource BooleanToVisibilityConverter}}"
                                                                    Foreground="{StaticResource TextMutedBrush}"/>
                                                     </StackPanel>
                                                 </StackPanel>
@@ -4237,6 +4246,84 @@
                                                 </Grid>
                                                 <TextBlock Text="{Binding UltraFrameSummary}" Visibility="{Binding IsUltra, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="0,2,0,0"
                                                            FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                                                <!-- 🌹 2-Pass: its duration, preview and Continue mode — per-take choices, so on this card. -->
+                                                <StackPanel Visibility="{Binding IsTwoPass, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <Grid Margin="0,8,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="Duration" VerticalAlignment="Center"
+                                                                   FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                        <Slider Grid.Column="1" Margin="8,0"
+                                                                Minimum="3" Maximum="15" TickFrequency="0.5" IsSnapToTickEnabled="True"
+                                                                Value="{Binding TwoPass.DurationSeconds}" VerticalAlignment="Center"
+                                                                ToolTip="'Duration in secs — Preview + Full': 15 as authored. Turned into frames by the graph's own expression, max(5, round(s × 24)) snapped up to H3's 17k+5 grid. In Continue mode it includes the guide window, and only the part after it is appended."/>
+                                                        <TextBlock Grid.Column="2" Text="{Binding TwoPass.DurationSeconds, StringFormat={}{0:0.#}s}"
+                                                                   VerticalAlignment="Center" FontFamily="Consolas" FontSize="11"
+                                                                   Foreground="{DynamicResource TabAccentBrush}" MinWidth="30" TextAlignment="Right"/>
+                                                    </Grid>
+                                                    <TextBlock Text="{Binding TwoPassFrameSummary}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                                               FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                                                    <CheckBox Content="👁 Preview — first pass only" IsChecked="{Binding TwoPass.PreviewOnly}"
+                                                              FontSize="11" Margin="0,8,0,0" Foreground="{StaticResource TextPrimaryBrush}"
+                                                              ToolTip="'Preview - skip second pass': skips the learned latent upscale and the refining pass and saves the first-pass video with its audio. Off as authored.&#x0a;&#x0a;Reusing a preview: render with a fixed seed, then queue it again with Preview off and nothing else changed — if ComfyUI still holds the cached first pass, the full take goes straight to the upscale and refinement."/>
+
+                                                    <Border Margin="0,10,0,0" Padding="8" CornerRadius="6" BorderThickness="1"
+                                                            BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}">
+                                                        <StackPanel>
+                                                            <CheckBox Content="⏩ Continue a video (experimental)" IsChecked="{Binding TwoPass.ContinueMode}"
+                                                                      FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"
+                                                                      ToolTip="'Normal / Continue'. On: the end of an existing video guides both passes, and the saved file is that whole video with the new part appended. Keep the prompt consistent with the scene and describe what happens next. FrameGen is skipped and the output stays 24 fps."/>
+                                                            <StackPanel Margin="18,6,0,0" Visibility="{Binding TwoPass.ContinueMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <TextBlock Text="{Binding TwoPassContinueSourceName}" ToolTip="{Binding TwoPassContinueSource}"
+                                                                               FontSize="10" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                                    <Button Grid.Column="1" Content="Browse…" Height="24" FontSize="10" Padding="8,0" Margin="4,0,0,0"
+                                                                            Command="{Binding BrowseContinueSourceCommand}"
+                                                                            Style="{StaticResource AccentOutlineButtonStyle}"
+                                                                            ToolTip="The video to continue. It is uploaded when the take runs, so it does not have to be on the server already. It must hold at least the guide window's frames."/>
+                                                                    <Button Grid.Column="2" Content="Last result" Height="24" FontSize="10" Padding="8,0" Margin="4,0,0,0"
+                                                                            Command="{Binding UseLastResultAsSourceCommand}"
+                                                                            Style="{StaticResource AccentOutlineButtonStyle}"
+                                                                            ToolTip="Continue the video this tab rendered last — chain takes into one long video."/>
+                                                                    <Button Grid.Column="3" Content="✕" Width="24" Height="24" FontSize="9" Padding="0" Margin="4,0,0,0"
+                                                                            Style="{StaticResource SecondaryButtonStyle}"
+                                                                            Command="{Binding ClearContinueSourceCommand}"/>
+                                                                </Grid>
+                                                                <Grid Margin="0,6,0,0">
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="90"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <TextBlock Text="Guide window (frames)" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                                    <ComboBox Grid.Column="1" ItemsSource="{Binding TwoPassGuideWindowOptions}" SelectedItem="{Binding TwoPass.GuideFrames}"
+                                                                              Height="24" FontSize="11"
+                                                                              ToolTip="How much of the video's ending guides the new generation: 22 ≈ 0.92 s, 39 ≈ 1.63 s, 56 ≈ 2.33 s (as authored). Longer gives more context at more cost; it does not guarantee identical appearance, lighting or voice."/>
+                                                                </Grid>
+                                                                <CheckBox Content="Previous video has audio" IsChecked="{Binding TwoPass.PreviousHasAudio}" FontSize="11" Margin="0,6,0,0"
+                                                                          Foreground="{StaticResource TextPrimaryBrush}"
+                                                                          ToolTip="On keeps its soundtrack; off supplies silence for the previous section. Turn off for a silent video."/>
+                                                                <CheckBox Content="Use its ending audio as a guide" IsChecked="{Binding TwoPass.UseSourceAudioGuide}" FontSize="11" Margin="0,4,0,0"
+                                                                          IsEnabled="{Binding TwoPass.PreviousHasAudio}" Foreground="{StaticResource TextPrimaryBrush}"
+                                                                          ToolTip="Also guides the new audio with the same window of the soundtrack. Needs a video with audio."/>
+                                                                <CheckBox Content="Use its last frame as a picture reference" IsChecked="{Binding TwoPass.UseLastFrameReference}" FontSize="11" Margin="0,4,0,0"
+                                                                          Foreground="{StaticResource TextPrimaryBrush}"
+                                                                          ToolTip="Adds the source's final frame as the last &lt;Picture N&gt; — after every picture loaded above."/>
+                                                            </StackPanel>
+                                                            <TextBlock Text="{Binding TwoPassContinueSummary}" FontSize="10" TextWrapping="Wrap" Margin="0,6,0,0"
+                                                                       Foreground="{StaticResource TextMutedBrush}"/>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </StackPanel>
 
                                                 <Button Command="{Binding AnalyzeAndQueueCommand}" Height="42" Margin="0,14,0,0"
                                                         Style="{StaticResource AccentButtonStyle}" FontSize="13"
@@ -4305,6 +4392,18 @@
                                                                 Command="{Binding ResetUltraCommand}"
                                                                 Style="{StaticResource AccentOutlineButtonStyle}"
                                                                 ToolTip="Put every Ultra dial back on the value the workflow was tested with."/>
+                                                    </Grid>
+                                                    <Grid Margin="0,8,0,0" Visibility="{Binding IsTwoPass, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="{Binding TwoPassAuthoredBadge}" FontSize="10" TextWrapping="Wrap" VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                                        <Button Grid.Column="1" Content="&#x21BA; Workflow defaults" Height="24" Padding="8,0" FontSize="10" Margin="6,0,0,0"
+                                                                Command="{Binding ResetTwoPassCommand}"
+                                                                Style="{StaticResource AccentOutlineButtonStyle}"
+                                                                ToolTip="Put every 2-Pass dial back on the workflow's authored value, and clear its LoRA rows and RefMods."/>
                                                     </Grid>
                                                 </StackPanel>
                                             </Border>
@@ -4710,6 +4809,564 @@
                                                             TickFrequency="1" IsSnapToTickEnabled="True" SmallChange="1" LargeChange="1"
                                                             Foreground="{DynamicResource TabAccentBrush}"
                                                             ToolTip="num_blocks: blocks from the end to swap to system RAM. -1 swaps all, as authored."/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- ─── 🌹 ErosMax Turbo 2-Pass ──────────────────────────────
+                                                 Only shown when the workflow dropdown is on 2-Pass. Every dial opens on
+                                                 the authored workflow's value. See MiniMaxI2VViewModel.TwoPass.cs. -->
+                                            <Border Style="{StaticResource SectionCardStyle}" Visibility="{Binding IsTwoPass, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <StackPanel>
+                                                    <ctrl:SectionHeader Title="🌹 2-PASS · MODEL &amp; LORAS" Note="  · as authored" Margin="0,0,0,8"/>
+                                                    <TextBlock Text="Model" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Grid Margin="0,0,0,4">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <ComboBox ItemsSource="{Binding DiffusionModelOptions}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                                  SelectedValue="{Binding TwoPass.DiffusionModel}" Height="28" FontSize="11" Margin="0,0,6,0"
+                                                                  ToolTip="UNETLoader. The workflow ships 10Eros Max b7 8-step TURBO int8HQ, which has the Turbo LoRA baked in. Use a checkpoint compatible with its Turbo sampling."/>
+                                                        <Button Grid.Column="1" Content="&#x27F3;" Width="28" Height="28" FontSize="13"
+                                                                Command="{Binding RefreshDiffusionModelsCommand}"
+                                                                Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                ToolTip="Re-read diffusion_models/h3-minimax from ComfyUI."/>
+                                                    </Grid>
+                                                    <TextBlock Text="Text encoder" FontSize="10" FontWeight="SemiBold" Margin="0,8,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <ComboBox ItemsSource="{Binding TwoPassTextEncoderOptions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding TwoPass.TextEncoder}"
+                                                              Height="28" FontSize="11" Margin="0,0,0,4"
+                                                              ToolTip="CLIPLoader, type minimax. The workflow loads qwen3vl 32b w4a8 convrot."/>
+                                                    <TextBlock Text="Video VAE" FontSize="10" FontWeight="SemiBold" Margin="0,8,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <ComboBox ItemsSource="{Binding TwoPassVideoVaeOptions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding TwoPass.VideoVae}"
+                                                              Height="28" FontSize="11" Margin="0,0,0,4"
+                                                              ToolTip="The video VAE. int8 convrot as authored; the audio VAE stays minimax_h3_audio_vae_fp32."/>
+
+                                                    <CheckBox Content="Turbo LoRA (only for a model without Turbo)" IsChecked="{Binding TwoPass.UseTurboLora}" FontSize="11" Margin="0,10,0,2"
+                                                              Foreground="{StaticResource TextPrimaryBrush}"
+                                                              ToolTip="'Load TURBO LoRA (skip if model includes it)': minimax_h3_fl2v_lightx2v_turbo_4step_v0.1, bypassed as authored because b7 already includes it. Turn on only for a checkpoint that needs the separate LoRA. Found wherever it lives in loras/ on the server."/>
+                                                    <Grid Margin="18,2,0,0" Visibility="{Binding TwoPass.UseTurboLora, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="strength" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                        <Slider Grid.Column="1" Minimum="0" Maximum="2" Value="{Binding TwoPass.TurboLoraStrength}" Margin="8,0"
+                                                                TickFrequency="0.05" IsSnapToTickEnabled="True" Foreground="{DynamicResource TabAccentBrush}"/>
+                                                        <TextBlock Grid.Column="2" Text="{Binding TwoPass.TurboLoraStrength, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11"
+                                                                   Foreground="{DynamicResource TabAccentBrush}" VerticalAlignment="Center"/>
+                                                    </Grid>
+
+                                                    <Grid Margin="0,10,0,4">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="LoRA stack (H3 Power LoRA Stack)" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                        <Button Grid.Column="1" Content="＋ Add" Height="22" Padding="8,0" FontSize="10"
+                                                                Command="{Binding AddTwoPassLoraCommand}"
+                                                                Style="{StaticResource AccentOutlineButtonStyle}"
+                                                                ToolTip="Add a row to the H3 Power LoRA Stack — it handles quantized checkpoints and adaLN mismatches that a plain loader gets wrong. Up to eight rows, applied in order."/>
+                                                        <Button Grid.Column="2" Content="&#x27F3;" Width="24" Height="22" FontSize="11" Margin="4,0,0,0" Padding="0"
+                                                                Command="{Binding RefreshLorasCommand}"
+                                                                Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                ToolTip="Re-read loras/H3 from ComfyUI."/>
+                                                    </Grid>
+                                                    <ItemsControl ItemsSource="{Binding TwoPassLoras}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Grid Margin="0,0,0,6">
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <StackPanel>
+                                                                        <ComboBox ItemsSource="{Binding DataContext.LoraOptions, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                                  DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                                                  SelectedValue="{Binding Name, Mode=TwoWay}" Height="28" FontSize="11"/>
+                                                                        <Grid Margin="0,3,0,0" Visibility="{Binding HasLora, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                            <Grid.ColumnDefinitions>
+                                                                                <ColumnDefinition Width="*"/>
+                                                                                <ColumnDefinition Width="Auto"/>
+                                                                            </Grid.ColumnDefinitions>
+                                                                            <Slider Value="{Binding Strength}" Minimum="0" Maximum="2" TickFrequency="0.05" IsSnapToTickEnabled="True"
+                                                                                    Foreground="{DynamicResource TabAccentBrush}" ToolTip="Row strength. 0 leaves the row out."/>
+                                                                            <TextBlock Grid.Column="1" Text="{Binding Strength, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11" Margin="6,0,0,0"
+                                                                                       VerticalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"/>
+                                                                        </Grid>
+                                                                    </StackPanel>
+                                                                    <Button Grid.Column="1" Content="&#x2715;" Width="22" Height="28" FontSize="10" Margin="4,0,0,0" Padding="0" VerticalAlignment="Top"
+                                                                            Command="{Binding DataContext.RemoveTwoPassLoraCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                            CommandParameter="{Binding}"
+                                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextMutedBrush}"
+                                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" ToolTip="Drop this LoRA."/>
+                                                                </Grid>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                    <Expander Header="Stack options" IsExpanded="False" FontSize="11" Margin="0,2,0,0">
+                                                        <StackPanel Margin="0,4,0,0">
+                                                            <TextBlock Text="Quantized layers" FontSize="10" Margin="0,0,0,2" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                            <ComboBox ItemsSource="{Binding TwoPassQuantizedLayerOptions}" SelectedItem="{Binding TwoPass.QuantizedLayers}" Height="26" FontSize="11"
+                                                                      ToolTip="auto: runtime branch for quantized layers, merge for the rest. branch: never modify a weight. merge: stock behaviour (destroys LoRAs on w4a8/int4)."/>
+                                                            <TextBlock Text="adaLN port" FontSize="10" Margin="0,6,0,2" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                            <ComboBox ItemsSource="{Binding TwoPassAdalnOptions}" SelectedItem="{Binding TwoPass.AdalnPort}" Height="26" FontSize="11"
+                                                                      ToolTip="auto: rebase adaLN pairs between dense and curve checkpoints. strip: drop mismatched pairs. off: leave them."/>
+                                                        </StackPanel>
+                                                    </Expander>
+
+                                                    <TextBlock Text="Sigma shift" FontSize="10" FontWeight="SemiBold" Margin="0,10,0,0" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Grid Margin="0,4,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="44"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="Video" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                        <Slider Grid.Column="1" Minimum="1" Maximum="20" Value="{Binding TwoPass.ShiftVideo}" TickFrequency="0.5" IsSnapToTickEnabled="True"
+                                                                Foreground="{DynamicResource TabAccentBrush}" ToolTip="MiniMaxH3SigmaShift shift_video. 12 as authored."/>
+                                                        <TextBlock Grid.Column="2" Text="{Binding TwoPass.ShiftVideo, StringFormat={}{0:0.0}}" FontFamily="Consolas" FontSize="11" Margin="6,0,0,0"
+                                                                   VerticalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    </Grid>
+                                                    <Grid Margin="0,4,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="44"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="Audio" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                        <Slider Grid.Column="1" Minimum="1" Maximum="10" Value="{Binding TwoPass.ShiftAudio}" TickFrequency="0.5" IsSnapToTickEnabled="True"
+                                                                Foreground="{DynamicResource TabAccentBrush}" ToolTip="MiniMaxH3SigmaShift shift_audio. 3 as authored."/>
+                                                        <TextBlock Grid.Column="2" Text="{Binding TwoPass.ShiftAudio, StringFormat={}{0:0.0}}" FontFamily="Consolas" FontSize="11" Margin="6,0,0,0"
+                                                                   VerticalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    </Grid>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Style="{StaticResource SectionCardStyle}" Visibility="{Binding IsTwoPass, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <StackPanel>
+                                                    <ctrl:SectionHeader Title="🌹 2-PASS · CANVAS" Note="" Margin="0,0,0,8"/>
+                                                    <TextBlock Text="Aspect ratio" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <ComboBox ItemsSource="{Binding AspectRatioOptions}" SelectedItem="{Binding TwoPass.AspectRatio}"
+                                                              Height="28" FontSize="11" Margin="0,0,0,4"
+                                                              ToolTip="'Selector First LowRes Pass' aspect. 4:3 as authored; Auto follows picture 1. The second pass keeps the first pass's actual aspect."/>
+                                                    <TextBlock Text="First pass (low-res)" FontSize="10" FontWeight="SemiBold" Margin="0,8,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <ComboBox ItemsSource="{Binding TwoPassFirstPassMegapixels}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding TwoPass.FirstPassMegapixels}"
+                                                              Height="28" FontSize="11" Margin="0,0,0,4"
+                                                              ToolTip="The size the video is established at, multiple 32. 0.3 MP as authored; the author's note: 0.4 MP then a refine past 1 MP if the machine allows."/>
+                                                    <TextBlock Text="Final target (second pass, before RTX)" FontSize="10" FontWeight="SemiBold" Margin="0,8,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <ComboBox ItemsSource="{Binding TwoPassFinalMegapixels}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding TwoPass.FinalMegapixels}"
+                                                              Height="28" FontSize="11" Margin="0,0,0,4"
+                                                              ToolTip="'Final Target Megapixels (2nd Pass)': what the learned latent upscaler lifts the first pass to. 1.0 MP as authored."/>
+                                                    <TextBlock Text="{Binding TwoPassCanvasSummary}" FontSize="10" TextWrapping="Wrap" Margin="0,2,0,4"
+                                                               Foreground="{StaticResource TextMutedBrush}"/>
+                                                    <CheckBox Content="Max-fidelity references (ref_image_size: max)" IsChecked="{Binding TwoPass.MaxFidelityReferences}" FontSize="11" Margin="0,6,0,2"
+                                                              Foreground="{StaticResource TextPrimaryBrush}"
+                                                              ToolTip="Off as authored ('match': each reference scaled down to the generation's area). On feeds them at a 2048px short edge for best identity fidelity, at more cost."/>
+                                                    <TextBlock Text="Seed (-1 = random)" FontSize="10" FontWeight="SemiBold" Margin="0,8,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBox Text="{Binding Seed, UpdateSourceTrigger=PropertyChanged}"
+                                                                 Height="28" Padding="6,0" VerticalContentAlignment="Center"
+                                                                 BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                                                 FontSize="12" FontFamily="Consolas" Margin="0,0,6,0"
+                                                                 ToolTip="One noise seed for both passes. Fix it when comparing changes, or to reuse a cached preview."/>
+                                                        <Button Grid.Column="1" Content="🎲" Command="{Binding RandomSeedCommand}" Height="28" Width="36" FontSize="14"
+                                                                Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                    </Grid>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Style="{StaticResource SectionCardStyle}" Visibility="{Binding IsTwoPass, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <StackPanel>
+                                                    <ctrl:SectionHeader Title="🌹 2-PASS · SAMPLING" Note="" Margin="0,0,0,8"/>
+                                                    <TextBlock Text="Sampler (both passes)" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <ComboBox ItemsSource="{Binding TwoPassSamplerOptions}" SelectedItem="{Binding TwoPass.Sampler}" Height="28" FontSize="11"
+                                                              ToolTip="KSamplerSelect. er_sde as authored."/>
+                                                    <TextBlock Text="First pass" FontSize="10" FontWeight="SemiBold" Margin="0,10,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <ComboBox ItemsSource="{Binding TwoPassSchedulerOptions}" SelectedItem="{Binding TwoPass.FirstPassScheduler}" Height="26" FontSize="11" Margin="0,0,6,0"
+                                                                  ToolTip="'Scheduler First Pass'. sgm_uniform as authored."/>
+                                                        <Slider Grid.Column="1" Minimum="2" Maximum="16" Value="{Binding TwoPass.FirstPassSteps}" TickFrequency="1" IsSnapToTickEnabled="True"
+                                                                VerticalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"
+                                                                ToolTip="First-pass steps, 8 as authored. More can add detail and better audio; past 8 the returns diminish."/>
+                                                        <TextBlock Grid.Column="2" Text="{Binding TwoPass.FirstPassSteps, StringFormat={}{0} steps}" FontFamily="Consolas" FontSize="11" Margin="6,0,0,0"
+                                                                   VerticalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    </Grid>
+                                                    <TextBlock Text="Latent upscaler" FontSize="10" FontWeight="SemiBold" Margin="0,10,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <ComboBox ItemsSource="{Binding TwoPassUpscalerOptions}" SelectedItem="{Binding TwoPass.LatentUpscaler}" Height="26" FontSize="11"
+                                                              ToolTip="MinimaxH3LatentUpscaler3D, 'megapixels' mode to the final target. The 3D fp16 upscaler as authored."/>
+                                                    <TextBlock Text="Second pass (refine)" FontSize="10" FontWeight="SemiBold" Margin="0,10,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <StackPanel IsEnabled="{Binding TwoPassUsesScheduler2}">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <ComboBox ItemsSource="{Binding TwoPassSchedulerOptions}" SelectedItem="{Binding TwoPass.SecondPassScheduler}" Height="26" FontSize="11" Margin="0,0,6,0"
+                                                                      ToolTip="'Scheduler Second Pass'. beta as authored."/>
+                                                            <Slider Grid.Column="1" Minimum="1" Maximum="10" Value="{Binding TwoPass.SecondPassSteps}" TickFrequency="1" IsSnapToTickEnabled="True"
+                                                                    VerticalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"
+                                                                    ToolTip="Refining steps, 3 as authored (fast). The author's quality recipe: 4–6 with sparse attention off."/>
+                                                            <TextBlock Grid.Column="2" Text="{Binding TwoPass.SecondPassSteps, StringFormat={}{0} steps}" FontFamily="Consolas" FontSize="11" Margin="6,0,0,0"
+                                                                       VerticalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"/>
+                                                        </Grid>
+                                                        <Grid Margin="0,4,0,0">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Text="denoise" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                            <Slider Grid.Column="1" Minimum="0.1" Maximum="1" Value="{Binding TwoPass.SecondPassDenoise}" TickFrequency="0.05" IsSnapToTickEnabled="True" Margin="8,0"
+                                                                    Foreground="{DynamicResource TabAccentBrush}" ToolTip="How much of the noise range the refinement re-runs. 0.40 as authored."/>
+                                                            <TextBlock Grid.Column="2" Text="{Binding TwoPass.SecondPassDenoise, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11"
+                                                                       VerticalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"/>
+                                                        </Grid>
+                                                    </StackPanel>
+                                                    <CheckBox Content="Manual second-pass sigmas instead" IsChecked="{Binding TwoPass.UseManualSigmas}" FontSize="11" Margin="0,6,0,2"
+                                                              Foreground="{StaticResource TextPrimaryBrush}"
+                                                              ToolTip="'Manual Second Pass Sigmas': the refinement's noise range written out by hand. Use the scheduler or manual, not both. Off as authored."/>
+                                                    <TextBox Text="{Binding TwoPass.ManualSigmas, UpdateSourceTrigger=LostFocus}" IsEnabled="{Binding TwoPass.UseManualSigmas}"
+                                                             Height="26" Padding="6,0" VerticalContentAlignment="Center" FontFamily="Consolas" FontSize="11"
+                                                             BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                                             ToolTip="Comma-separated, descending to 0. The workflow's: 0.9035, 0.6316, 0.3158, 0.000."/>
+                                                    <TextBlock Text="{Binding TwoPassSamplingSummary}" FontSize="10" TextWrapping="Wrap" Margin="0,6,0,0"
+                                                               Foreground="{StaticResource TextMutedBrush}"/>
+                                                    <CheckBox Content="Export the first pass's audio" IsChecked="{Binding TwoPass.UseFirstPassAudio}" FontSize="11" Margin="0,8,0,0"
+                                                              Foreground="{StaticResource TextPrimaryBrush}"
+                                                              ToolTip="'Use first pass audio?' On as authored: the soundtrack comes from pass 1. Off exports pass 2's. A preview always uses pass 1's."/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Style="{StaticResource SectionCardStyle}" Visibility="{Binding IsTwoPass, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <StackPanel>
+                                                    <ctrl:SectionHeader Title="🌹 2-PASS · ATTENTION" Note="" Margin="0,0,0,8"/>
+                                                    <TextBlock Text="Attention backend" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <ComboBox ItemsSource="{Binding TwoPassAttentionOptions}" SelectedItem="{Binding TwoPass.AttentionBackend}" Height="28" FontSize="11"
+                                                              ToolTip="ModelAttentionBackend. comfy kitchen attention (quantized INT8, Nvidia/AMD) as authored."/>
+                                                    <CheckBox Content="Block-sparse attention" IsChecked="{Binding TwoPass.UseSparseAttention}" FontSize="11" Margin="0,8,0,2"
+                                                              Foreground="{StaticResource TextPrimaryBrush}"
+                                                              ToolTip="BlockSparseAttention — on as authored (VSA, keep 10%, blocks 0 and 1 dense). The author's quality recipe turns it off and raises the second-pass steps."/>
+                                                    <StackPanel Margin="18,2,0,0" Visibility="{Binding TwoPass.UseSparseAttention, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Text="method" FontSize="10" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                            <ComboBox Grid.Column="1" ItemsSource="{Binding TwoPassSparseMethods}" SelectedItem="{Binding TwoPass.SparseMethod}" Height="26" FontSize="11"
+                                                                      ToolTip="vsa (as authored) and sla keep a percentage of key blocks; sol-attn picks them per head with an adaptive threshold (tau)."/>
+                                                        </Grid>
+                                                        <Grid Margin="0,4,0,0" Visibility="{Binding TwoPassUsesKeepPercent, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Text="keep %" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                            <Slider Grid.Column="1" Minimum="0.5" Maximum="95" Value="{Binding TwoPass.SparseKeepPercent}" TickFrequency="0.5" IsSnapToTickEnabled="True" Margin="8,0"
+                                                                    Foreground="{DynamicResource TabAccentBrush}" ToolTip="keep_percent. 10 as authored."/>
+                                                            <TextBlock Grid.Column="2" Text="{Binding TwoPass.SparseKeepPercent, StringFormat={}{0:0.#}}" FontFamily="Consolas" FontSize="11"
+                                                                       VerticalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"/>
+                                                        </Grid>
+                                                        <Grid Margin="0,4,0,0" Visibility="{Binding TwoPassUsesTau, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Text="tau" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                            <Slider Grid.Column="1" Minimum="0" Maximum="4" Value="{Binding TwoPass.SparseTau}" TickFrequency="0.05" IsSnapToTickEnabled="True" Margin="8,0"
+                                                                    Foreground="{DynamicResource TabAccentBrush}" ToolTip="sol-attn threshold. Higher is sparser."/>
+                                                            <TextBlock Grid.Column="2" Text="{Binding TwoPass.SparseTau, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11"
+                                                                       VerticalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"/>
+                                                        </Grid>
+                                                        <Grid Margin="0,4,0,0">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Text="start" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                            <Slider Grid.Column="1" Minimum="0" Maximum="1" Value="{Binding TwoPass.SparseStart}" TickFrequency="0.05" IsSnapToTickEnabled="True" Margin="8,0"
+                                                                    Foreground="{DynamicResource TabAccentBrush}" ToolTip="start_percent. 0 as authored."/>
+                                                            <TextBlock Grid.Column="2" Text="{Binding TwoPass.SparseStart, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11"
+                                                                       VerticalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"/>
+                                                        </Grid>
+                                                        <Grid Margin="0,4,0,0">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Text="end" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                            <Slider Grid.Column="1" Minimum="0" Maximum="1" Value="{Binding TwoPass.SparseEnd}" TickFrequency="0.05" IsSnapToTickEnabled="True" Margin="8,0"
+                                                                    Foreground="{DynamicResource TabAccentBrush}" ToolTip="end_percent. 1 as authored."/>
+                                                            <TextBlock Grid.Column="2" Text="{Binding TwoPass.SparseEnd, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11"
+                                                                       VerticalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"/>
+                                                        </Grid>
+                                                        <Grid Margin="0,4,0,0">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Text="dense blocks" FontSize="10" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                            <TextBox Grid.Column="1" Text="{Binding TwoPass.DenseBlocks, UpdateSourceTrigger=LostFocus}" Height="24" FontFamily="Consolas" FontSize="11" Padding="4,0"
+                                                                     VerticalContentAlignment="Center" BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                                                     ToolTip="Transformer blocks that always run dense, e.g. '0, 1, 47-49'. '0,1' as authored."/>
+                                                        </Grid>
+                                                        <Grid Margin="0,4,0,0">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Text="sink" FontSize="10" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                            <ComboBox Grid.Column="1" ItemsSource="{Binding TwoPassSinkOptions}" SelectedItem="{Binding TwoPass.SinkConditioning}" Height="24" FontSize="11"
+                                                                      ToolTip="exact_kv_and_rows (as authored) keeps the generated audio rows dense; exact_kv attends the reference rows exactly at ~3% cost."/>
+                                                        </Grid>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Style="{StaticResource SectionCardStyle}" Visibility="{Binding IsTwoPass, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <StackPanel>
+                                                    <ctrl:SectionHeader Title="🌹 2-PASS · OUTPUT" Note="" Margin="0,0,0,8"/>
+                                                    <CheckBox Content="RTX Video Super Resolution" IsChecked="{Binding TwoPass.UseRtxUpscale}" FontSize="11"
+                                                              Foreground="{StaticResource TextPrimaryBrush}"
+                                                              ToolTip="Runs after decoding and raises the exported resolution. On at ×1.2, ULTRA as authored; off keeps the decoded size."/>
+                                                    <StackPanel Margin="18,2,0,0" Visibility="{Binding TwoPass.UseRtxUpscale, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Text="scale" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                            <Slider Grid.Column="1" Minimum="1" Maximum="4" Value="{Binding TwoPass.RtxScale}" TickFrequency="0.1" IsSnapToTickEnabled="True" Margin="8,0"
+                                                                    Foreground="{DynamicResource TabAccentBrush}"/>
+                                                            <TextBlock Grid.Column="2" Text="{Binding TwoPass.RtxScale, StringFormat=×{0:0.0}}" FontFamily="Consolas" FontSize="11"
+                                                                       VerticalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"/>
+                                                        </Grid>
+                                                        <ComboBox ItemsSource="{Binding TwoPassRtxQualityOptions}" SelectedItem="{Binding TwoPass.RtxQuality}" Height="24" FontSize="11" Margin="0,4,0,0"/>
+                                                    </StackPanel>
+
+                                                    <TextBlock Text="RTX FrameGen multiplier" FontSize="10" FontWeight="SemiBold" Margin="0,10,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Slider Minimum="1" Maximum="5" Value="{Binding TwoPass.FrameGenMultiplier}" TickFrequency="1" IsSnapToTickEnabled="True"
+                                                                Foreground="{DynamicResource TabAccentBrush}"
+                                                                ToolTip="Sets interpolation and export fps together: 1× skips FrameGen (24 fps), 2×/3×/4×/5× save 48/72/96/120 fps. Normal mode only. Compute and memory hungry."/>
+                                                        <TextBlock Grid.Column="1" Text="{Binding TwoPass.FrameGenMultiplier, StringFormat=×{0}}" FontFamily="Consolas" FontSize="11" Margin="6,0,0,0"
+                                                                   VerticalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    </Grid>
+                                                    <TextBlock Text="{Binding TwoPassFrameGenNote}" FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"/>
+                                                    <ComboBox ItemsSource="{Binding TwoPassFrameGenModes}" SelectedItem="{Binding TwoPass.FrameGenMode}" Height="24" FontSize="11" Margin="0,4,0,0"
+                                                              ToolTip="Frame-generation quality mode. HIGH as authored."/>
+
+                                                    <TextBlock Text="Output grain (Lokken, 0 = off)" FontSize="10" FontWeight="SemiBold" Margin="0,10,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Slider Minimum="0" Maximum="0.03" Value="{Binding TwoPass.GrainStrength}" TickFrequency="0.001" IsSnapToTickEnabled="True"
+                                                                Foreground="{DynamicResource TabAccentBrush}"
+                                                                ToolTip="Film grain added during encoding, after RTX. 0.005 as authored; 0.005–0.010 recommended. In Continue mode only the new segment gets grain. Needs Lokken VideoTools on the server."/>
+                                                        <TextBlock Grid.Column="1" Text="{Binding TwoPass.GrainStrength, StringFormat={}{0:0.000}}" FontFamily="Consolas" FontSize="11" Margin="6,0,0,0"
+                                                                   VerticalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    </Grid>
+                                                    <Grid Margin="0,8,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="CRF" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                        <Slider Grid.Column="1" Minimum="0" Maximum="35" Value="{Binding TwoPass.Crf}" TickFrequency="1" IsSnapToTickEnabled="True" Margin="8,0"
+                                                                Foreground="{DynamicResource TabAccentBrush}" ToolTip="H.264 quality. 18 as authored; lower is larger and cleaner."/>
+                                                        <TextBlock Grid.Column="2" Text="{Binding TwoPass.Crf}" FontFamily="Consolas" FontSize="11"
+                                                                   VerticalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    </Grid>
+                                                    <TextBlock Text="Encoder preset" FontSize="10" FontWeight="SemiBold" Margin="0,8,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <ComboBox ItemsSource="{Binding TwoPassEncoderPresets}" SelectedItem="{Binding TwoPass.EncoderPreset}" Height="26" FontSize="11"
+                                                              ToolTip="'Output saving quality — encoder preset'. medium as authored: faster presets give bigger files at lower quality, slower ones better H.264 at longer encodes."/>
+                                                    <TextBlock Text="{Binding TwoPassOutputSummary}" FontSize="10" TextWrapping="Wrap" Margin="0,6,0,0"
+                                                               Foreground="{StaticResource TextMutedBrush}"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Style="{StaticResource SectionCardStyle}" Visibility="{Binding IsTwoPass, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <StackPanel>
+                                                    <Grid Margin="0,0,0,6">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <ctrl:SectionHeader Title="🌹 2-PASS · REFMODS" Note="  · optional" VerticalAlignment="Center"/>
+                                                        <Button Grid.Column="1" Content="＋ Add" Height="22" Padding="8,0" FontSize="10"
+                                                                Command="{Binding AddRefModCommand}" Style="{StaticResource AccentOutlineButtonStyle}"
+                                                                ToolTip="Add a RefMod slot — a saved reference from models/refmods (ComfyUI-MiniMaxH3Mod). Up to eight."/>
+                                                        <Button Grid.Column="2" Content="&#x27F3;" Width="24" Height="22" FontSize="11" Margin="4,0,0,0" Padding="0"
+                                                                Command="{Binding RefreshRefModsCommand}"
+                                                                Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                ToolTip="Re-read models/refmods from ComfyUI."/>
+                                                    </Grid>
+                                                    <TextBlock TextWrapping="Wrap" FontSize="10" Margin="0,0,0,6" Foreground="{StaticResource TextMutedBrush}"
+                                                               Text="Applied once to the conditioning both passes read, in Normal and Continue mode. Describe the subject in the prompt — file names and &lt;Subject N&gt; do not bind to slots. Start with one copy."/>
+                                                    <ItemsControl ItemsSource="{Binding TwoPassRefMods}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Border Margin="0,0,0,6" Padding="6" CornerRadius="6" BorderThickness="1"
+                                                                        BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}">
+                                                                    <StackPanel>
+                                                                        <Grid>
+                                                                            <Grid.ColumnDefinitions>
+                                                                                <ColumnDefinition Width="*"/>
+                                                                                <ColumnDefinition Width="72"/>
+                                                                                <ColumnDefinition Width="Auto"/>
+                                                                            </Grid.ColumnDefinitions>
+                                                                            <ComboBox ItemsSource="{Binding DataContext.RefModOptions, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                                      SelectedItem="{Binding Mod, Mode=TwoWay}" Height="26" FontSize="11" Margin="0,0,4,0"/>
+                                                                            <ComboBox Grid.Column="1" ItemsSource="{Binding DataContext.RefModComponentOptions, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                                      SelectedItem="{Binding Components, Mode=TwoWay}" Height="26" FontSize="11"
+                                                                                      ToolTip="Visual loads appearance references, Audio audio references, All both."/>
+                                                                            <Button Grid.Column="2" Content="&#x2715;" Width="22" Height="26" FontSize="10" Margin="4,0,0,0" Padding="0"
+                                                                                    Command="{Binding DataContext.RemoveRefModCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                                    CommandParameter="{Binding}"
+                                                                                    Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextMutedBrush}"
+                                                                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                                        </Grid>
+                                                                        <Grid Margin="0,4,0,0">
+                                                                            <Grid.ColumnDefinitions>
+                                                                                <ColumnDefinition Width="54"/>
+                                                                                <ColumnDefinition Width="*"/>
+                                                                                <ColumnDefinition Width="36"/>
+                                                                            </Grid.ColumnDefinitions>
+                                                                            <TextBlock Text="strength" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                                            <Slider Grid.Column="1" Minimum="0" Maximum="1" Value="{Binding Strength}" TickFrequency="0.01" IsSnapToTickEnabled="True"
+                                                                                    Foreground="{DynamicResource TabAccentBrush}" ToolTip="1.0 = the full reference; lower blurs it toward a softened copy. 0 disables the slot."/>
+                                                                            <TextBlock Grid.Column="2" Text="{Binding Strength, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11" TextAlignment="Right"
+                                                                                       VerticalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"/>
+                                                                        </Grid>
+                                                                        <Grid Margin="0,2,0,0">
+                                                                            <Grid.ColumnDefinitions>
+                                                                                <ColumnDefinition Width="54"/>
+                                                                                <ColumnDefinition Width="*"/>
+                                                                                <ColumnDefinition Width="36"/>
+                                                                            </Grid.ColumnDefinitions>
+                                                                            <TextBlock Text="copies" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                                            <Slider Grid.Column="1" Minimum="1" Maximum="10" Value="{Binding Copies}" TickFrequency="1" IsSnapToTickEnabled="True"
+                                                                                    Foreground="{DynamicResource TabAccentBrush}" ToolTip="The same reference injected N times — noticeably stronger, and more tokens."/>
+                                                                            <TextBlock Grid.Column="2" Text="{Binding Copies, StringFormat=×{0}}" FontFamily="Consolas" FontSize="11" TextAlignment="Right"
+                                                                                       VerticalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"/>
+                                                                        </Grid>
+                                                                        <Grid Margin="0,2,0,0">
+                                                                            <Grid.ColumnDefinitions>
+                                                                                <ColumnDefinition Width="54"/>
+                                                                                <ColumnDefinition Width="*"/>
+                                                                                <ColumnDefinition Width="36"/>
+                                                                            </Grid.ColumnDefinitions>
+                                                                            <TextBlock Text="visual" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                                            <Slider Grid.Column="1" Minimum="0" Maximum="1" Value="{Binding VisualStrength}" TickFrequency="0.01" IsSnapToTickEnabled="True"
+                                                                                    Foreground="{DynamicResource TabAccentBrush}" ToolTip="Multiplies the slot strength for its visual half. 0 skips it."/>
+                                                                            <TextBlock Grid.Column="2" Text="{Binding VisualStrength, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11" TextAlignment="Right"
+                                                                                       VerticalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"/>
+                                                                        </Grid>
+                                                                        <Grid Margin="0,2,0,0">
+                                                                            <Grid.ColumnDefinitions>
+                                                                                <ColumnDefinition Width="54"/>
+                                                                                <ColumnDefinition Width="*"/>
+                                                                                <ColumnDefinition Width="36"/>
+                                                                            </Grid.ColumnDefinitions>
+                                                                            <TextBlock Text="audio" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                                            <Slider Grid.Column="1" Minimum="0" Maximum="1" Value="{Binding AudioStrength}" TickFrequency="0.01" IsSnapToTickEnabled="True"
+                                                                                    Foreground="{DynamicResource TabAccentBrush}" ToolTip="Multiplies the slot strength for its audio half. Voice cloning is not established."/>
+                                                                            <TextBlock Grid.Column="2" Text="{Binding AudioStrength, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11" TextAlignment="Right"
+                                                                                       VerticalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"/>
+                                                                        </Grid>
+                                                                    </StackPanel>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                    <Expander Header="Apply settings" IsExpanded="False" FontSize="11">
+                                                        <StackPanel Margin="0,4,0,0">
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="70"/>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                    <ColumnDefinition Width="36"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock Text="retention" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                                <Slider Grid.Column="1" Minimum="0" Maximum="1" Value="{Binding TwoPass.RefModRetention}" TickFrequency="0.01" IsSnapToTickEnabled="True"
+                                                                        Foreground="{DynamicResource TabAccentBrush}"
+                                                                        ToolTip="Master reference strength: 1.0 fully preserved, 0.7 partially, 0.4 attribute transfer, 0.15 weak."/>
+                                                                <TextBlock Grid.Column="2" Text="{Binding TwoPass.RefModRetention, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11" TextAlignment="Right"
+                                                                           VerticalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"/>
+                                                            </Grid>
+                                                            <TextBlock Text="curve direction / shape" FontSize="10" Margin="0,6,0,2" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <ComboBox ItemsSource="{Binding RefModCurveDirections}" SelectedItem="{Binding TwoPass.RefModCurveDirection}" Height="24" FontSize="11" Margin="0,0,4,0"
+                                                                          ToolTip="Weighting across each mod's own reference frames — which reference content dominates, not where it appears in the video."/>
+                                                                <ComboBox Grid.Column="1" ItemsSource="{Binding RefModCurveShapes}" SelectedItem="{Binding TwoPass.RefModCurveShape}" Height="24" FontSize="11"/>
+                                                            </Grid>
+                                                            <Grid Margin="0,4,0,0">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="70"/>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                    <ColumnDefinition Width="36"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock Text="curve value" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                                <Slider Grid.Column="1" Minimum="0" Maximum="1" Value="{Binding TwoPass.RefModCurveValue}" TickFrequency="0.01" IsSnapToTickEnabled="True"
+                                                                        Foreground="{DynamicResource TabAccentBrush}"/>
+                                                                <TextBlock Grid.Column="2" Text="{Binding TwoPass.RefModCurveValue, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11" TextAlignment="Right"
+                                                                           VerticalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"/>
+                                                            </Grid>
+                                                            <Grid Margin="0,4,0,0">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                    <ColumnDefinition Width="80"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock Text="scramble seed (-1 = off)" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                                <TextBox Grid.Column="1" Text="{Binding TwoPass.RefModScrambleSeed, UpdateSourceTrigger=LostFocus}" Height="24" FontFamily="Consolas" FontSize="11"
+                                                                         VerticalContentAlignment="Center" BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceBrush}"
+                                                                         ToolTip="With 2+ refs in a bundle, a seed ≥ 0 shuffles them so a different one leads each run."/>
+                                                            </Grid>
+                                                            <Grid Margin="0,4,0,0">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                    <ColumnDefinition Width="80"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock Text="max total tokens (0 = no limit)" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                                <TextBox Grid.Column="1" Text="{Binding TwoPass.RefModMaxTokens, UpdateSourceTrigger=LostFocus}" Height="24" FontFamily="Consolas" FontSize="11"
+                                                                         VerticalContentAlignment="Center" BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceBrush}"/>
+                                                            </Grid>
+                                                        </StackPanel>
+                                                    </Expander>
                                                 </StackPanel>
                                             </Border>
 

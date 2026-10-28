@@ -107,15 +107,20 @@ namespace FlipPix.UI.ViewModels.Video
         {
             get
             {
-                var range = IsUltra ? "pictures 2–9, audio, video" : "pictures 2–4";
+                var range = IsUltra ? "pictures 2–9, audio, video" : IsTwoPass ? "pictures 2–4, audio, video" : "pictures 2–4";
                 var loaded = MoreReferences.Count(r => r.HasImage)
-                           + (IsUltra ? AudioReferences.Count(a => a.HasFile) + VideoReferences.Count(v => v.HasFile) : 0);
+                           + (IsMediaWorkflow ? AudioReferences.Count(a => a.HasFile) + VideoReferences.Count(v => v.HasFile) : 0);
                 return loaded > 0 ? $"{range} · {loaded} loaded" : range;
             }
         }
 
         /// <summary>Deliberately not gated on another analysis or a render — that is the point of it.</summary>
-        public bool CanAnalyzeAndQueue => IsUltra ? HasUltraVisualReference : HasReference;
+        public bool CanAnalyzeAndQueue => IsUltra
+            ? HasUltraVisualReference
+            // 🌹 2-Pass also writes a text-to-video prompt from the idea alone.
+            : IsTwoPass
+                ? HasReference || UltraVideoPaths.Count > 0 || !string.IsNullOrWhiteSpace(Prompt)
+                : HasReference;
         private void InitAnalysis()
         {
             AnalyzeAndQueueCommand = new RelayCommand(AnalyzeAndQueue, () => CanAnalyzeAndQueue);
@@ -140,13 +145,14 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 Pictures = pictures,
                 Draft = Prompt.Trim(),
-                IsUltra = IsUltra,
-                UltraSeconds = Ultra.DurationSeconds,
+                // Both single-graph workflows write one segment at their own duration.
+                IsUltra = IsMediaWorkflow,
+                UltraSeconds = IsTwoPass ? TwoPass.DurationSeconds : Ultra.DurationSeconds,
                 LengthSeconds = LengthSeconds,
-                ContinuationSeconds = IsUltra ? new List<int>() : Continuations.Select(c => c.Seconds).ToList(),
-                MediaInstructions = IsUltra ? UltraMediaInstructions() : new List<string>(),
+                ContinuationSeconds = IsMediaWorkflow ? new List<int>() : Continuations.Select(c => c.Seconds).ToList(),
+                MediaInstructions = IsUltra ? UltraMediaInstructions() : IsTwoPass ? TwoPassMediaInstructions() : new List<string>(),
                 StereoInstructions = StereoInstructions(),
-                Aspect = IsUltra ? UltraResolvedAspect : ResolvedAspectRatio,
+                Aspect = IsUltra ? UltraResolvedAspect : IsTwoPass ? TwoPassResolvedAspect : ResolvedAspectRatio,
                 WantPlate = AutoLocationPlate && !hasPlate && PrimaryStereo == StereoLayout.None && freeSlot != null,
                 PlateIndex = freeSlot == null ? pictures.Count : freeSlot.Slot - 1,
                 DeferPlateRender = deferPlateRender,
@@ -163,10 +169,10 @@ namespace FlipPix.UI.ViewModels.Video
         private void AnalyzeAndQueue()
         {
             if (!CanAnalyzeAndQueue) return;
-            if (!IsUltra && !ConfirmMemoryRisk()) return;
+            if (!IsMediaWorkflow && !ConfirmMemoryRisk()) return;
 
             var job = SnapshotAnalysis(deferPlateRender: true);
-            var item = IsUltra ? BuildUltraQueueItem() : BuildRef2VAQueueItem();
+            var item = IsUltra ? BuildUltraQueueItem() : IsTwoPass ? BuildTwoPassQueueItem() : BuildRef2VAQueueItem();
             item.Prompt = job.Draft;
             item.ContinuationPrompts = job.ContinuationSeconds.Select(_ => string.Empty).ToList();
             item.NeedsAnalysis = true;
@@ -187,7 +193,7 @@ namespace FlipPix.UI.ViewModels.Video
                 var result = await RunAnalysisAsync(job, job.Cts.Token);
                 if (!_queue.Contains(item)) return;
 
-                var continuations = item.IsUltra ? new List<string>() : result.Segments.Skip(1).ToList();
+                var continuations = item.IsSingleGraph ? new List<string>() : result.Segments.Skip(1).ToList();
                 var empty = continuations
                     .Select((p, i) => (p, i))
                     .Where(t => string.IsNullOrWhiteSpace(t.p))

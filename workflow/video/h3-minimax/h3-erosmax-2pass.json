@@ -1,0 +1,1630 @@
+{
+  "30": {
+    "inputs": {
+      "unet_name": "h3-minimax/10Eros_Max_h3_8stepTURBO_beta7_int8HQ.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "15": {
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3-w4a8_convrot.safetensors",
+      "type": "minimax",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "3": {
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Video VAE"
+    }
+  },
+  "4": {
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Audio VAE"
+    }
+  },
+  "36": {
+    "inputs": {
+      "model": [
+        "30",
+        0
+      ],
+      "lora_name": "Minimax_H3\\minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors",
+      "strength_model": 1
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "Turbo LoRA (skip if the model includes it)"
+    }
+  },
+  "101": {
+    "inputs": {
+      "model": [
+        "30",
+        0
+      ],
+      "quantized_layers": "auto",
+      "adaln_port": "auto",
+      "lora_1": {
+        "on": false,
+        "lora": "MMH3-RealismSlider-V1.safetensors",
+        "strength": 1,
+        "autoApplied": false
+      }
+    },
+    "class_type": "H3PowerLoraStack",
+    "_meta": {
+      "title": "H3 Power LoRA Stack"
+    }
+  },
+  "38": {
+    "inputs": {
+      "model": [
+        "101",
+        0
+      ],
+      "shift_video": 12,
+      "shift_audio": 3
+    },
+    "class_type": "MiniMaxH3SigmaShift",
+    "_meta": {
+      "title": "MiniMax H3 Sigma Shift"
+    }
+  },
+  "100": {
+    "inputs": {
+      "model": [
+        "38",
+        0
+      ],
+      "selection": "vsa",
+      "selection.keep_percent": 10,
+      "start_percent": 0,
+      "end_percent": 1,
+      "dense_blocks": "0,1",
+      "min_tokens": 12288,
+      "extra_tokens": 256,
+      "sink_conditioning": "exact_kv_and_rows",
+      "verbose": false
+    },
+    "class_type": "BlockSparseAttention",
+    "_meta": {
+      "title": "Block Sparse Attention"
+    }
+  },
+  "37": {
+    "inputs": {
+      "model": [
+        "100",
+        0
+      ],
+      "attention": "comfy kitchen attention"
+    },
+    "class_type": "ModelAttentionBackend",
+    "_meta": {
+      "title": "Model Attention Backend"
+    }
+  },
+  "12": {
+    "inputs": {
+      "model": [
+        "37",
+        0
+      ],
+      "preview_frames": [
+        "151:19",
+        1
+      ],
+      "max_resolution": 1024,
+      "jpeg_quality": 80,
+      "suppress_default_preview": true,
+      "preview_fps": 12,
+      "tiny_vae": "taeh3.safetensors"
+    },
+    "class_type": "ModelPreviewOverrideKJ",
+    "_meta": {
+      "title": "Model Preview Override (pass 1)"
+    }
+  },
+  "2": {
+    "inputs": {
+      "value": "<Prompt>"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Prompt"
+    }
+  },
+  "17": {
+    "inputs": {
+      "value": 15
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "Duration in secs (Preview + Full)"
+    }
+  },
+  "20": {
+    "inputs": {
+      "aspect_ratio": "4:3 (Standard)",
+      "megapixels": 0.3,
+      "multiple": 32
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "Selector First LowRes Pass"
+    }
+  },
+  "23": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "Final Target Megapixels (2nd Pass)"
+    }
+  },
+  "87": {
+    "inputs": {
+      "value": true
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "Use first pass audio?"
+    }
+  },
+  "94": {
+    "inputs": {
+      "value": false
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "Preview - skip second pass"
+    }
+  },
+  "103": {
+    "inputs": {
+      "value": false
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "Normal / Continue (TRUE = Continue)"
+    }
+  },
+  "117": {
+    "inputs": {
+      "value": true
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "Previous video has audio?"
+    }
+  },
+  "131": {
+    "inputs": {
+      "value": false
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "Use last source frame as H3 reference?"
+    }
+  },
+  "144": {
+    "inputs": {
+      "value": true
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "Use source AUDIO guide?"
+    }
+  },
+  "147": {
+    "inputs": {
+      "value": "video/extensions"
+    },
+    "class_type": "PrimitiveString",
+    "_meta": {
+      "title": "Extension output subfolder"
+    }
+  },
+  "73": {
+    "inputs": {
+      "value": "video/ErosMaxH3_b7_TURBO_2Pass"
+    },
+    "class_type": "PrimitiveString",
+    "_meta": {
+      "title": "File name prefix for Full Resolution"
+    }
+  },
+  "74": {
+    "inputs": {
+      "value": "video/Preview_ErosMaxH3_b7_TURBO"
+    },
+    "class_type": "PrimitiveString",
+    "_meta": {
+      "title": "File name prefix for Previews"
+    }
+  },
+  "173": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "FrameGen multiplier (1 = OFF)"
+    }
+  },
+  "174": {
+    "inputs": {
+      "value": 0.005
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "Output grain strength (0 = OFF)"
+    }
+  },
+  "153": {
+    "inputs": {
+      "value": 2
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Guide window index (0 = 22, 1 = 39, 2 = 56 frames)"
+    }
+  },
+  "31": {
+    "inputs": {
+      "noise_seed": 861781773298997
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "Random Noise"
+    }
+  },
+  "18": {
+    "inputs": {
+      "sampler_name": "er_sde"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSampler Select"
+    }
+  },
+  "24": {
+    "inputs": {
+      "model": [
+        "37",
+        0
+      ],
+      "scheduler": "sgm_uniform",
+      "steps": 8,
+      "denoise": 1
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "Scheduler First Pass"
+    }
+  },
+  "102": {
+    "inputs": {
+      "model": [
+        "37",
+        0
+      ],
+      "scheduler": "beta",
+      "steps": 3,
+      "denoise": 0.4
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "Scheduler Second Pass"
+    }
+  },
+  "185": {
+    "inputs": {
+      "sigmas": "0.9035, 0.6316, 0.3158, 0.000"
+    },
+    "class_type": "ManualSigmas",
+    "_meta": {
+      "title": "Manual Second Pass Sigmas"
+    }
+  },
+  "181": {
+    "inputs": {
+      "show_info": false,
+      "mod_1": "(none)",
+      "strength_1": 1,
+      "copies_1": 1,
+      "mod_2": "(none)",
+      "strength_2": 1,
+      "copies_2": 1,
+      "mod_3": "(none)",
+      "strength_3": 1,
+      "copies_3": 1,
+      "mod_4": "(none)",
+      "strength_4": 1,
+      "copies_4": 1,
+      "mod_5": "(none)",
+      "strength_5": 1,
+      "copies_5": 1,
+      "mod_6": "(none)",
+      "strength_6": 1,
+      "copies_6": 1,
+      "mod_7": "(none)",
+      "strength_7": 1,
+      "copies_7": 1,
+      "mod_8": "(none)",
+      "strength_8": 1,
+      "copies_8": 1,
+      "max_total_tokens": 0,
+      "components_1": "Visual",
+      "visual_strength_1": 1,
+      "audio_strength_1": 1,
+      "components_2": "All",
+      "visual_strength_2": 1,
+      "audio_strength_2": 1,
+      "components_3": "All",
+      "visual_strength_3": 1,
+      "audio_strength_3": 1,
+      "components_4": "All",
+      "visual_strength_4": 1,
+      "audio_strength_4": 1,
+      "components_5": "All",
+      "visual_strength_5": 1,
+      "audio_strength_5": 1,
+      "components_6": "All",
+      "visual_strength_6": 1,
+      "audio_strength_6": 1,
+      "components_7": "All",
+      "visual_strength_7": 1,
+      "audio_strength_7": 1,
+      "components_8": "All",
+      "visual_strength_8": 1,
+      "audio_strength_8": 1
+    },
+    "class_type": "MiniMaxH3RefModsLoader",
+    "_meta": {
+      "title": "RefMods: saved references"
+    }
+  },
+  "151:19": {
+    "inputs": {
+      "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+      "values.a": [
+        "17",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Seconds -> frames (17k+5)"
+    }
+  },
+  "151:11": {
+    "inputs": {
+      "clip": [
+        "15",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ],
+      "audio_vae": [
+        "4",
+        0
+      ],
+      "prompt": [
+        "2",
+        0
+      ],
+      "width": [
+        "20",
+        0
+      ],
+      "height": [
+        "20",
+        1
+      ],
+      "length": [
+        "151:19",
+        1
+      ],
+      "ref_image_size": "match",
+      "ref_images.ref_image_4": [
+        "151:134",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3ReferenceToVideo",
+    "_meta": {
+      "title": "MiniMax H3 Reference To Video"
+    }
+  },
+  "151:182": {
+    "inputs": {
+      "conditioning": [
+        "151:11",
+        0
+      ],
+      "mods": [
+        "181",
+        0
+      ],
+      "override": false,
+      "retention": 1,
+      "curve_direction": "constant",
+      "scramble_seed": -1,
+      "curve_shape": "linear",
+      "curve_value": 1,
+      "graph_preset": "(none)",
+      "scramble_mode": "shuffle",
+      "scramble_keep": 1,
+      "max_total_tokens": 0,
+      "save_preset_as": ""
+    },
+    "class_type": "MiniMaxH3RefModApply",
+    "_meta": {
+      "title": "RefMods: append before Normal / Continue branches"
+    }
+  },
+  "151:105": {
+    "inputs": {
+      "video": "",
+      "force_rate": 24,
+      "custom_width": 0,
+      "custom_height": 0,
+      "frame_load_cap": 0,
+      "skip_first_frames": 0,
+      "select_every_nth": 1,
+      "format": "None"
+    },
+    "class_type": "VHS_LoadVideo",
+    "_meta": {
+      "title": "Previous video: all frames at 24 fps; format None"
+    }
+  },
+  "151:140": {
+    "inputs": {
+      "expression": "22 + 17 * a if 0 <= a <= 2 else 1 / 0",
+      "values.a": [
+        "153",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Selected guide frames (22 / 39 / 56)"
+    }
+  },
+  "151:106": {
+    "inputs": {
+      "expression": "a - b if a >= b else -2",
+      "values.a": [
+        "151:105",
+        1
+      ],
+      "values.b": [
+        "151:140",
+        1
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Guide start: source frames minus selected window"
+    }
+  },
+  "151:107": {
+    "inputs": {
+      "images": [
+        "151:105",
+        0
+      ],
+      "start_index": [
+        "151:106",
+        1
+      ],
+      "num_frames": [
+        "151:140",
+        1
+      ]
+    },
+    "class_type": "GetImageRangeFromBatch",
+    "_meta": {
+      "title": "Last selected source frames for BOTH guides"
+    }
+  },
+  "151:116": {
+    "inputs": {
+      "expression": "a / 24",
+      "values.a": [
+        "151:105",
+        1
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Previous clip duration = loaded frames / 24"
+    }
+  },
+  "151:118": {
+    "inputs": {
+      "duration": [
+        "151:116",
+        0
+      ],
+      "sample_rate": 32000,
+      "channels": 2
+    },
+    "class_type": "EmptyAudio",
+    "_meta": {
+      "title": "Silent source soundtrack"
+    }
+  },
+  "151:120": {
+    "inputs": {
+      "audio1": [
+        "151:105",
+        2
+      ],
+      "audio2": [
+        "151:118",
+        0
+      ],
+      "direction": "after"
+    },
+    "class_type": "AudioConcat",
+    "_meta": {
+      "title": "Pad short source soundtrack with silence"
+    }
+  },
+  "151:119": {
+    "inputs": {
+      "audio": [
+        "151:120",
+        0
+      ],
+      "duration": [
+        "151:116",
+        0
+      ],
+      "start_index": 0
+    },
+    "class_type": "TrimAudioDuration",
+    "_meta": {
+      "title": "Source soundtrack: fit to source video duration"
+    }
+  },
+  "151:121": {
+    "inputs": {
+      "switch": [
+        "117",
+        0
+      ],
+      "on_false": [
+        "151:118",
+        0
+      ],
+      "on_true": [
+        "151:119",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Previous audio / silent prefix"
+    }
+  },
+  "151:141": {
+    "inputs": {
+      "expression": "a / 24",
+      "values.a": [
+        "151:140",
+        1
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Selected overlap in seconds = frames / 24"
+    }
+  },
+  "151:142": {
+    "inputs": {
+      "expression": "a / 24",
+      "values.a": [
+        "151:106",
+        1
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Source guide audio start = source tail frame / 24"
+    }
+  },
+  "151:143": {
+    "inputs": {
+      "audio": [
+        "151:121",
+        0
+      ],
+      "start_index": [
+        "151:142",
+        0
+      ],
+      "duration": [
+        "151:141",
+        0
+      ]
+    },
+    "class_type": "TrimAudioDuration",
+    "_meta": {
+      "title": "Same source tail soundtrack as the VIDEO guide"
+    }
+  },
+  "151:145": {
+    "inputs": {
+      "values.value0": [
+        "103",
+        0
+      ],
+      "values.value1": [
+        "117",
+        0
+      ],
+      "values.value2": [
+        "144",
+        0
+      ]
+    },
+    "class_type": "ComfyAndNode",
+    "_meta": {
+      "title": "Continue AND source has audio AND audio guide ON"
+    }
+  },
+  "151:146": {
+    "inputs": {
+      "switch": [
+        "151:145",
+        0
+      ],
+      "on_true": [
+        "151:143",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Optional AUDIO guide / OFF = video-only guides"
+    }
+  },
+  "151:132": {
+    "inputs": {
+      "values.value0": [
+        "103",
+        0
+      ],
+      "values.value1": [
+        "131",
+        0
+      ]
+    },
+    "class_type": "ComfyAndNode",
+    "_meta": {
+      "title": "Continue AND source-reference enabled"
+    }
+  },
+  "151:133": {
+    "inputs": {
+      "image": [
+        "151:107",
+        0
+      ],
+      "batch_index": -1,
+      "length": 1
+    },
+    "class_type": "ImageFromBatch",
+    "_meta": {
+      "title": "Last source-video frame"
+    }
+  },
+  "151:134": {
+    "inputs": {
+      "switch": [
+        "151:132",
+        0
+      ],
+      "on_true": [
+        "151:133",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Optional automatic source frame / OFF = no extra reference"
+    }
+  },
+  "151:108": {
+    "inputs": {
+      "positive": [
+        "151:182",
+        0
+      ],
+      "latent": [
+        "151:11",
+        1
+      ],
+      "vae": [
+        "3",
+        0
+      ],
+      "audio_vae": [
+        "4",
+        0
+      ],
+      "image": [
+        "151:107",
+        0
+      ],
+      "audio": [
+        "151:146",
+        0
+      ],
+      "frame_idx": 0
+    },
+    "class_type": "MiniMaxH3AddGuide",
+    "_meta": {
+      "title": "Continue: selected guide at first-pass resolution"
+    }
+  },
+  "151:110": {
+    "inputs": {
+      "switch": [
+        "103",
+        0
+      ],
+      "on_false": [
+        "151:182",
+        0
+      ],
+      "on_true": [
+        "151:108",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Normal / Continue conditioning: pass 1"
+    }
+  },
+  "151:29": {
+    "inputs": {
+      "model": [
+        "12",
+        0
+      ],
+      "conditioning": [
+        "151:110",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "Guider pass 1"
+    }
+  },
+  "151:21": {
+    "inputs": {
+      "noise": [
+        "31",
+        0
+      ],
+      "guider": [
+        "151:29",
+        0
+      ],
+      "sampler": [
+        "18",
+        0
+      ],
+      "sigmas": [
+        "24",
+        0
+      ],
+      "latent_image": [
+        "151:11",
+        1
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "Sampler pass 1"
+    }
+  },
+  "151:35": {
+    "inputs": {
+      "av_latent": [
+        "151:21",
+        1
+      ]
+    },
+    "class_type": "LTXVSeparateAVLatent",
+    "_meta": {
+      "title": "Split pass 1 AV latent"
+    }
+  },
+  "151:26": {
+    "inputs": {
+      "latent": [
+        "151:35",
+        0
+      ],
+      "mode.megapixels": [
+        "23",
+        0
+      ],
+      "model_name": "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+      "mode": "megapixels",
+      "align": 32,
+      "enable_temporal_chunking": true,
+      "force_unload": true,
+      "device": "cuda",
+      "precision": "fp16"
+    },
+    "class_type": "MinimaxH3LatentUpscaler3D",
+    "_meta": {
+      "title": "Learned latent upscale"
+    }
+  },
+  "151:10": {
+    "inputs": {
+      "video_latent": [
+        "151:26",
+        0
+      ],
+      "audio_latent": [
+        "151:35",
+        1
+      ]
+    },
+    "class_type": "LTXVConcatAVLatent",
+    "_meta": {
+      "title": "Rejoin upscaled video + pass 1 audio"
+    }
+  },
+  "151:109": {
+    "inputs": {
+      "positive": [
+        "151:182",
+        0
+      ],
+      "latent": [
+        "151:10",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ],
+      "audio_vae": [
+        "4",
+        0
+      ],
+      "image": [
+        "151:107",
+        0
+      ],
+      "audio": [
+        "151:146",
+        0
+      ],
+      "frame_idx": 0
+    },
+    "class_type": "MiniMaxH3AddGuide",
+    "_meta": {
+      "title": "Continue: selected guide at second-pass resolution"
+    }
+  },
+  "151:111": {
+    "inputs": {
+      "switch": [
+        "103",
+        0
+      ],
+      "on_false": [
+        "151:182",
+        0
+      ],
+      "on_true": [
+        "151:109",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Normal / Continue conditioning: pass 2"
+    }
+  },
+  "151:32": {
+    "inputs": {
+      "model": [
+        "37",
+        0
+      ],
+      "conditioning": [
+        "151:111",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "Guider pass 2"
+    }
+  },
+  "151:16": {
+    "inputs": {
+      "noise": [
+        "31",
+        0
+      ],
+      "guider": [
+        "151:32",
+        0
+      ],
+      "sampler": [
+        "18",
+        0
+      ],
+      "sigmas": [
+        "102",
+        0
+      ],
+      "latent_image": [
+        "151:10",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "Sampler pass 2"
+    }
+  },
+  "151:95": {
+    "inputs": {
+      "switch": [
+        "94",
+        0
+      ],
+      "on_false": [
+        "151:16",
+        0
+      ],
+      "on_true": [
+        "151:35",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Choose video for preview"
+    }
+  },
+  "151:98": {
+    "inputs": {
+      "values.value0": [
+        "87",
+        0
+      ],
+      "values.value1": [
+        "94",
+        0
+      ]
+    },
+    "class_type": "ComfyOrNode",
+    "_meta": {
+      "title": "First pass audio OR preview"
+    }
+  },
+  "151:88": {
+    "inputs": {
+      "switch": [
+        "151:98",
+        0
+      ],
+      "on_false": [
+        "151:16",
+        0
+      ],
+      "on_true": [
+        "151:35",
+        1
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Switch audio 1st or 2nd pass"
+    }
+  },
+  "151:25": {
+    "inputs": {
+      "samples": [
+        "151:95",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "151:86": {
+    "inputs": {
+      "input": [
+        "151:88",
+        0
+      ],
+      "run_after": [
+        "156",
+        0
+      ],
+      "disable": true,
+      "method": false,
+      "clear_queue": false,
+      "alert_on_trigger": false
+    },
+    "class_type": "HaltExecution",
+    "_meta": {
+      "title": "Halt Execution (Audio VAE Last)"
+    }
+  },
+  "151:14": {
+    "inputs": {
+      "samples": [
+        "151:86",
+        0
+      ],
+      "vae": [
+        "4",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeAudio",
+    "_meta": {
+      "title": "VAE Decode Audio"
+    }
+  },
+  "39": {
+    "inputs": {
+      "images": [
+        "151:25",
+        0
+      ],
+      "resize_type": "scale by multiplier",
+      "resize_type.scale": 1.2,
+      "quality": "ULTRA",
+      "strength": 1,
+      "image_encoding": "8-bit RGB"
+    },
+    "class_type": "RTXVideoSuperResolution",
+    "_meta": {
+      "title": "RTX Video Super Resolution"
+    }
+  },
+  "160": {
+    "inputs": {
+      "expression": "max(2, a)",
+      "values.a": [
+        "173",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "RTX multiplier: minimum 2"
+    }
+  },
+  "161": {
+    "inputs": {
+      "expression": "b or a <= 1",
+      "values.a": [
+        "173",
+        0
+      ],
+      "values.b": [
+        "103",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Skip RTX: Continue mode or multiplier 1"
+    }
+  },
+  "155": {
+    "inputs": {
+      "images": [
+        "39",
+        0
+      ],
+      "generation_type.multiplier": [
+        "160",
+        1
+      ],
+      "generation_type": "frame rate multiplier",
+      "mode": "HIGH",
+      "automatic_shot_change_detection": true,
+      "shot_change": false,
+      "image_encoding": "10-bit RGB (RGB10A2)"
+    },
+    "class_type": "RTXVideoFrameGeneration",
+    "_meta": {
+      "title": "RTX Frame Generation"
+    }
+  },
+  "156": {
+    "inputs": {
+      "switch": [
+        "161",
+        2
+      ],
+      "on_false": [
+        "155",
+        0
+      ],
+      "on_true": [
+        "39",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Skip FrameGen: Continue mode or 1x"
+    }
+  },
+  "152:75": {
+    "inputs": {
+      "switch": [
+        "94",
+        0
+      ],
+      "on_false": [
+        "73",
+        0
+      ],
+      "on_true": [
+        "74",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Full / Preview filename prefix"
+    }
+  },
+  "152:112": {
+    "inputs": {
+      "image": [
+        "156",
+        0
+      ]
+    },
+    "class_type": "GetImageSizeAndCount",
+    "_meta": {
+      "title": "Current RTX output dimensions and frame count"
+    }
+  },
+  "152:127": {
+    "inputs": {
+      "images": [
+        "156",
+        0
+      ],
+      "start_index": [
+        "151:140",
+        1
+      ],
+      "num_frames": 4096
+    },
+    "class_type": "GetImageRangeFromBatch",
+    "_meta": {
+      "title": "Cut selected overlap from START of NEW video"
+    }
+  },
+  "152:115": {
+    "inputs": {
+      "switch": [
+        "103",
+        0
+      ],
+      "on_false": [
+        "156",
+        0
+      ],
+      "on_true": [
+        "152:127",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Encode full Normal clip / trimmed Continue segment"
+    }
+  },
+  "152:158": {
+    "inputs": {
+      "expression": "24 if b else 24 * a",
+      "values.a": [
+        "173",
+        0
+      ],
+      "values.b": [
+        "103",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Normal FPS = 24 x multiplier; Continue always 24"
+    }
+  },
+  "152:176": {
+    "inputs": {
+      "expression": "a > 0",
+      "values.a": [
+        "174",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Grain enabled only when strength > 0"
+    }
+  },
+  "152:135": {
+    "inputs": {
+      "images": [
+        "152:115",
+        0
+      ],
+      "original_fps": [
+        "152:158",
+        0
+      ],
+      "grain": [
+        "152:176",
+        2
+      ],
+      "grain_intensity": [
+        "174",
+        0
+      ],
+      "encoder_preset": "medium",
+      "upscale": false,
+      "upscale_method": "lanczos",
+      "upscale_by": 2,
+      "interpolate": false,
+      "interpolate_by": 2,
+      "dual_pass_rife": false,
+      "saturation_mix": 0.25,
+      "compress": true,
+      "crf": 18,
+      "batching_mode": "custom",
+      "custom_batch_size": 4,
+      "h264_profile": "auto"
+    },
+    "class_type": "LokkenVideoPostProcessing",
+    "_meta": {
+      "title": "Lokken: current segment + optional grain"
+    }
+  },
+  "152:137": {
+    "inputs": {
+      "videos.video0": [
+        "152:135",
+        0
+      ],
+      "complete_audio": [
+        "151:14",
+        0
+      ],
+      "codec": "h264"
+    },
+    "class_type": "ConcatenateVideo",
+    "_meta": {
+      "title": "Normal export: attach selected audio once"
+    }
+  },
+  "152:128": {
+    "inputs": {
+      "image": [
+        "151:105",
+        0
+      ]
+    },
+    "class_type": "GetImageSizeAndCount",
+    "_meta": {
+      "title": "Previous clip dimensions"
+    }
+  },
+  "152:113": {
+    "inputs": {
+      "image": [
+        "151:105",
+        0
+      ],
+      "width": [
+        "152:112",
+        1
+      ],
+      "height": [
+        "152:112",
+        2
+      ],
+      "upscale_method": "bilinear",
+      "crop": "center"
+    },
+    "class_type": "ImageScale",
+    "_meta": {
+      "title": "Match previous clip to current RTX output canvas"
+    }
+  },
+  "152:129": {
+    "inputs": {
+      "expression": "a == c and b == d",
+      "values.a": [
+        "152:128",
+        1
+      ],
+      "values.b": [
+        "152:128",
+        2
+      ],
+      "values.c": [
+        "152:112",
+        1
+      ],
+      "values.d": [
+        "152:112",
+        2
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Do source and current RTX dimensions match?"
+    }
+  },
+  "152:130": {
+    "inputs": {
+      "switch": [
+        "152:129",
+        2
+      ],
+      "on_false": [
+        "152:113",
+        0
+      ],
+      "on_true": [
+        "152:128",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Same size: passthrough / Otherwise: resize"
+    }
+  },
+  "152:136": {
+    "inputs": {
+      "images": [
+        "152:130",
+        0
+      ],
+      "encoder_preset": "medium",
+      "upscale": false,
+      "upscale_method": "lanczos",
+      "upscale_by": 2,
+      "interpolate": false,
+      "original_fps": 24,
+      "interpolate_by": 2,
+      "dual_pass_rife": false,
+      "grain": false,
+      "grain_intensity": 0.005,
+      "saturation_mix": 0.25,
+      "compress": true,
+      "crf": 18,
+      "batching_mode": "custom",
+      "custom_batch_size": 4,
+      "h264_profile": "auto"
+    },
+    "class_type": "LokkenVideoPostProcessing",
+    "_meta": {
+      "title": "Lokken: source segment, grain OFF"
+    }
+  },
+  "152:122": {
+    "inputs": {
+      "expression": "(a - b) / 24",
+      "values.a": [
+        "152:112",
+        3
+      ],
+      "values.b": [
+        "151:140",
+        1
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "New audio duration = (new frames - window) / 24"
+    }
+  },
+  "152:123": {
+    "inputs": {
+      "audio": [
+        "151:14",
+        0
+      ],
+      "start_index": [
+        "151:141",
+        0
+      ],
+      "duration": [
+        "152:122",
+        0
+      ]
+    },
+    "class_type": "TrimAudioDuration",
+    "_meta": {
+      "title": "Cut selected overlap from START of NEW audio"
+    }
+  },
+  "152:124": {
+    "inputs": {
+      "audio1": [
+        "151:121",
+        0
+      ],
+      "audio2": [
+        "152:123",
+        0
+      ],
+      "direction": "after"
+    },
+    "class_type": "AudioConcat",
+    "_meta": {
+      "title": "Stitched audio: source then trimmed continuation"
+    }
+  },
+  "152:114": {
+    "inputs": {
+      "videos.video0": [
+        "152:136",
+        0
+      ],
+      "videos.video1": [
+        "152:135",
+        0
+      ],
+      "complete_audio": [
+        "152:124",
+        0
+      ],
+      "codec": "h264"
+    },
+    "class_type": "ConcatenateVideo",
+    "_meta": {
+      "title": "Keep ALL source frames + append trimmed NEW clip"
+    }
+  },
+  "152:138": {
+    "inputs": {
+      "switch": [
+        "103",
+        0
+      ],
+      "on_false": [
+        "152:137",
+        0
+      ],
+      "on_true": [
+        "152:114",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Normal / Continue: select VIDEO container"
+    }
+  },
+  "152:148": {
+    "inputs": {
+      "string": [
+        "152:75",
+        0
+      ],
+      "regex_pattern": "^.*[\\\\/]",
+      "replace": "",
+      "case_insensitive": false,
+      "multiline": false,
+      "dotall": false,
+      "count": 1
+    },
+    "class_type": "RegexReplace",
+    "_meta": {
+      "title": "Keep selected filename; replace its folder"
+    }
+  },
+  "152:149": {
+    "inputs": {
+      "string_a": [
+        "147",
+        0
+      ],
+      "string_b": [
+        "152:148",
+        0
+      ],
+      "delimiter": "/"
+    },
+    "class_type": "StringConcatenate",
+    "_meta": {
+      "title": "Extension folder / selected filename"
+    }
+  },
+  "152:150": {
+    "inputs": {
+      "switch": [
+        "103",
+        0
+      ],
+      "on_false": [
+        "152:75",
+        0
+      ],
+      "on_true": [
+        "152:149",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Output folder: Normal original / Continue extension"
+    }
+  },
+  "40": {
+    "inputs": {
+      "video": [
+        "152:138",
+        0
+      ],
+      "filename_prefix": [
+        "152:150",
+        0
+      ],
+      "format": "mp4",
+      "format.codec": "auto"
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "Save Video"
+    }
+  }
+}

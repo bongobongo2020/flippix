@@ -391,7 +391,8 @@ namespace FlipPix.UI.Models
 
     /// <summary>
     /// Which graph 🌀 MiniMax I2V submits — the dropdown at the top of the tab. Stacks (<see cref="I2VStack"/>)
-    /// are patches on <see cref="Ref2VA"/>; <see cref="Ultra"/> is a different workflow with its own card.
+    /// are patches on <see cref="Ref2VA"/>; <see cref="Ultra"/> and <see cref="TwoPass"/> are different
+    /// workflows, each with its own card.
     /// </summary>
     public enum I2VWorkflow
     {
@@ -403,6 +404,11 @@ namespace FlipPix.UI.Models
         /// audio and three video references, one pass at the finished canvas sampled by SelfLift (a 0.6×
         /// low-res prefix lifted by the LMS latent upscaler, tiled at full resolution).</summary>
         Ultra,
+
+        /// <summary><c>h3-erosmax-2pass.json</c>: the ErosMax b7 Turbo two-pass graph — a low-res first pass,
+        /// the learned latent upscaler, a short refining second pass, RTX super resolution / frame generation,
+        /// RefMods, and Continue mode, which extends an existing video inside the same submission.</summary>
+        TwoPass,
     }
 
     /// <summary>
@@ -448,6 +454,19 @@ namespace FlipPix.UI.Models
         public event EventHandler? Changed;
 
         public void Clear() => Path = string.Empty;
+
+        private bool _hasSoundtrack = true;
+
+        /// <summary>
+        /// 🌹 ErosMax 2-Pass only: whether a reference video's soundtrack is wired in as its paired audio
+        /// reference. On as authored; a silent clip must be marked off, because VHS cannot hand over audio a
+        /// file does not have.
+        /// </summary>
+        public bool HasSoundtrack
+        {
+            get => _hasSoundtrack;
+            set { if (_hasSoundtrack == value) return; _hasSoundtrack = value; OnPropertyChanged(); Changed?.Invoke(this, EventArgs.Empty); }
+        }
     }
 
     /// <summary>

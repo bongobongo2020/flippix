@@ -96,13 +96,17 @@ public class ComfyUISettings
     public bool MiniMaxI2VUseRife { get; set; }
 
     // Which graph 🌀 MiniMax I2V submits: "Ref2VA" (h3-minimax-i2v.json, the references + continuations
-    // graph every stack above patches) or "Ultra" (h3-minimax-ultra.json, JunkunStudio's All-In-One Ultra
-    // with SelfLift full-res tiled sampling). Unknown or missing falls back to Ref2VA.
+    // graph every stack above patches), "Ultra" (h3-minimax-ultra.json, JunkunStudio's All-In-One Ultra
+    // with SelfLift full-res tiled sampling) or "TwoPass" (h3-erosmax-2pass.json, the ErosMax b7 Turbo
+    // two-pass graph with RefMods and video continuation). Unknown or missing falls back to Ref2VA.
     public string MiniMaxI2VWorkflow { get; set; } = "Ref2VA";
 
     // The All-In-One Ultra card. Its defaults are the authored workflow's own values, which is what was
     // tested on the server — see MiniMaxI2VUltraOptions.
     public MiniMaxI2VUltraOptions MiniMaxI2VUltra { get; set; } = new();
+
+    // The 🌹 ErosMax 2-Pass card, defaulting to the authored workflow's values — see MiniMaxI2VTwoPassOptions.
+    public MiniMaxI2VTwoPassOptions MiniMaxI2VTwoPass { get; set; } = new();
 
     public LMStudioSettings LMStudioSettings { get; set; } = new LMStudioSettings();
 

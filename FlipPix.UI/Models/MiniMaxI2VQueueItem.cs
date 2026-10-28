@@ -129,13 +129,38 @@ namespace FlipPix.UI.Models
         [JsonIgnore]
         public bool IsUltra => Workflow == I2VWorkflow.Ultra && Ultra != null;
 
+        // ── 🌹 ErosMax 2-Pass ───────────────────────────────────────────────────────────────────────
+
+        /// <summary>The ErosMax 2-Pass card as it stood at Add to Queue. Null on any other item.</summary>
+        public FlipPix.Core.Models.MiniMaxI2VTwoPassOptions? TwoPass { get; set; }
+
+        /// <summary>Per reference video, whether its soundtrack rides along as its paired audio. 2-Pass only.</summary>
+        public List<bool> VideoSoundtracks { get; set; } = new();
+
+        /// <summary>The video Continue mode extends; null on a Normal take. The options' own switch is not
+        /// serialized, so this path is what says "continue" on a queue restored from disk.</summary>
+        public string? ContinueSourcePath { get; set; }
+
         [JsonIgnore]
-        public int PassCount => IsUltra ? 1 : ContinuationPrompts.Count + 1;
+        public bool IsTwoPass => Workflow == I2VWorkflow.TwoPass && TwoPass != null;
+
+        /// <summary>Whether this 2-Pass item extends a video.</summary>
+        [JsonIgnore]
+        public bool IsTwoPassContinue => IsTwoPass && !string.IsNullOrEmpty(ContinueSourcePath);
+
+        /// <summary>One submission per item, no continuation loop: Ultra and 2-Pass.</summary>
+        [JsonIgnore]
+        public bool IsSingleGraph => IsUltra || IsTwoPass;
+
+        [JsonIgnore]
+        public int PassCount => IsSingleGraph ? 1 : ContinuationPrompts.Count + 1;
 
         [JsonIgnore]
         public int TotalSeconds => IsUltra
             ? (int)Math.Round(Ultra!.DurationSeconds)
-            : LengthSeconds + ContinuationSeconds.Sum();
+            : IsTwoPass
+                ? (int)Math.Round(TwoPass!.DurationSeconds)
+                : LengthSeconds + ContinuationSeconds.Sum();
 
         [JsonIgnore]
         public string DisplayText
@@ -143,7 +168,7 @@ namespace FlipPix.UI.Models
             get
             {
                 var refs = ReferencePaths.Count == 0
-                    ? "(no reference)"
+                    ? (IsTwoPass ? "text only" : "(no reference)")
                     : Path.GetFileNameWithoutExtension(ReferencePaths[0]) +
                       (ReferencePaths.Count > 1 ? $" +{ReferencePaths.Count - 1}" : string.Empty);
 
@@ -154,6 +179,19 @@ namespace FlipPix.UI.Models
                     var motion = Ultra!.HighMotionFix ? " · motion fix" : string.Empty;
                     return $"💎 Ultra · {refs}{media} → {AspectRatio} · {Ultra.Megapixels:0.0} MP · " +
                            $"{Ultra.DurationSeconds:0.#}s · {Ultra.Steps} steps{motion}";
+                }
+                if (IsTwoPass)
+                {
+                    var o = TwoPass!;
+                    var media = (AudioPaths.Count > 0 ? $" · {AudioPaths.Count} audio" : string.Empty) +
+                                (VideoPaths.Count > 0 ? $" · {VideoPaths.Count} video" : string.Empty);
+                    var mods = o.ActiveRefMods.Count > 0 ? $" · {o.ActiveRefMods.Count} RefMod" : string.Empty;
+                    var mode = IsTwoPassContinue
+                        ? $" · ⏩ continues {Path.GetFileNameWithoutExtension(ContinueSourcePath)}"
+                        : o.PreviewOnly ? " · preview (pass 1 only)" : string.Empty;
+                    var fps = !IsTwoPassContinue && o.FrameGenMultiplier > 1 ? $" · {24 * o.FrameGenMultiplier} fps" : string.Empty;
+                    return $"🌹 2-Pass · {refs}{media}{mods} → {AspectRatio} · {o.FirstPassMegapixels:0.0}→{o.FinalMegapixels:0.0} MP · " +
+                           $"{o.DurationSeconds:0.#}s · {o.FirstPassSteps}+{o.SecondPassSteps} steps{mode}{fps}";
                 }
                 var passes = PassCount == 1 ? string.Empty : $" · {PassCount} passes";
                 var detail = UseLatentUpscale ? " · latent ×2" : string.Empty;

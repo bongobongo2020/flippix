@@ -139,6 +139,7 @@ namespace FlipPix.UI.ViewModels.Video
         {
             new I2VWorkflowOption(I2VWorkflow.Ref2VA, "🌀 Ref2VA + continuations (h3-minimax-i2v)"),
             new I2VWorkflowOption(I2VWorkflow.Ultra, "💎 All-In-One Ultra (Full-Res Tiled)"),
+            new I2VWorkflowOption(I2VWorkflow.TwoPass, "🌹 ErosMax Turbo 2-Pass (b7 · RefMods · continue)"),
         };
 
         /// <summary>
@@ -163,31 +164,53 @@ namespace FlipPix.UI.ViewModels.Video
                 }
 
                 if (value == I2VWorkflow.Ultra) OfferUltraModel();
+                if (value == I2VWorkflow.TwoPass)
+                {
+                    OfferTwoPassModel();
+                    _ = LoadRefModsAsync();
+                }
                 AddLog($"Workflow: {WorkflowName(value)}");
-                if (value == I2VWorkflow.Ultra && HasContinuations)
-                    AddLog("  Note: Ultra renders one pass of up to 15s — the continuations below are kept for " +
-                           "the Ref2VA workflow and ignored here.");
+                if (value != I2VWorkflow.Ref2VA && HasContinuations)
+                    AddLog("  Note: this workflow renders one pass of up to 15s — the continuations below are kept " +
+                           "for the Ref2VA workflow and ignored here." +
+                           (value == I2VWorkflow.TwoPass ? " To extend a video, use 2-Pass Continue mode." : string.Empty));
             }
         }
 
         public bool IsUltra => _workflow == I2VWorkflow.Ultra;
 
-        public bool IsRef2VA => _workflow != I2VWorkflow.Ultra;
+        public bool IsRef2VA => _workflow == I2VWorkflow.Ref2VA;
 
-        private static string WorkflowName(I2VWorkflow workflow) => workflow == I2VWorkflow.Ultra
-            ? "💎 All-In-One Ultra (Full-Res Tiled) — h3-minimax-ultra.json"
-            : "🌀 Ref2VA + continuations — h3-minimax-i2v.json";
+        private static string WorkflowName(I2VWorkflow workflow) => workflow switch
+        {
+            I2VWorkflow.Ultra => "💎 All-In-One Ultra (Full-Res Tiled) — h3-minimax-ultra.json",
+            I2VWorkflow.TwoPass => "🌹 ErosMax Turbo 2-Pass — h3-erosmax-2pass.json",
+            _ => "🌀 Ref2VA + continuations — h3-minimax-i2v.json",
+        };
 
-        public string WorkflowSummary => IsUltra
-            ? "JunkunStudio's All-In-One Ultra, as tested: one pass at the finished canvas, sampled by SelfLift — " +
-              "the first steps at 0.6× scale, then the LMS latent upscaler lifts it and the rest run tiled at full " +
-              "resolution. Up to 9 pictures plus 3 audio and 3 video references. Every dial below opens on the " +
-              "workflow's own value."
-            : "References + optional continuations past 15s, sampled draft → latent ×2 → finish, with the " +
-              "sampling stacks below.";
+        public string WorkflowSummary => _workflow switch
+        {
+            I2VWorkflow.Ultra =>
+                "JunkunStudio's All-In-One Ultra, as tested: one pass at the finished canvas, sampled by SelfLift — " +
+                "the first steps at 0.6× scale, then the LMS latent upscaler lifts it and the rest run tiled at full " +
+                "resolution. Up to 9 pictures plus 3 audio and 3 video references. Every dial below opens on the " +
+                "workflow's own value.",
+            I2VWorkflow.TwoPass =>
+                "The ErosMax b7 Turbo two-pass graph: a fast low-res first pass, the learned latent upscaler and a short " +
+                "refining second pass, then RTX super resolution and optional RTX frame generation and film grain. Up to " +
+                "4 pictures (or none, for text-to-video), 3 videos with their soundtracks, 3 audio clips and RefMods. " +
+                "Continue mode extends an existing video. Every dial below opens on the workflow's own value.",
+            _ => "References + optional continuations past 15s, sampled draft → latent ×2 → finish, with the " +
+                 "sampling stacks below.",
+        };
 
         /// <summary>The note on the REFERENCE PICTURES header.</summary>
-        public string ReferenceLimitNote => IsUltra ? "  · up to 9 (Ultra)" : "  · up to 4";
+        public string ReferenceLimitNote => _workflow switch
+        {
+            I2VWorkflow.Ultra => "  · up to 9 (Ultra)",
+            I2VWorkflow.TwoPass => "  · up to 4, optional (2-Pass)",
+            _ => "  · up to 4",
+        };
 
         private void RaiseWorkflowState()
         {
@@ -199,6 +222,7 @@ namespace FlipPix.UI.ViewModels.Video
             OnPropertyChanged(nameof(MoreReferences));
             OnPropertyChanged(nameof(MoreReferencesNote));
             RaiseUltraState();
+            RaiseTwoPassState();
             OnCanExecuteChanged();
         }
 
@@ -244,6 +268,9 @@ namespace FlipPix.UI.ViewModels.Video
             OnPropertyChanged(nameof(UltraResolvedAspect));
             OnPropertyChanged(nameof(UltraCanvasSummary));
             OnPropertyChanged(nameof(MoreReferencesNote));
+            OnPropertyChanged(nameof(TwoPassMediaSummary));
+            OnPropertyChanged(nameof(TwoPassResolvedAspect));
+            OnPropertyChanged(nameof(TwoPassCanvasSummary));
             OnCanExecuteChanged();
         }
 

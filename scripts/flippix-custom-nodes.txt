@@ -29,6 +29,13 @@ https://github.com/D3voz/comfyui-h3-oneclick-swap      # H3OneClickSwapPlan, H3A
 https://github.com/Adudeguyman/ComfyUI-Fantastic-MiniMaxH3-PromptBuilder # MiniMaxH3FantasticVideoEditLatent
 https://github.com/ethanfel/ComfyUI-MiniMaxH3-Context-Loop # MiniMaxH3Chain* (clip loop, checkpoints, final assembly)
 
+# --- MiniMax H3 ErosMax 2-Pass (MiniMax I2V, 2-Pass workflow) ---
+https://github.com/cicalooo/ComfyUI-H3-PowerLoraStack   # H3PowerLoraStack
+https://github.com/Luisacaotica/ComfyUI-MiniMaxH3Mod    # MiniMaxH3RefModsLoader, MiniMaxH3RefModApply (RefMods)
+https://github.com/LordLocksley/ComfyUI-Lokken-VideoTools # LokkenVideoPostProcessing (grain + H.264 encode)
+https://github.com/VykosX/ControlFlowUtils              # HaltExecution
+https://github.com/Starnodes2024/ComfyUI_StarNodes      # MinimaxH3LatentUpscaler3D
+
 # --- LTX ---
 https://github.com/Lightricks/ComfyUI-LTXVideo          # LTXV* nodes (img2video, guides, schedulers, VAE)
 

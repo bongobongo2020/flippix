@@ -252,6 +252,7 @@ namespace FlipPix.UI.ViewModels.Video
 
             // After the render card: the Ultra card offers its checkpoint into the model list InitRender seeded.
             InitUltra();
+            InitTwoPass();
 
             // Analyze & Queue — see MiniMaxI2VViewModel.Analysis.cs.
             InitAnalysis();
@@ -988,8 +989,11 @@ namespace FlipPix.UI.ViewModels.Video
         public bool CanGenerate => IsUltra
             // 💎 Ultra: one pass, no continuations; a video alone is a valid reference, audio alone is not.
             ? HasUltraVisualReference && !string.IsNullOrWhiteSpace(Prompt) && !IsAnalyzing
-            : HasReference && !string.IsNullOrWhiteSpace(Prompt) && !IsAnalyzing &&
-              Continuations.All(c => !string.IsNullOrWhiteSpace(c.Prompt));
+            : IsTwoPass
+                // 🌹 2-Pass: a prompt is enough — with no reference it is text-to-video, as authored.
+                ? TwoPassBlockedReason().Length == 0
+                : HasReference && !string.IsNullOrWhiteSpace(Prompt) && !IsAnalyzing &&
+                  Continuations.All(c => !string.IsNullOrWhiteSpace(c.Prompt));
 
         /// <summary>
         /// Why Add to Queue is disabled, or empty when it is not. A greyed-out button with four possible
@@ -1008,6 +1012,7 @@ namespace FlipPix.UI.ViewModels.Video
                     if (IsAnalyzing) return "Waiting for Analyze to finish…";
                     return string.Empty;
                 }
+                if (IsTwoPass) return TwoPassBlockedReason();
                 if (!HasReference) return "Add a picture to slot 1 (Picture 1) to enable this.";
                 if (string.IsNullOrWhiteSpace(Prompt)) return "Segment 1 needs a prompt — press Analyze, or write one.";
                 if (IsAnalyzing) return "Waiting for Analyze to finish…";
@@ -1153,6 +1158,11 @@ namespace FlipPix.UI.ViewModels.Video
             if (IsUltra)
             {
                 EnqueueItem(BuildUltraQueueItem());
+                return;
+            }
+            if (IsTwoPass)
+            {
+                EnqueueItem(BuildTwoPassQueueItem());
                 return;
             }
 
@@ -1382,6 +1392,7 @@ namespace FlipPix.UI.ViewModels.Video
         private async Task<string?> PreflightAsync(MiniMaxI2VQueueItem item, CancellationToken token)
         {
             if (item.IsUltra) return await PreflightUltraAsync(item, token);
+            if (item.IsTwoPass) return await PreflightTwoPassAsync(item, token);
 
             var frameRamGb = EstimateFrameRamGb(item);
             var peakRamGb = PeakRamGb(frameRamGb, item.UseRtxUpscale);
@@ -1943,7 +1954,9 @@ namespace FlipPix.UI.ViewModels.Video
                 if (blocked != null) throw new InvalidOperationException(blocked);
 
                 var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
-                                                item.IsUltra ? UltraWorkflowFileName : WorkflowFileName);
+                                                item.IsUltra ? UltraWorkflowFileName
+                                                : item.IsTwoPass ? TwoPassWorkflowFileName
+                                                : WorkflowFileName);
                 if (!File.Exists(workflowPath))
                     throw new FileNotFoundException($"Workflow file not found: {workflowPath}");
                 var json = await File.ReadAllTextAsync(workflowPath, outerToken);
@@ -1964,6 +1977,12 @@ namespace FlipPix.UI.ViewModels.Video
                 var runSeed = item.Seed >= 0 ? item.Seed : System.Random.Shared.NextInt64(0, int.MaxValue);
                 var ts = DateTime.Now.ToString("yyyyMMdd_HHmmss");
                 var runToken = $"mmi2v_{ts}";
+
+                if (item.IsTwoPass)
+                {
+                    await RunTwoPassItemAsync(item, json, uploaded, runSeed, runToken, ts, outerToken);
+                    return;
+                }
 
                 if (item.IsUltra)
                 {
@@ -2707,6 +2726,7 @@ namespace FlipPix.UI.ViewModels.Video
             StopQueueCommand.NotifyCanExecuteChanged();
             ReprocessAllFailedCommand.NotifyCanExecuteChanged();
             SavePromptCommand.NotifyCanExecuteChanged();
+            UseLastResultAsSourceCommand.NotifyCanExecuteChanged();
             RaiseRenderGate();
         }
     }

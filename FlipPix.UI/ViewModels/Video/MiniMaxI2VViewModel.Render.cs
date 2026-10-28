@@ -586,6 +586,16 @@ namespace FlipPix.UI.ViewModels.Video
                         DiffusionModelOptions.Add(new DiffusionModelOption(Ultra.DiffusionModel,
                                                                            LabelFor(Ultra.DiffusionModel) + " (not on server)"));
                     Ultra.Refresh(nameof(MiniMaxI2VUltraOptions.DiffusionModel));
+
+                    // 🌹 2-Pass's too.
+                    var twoPassMatch = found.FirstOrDefault(n => string.Equals(n, NormalizeName(TwoPass.DiffusionModel),
+                                                                               StringComparison.OrdinalIgnoreCase));
+                    if (twoPassMatch != null) TwoPass.DiffusionModel = twoPassMatch;
+                    else if (DiffusionModelOptions.All(o => !string.Equals(o.Value, TwoPass.DiffusionModel,
+                                                                              StringComparison.OrdinalIgnoreCase)))
+                        DiffusionModelOptions.Add(new DiffusionModelOption(TwoPass.DiffusionModel,
+                                                                           LabelFor(TwoPass.DiffusionModel) + " (not on server)"));
+                    TwoPass.Refresh(nameof(MiniMaxI2VTwoPassOptions.DiffusionModel));
                 });
                 AddLog($"Model list: {found.Count} model(s) in diffusion_models/h3-minimax.");
             }
@@ -730,7 +740,7 @@ namespace FlipPix.UI.ViewModels.Video
                     .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
                     .ToList();
 
-                var chosen = Loras.Where(l => l.HasLora).Select(l => l.Name).ToList();
+                var chosen = Loras.Concat(TwoPassLoras).Where(l => l.HasLora).Select(l => l.Name).ToList();
                 OnUiThread(() =>
                 {
                     _rebuildingLoras = true;
@@ -739,6 +749,7 @@ namespace FlipPix.UI.ViewModels.Video
                         // Each row's SelectedValue is re-resolved against the rebuilt list, so the name is
                         // captured before the Clear() and written back after it.
                         var held = Loras.Select(l => l.Name).ToList();
+                        var heldTwoPass = TwoPassLoras.Select(l => l.Name).ToList();
 
                         LoraOptions.Clear();
                         LoraOptions.Add(NoLora);
@@ -754,8 +765,15 @@ namespace FlipPix.UI.ViewModels.Video
                                 string.Equals(n, held[i], StringComparison.OrdinalIgnoreCase));
                             Loras[i].Name = match ?? held[i];
                         }
+                        for (var i = 0; i < TwoPassLoras.Count; i++)
+                        {
+                            var match = found.FirstOrDefault(n =>
+                                string.Equals(n, heldTwoPass[i], StringComparison.OrdinalIgnoreCase));
+                            TwoPassLoras[i].Name = match ?? heldTwoPass[i];
+                        }
                     }
                     finally { _rebuildingLoras = false; }
+                    SyncTwoPassLoras();
 
                     OnPropertyChanged(nameof(LoraSummary));
                 });

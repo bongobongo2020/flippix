@@ -99,6 +99,16 @@ public static class NodeCatalog
         ["MiniMaxH3FantasticVideoEditLatent"] = "https://github.com/Adudeguyman/ComfyUI-Fantastic-MiniMaxH3-PromptBuilder",
         ["MiniMaxH3ChainAssemble"] = "https://github.com/ethanfel/ComfyUI-MiniMaxH3-Context-Loop",
         ["MiniMaxH3ChainLoopStart"] = "https://github.com/ethanfel/ComfyUI-MiniMaxH3-Context-Loop",
+
+        // --- MiniMax H3 ErosMax 2-Pass (🌀 MiniMax I2V, 🌹 2-Pass workflow) ---
+        ["H3PowerLoraStack"] = "https://github.com/cicalooo/ComfyUI-H3-PowerLoraStack",
+        ["MiniMaxH3RefModsLoader"] = "https://github.com/Luisacaotica/ComfyUI-MiniMaxH3Mod",
+        ["MiniMaxH3RefModApply"] = "https://github.com/Luisacaotica/ComfyUI-MiniMaxH3Mod",
+        ["LokkenVideoPostProcessing"] = "https://github.com/LordLocksley/ComfyUI-Lokken-VideoTools",
+        ["HaltExecution"] = "https://github.com/VykosX/ControlFlowUtils",
+        ["MinimaxH3LatentUpscaler3D"] = "https://github.com/Starnodes2024/ComfyUI_StarNodes",
+        ["ModelPreviewOverrideKJ"] = "https://github.com/kijai/ComfyUI-KJNodes",
+        ["INTConstant"] = "https://github.com/kijai/ComfyUI-KJNodes",
     };
 
     // Node class -> a specific pip package it needs (that ComfyUI's Python may be missing) and the
