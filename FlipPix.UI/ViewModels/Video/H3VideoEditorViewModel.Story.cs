@@ -399,6 +399,34 @@ namespace FlipPix.UI.ViewModels.Video
             AddLog("Starting clip generation...");
             await GenerateClipsAsync();
 
+            // 🌹 2-Pass: those were the previews. The run waits for "Happy — proceed" (beats can be edited and
+            // re-previewed meanwhile), then refines every beat and joins them. The refined beats are already at
+            // the final canvas with RTX, so there is no upscale pass.
+            if (IsTwoPass)
+            {
+                if (_storyBatchCancelled) return;
+                if (!await AwaitApprovalAsync()) return;
+                await RefineClipsAsync();
+                if (_storyBatchCancelled) return;
+
+                var refined = TimelineClips
+                    .Where(c => c.IsRendered && !string.IsNullOrEmpty(c.OutputPath) && File.Exists(c.OutputPath))
+                    .OrderBy(c => c.Index)
+                    .Select(c => c.OutputPath!)
+                    .ToList();
+                if (refined.Count == 0)
+                {
+                    AddLog("No beat was refined — nothing to join.");
+                    return;
+                }
+                if (refined.Count < TimelineClips.Count)
+                    AddLog($"Joining the {refined.Count} of {TimelineClips.Count} beats that refined.");
+                JoinedVideoPath = string.Empty;
+                await JoinClipsAsync(refined);
+                StoryStatus = string.IsNullOrEmpty(JoinedVideoPath) ? "Join did not produce a video." : "Story finished: refined and joined";
+                return;
+            }
+
             // Then upscale each clip and join the upscaled clips before the batch moves on — unless the
             // user cancelled. Clips are upscaled one at a time rather than the joined video, which
             // grows with the story's length and runs ComfyUI out of memory on long stories.

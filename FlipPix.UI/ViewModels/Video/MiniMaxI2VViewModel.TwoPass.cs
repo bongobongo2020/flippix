@@ -92,6 +92,12 @@ namespace FlipPix.UI.ViewModels.Video
         internal const string TpLokkenSource = "152:136";    // LokkenVideoPostProcessing, the source
         internal const string TpPreviewPass1 = "12";         // ModelPreviewOverrideKJ on the pass 1 model
         internal const string TpPreviewPass2 = "tp_preview2"; // its copy on pass 2 — added, not authored
+        internal const string TpPreviewVideo = "151:95";     // ComfySwitchNode: pass 2 / pass 1 video (94)
+        internal const string TpPreviewAudio = "151:88";     // ComfySwitchNode: pass 2 / pass 1 audio (87 OR 94)
+        internal const string TpNormalExport = "152:137";    // ConcatenateVideo, the Normal container
+        internal const string TpContainer = "152:138";       // ComfySwitchNode: Normal / Continue container
+        internal const string TpOutputFolder = "152:150";    // ComfySwitchNode: Normal / extension folder
+        internal const string TpTrimmedAudio = "152:123";    // TrimAudioDuration, new audio minus the overlap
 
         /// <summary>The switches Normal mode collapses onto their false side, so no continuation node reaches
         /// the server: (switch, the input whose source replaces it).</summary>
@@ -241,26 +247,29 @@ namespace FlipPix.UI.ViewModels.Video
 
         // ── Lists ───────────────────────────────────────────────────────────────────────────────────
 
-        public IReadOnlyList<DiffusionModelOption> TwoPassTextEncoderOptions { get; } = new[]
+        // Static so 🎬 H3 Video Editor's 🌹 preset offers the same lists. The instance properties below are what
+        // the shared cards (Controls/TwoPassModelCard, TwoPassTuningCards) bind to, on either view model.
+
+        internal static readonly IReadOnlyList<DiffusionModelOption> TwoPassTextEncoders = new[]
         {
             new DiffusionModelOption(MiniMaxI2VTwoPassOptions.AuthoredTextEncoder, "qwen3vl 32b w4a8 convrot (workflow)"),
             new DiffusionModelOption(MiniMaxI2VUltraOptions.AuthoredTextEncoder, "qwen3vl 32b nvfp4 awq"),
             new DiffusionModelOption(MiniMaxI2VUltraOptions.AlternateTextEncoder, "qwen3vl 32b ultra uncensored heretic int8"),
         };
 
-        public IReadOnlyList<DiffusionModelOption> TwoPassVideoVaeOptions { get; } = new[]
+        internal static readonly IReadOnlyList<DiffusionModelOption> TwoPassVideoVaes = new[]
         {
             new DiffusionModelOption(MiniMaxI2VTwoPassOptions.AuthoredVideoVae, "int8 convrot (workflow)"),
             new DiffusionModelOption("minimax_h3_video_vae_fp16.safetensors", "fp16"),
         };
 
-        public IReadOnlyList<string> TwoPassSamplerOptions { get; } =
+        internal static readonly IReadOnlyList<string> TwoPassSamplers =
             new[] { "er_sde", "euler", "euler_ancestral", "res_multistep", "dpmpp_2m", "dpmpp_sde", "lcm" };
 
-        public IReadOnlyList<string> TwoPassSchedulerOptions { get; } =
+        internal static readonly IReadOnlyList<string> TwoPassSchedulers =
             new[] { "sgm_uniform", "beta", "simple", "normal", "karras", "exponential", "linear_quadratic", "kl_optimal", "beta57" };
 
-        public IReadOnlyList<string> TwoPassUpscalerOptions { get; } = new[]
+        internal static readonly IReadOnlyList<string> TwoPassUpscalers = new[]
         {
             MiniMaxI2VTwoPassOptions.AuthoredLatentUpscaler,
             "minimax_h3_latent_upscaler_3d_bf16.safetensors",
@@ -268,36 +277,22 @@ namespace FlipPix.UI.ViewModels.Video
             "h3_upscaler_lms_v0.1.safetensors",
         };
 
-        public IReadOnlyList<string> TwoPassAttentionOptions => UltraAttentions;
-
-        public IReadOnlyList<string> TwoPassSparseMethods { get; } = new[] { "vsa", "sla", "sol-attn" };
-
-        public IReadOnlyList<string> TwoPassSinkOptions { get; } = new[] { "exact_kv_and_rows", "exact_kv", "off" };
-
-        public IReadOnlyList<string> TwoPassRtxQualityOptions { get; } =
-            new[] { "ULTRA", "HIGH", "MEDIUM", "LOW", "BICUBIC" };
-
-        public IReadOnlyList<string> TwoPassFrameGenModes { get; } = new[] { "HIGH", "MEDIUM", "LOW" };
-
-        public IReadOnlyList<string> TwoPassEncoderPresets { get; } =
+        internal static readonly IReadOnlyList<string> TwoPassSparseMethodList = new[] { "vsa", "sla", "sol-attn" };
+        internal static readonly IReadOnlyList<string> TwoPassSinks = new[] { "exact_kv_and_rows", "exact_kv", "off" };
+        internal static readonly IReadOnlyList<string> TwoPassRtxQualities = new[] { "ULTRA", "HIGH", "MEDIUM", "LOW", "BICUBIC" };
+        internal static readonly IReadOnlyList<string> TwoPassFrameGenModeList = new[] { "HIGH", "MEDIUM", "LOW" };
+        internal static readonly IReadOnlyList<string> TwoPassEncoderPresetList =
             new[] { "ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow" };
-
-        public IReadOnlyList<string> TwoPassQuantizedLayerOptions { get; } = new[] { "auto", "branch", "merge" };
-
-        public IReadOnlyList<string> TwoPassAdalnOptions { get; } = new[] { "auto", "strip", "off" };
-
-        public IReadOnlyList<int> TwoPassGuideWindowOptions => TwoPassGuideWindows;
-
-        public IReadOnlyList<string> RefModComponentOptions { get; } = new[] { "All", "Visual", "Audio" };
-
-        public IReadOnlyList<string> RefModCurveDirections { get; } =
+        internal static readonly IReadOnlyList<string> TwoPassQuantizedLayers = new[] { "auto", "branch", "merge" };
+        internal static readonly IReadOnlyList<string> TwoPassAdalnPorts = new[] { "auto", "strip", "off" };
+        internal static readonly IReadOnlyList<string> RefModComponents = new[] { "All", "Visual", "Audio" };
+        internal static readonly IReadOnlyList<string> RefModCurveDirectionList =
             new[] { "constant", "concept_at_start", "concept_at_middle", "concept_at_end", "concept_at_ends" };
-
-        public IReadOnlyList<string> RefModCurveShapes { get; } =
+        internal static readonly IReadOnlyList<string> RefModCurveShapeList =
             new[] { "linear", "ease", "sigmoid", "tanh", "quadratic", "cubic", "exponential", "stair", "elastic", "bump", "dip" };
 
         /// <summary>The first-pass sizes, from the workflow's own size note (multiple 32, 4:3 column).</summary>
-        public IReadOnlyList<MegapixelOption> TwoPassFirstPassMegapixels { get; } = new[]
+        internal static readonly IReadOnlyList<MegapixelOption> TwoPassFirstPassSizes = new[]
         {
             new MegapixelOption(0.2, "0.2 MP — 544×384"),
             new MegapixelOption(0.3, "0.3 MP — 640×480 (workflow)"),
@@ -307,7 +302,7 @@ namespace FlipPix.UI.ViewModels.Video
         };
 
         /// <summary>The second-pass target, before RTX.</summary>
-        public IReadOnlyList<MegapixelOption> TwoPassFinalMegapixels { get; } = new[]
+        internal static readonly IReadOnlyList<MegapixelOption> TwoPassFinalSizes = new[]
         {
             new MegapixelOption(0.7, "0.7 MP"),
             new MegapixelOption(0.9, "0.9 MP"),
@@ -317,6 +312,35 @@ namespace FlipPix.UI.ViewModels.Video
             new MegapixelOption(1.8, "1.8 MP"),
             new MegapixelOption(2.0, "2.0 MP"),
         };
+
+        public IReadOnlyList<DiffusionModelOption> TwoPassTextEncoderOptions => TwoPassTextEncoders;
+        public IReadOnlyList<DiffusionModelOption> TwoPassVideoVaeOptions => TwoPassVideoVaes;
+        public IReadOnlyList<string> TwoPassSamplerOptions => TwoPassSamplers;
+        public IReadOnlyList<string> TwoPassSchedulerOptions => TwoPassSchedulers;
+        public IReadOnlyList<string> TwoPassUpscalerOptions => TwoPassUpscalers;
+        public IReadOnlyList<string> TwoPassAttentionOptions => UltraAttentions;
+        public IReadOnlyList<string> TwoPassSparseMethods => TwoPassSparseMethodList;
+        public IReadOnlyList<string> TwoPassSinkOptions => TwoPassSinks;
+        public IReadOnlyList<string> TwoPassRtxQualityOptions => TwoPassRtxQualities;
+        public IReadOnlyList<string> TwoPassFrameGenModes => TwoPassFrameGenModeList;
+        public IReadOnlyList<string> TwoPassEncoderPresets => TwoPassEncoderPresetList;
+        public IReadOnlyList<string> TwoPassQuantizedLayerOptions => TwoPassQuantizedLayers;
+        public IReadOnlyList<string> TwoPassAdalnOptions => TwoPassAdalnPorts;
+        public IReadOnlyList<int> TwoPassGuideWindowOptions => TwoPassGuideWindows;
+        public IReadOnlyList<string> RefModComponentOptions => RefModComponents;
+        public IReadOnlyList<string> RefModCurveDirections => RefModCurveDirectionList;
+        public IReadOnlyList<string> RefModCurveShapes => RefModCurveShapeList;
+        public IReadOnlyList<MegapixelOption> TwoPassFirstPassMegapixels => TwoPassFirstPassSizes;
+        public IReadOnlyList<MegapixelOption> TwoPassFinalMegapixels => TwoPassFinalSizes;
+
+        // The names the shared cards bind to, for the lists this tab shares with its other workflows.
+        public ObservableCollection<DiffusionModelOption> TwoPassDiffusionModelOptions => DiffusionModelOptions;
+        public RelayCommand RefreshTwoPassModelsCommand => RefreshDiffusionModelsCommand;
+        public ObservableCollection<DiffusionModelOption> TwoPassLoraOptions => LoraOptions;
+        public RelayCommand RefreshTwoPassLorasCommand => RefreshLorasCommand;
+
+        /// <summary>The OUTPUT card's FrameGen rows. The editor hides them: its clips are joined at one frame rate.</summary>
+        public bool TwoPassFrameGenAvailable => true;
 
         // ── Summaries ───────────────────────────────────────────────────────────────────────────────
 
@@ -356,17 +380,15 @@ namespace FlipPix.UI.ViewModels.Video
                    $"shift {o.ShiftVideo:0.##}/{o.ShiftAudio:0.##} · {sparse}";
         }
 
-        public string TwoPassOutputSummary
+        public string TwoPassOutputSummary => TwoPassOutputSummaryFor(TwoPass);
+
+        internal static string TwoPassOutputSummaryFor(MiniMaxI2VTwoPassOptions o, bool frameGen = true)
         {
-            get
-            {
-                var o = TwoPass;
-                var fps = o.ContinueMode || o.FrameGenMultiplier <= 1
-                    ? "24 fps"
-                    : $"FrameGen ×{o.FrameGenMultiplier} → {24 * o.FrameGenMultiplier} fps";
-                var grain = o.GrainStrength > 0 ? $"grain {o.GrainStrength:0.000}" : "no grain";
-                return $"{fps} · {grain} · H.264 CRF {o.Crf}, {o.EncoderPreset}";
-            }
+            var fps = !frameGen || o.ContinueMode || o.FrameGenMultiplier <= 1
+                ? "24 fps"
+                : $"FrameGen ×{o.FrameGenMultiplier} → {24 * o.FrameGenMultiplier} fps";
+            var grain = o.GrainStrength > 0 ? $"grain {o.GrainStrength:0.000}" : "no grain";
+            return $"{fps} · {grain} · H.264 CRF {o.Crf}, {o.EncoderPreset}";
         }
 
         public string TwoPassFrameGenNote => TwoPass.ContinueMode && TwoPass.FrameGenMultiplier > 1
@@ -603,7 +625,22 @@ namespace FlipPix.UI.ViewModels.Video
             string json, MiniMaxI2VQueueItem item,
             IReadOnlyList<string> pictures, IReadOnlyList<string> audios, IReadOnlyList<string> videos,
             IReadOnlyList<bool> videoSoundtracks, string? continueSource,
-            long runSeed, string runToken, out int pruned)
+            long runSeed, string runToken, out int pruned) =>
+            BuildTwoPassGraph(json, item, pictures, audios, videos, videoSoundtracks, continueSource,
+                              runSeed, $"{OutputSubfolder}/{runToken}", segmentOnly: false, out pruned);
+
+        /// <summary>
+        /// <see cref="BuildTwoPassWorkflow"/> with the two choices 🎬 H3 Video Editor needs:
+        /// <paramref name="outputPrefix"/> is the SaveVideo prefix (both the full and the preview one), and
+        /// <paramref name="segmentOnly"/> makes a Continue take export only its new segment — the overlap cut
+        /// off picture and sound — instead of the source with the segment appended, so each beat stays its
+        /// own clip on the timeline.
+        /// </summary>
+        internal static string BuildTwoPassGraph(
+            string json, MiniMaxI2VQueueItem item,
+            IReadOnlyList<string> pictures, IReadOnlyList<string> audios, IReadOnlyList<string> videos,
+            IReadOnlyList<bool> videoSoundtracks, string? continueSource,
+            long runSeed, string outputPrefix, bool segmentOnly, out int pruned)
         {
             var o = item.TwoPass ?? throw new Exception("This item has no 2-Pass settings.");
             var root = JsonNode.Parse(json)?.AsObject()
@@ -751,6 +788,15 @@ namespace FlipPix.UI.ViewModels.Video
                 SetInput(root, TpGuideIndex, "value", Math.Max(0, Array.IndexOf(TwoPassGuideWindows, o.GuideFrames)));
                 // The stitched file lands beside every other take, so the tab finds it.
                 SetInput(root, TpExtensionFolder, "value", OutputSubfolder);
+
+                if (segmentOnly)
+                {
+                    // The Normal container already encodes the trimmed segment (152:115 is on its Continue side);
+                    // it only needs the trimmed soundtrack to match, and the take's own folder.
+                    Link(root, TpNormalExport, "complete_audio", TpTrimmedAudio, 0);
+                    Collapse(root, TpContainer, "on_false");
+                    Collapse(root, TpOutputFolder, "on_false");
+                }
             }
             else
             {
@@ -815,6 +861,13 @@ namespace FlipPix.UI.ViewModels.Video
             }
             SetInput(root, TpPreview, "value", o.PreviewOnly);
             SetInput(root, TpUseFirstPassAudio, "value", o.UseFirstPassAudio);
+            if (o.PreviewOnly)
+            {
+                // A preview decodes pass 1's video and sound: the switches are wired to that side, so the
+                // upscaler and the second pass are pruned rather than left for the server to validate and load.
+                Collapse(root, TpPreviewVideo, "on_true");
+                Collapse(root, TpPreviewAudio, "on_true");
+            }
 
             // ── RTX, encode, sink ─────────────────────────────────────────────
             if (o.UseRtxUpscale)
@@ -841,8 +894,8 @@ namespace FlipPix.UI.ViewModels.Video
                 SetInput(root, lokken, "encoder_preset", o.EncoderPreset);
             }
 
-            SetInput(root, TpPrefixFull, "value", $"{OutputSubfolder}/{runToken}");
-            SetInput(root, TpPrefixPreview, "value", $"{OutputSubfolder}/{runToken}");
+            SetInput(root, TpPrefixFull, "value", outputPrefix);
+            SetInput(root, TpPrefixPreview, "value", outputPrefix);
 
             return PruneToOutputs(root.ToJsonString(), new[] { TpSink }, out pruned);
         }

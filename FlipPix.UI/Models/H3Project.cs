@@ -55,6 +55,12 @@ namespace FlipPix.UI.Models
         public string State { get; set; } = "Pending";
         public bool UseMotionContext { get; set; }
         public string? ContextLatentFolder { get; set; }
+
+        // 🌹 2-Pass: the first-pass preview and what it was made from (empty in older projects)
+        public string? PreviewPath { get; set; }
+        public string? PreviewedPrompt { get; set; }
+        public string? PreviewGuidePath { get; set; }
+        public long Seed { get; set; }
     }
 
     public class H3ProjectReferenceImages
@@ -100,6 +106,9 @@ namespace FlipPix.UI.Models
 
         // 💎 All-In-One Ultra preset (null in projects saved before it existed)
         public FlipPix.Core.Models.MiniMaxI2VUltraOptions? Ultra { get; set; }
+
+        // 🌹 ErosMax 2-Pass preset (null in projects saved before it existed)
+        public FlipPix.Core.Models.MiniMaxI2VTwoPassOptions? TwoPass { get; set; }
     }
 
     public class H3ProjectStoryMode

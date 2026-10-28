@@ -324,7 +324,7 @@ public sealed class MiniMaxI2VTwoPassTests
         var o = new MiniMaxI2VTwoPassOptions
         {
             FirstPassSteps = 10, SecondPassSteps = 5, SecondPassDenoise = 0.5, Sampler = "euler",
-            FirstPassMegapixels = 0.4, FinalMegapixels = 1.5, DurationSeconds = 8, PreviewOnly = true,
+            FirstPassMegapixels = 0.4, FinalMegapixels = 1.5, DurationSeconds = 8,
             UseFirstPassAudio = false, UseSparseAttention = true, SparseMethod = "sol-attn", SparseTau = 1.5,
             UseRtxUpscale = false, GrainStrength = 0, Crf = 20, EncoderPreset = "slow", MaxFidelityReferences = true,
         };
@@ -336,7 +336,7 @@ public sealed class MiniMaxI2VTwoPassTests
         Assert.Equal(0.4, Inputs(built, "20")["megapixels"]!.GetValue<double>(), 4);
         Assert.Equal("16:9 (Widescreen)", Inputs(built, "20")["aspect_ratio"]!.GetValue<string>());
         Assert.Equal(1.5, Inputs(built, "23")["value"]!.GetValue<double>(), 4);
-        Assert.True(Inputs(built, "94")["value"]!.GetValue<bool>());
+        Assert.False(Inputs(built, "94")["value"]!.GetValue<bool>()); // a preview prunes pass 2: H3EditorTwoPassTests
         Assert.False(Inputs(built, "87")["value"]!.GetValue<bool>());
         Assert.Equal("sol-attn", Inputs(built, "100")["selection"]!.GetValue<string>());
         Assert.Equal(1.5, Inputs(built, "100")["selection.tau"]!.GetValue<double>(), 4);

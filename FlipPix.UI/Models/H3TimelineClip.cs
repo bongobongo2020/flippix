@@ -48,6 +48,9 @@ namespace FlipPix.UI.Models
         [NotifyPropertyChangedFor(nameof(PromptPreview))]
         [NotifyPropertyChangedFor(nameof(ClipActions))]
         [NotifyPropertyChangedFor(nameof(ClipSummary))]
+        [NotifyPropertyChangedFor(nameof(IsPreviewCurrent))]
+        [NotifyPropertyChangedFor(nameof(IsPreviewStale))]
+        [NotifyPropertyChangedFor(nameof(TwoPassBadge))]
         private string _prompt = string.Empty;
 
         /// <summary>Shortened prompt for timeline display - shows first 80 chars.</summary>
@@ -116,14 +119,80 @@ namespace FlipPix.UI.Models
         [NotifyPropertyChangedFor(nameof(StatusText))]
         [NotifyPropertyChangedFor(nameof(PreviewVideoPath))]
         [NotifyPropertyChangedFor(nameof(HasVideoPreview))]
+        [NotifyPropertyChangedFor(nameof(TwoPassBadge))]
         private string _outputPath = string.Empty;
 
         /// <summary>Path to a thumbnail image for this clip.</summary>
         [ObservableProperty]
         private string _thumbnailPath = string.Empty;
 
-        /// <summary>Path to the video file for animated timeline preview. Returns OutputPath if video exists.</summary>
-        public string? PreviewVideoPath => IsRendered && System.IO.File.Exists(OutputPath) ? OutputPath : null;
+        /// <summary>Path to the video file for animated timeline preview: the finished render, or failing that
+        /// the 🌹 2-Pass first-pass preview.</summary>
+        public string? PreviewVideoPath =>
+            IsRendered && System.IO.File.Exists(OutputPath) ? OutputPath
+            : HasPreview ? PreviewPath
+            : null;
+
+        // ── 🌹 ErosMax 2-Pass: preview first, refine on approval ───────────────────────────────────
+
+        /// <summary>The first-pass-only render of this beat (low-res, seconds to make), shown on the timeline
+        /// until the final refinement replaces it. Empty until previewed.</summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(HasPreview))]
+        [NotifyPropertyChangedFor(nameof(IsPreviewCurrent))]
+        [NotifyPropertyChangedFor(nameof(IsPreviewStale))]
+        [NotifyPropertyChangedFor(nameof(PreviewVideoPath))]
+        [NotifyPropertyChangedFor(nameof(HasVideoPreview))]
+        [NotifyPropertyChangedFor(nameof(TwoPassBadge))]
+        private string _previewPath = string.Empty;
+
+        /// <summary>The prompt the preview was rendered from. A prompt edited since makes the preview stale.</summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(IsPreviewCurrent))]
+        [NotifyPropertyChangedFor(nameof(IsPreviewStale))]
+        [NotifyPropertyChangedFor(nameof(TwoPassBadge))]
+        private string _previewedPrompt = string.Empty;
+
+        /// <summary>The noise seed the preview was rendered with — the final refinement re-runs the same first
+        /// pass from it, so the refined clip is the take that was approved, sharpened.</summary>
+        public long Seed { get; set; }
+
+        /// <summary>The previous beat's preview this one continued (its guide frames), or empty when it started
+        /// on its own. The final refinement continues the same file, so it re-runs the approved first pass.</summary>
+        public string PreviewGuidePath { get; set; } = string.Empty;
+
+        /// <summary>Set by the editor when the beat before this one now has a different preview than the one
+        /// this preview continued — the join no longer matches until this beat is previewed again.</summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(IsPreviewCurrent))]
+        [NotifyPropertyChangedFor(nameof(IsPreviewStale))]
+        [NotifyPropertyChangedFor(nameof(TwoPassBadge))]
+        private bool _guideChanged;
+
+        public bool HasPreview => !string.IsNullOrEmpty(PreviewPath) && System.IO.File.Exists(PreviewPath);
+
+        /// <summary>Previewed from the prompt the clip has now, continuing the beat before as it is now.</summary>
+        public bool IsPreviewCurrent => HasPreview && PreviewedPrompt == Prompt && !GuideChanged;
+
+        public bool IsPreviewStale => HasPreview && !IsPreviewCurrent;
+
+        /// <summary>The 2-Pass corner tag: FINAL, PREVIEW, EDITED (previewed from an older prompt) or RE-JOIN
+        /// (the beat before it was re-previewed).</summary>
+        public string TwoPassBadge =>
+            HasPreview && PreviewedPrompt != Prompt ? "EDITED"
+            : HasPreview && GuideChanged ? "RE-JOIN"
+            : IsRendered ? "FINAL"
+            : HasPreview ? "PREVIEW"
+            : string.Empty;
+
+        /// <summary>Forgets the preview (the prompt or the clip it continues changed).</summary>
+        public void ClearPreview()
+        {
+            PreviewPath = string.Empty;
+            PreviewedPrompt = string.Empty;
+            PreviewGuidePath = string.Empty;
+            GuideChanged = false;
+        }
 
         /// <summary>True if this clip has a video preview available.</summary>
         public bool HasVideoPreview => !string.IsNullOrEmpty(PreviewVideoPath);
@@ -148,6 +217,7 @@ namespace FlipPix.UI.Models
             H3ClipState.Pending => "pending",
             H3ClipState.Queued => "queued",
             H3ClipState.Rendering => "rendering...",
+            H3ClipState.Previewed => "previewed",
             H3ClipState.Rendered => "done",
             H3ClipState.Failed => "failed",
             _ => string.Empty
@@ -181,6 +251,8 @@ namespace FlipPix.UI.Models
         Queued,
         Rendering,
         Rendered,
-        Failed
+        Failed,
+        /// <summary>🌹 2-Pass: the first-pass preview is ready; the final refinement has not run.</summary>
+        Previewed
     }
 }

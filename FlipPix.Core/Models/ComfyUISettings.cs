@@ -481,6 +481,10 @@ public class H3VideoEditorSettings
     /// so tuning one tab does not move the other.</summary>
     public MiniMaxI2VUltraOptions Ultra { get; set; } = new();
 
+    /// <summary>The 🌹 ErosMax 2-Pass preset's dials — the same card as 🌀 MiniMax I2V's, kept separately.
+    /// Its canvas, length, seed and Continue switch are the editor's, per clip.</summary>
+    public MiniMaxI2VTwoPassOptions TwoPass { get; set; } = new();
+
     // Upscale settings
     public double UpscaleFactor { get; set; } = 2.0;
     public double RefineAmount { get; set; } = 0.2;
@@ -534,6 +538,12 @@ public class H3TimelineClipState
     public string State { get; set; } = "Pending"; // Pending, Queued, Rendering, Rendered, Failed
     public bool UseMotionContext { get; set; } = true;
     public string ContextLatentFolder { get; set; } = string.Empty;
+
+    // 🌹 2-Pass: the first-pass preview, the prompt and seed it was made with
+    public string PreviewPath { get; set; } = string.Empty;
+    public string PreviewedPrompt { get; set; } = string.Empty;
+    public long Seed { get; set; }
+    public string PreviewGuidePath { get; set; } = string.Empty;
 }
 
 /// <summary>A user-saved preset for the H3 Video Editor.</summary>

@@ -15,7 +15,9 @@ namespace FlipPix.UI.ViewModels.Video
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(SelectedPreset))]
         [NotifyPropertyChangedFor(nameof(IsUltra))]
+        [NotifyPropertyChangedFor(nameof(IsTwoPass))]
         [NotifyPropertyChangedFor(nameof(IsClassicEngine))]
+        [NotifyPropertyChangedFor(nameof(GenerateLabel))]
         private string _selectedPresetName = "vanilla";
 
         public H3EditorPreset? SelectedPreset => Presets.FirstOrDefault(p => p.Name == SelectedPresetName);
@@ -66,6 +68,15 @@ namespace FlipPix.UI.ViewModels.Video
                 return;
             }
 
+            if (preset.IsTwoPass)
+            {
+                // Its own card too. Generate makes first-pass previews; nothing is refined until approved.
+                OnTwoPassSelected();
+                AddLog($"Applied preset: {presetName} — Generate previews every beat's first pass; " +
+                       "\"Happy — proceed\" runs the full two-pass refinement.");
+                return;
+            }
+
             SelectedModel = preset.Model;
             SelectedAttention = preset.Attention;
             SelectedSparseAttention = preset.SparseAttention;
@@ -84,9 +95,9 @@ namespace FlipPix.UI.ViewModels.Video
 
         private void SaveCurrentAsPreset()
         {
-            if (IsUltra)
+            if (IsUltra || IsTwoPass)
             {
-                AddLog("The Ultra card is saved as you edit it — ↺ puts it back on the workflow's tested values.");
+                AddLog("This preset's card is saved as you edit it — ↺ puts it back on the workflow's values.");
                 return;
             }
 
@@ -235,7 +246,12 @@ namespace FlipPix.UI.ViewModels.Video
         partial void OnCrossfadeChanged(bool value) => SaveSettings();
         partial void OnLevelLockChanged(bool value) => SaveSettings();
         partial void OnDefaultClipDurationChanged(double value) => SaveSettings();
-        partial void OnChainClipsChanged(bool value) => SaveSettings();
+        partial void OnChainClipsChanged(bool value)
+        {
+            SaveSettings();
+            OnPropertyChanged(nameof(TwoPassChainSummary));
+            RefreshTwoPassGuides();
+        }
         partial void OnMegapixelsChanged(double value) => SaveSettings();
         partial void OnProjectFolderChanged(string value) => SaveSettings();
     }

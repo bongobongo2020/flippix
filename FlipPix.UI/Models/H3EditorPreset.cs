@@ -54,6 +54,17 @@ namespace FlipPix.UI.Models
         /// <summary>The dropdown name of the Ultra entry — also what settings store when it is picked.</summary>
         public const string UltraName = "💎 All-In-One Ultra (Full-Res Tiled)";
 
+        /// <summary>
+        /// True for the 🌹 ErosMax Turbo 2-Pass entry: clips render through 🌀 MiniMax I2V's 2-Pass graph
+        /// (h3-erosmax-2pass.json) in two stages — every beat's first pass as a quick preview, then, once the user
+        /// approves the previews, the full two-pass refinement from the same seeds. Its card of dials replaces
+        /// the engine fields above.
+        /// </summary>
+        public bool IsTwoPass { get; set; }
+
+        /// <summary>The dropdown name of the 2-Pass entry — also what settings store when it is picked.</summary>
+        public const string TwoPassName = "🌹 ErosMax Turbo 2-Pass (preview → refine)";
+
         /// <summary>The H3 diffusion model (unet folder) the preset samples with.</summary>
         public string Model { get; set; } = VanillaModel;
 
@@ -142,6 +153,12 @@ namespace FlipPix.UI.Models
                     // Its dials live on H3VideoEditorSettings.Ultra, not here.
                     Name = UltraName,
                     IsUltra = true
+                },
+                new()
+                {
+                    // Its dials live on H3VideoEditorSettings.TwoPass, not here.
+                    Name = TwoPassName,
+                    IsTwoPass = true
                 }
             };
         }

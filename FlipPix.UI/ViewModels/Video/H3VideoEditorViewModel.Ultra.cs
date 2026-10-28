@@ -37,8 +37,8 @@ namespace FlipPix.UI.ViewModels.Video
         /// <summary>Whether the picked preset is the Ultra one.</summary>
         public bool IsUltra => SelectedPreset?.IsUltra == true;
 
-        /// <summary>The classic chain graph's dials are shown (Ultra hides them).</summary>
-        public bool IsClassicEngine => !IsUltra;
+        /// <summary>The classic chain graph's dials are shown (Ultra and 2-Pass hide them).</summary>
+        public bool IsClassicEngine => !IsUltra && !IsTwoPass;
 
         public RelayCommand ResetUltraCommand { get; private set; } = null!;
         public RelayCommand RefreshUltraModelsCommand { get; private set; } = null!;

@@ -1,0 +1,145 @@
+<UserControl x:Class="FlipPix.UI.Controls.TwoPassModelCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctrl="clr-namespace:FlipPix.UI.Controls">
+    <!--
+        🌹 ErosMax Turbo 2-Pass · MODEL & LORAS card, shared by 🌀 MiniMax I2V and 🎬 H3 Video Editor.
+        Binds to the host's DataContext: TwoPass (MiniMaxI2VTwoPassOptions), TwoPassDiffusionModelOptions,
+        RefreshTwoPassModelsCommand, TwoPassTextEncoderOptions, TwoPassVideoVaeOptions, TwoPassLoras,
+        TwoPassLoraOptions, AddTwoPassLoraCommand, RemoveTwoPassLoraCommand, RefreshTwoPassLorasCommand,
+        TwoPassQuantizedLayerOptions and TwoPassAdalnOptions. The host sets the card's visibility.
+    -->
+    <StackPanel>
+        <Border Style="{StaticResource SectionCardStyle}">
+            <StackPanel>
+                <ctrl:SectionHeader Title="🌹 2-PASS · MODEL &amp; LORAS" Note="  · as authored" Margin="0,0,0,8"/>
+                <TextBlock Text="Model" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                <Grid Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <ComboBox ItemsSource="{Binding TwoPassDiffusionModelOptions}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                              SelectedValue="{Binding TwoPass.DiffusionModel}" Height="28" FontSize="11" Margin="0,0,6,0"
+                              ToolTip="UNETLoader. The workflow ships 10Eros Max b7 8-step TURBO int8HQ, which has the Turbo LoRA baked in. Use a checkpoint compatible with its Turbo sampling."/>
+                    <Button Grid.Column="1" Content="&#x27F3;" Width="28" Height="28" FontSize="13"
+                            Command="{Binding RefreshTwoPassModelsCommand}"
+                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                            ToolTip="Re-read diffusion_models/h3-minimax from ComfyUI."/>
+                </Grid>
+                <TextBlock Text="Text encoder" FontSize="10" FontWeight="SemiBold" Margin="0,8,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                <ComboBox ItemsSource="{Binding TwoPassTextEncoderOptions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding TwoPass.TextEncoder}"
+                          Height="28" FontSize="11" Margin="0,0,0,4"
+                          ToolTip="CLIPLoader, type minimax. The workflow loads qwen3vl 32b w4a8 convrot."/>
+                <TextBlock Text="Video VAE" FontSize="10" FontWeight="SemiBold" Margin="0,8,0,4" Foreground="{StaticResource TextSecondaryBrush}"/>
+                <ComboBox ItemsSource="{Binding TwoPassVideoVaeOptions}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding TwoPass.VideoVae}"
+                          Height="28" FontSize="11" Margin="0,0,0,4"
+                          ToolTip="The video VAE. int8 convrot as authored; the audio VAE stays minimax_h3_audio_vae_fp32."/>
+
+                <CheckBox Content="Turbo LoRA (only for a model without Turbo)" IsChecked="{Binding TwoPass.UseTurboLora}" FontSize="11" Margin="0,10,0,2"
+                          Foreground="{StaticResource TextPrimaryBrush}"
+                          ToolTip="'Load TURBO LoRA (skip if model includes it)': minimax_h3_fl2v_lightx2v_turbo_4step_v0.1, bypassed as authored because b7 already includes it. Turn on only for a checkpoint that needs the separate LoRA. Found wherever it lives in loras/ on the server."/>
+                <Grid Margin="18,2,0,0" Visibility="{Binding TwoPass.UseTurboLora, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="strength" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <Slider Grid.Column="1" Minimum="0" Maximum="2" Value="{Binding TwoPass.TurboLoraStrength}" Margin="8,0"
+                            TickFrequency="0.05" IsSnapToTickEnabled="True" Foreground="{DynamicResource TabAccentBrush}"/>
+                    <TextBlock Grid.Column="2" Text="{Binding TwoPass.TurboLoraStrength, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource TabAccentBrush}" VerticalAlignment="Center"/>
+                </Grid>
+
+                <Grid Margin="0,10,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="LoRA stack (H3 Power LoRA Stack)" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <Button Grid.Column="1" Content="＋ Add" Height="22" Padding="8,0" FontSize="10"
+                            Command="{Binding AddTwoPassLoraCommand}"
+                            Style="{StaticResource AccentOutlineButtonStyle}"
+                            ToolTip="Add a row to the H3 Power LoRA Stack — it handles quantized checkpoints and adaLN mismatches that a plain loader gets wrong. Up to eight rows, applied in order."/>
+                    <Button Grid.Column="2" Content="&#x27F3;" Width="24" Height="22" FontSize="11" Margin="4,0,0,0" Padding="0"
+                            Command="{Binding RefreshTwoPassLorasCommand}"
+                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                            ToolTip="Re-read loras/H3 from ComfyUI."/>
+                </Grid>
+                <ItemsControl ItemsSource="{Binding TwoPassLoras}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <ComboBox ItemsSource="{Binding DataContext.TwoPassLoraOptions, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                              DisplayMemberPath="Label" SelectedValuePath="Value"
+                                              SelectedValue="{Binding Name, Mode=TwoWay}" Height="28" FontSize="11"/>
+                                    <Grid Margin="0,3,0,0" Visibility="{Binding HasLora, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Slider Value="{Binding Strength}" Minimum="0" Maximum="2" TickFrequency="0.05" IsSnapToTickEnabled="True"
+                                                Foreground="{DynamicResource TabAccentBrush}" ToolTip="Row strength. 0 leaves the row out."/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Strength, StringFormat={}{0:0.00}}" FontFamily="Consolas" FontSize="11" Margin="6,0,0,0"
+                                                   VerticalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"/>
+                                    </Grid>
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="&#x2715;" Width="22" Height="28" FontSize="10" Margin="4,0,0,0" Padding="0" VerticalAlignment="Top"
+                                        Command="{Binding DataContext.RemoveTwoPassLoraCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                        CommandParameter="{Binding}"
+                                        Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextMutedBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" ToolTip="Drop this LoRA."/>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Expander Header="Stack options" IsExpanded="False" FontSize="11" Margin="0,2,0,0">
+                    <StackPanel Margin="0,4,0,0">
+                        <TextBlock Text="Quantized layers" FontSize="10" Margin="0,0,0,2" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <ComboBox ItemsSource="{Binding TwoPassQuantizedLayerOptions}" SelectedItem="{Binding TwoPass.QuantizedLayers}" Height="26" FontSize="11"
+                                  ToolTip="auto: runtime branch for quantized layers, merge for the rest. branch: never modify a weight. merge: stock behaviour (destroys LoRAs on w4a8/int4)."/>
+                        <TextBlock Text="adaLN port" FontSize="10" Margin="0,6,0,2" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <ComboBox ItemsSource="{Binding TwoPassAdalnOptions}" SelectedItem="{Binding TwoPass.AdalnPort}" Height="26" FontSize="11"
+                                  ToolTip="auto: rebase adaLN pairs between dense and curve checkpoints. strip: drop mismatched pairs. off: leave them."/>
+                    </StackPanel>
+                </Expander>
+
+                <TextBlock Text="Sigma shift" FontSize="10" FontWeight="SemiBold" Margin="0,10,0,0" Foreground="{StaticResource TextSecondaryBrush}"/>
+                <Grid Margin="0,4,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="44"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Video" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <Slider Grid.Column="1" Minimum="1" Maximum="20" Value="{Binding TwoPass.ShiftVideo}" TickFrequency="0.5" IsSnapToTickEnabled="True"
+                            Foreground="{DynamicResource TabAccentBrush}" ToolTip="MiniMaxH3SigmaShift shift_video. 12 as authored."/>
+                    <TextBlock Grid.Column="2" Text="{Binding TwoPass.ShiftVideo, StringFormat={}{0:0.0}}" FontFamily="Consolas" FontSize="11" Margin="6,0,0,0"
+                               VerticalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"/>
+                </Grid>
+                <Grid Margin="0,4,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="44"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Audio" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <Slider Grid.Column="1" Minimum="1" Maximum="10" Value="{Binding TwoPass.ShiftAudio}" TickFrequency="0.5" IsSnapToTickEnabled="True"
+                            Foreground="{DynamicResource TabAccentBrush}" ToolTip="MiniMaxH3SigmaShift shift_audio. 3 as authored."/>
+                    <TextBlock Grid.Column="2" Text="{Binding TwoPass.ShiftAudio, StringFormat={}{0:0.0}}" FontFamily="Consolas" FontSize="11" Margin="6,0,0,0"
+                               VerticalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

@@ -139,6 +139,8 @@ namespace FlipPix.UI.ViewModels.Video
             TotalDuration = startTime;
             OnPropertyChanged(nameof(TimelineDuration));
             OnPropertyChanged(nameof(TimelineDurationDisplay));
+            // A reorder or removal changes which 🌹 preview each chained beat continues.
+            RefreshTwoPassGuides();
         }
 
         // ── Clip Operations ──────────────────────────────────────────────────────────────────────

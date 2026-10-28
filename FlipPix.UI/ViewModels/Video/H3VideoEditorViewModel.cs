@@ -53,6 +53,7 @@ namespace FlipPix.UI.ViewModels.Video
             // Initialize commands
             InitializeCommands();
             InitializeUltra();
+            InitializeTwoPass();
             InitializePresets();
             InitializeTimeline();
             InitializeStoryCommands();
@@ -182,6 +183,15 @@ N/A
             if (SelectedClip == null || string.IsNullOrWhiteSpace(PromptText)) return;
 
             SelectedClip.Prompt = PromptText;
+            if (IsTwoPass)
+            {
+                // The preview stays on show, tagged EDITED, until the beat is re-previewed; a final made from the
+                // old prompt is no longer the approved take.
+                SelectedClip.OutputPath = string.Empty;
+                SelectedClip.State = SelectedClip.HasPreview ? H3ClipState.Previewed : H3ClipState.Pending;
+                AddLog($"Applied prompt to beat {SelectedClip.DisplayIndex} — ↻ re-preview it to see the edit");
+                return;
+            }
             // Reset the clip state so it will be regenerated
             if (SelectedClip.State == H3ClipState.Rendered || SelectedClip.State == H3ClipState.Failed)
             {
@@ -216,6 +226,7 @@ N/A
                 return;
             }
             OnPropertyChanged(nameof(UltraCanvasSummary));
+            OnPropertyChanged(nameof(TwoPassCanvasSummary));
             SaveSettings();
         }
 
@@ -240,6 +251,7 @@ N/A
             RegenerateClipCommand?.NotifyCanExecuteChanged();
             CancelCommand?.NotifyCanExecuteChanged();
             NotifyEditCommands();
+            if (ProceedRefineCommand != null) RaiseReviewState();
         }
 
         /// <summary>Whether the log panel is open; generation opens it so progress is visible.</summary>
@@ -302,21 +314,22 @@ N/A
 
             var current = SelectedClip != null
                 ? TimelineClips.IndexOf(SelectedClip)
-                : TimelineClips.ToList().FindIndex(c => c.OutputPath == PreviewVideoPath);
+                : TimelineClips.ToList().FindIndex(c => c.PreviewVideoPath == PreviewVideoPath);
             var start = current < 0 ? (direction > 0 ? -1 : TimelineClips.Count) : current;
 
             H3TimelineClip? target = null;
             for (int i = start + direction; i >= 0 && i < TimelineClips.Count; i += direction)
             {
-                if (TimelineClips[i].IsRendered) { target = TimelineClips[i]; break; }
+                // A 🌹 preview plays through too, so the beats can be reviewed back to back.
+                if (TimelineClips[i].HasVideoPreview) { target = TimelineClips[i]; break; }
             }
             var adjacent = start + direction;
             target ??= adjacent >= 0 && adjacent < TimelineClips.Count ? TimelineClips[adjacent] : null;
             if (target == null) return;
 
             SelectClip(target);
-            if (target.IsRendered && File.Exists(target.OutputPath))
-                PreviewVideoPath = target.OutputPath;
+            if (target.PreviewVideoPath != null)
+                PreviewVideoPath = target.PreviewVideoPath;
         }
 
         partial void OnSelectedClipChanged(H3TimelineClip? value)
@@ -324,8 +337,9 @@ N/A
             foreach (var clip in TimelineClips)
                 clip.IsSelected = clip == value;
 
-            if (value?.OutputPath != null && File.Exists(value.OutputPath))
-                PreviewVideoPath = value.OutputPath;
+            // The finished render, or a 🌹 beat's preview until it is refined.
+            if (value?.PreviewVideoPath != null)
+                PreviewVideoPath = value.PreviewVideoPath;
 
             ApplyPromptToSelectedCommand?.NotifyCanExecuteChanged();
         }
@@ -355,7 +369,7 @@ N/A
             GenerateClipsCommand = new RelayCommand(() => _ = GenerateClipsAsync(), () => CanGenerate);
             JoinClipsCommand = new RelayCommand(() => _ = JoinClipsAsync(), () => CanJoin);
             UpscaleCommand = new RelayCommand(() => _ = UpscaleAsync(), () => CanUpscale);
-            CancelCommand = new RelayCommand(Cancel, () => IsGenerating || IsJoining || IsUpscaling);
+            CancelCommand = new RelayCommand(Cancel, () => IsGenerating || IsJoining || IsUpscaling || IsAwaitingApproval);
             BrowseProjectFolderCommand = new RelayCommand(() => _ = BrowseProjectFolderAsync());
             SaveProjectCommand = new RelayCommand(() => _ = SaveProjectAsync());
             LoadProjectCommand = new RelayCommand(() => _ = LoadProjectAsync());
@@ -382,9 +396,9 @@ N/A
 
         private void PlayClip(H3TimelineClip? clip)
         {
-            if (clip?.OutputPath != null && File.Exists(clip.OutputPath))
+            if (clip?.PreviewVideoPath != null)
             {
-                PreviewVideoPath = clip.OutputPath;
+                PreviewVideoPath = clip.PreviewVideoPath;
                 AddLog($"Playing clip {clip.DisplayIndex}");
             }
         }
@@ -413,6 +427,14 @@ N/A
         private async Task RegenerateClipAsync(H3TimelineClip? clip)
         {
             if (clip == null || IsGenerating) return;
+
+            // 🌹 2-Pass: ↻ re-previews the beat. An edited beat keeps its seed so the edit is all that changes;
+            // otherwise it is a new take.
+            if (IsTwoPass)
+            {
+                await RegeneratePreviewAsync(clip, newSeed: !(clip.HasPreview && clip.PreviewedPrompt != clip.Prompt));
+                return;
+            }
 
             // Reset the clip state
             clip.State = H3ClipState.Pending;
@@ -465,6 +487,7 @@ N/A
         private void Cancel()
         {
             _storyBatchCancelled = true; // also stop a queued story batch from moving on
+            CancelApproval();
             if (_renderCts == null) return;
             AddLog("Cancellation requested");
             StatusText = "Cancelling...";
@@ -537,15 +560,20 @@ N/A
                         ThumbnailPath = savedClip.ThumbnailPath,
                         UseMotionContext = savedClip.UseMotionContext,
                         ContextLatentFolder = savedClip.ContextLatentFolder ?? string.Empty,
-                        State = ParseClipState(savedClip.State)
+                        State = ParseClipState(savedClip.State),
+                        PreviewPath = File.Exists(savedClip.PreviewPath) ? savedClip.PreviewPath : string.Empty,
+                        PreviewedPrompt = savedClip.PreviewedPrompt ?? string.Empty,
+                        PreviewGuidePath = savedClip.PreviewGuidePath ?? string.Empty,
+                        Seed = savedClip.Seed,
                     };
 
                     // Verify output file still exists
                     if (!string.IsNullOrEmpty(clip.OutputPath) && !File.Exists(clip.OutputPath))
                     {
                         clip.OutputPath = string.Empty;
-                        clip.State = H3ClipState.Pending;
+                        clip.State = clip.HasPreview ? H3ClipState.Previewed : H3ClipState.Pending;
                     }
+                    if (clip.State == H3ClipState.Previewed && !clip.HasPreview) clip.State = H3ClipState.Pending;
 
                     TimelineClips.Add(clip);
                     restoredCount++;
@@ -576,6 +604,7 @@ N/A
             "Queued" => H3ClipState.Queued,
             "Rendering" => H3ClipState.Pending, // Treat interrupted rendering as pending
             "Rendered" => H3ClipState.Rendered,
+            "Previewed" => H3ClipState.Previewed,
             "Failed" => H3ClipState.Pending, // Allow retry of failed clips
             _ => H3ClipState.Pending
         };
@@ -637,7 +666,11 @@ N/A
                     ThumbnailPath = clip.ThumbnailPath,
                     State = clip.State.ToString(),
                     UseMotionContext = clip.UseMotionContext,
-                    ContextLatentFolder = clip.ContextLatentFolder
+                    ContextLatentFolder = clip.ContextLatentFolder,
+                    PreviewPath = clip.PreviewPath,
+                    PreviewedPrompt = clip.PreviewedPrompt,
+                    PreviewGuidePath = clip.PreviewGuidePath,
+                    Seed = clip.Seed
                 });
             }
         }
@@ -767,7 +800,8 @@ N/A
                     Crf = Crf,
                     Crossfade = Crossfade,
                     LevelLock = LevelLock,
-                    Ultra = Ultra.Clone()
+                    Ultra = Ultra.Clone(),
+                    TwoPass = TwoPass.Clone()
                 },
                 JoinedVideoPath = JoinedVideoPath,
                 CurrentPrompt = PromptText
@@ -786,7 +820,11 @@ N/A
                     ThumbnailPath = clip.ThumbnailPath,
                     State = clip.State.ToString(),
                     UseMotionContext = clip.UseMotionContext,
-                    ContextLatentFolder = clip.ContextLatentFolder
+                    ContextLatentFolder = clip.ContextLatentFolder,
+                    PreviewPath = clip.PreviewPath,
+                    PreviewedPrompt = clip.PreviewedPrompt,
+                    PreviewGuidePath = clip.PreviewGuidePath,
+                    Seed = clip.Seed
                 });
             }
 
@@ -849,6 +887,22 @@ N/A
                     Ultra.CopyFrom(project.Settings.Ultra);
                     OfferUltraModel();
                 }
+                if (project.Settings.TwoPass != null)
+                {
+                    ResetTwoPass();
+                    TwoPass.CopyFrom(project.Settings.TwoPass);
+                    foreach (var lora in TwoPass.Loras.Take(MiniMaxI2VTwoPassOptions.MaxLoras).ToList())
+                    {
+                        OfferTwoPassLora(lora.Name);
+                        AttachTwoPassLora(new MiniMaxI2VLoraSlot(TwoPassLoras.Count + 1, lora.Name, lora.Strength));
+                    }
+                    foreach (var mod in TwoPass.RefMods.Take(MiniMaxI2VTwoPassOptions.MaxRefMods).ToList())
+                    {
+                        if (!RefModOptions.Contains(mod.Mod)) RefModOptions.Add(mod.Mod);
+                        AttachRefMod(mod);
+                    }
+                    OfferTwoPassModel();
+                }
             }
 
             // Restore reference images
@@ -871,7 +925,11 @@ N/A
                     OutputPath = savedClip.OutputPath ?? string.Empty,
                     ThumbnailPath = savedClip.ThumbnailPath ?? string.Empty,
                     UseMotionContext = savedClip.UseMotionContext,
-                    ContextLatentFolder = savedClip.ContextLatentFolder ?? string.Empty
+                    ContextLatentFolder = savedClip.ContextLatentFolder ?? string.Empty,
+                    PreviewPath = File.Exists(savedClip.PreviewPath) ? savedClip.PreviewPath! : string.Empty,
+                    PreviewedPrompt = savedClip.PreviewedPrompt ?? string.Empty,
+                    PreviewGuidePath = savedClip.PreviewGuidePath ?? string.Empty,
+                    Seed = savedClip.Seed
                 };
 
                 // Restore state and verify files exist
@@ -894,7 +952,8 @@ N/A
                     }
                     else
                     {
-                        clip.State = H3ClipState.Pending; // Reset any in-progress states
+                        // Reset any in-progress states; a 🌹 beat with its preview on disk is still previewed.
+                        clip.State = clip.HasPreview ? H3ClipState.Previewed : H3ClipState.Pending;
                     }
                 }
 
@@ -932,9 +991,10 @@ N/A
             if (TimelineClips.Count > 0)
             {
                 SelectedClip = TimelineClips[0];
-                if (!string.IsNullOrEmpty(TimelineClips[0].OutputPath) && File.Exists(TimelineClips[0].OutputPath))
-                    PreviewVideoPath = TimelineClips[0].OutputPath;
+                if (TimelineClips[0].PreviewVideoPath != null)
+                    PreviewVideoPath = TimelineClips[0].PreviewVideoPath!;
             }
+            RefreshTwoPassGuides();
 
             // Update UI commands
             GenerateClipsCommand.NotifyCanExecuteChanged();

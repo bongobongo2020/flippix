@@ -21,6 +21,13 @@ namespace FlipPix.UI.ViewModels.Video
         {
             if (!CanGenerate) return;
 
+            // 🌹 2-Pass: Generate makes the previews; the refinement waits for "Happy — proceed".
+            if (IsTwoPass)
+            {
+                await GeneratePreviewsAsync();
+                return;
+            }
+
             // Failed clips are retried along with pending ones.
             var pendingClips = TimelineClips
                 .Where(c => c.State == H3ClipState.Pending || c.State == H3ClipState.Failed)
@@ -125,7 +132,10 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        private async Task GenerateSingleClipAsync(H3TimelineClip clip, CancellationToken ct, int batchIndex = 0, int batchTotal = 1)
+        /// <param name="twoPassPreview">🌹 2-Pass only: render the first-pass preview (into
+        /// <see cref="H3TimelineClip.PreviewPath"/>) rather than the final refinement.</param>
+        private async Task GenerateSingleClipAsync(H3TimelineClip clip, CancellationToken ct, int batchIndex = 0, int batchTotal = 1,
+                                                   bool twoPassPreview = false)
         {
             // Upload reference images first
             var uploadedImages = new string?[4];
@@ -151,7 +161,11 @@ namespace FlipPix.UI.ViewModels.Video
 
             // Build the workflow JSON based on h3_obvpm_timeline workflow
             AddLog($"Building workflow for clip {clip.DisplayIndex}...");
-            var (workflow, saveNodeId, thumbnailNodeId, contextFolder) = await BuildClipWorkflowWithSaveNodeAsync(clip, uploadedImages);
+            // A 2-Pass final continues the very preview its approved take continued; a preview, the one there now.
+            var twoPassGuide = !IsTwoPass ? string.Empty : twoPassPreview ? ExpectedGuideFor(clip) : clip.PreviewGuidePath;
+            var (workflow, saveNodeId, thumbnailNodeId, contextFolder) = IsTwoPass
+                ? await BuildTwoPassClipWorkflowAsync(clip, uploadedImages, twoPassPreview, twoPassGuide, ct)
+                : await BuildClipWorkflowWithSaveNodeAsync(clip, uploadedImages);
             clip.ContextLatentFolder = string.Empty; // the old take's latent no longer belongs to this clip
 
             // Log workflow summary
@@ -184,8 +198,19 @@ namespace FlipPix.UI.ViewModels.Video
                 clip.ContextLatentFolder = contextFolder ?? string.Empty;
 
                 // Get the output video path from the save node
-                var outputPath = await ResolveClipOutputPathAsync(promptId, saveNodeId, clip.DisplayIndex, ct);
-                if (!string.IsNullOrEmpty(outputPath))
+                var outputPath = await ResolveClipOutputPathAsync(promptId, saveNodeId, clip.DisplayIndex, ct,
+                    IsTwoPass ? TwoPassOutputPrefix(clip, twoPassPreview) : null);
+                if (twoPassPreview)
+                {
+                    if (string.IsNullOrEmpty(outputPath))
+                        throw new Exception("The preview finished but its video could not be found.");
+                    clip.PreviewGuidePath = twoPassGuide;
+                    clip.PreviewedPrompt = clip.Prompt;
+                    clip.PreviewPath = outputPath;
+                    clip.GuideChanged = false;
+                    AddLog($"Beat {clip.DisplayIndex} preview: {Path.GetFileName(outputPath)}");
+                }
+                else if (!string.IsNullOrEmpty(outputPath))
                 {
                     clip.OutputPath = outputPath;
                     AddLog($"Clip {clip.DisplayIndex} output: {Path.GetFileName(outputPath)}");
@@ -228,7 +253,10 @@ namespace FlipPix.UI.ViewModels.Video
             AddLog($"Copied to {Path.Combine(LocalCopyService.VideoDestination, name)}");
         }
 
-        private async Task<string?> ResolveClipOutputPathAsync(string promptId, string saveNodeId, int clipIndex, CancellationToken ct)
+        /// <param name="expectedPrefix">The sink's filename prefix, for the on-disk fallback; null for the
+        /// classic "video/&lt;project&gt;/clip_N".</param>
+        private async Task<string?> ResolveClipOutputPathAsync(string promptId, string saveNodeId, int clipIndex, CancellationToken ct,
+                                                              string? expectedPrefix = null)
         {
             try
             {
@@ -242,8 +270,7 @@ namespace FlipPix.UI.ViewModels.Video
                 }
 
                 // Fallback: look for video file on disk based on naming pattern
-                var expectedPrefix = $"video/{ProjectFolder}/clip_{clipIndex:D5}";
-                return FindVideoOnDisk(expectedPrefix);
+                return FindVideoOnDisk(expectedPrefix ?? $"video/{ProjectFolder}/clip_{clipIndex:D5}");
             }
             catch (Exception ex)
             {
