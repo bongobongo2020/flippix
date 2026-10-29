@@ -204,9 +204,21 @@ namespace FlipPix.UI.Models
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(StatusText))]
         [NotifyPropertyChangedFor(nameof(IsQueued))]
+        [NotifyPropertyChangedFor(nameof(QueueBadge))]
         [NotifyPropertyChangedFor(nameof(IsRendering))]
         [NotifyPropertyChangedFor(nameof(IsFailed))]
         private H3ClipState _state = H3ClipState.Pending;
+
+        /// <summary>Place in the editor's ↻ queue (1 = next); 0 when not waiting to be regenerated.</summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(IsRegenQueued))]
+        [NotifyPropertyChangedFor(nameof(QueueBadge))]
+        private int _regenQueuePosition;
+
+        public bool IsRegenQueued => RegenQueuePosition > 0;
+
+        /// <summary>"⏳ QUEUED #2" while waiting for ↻, "⏳ QUEUED" while waiting in a Generate run, else empty.</summary>
+        public string QueueBadge => IsRegenQueued ? $"⏳ QUEUED #{RegenQueuePosition}" : IsQueued ? "⏳ QUEUED" : string.Empty;
 
         public bool IsQueued => State == H3ClipState.Queued;
         public bool IsRendering => State == H3ClipState.Rendering;

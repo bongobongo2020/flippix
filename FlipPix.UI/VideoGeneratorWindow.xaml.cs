@@ -234,9 +234,91 @@ namespace FlipPix.UI
 
         private void H3VideoEditorVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
-            if (e.PropertyName != nameof(ViewModels.Video.H3VideoEditorViewModel.PreviewVideoPath)) return;
-            if (Dispatcher.CheckAccess()) ApplyH3EditorSource();
-            else Dispatcher.Invoke(ApplyH3EditorSource);
+            Action? apply = e.PropertyName switch
+            {
+                nameof(ViewModels.Video.H3VideoEditorViewModel.PreviewVideoPath) => ApplyH3EditorSource,
+                nameof(ViewModels.Video.H3VideoEditorViewModel.MarkInSeconds) or
+                nameof(ViewModels.Video.H3VideoEditorViewModel.MarkOutSeconds) or
+                nameof(ViewModels.Video.H3VideoEditorViewModel.PlayheadSeconds) or
+                nameof(ViewModels.Video.H3VideoEditorViewModel.PreviewDurationSeconds) => UpdateH3TrimMarkers,
+                nameof(ViewModels.Video.H3VideoEditorViewModel.SelectedClip) => BringSelectedClipIntoView,
+                _ => null,
+            };
+            if (apply == null) return;
+            if (Dispatcher.CheckAccess()) apply();
+            else Dispatcher.Invoke(apply);
+        }
+
+        /// <summary>Scrolls the clip strip so the selected clip (e.g. after ◀| / ▶|) is on screen.</summary>
+        private void BringSelectedClipIntoView()
+        {
+            var clip = _viewModel.H3VideoEditorVM.SelectedClip;
+            if (clip == null || H3TimelineStrip == null) return;
+            Dispatcher.BeginInvoke(() =>
+                (H3TimelineStrip.ItemContainerGenerator.ContainerFromItem(clip) as FrameworkElement)?.BringIntoView(),
+                System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+
+        // ── In/Out markers ───────────────────────────────────────────────────
+        // The flags above the scrub bar mirror the view model's MarkIn/MarkOut. Dragging one pauses the player
+        // and shows the frame under it, so the cut point is picked by eye.
+        private const double H3MarkThumbWidth = 14.0;
+
+        private double H3TrimSecToX(double seconds)
+        {
+            var w = H3TrimTrack?.ActualWidth ?? 0;
+            var dur = _viewModel.H3VideoEditorVM.PreviewDurationSeconds;
+            if (dur <= 0 || w <= 1) return 0;
+            return Math.Max(0, Math.Min(w, seconds / dur * w));
+        }
+
+        private void H3TrimTrack_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateH3TrimMarkers();
+
+        private void UpdateH3TrimMarkers()
+        {
+            if (H3InThumb == null) return; // not yet built
+            var vm = _viewModel.H3VideoEditorVM;
+            var hasClip = vm.PreviewDurationSeconds > 0;
+            H3InThumb.Visibility = H3OutThumb.Visibility = H3TrimRegion.Visibility = H3TrimPlayhead.Visibility =
+                hasClip ? Visibility.Visible : Visibility.Hidden;
+            if (!hasClip) return;
+
+            double inX = H3TrimSecToX(vm.MarkInSeconds);
+            double outX = H3TrimSecToX(vm.MarkOutSeconds);
+            // The [ flag sits just left of its frame and the ] flag just right, so both edges stay visible.
+            H3InThumb.Margin = new Thickness(inX - H3MarkThumbWidth, 0, 0, 0);
+            H3OutThumb.Margin = new Thickness(outX, 0, 0, 0);
+            H3TrimRegion.Margin = new Thickness(inX, 0, 0, 0);
+            H3TrimRegion.Width = Math.Max(0, outX - inX);
+            H3TrimPlayhead.Margin = new Thickness(Math.Max(0, H3TrimSecToX(vm.PlayheadSeconds) - 1), 0, 0, 0);
+        }
+
+        private void H3MarkThumb_DragStarted(object sender, System.Windows.Controls.Primitives.DragStartedEventArgs e)
+        {
+            if (!_h3EditorPlaying) return;
+            H3EditorVideoPlayer.Pause();
+            SetH3EditorPlaying(false);
+        }
+
+        private double H3DragSeconds(double horizontalChange)
+        {
+            var w = H3TrimTrack.ActualWidth;
+            return w > 1 ? horizontalChange / w * _viewModel.H3VideoEditorVM.PreviewDurationSeconds : 0;
+        }
+
+        private void H3InThumb_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+        {
+            var vm = _viewModel.H3VideoEditorVM;
+            vm.SetMarkIn(vm.MarkInSeconds + H3DragSeconds(e.HorizontalChange));
+            SeekH3Editor(vm.MarkInSeconds);
+        }
+
+        private void H3OutThumb_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+        {
+            var vm = _viewModel.H3VideoEditorVM;
+            vm.SetMarkOut(vm.MarkOutSeconds + H3DragSeconds(e.HorizontalChange));
+            // Show the last frame kept inside the range, not the one after it.
+            SeekH3Editor(vm.MarkOutSeconds - 1 / ViewModels.Video.H3VideoEditorViewModel.PreviewFps);
         }
 
         private void ApplyH3EditorSource()

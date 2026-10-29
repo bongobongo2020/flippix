@@ -252,6 +252,7 @@ N/A
             CancelCommand?.NotifyCanExecuteChanged();
             NotifyEditCommands();
             if (ProceedRefineCommand != null) RaiseReviewState();
+            if (!value) DrainRegenQueueSoon();
         }
 
         /// <summary>Whether the log panel is open; generation opens it so progress is visible.</summary>
@@ -376,7 +377,8 @@ N/A
             PlayPreviewCommand = new RelayCommand<H3TimelineClip>(PlayClip);
             SelectClipCommand = new RelayCommand<H3TimelineClip>(SelectClip);
             EditClipPromptCommand = new RelayCommand<H3TimelineClip>(EditClipPrompt);
-            RegenerateClipCommand = new RelayCommand<H3TimelineClip>(c => _ = RegenerateClipAsync(c), _ => !IsGenerating);
+            // While busy, ↻ queues the clip (H3VideoEditorViewModel.RegenQueue.cs) rather than being greyed out.
+            RegenerateClipCommand = new RelayCommand<H3TimelineClip>(RequestRegenerate);
             ToggleMuteCommand = new RelayCommand(() => IsPreviewMuted = !IsPreviewMuted);
             PreviousClipCommand = new RelayCommand(() => StepClip(-1));
             NextClipCommand = new RelayCommand(() => StepClip(+1));
@@ -488,6 +490,7 @@ N/A
         {
             _storyBatchCancelled = true; // also stop a queued story batch from moving on
             CancelApproval();
+            ClearRegenQueue();
             if (_renderCts == null) return;
             AddLog("Cancellation requested");
             StatusText = "Cancelling...";

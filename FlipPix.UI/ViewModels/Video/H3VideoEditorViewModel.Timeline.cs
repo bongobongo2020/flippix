@@ -92,6 +92,7 @@ namespace FlipPix.UI.ViewModels.Video
         {
             if (clip == null) return;
             var index = clip.DisplayIndex;
+            DropFromRegenQueue(clip);
             TimelineClips.Remove(clip);
             if (SelectedClip == clip)
                 SelectedClip = TimelineClips.FirstOrDefault();
@@ -119,6 +120,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         private void ClearTimeline()
         {
+            ClearRegenQueue();
             TimelineClips.Clear();
             SelectedClip = null;
             TotalDuration = 0;
