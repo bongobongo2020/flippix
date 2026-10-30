@@ -88,3 +88,4 @@ __pycache__/
 test/
 # The Android launcher icon is source, not output.
 !FlipPix.Mobile.Android/Resources/drawable/icon.png
+!FlipPix.One.Android/Resources/drawable/icon.png
