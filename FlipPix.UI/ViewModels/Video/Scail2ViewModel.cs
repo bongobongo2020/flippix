@@ -1827,8 +1827,17 @@ namespace FlipPix.UI.ViewModels.Video
             // Seed: node 199:534 is the single INTConstant both samplers read.
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "199:534", "value", seed);
 
-            // Sampler window. Node 199:596 selects which sampler runs (1 = SCAILAutoExtend 199:180,
-            // 2 = WanSCAILInfinity 199:528); both are written so the setting holds either way.
+            // Sampler window. Node 199:596 selects which sampler runs via ImpactSwitch 199:575 and the
+            // sel_mode:false ImpactInversedSwitches (199:586..199:595) that route the pose video / masks /
+            // reference / CLIP vision into the samplers: authored intent is 1 = SCAILAutoExtend 199:180
+            // (slot 0), 2 = WanSCAILInfinity 199:528 (slot 1). NOTE: on servers whose Impact Pack maps a
+            // connected sel_mode:true select one lower than authored (observed: value 1 runs 199:528 while
+            // the inversed switches still wire slot 0), WanSCAILInfinity executes with NO pose video and
+            // returns an empty frame batch — the prompt then "succeeds" in seconds with no output file,
+            // which looks like a hung render. The workflow file now defaults to 2 (WanSCAILInfinity fully
+            // wired), which is valid under both mappings; both sampler nodes are written so the window
+            // setting holds either way.
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "199:596", "value", 2);
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "199:180", "chunk_length", windowFrames);
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "199:528", "window_length", windowFrames);
             AddLog($"SCAIL2 sampler window: {windowFrames} frames (from chunk size {VideoBatchSize})");
