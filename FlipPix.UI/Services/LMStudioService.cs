@@ -72,6 +72,223 @@ namespace FlipPix.UI.Services
             }
         }
 
+        // ── llama.cpp LoRA adapters ──────────────────────────────────────────────────────────────────
+        //
+        // llama-server started with --lora serves GET/POST /lora-adapters, which read and set each adapter's
+        // global scale without a restart. The H3 Video Editor turns the MiniMax-H3 prompt-rewriter LoRA on only
+        // while it writes clip prompts and off for the story analysis around it. Every other server (LM Studio,
+        // Ollama, vLLM) answers 404 here, which reads as "no adapters" and changes nothing.
+
+        /// <summary>The server's LoRA adapters as (id, scale), or null when it is not a llama-server with
+        /// adapters loaded. Never throws.</summary>
+        public async Task<List<(int Id, double Scale)>?> GetLoraScalesAsync(CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                cts.CancelAfter(TimeSpan.FromSeconds(5));
+                using var response = await _httpClient.GetAsync($"{_baseUrl.TrimEnd('/')}/lora-adapters", cts.Token);
+                if (!response.IsSuccessStatusCode) return null;
+
+                var node = JsonNode.Parse(await response.Content.ReadAsStringAsync(cts.Token)) as JsonArray;
+                if (node == null || node.Count == 0) return null;
+
+                var list = new List<(int Id, double Scale)>();
+                foreach (var item in node)
+                {
+                    var id = item?["id"]?.GetValue<int>();
+                    var scale = item?["scale"]?.GetValue<double>() ?? 0.0;
+                    if (id.HasValue) list.Add((id.Value, scale));
+                }
+                return list.Count > 0 ? list : null;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>Sets each listed adapter's global scale on a llama-server. False when the server refused or
+        /// is not a llama-server. Never throws except for the caller's own cancellation.</summary>
+        public async Task<bool> SetLoraScalesAsync(IEnumerable<(int Id, double Scale)> scales, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var body = new JsonArray(scales
+                    .Select(s => (JsonNode)new JsonObject { ["id"] = s.Id, ["scale"] = s.Scale })
+                    .ToArray());
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                cts.CancelAfter(TimeSpan.FromSeconds(5));
+                using var content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
+                using var response = await _httpClient.PostAsync($"{_baseUrl.TrimEnd('/')}/lora-adapters", content, cts.Token);
+                _logger.LogInfo($"SetLoraScalesAsync: {body.ToJsonString()} → {(int)response.StatusCode}");
+                return response.IsSuccessStatusCode;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // ── llama-service model switching ────────────────────────────────────────────────────────────
+        //
+        // llama-service (LlamaTray) serves one model at a time on :8080 and takes switch requests on its own
+        // port (LMStudioSettings.ModelSwitchPort, 8812): GET /status, POST /switch?model=<name>. Requests with
+        // images move it to the vision model when the loaded one has no projector; the H3 Video Editor's
+        // rewriter pass moves it to the H3 rewriter model. Any other server has nothing on that port, which
+        // reads as "nothing to switch" (remembered for a minute so image requests do not keep paying for it).
+
+        private sealed record SwitchStatus(string? Current, bool Running, bool Ready, bool Vision, List<string> Models);
+
+        // One switch at a time across every service instance: they all talk to the same tray.
+        private static readonly SemaphoreSlim _switchGate = new(1, 1);
+        private static readonly Dictionary<string, DateTime> _noSwitcherUntil = new();
+        private static readonly TimeSpan SwitchLoadTimeout = TimeSpan.FromMinutes(10);
+
+        /// <summary>Makes sure the llama-service model can see images, loading the vision model when it
+        /// cannot. True when the server is ready with a vision model; false when there is nothing to switch
+        /// or the switch failed (the request then goes to whatever is loaded). Never throws except for the
+        /// caller's own cancellation.</summary>
+        public Task<bool> EnsureVisionModelAsync(CancellationToken cancellationToken = default) =>
+            EnsureServerModelAsync(_getSettings?.Invoke()?.VisionSwitchModel, anyVision: true, cancellationToken);
+
+        /// <summary>Loads the H3 rewriter model (Qwen + MiniMax H3 rewriter LoRA) on llama-service unless it is
+        /// already loaded. Same contract as <see cref="EnsureVisionModelAsync"/>.</summary>
+        public Task<bool> EnsureRewriterModelAsync(CancellationToken cancellationToken = default) =>
+            EnsureServerModelAsync(_getSettings?.Invoke()?.RewriterSwitchModel, anyVision: false, cancellationToken);
+
+        private string? SwitchControlUrl()
+        {
+            var port = _getSettings?.Invoke()?.ModelSwitchPort ?? 8812;
+            if (port <= 0) return null;
+            return Uri.TryCreate(_baseUrl, UriKind.Absolute, out var uri) ? $"http://{uri.Host}:{port}" : null;
+        }
+
+        /// <param name="anyVision">True: any loaded model with a vision projector will do; <paramref name="name"/>
+        /// is loaded only when the current one has none. False: exactly <paramref name="name"/>.</param>
+        private async Task<bool> EnsureServerModelAsync(string? name, bool anyVision, CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return false;
+            var control = SwitchControlUrl();
+            if (control == null) return false;
+            lock (_noSwitcherUntil)
+            {
+                if (_noSwitcherUntil.TryGetValue(control, out var until) && DateTime.UtcNow < until) return false;
+            }
+
+            await _switchGate.WaitAsync(cancellationToken);
+            try
+            {
+                var status = await GetSwitchStatusAsync(control, cancellationToken);
+                if (status == null)
+                {
+                    lock (_noSwitcherUntil) _noSwitcherUntil[control] = DateTime.UtcNow.AddMinutes(1);
+                    return false;
+                }
+
+                bool Satisfied(SwitchStatus s) => s.Running && (anyVision ? s.Vision : s.Current == name);
+                if (!Satisfied(status))
+                {
+                    if (!status.Models.Contains(name))
+                    {
+                        _logger.LogWarning($"llama-service has no model named '{name}' (models.json has: {string.Join(", ", status.Models)}) — leaving '{status.Current}' loaded.");
+                        return false;
+                    }
+
+                    _logger.LogInfo($"llama-service: switching '{status.Current}' → '{name}' for {(anyVision ? "an image request" : "the H3 rewriter")}");
+                    using var switchCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    switchCts.CancelAfter(TimeSpan.FromSeconds(10));
+                    using var response = await _httpClient.PostAsync(
+                        $"{control}/switch?model={Uri.EscapeDataString(name)}", new StringContent(string.Empty), switchCts.Token);
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        _logger.LogWarning($"llama-service refused the switch to '{name}': {(int)response.StatusCode} {await response.Content.ReadAsStringAsync(cancellationToken)}");
+                        return false;
+                    }
+                }
+
+                // Wait for the model (new or still loading) to serve. The tray marks it ready from its own
+                // 5-second health poll, so a poll every 2 s is plenty.
+                var deadline = DateTime.UtcNow + SwitchLoadTimeout;
+                var sw = Stopwatch.StartNew();
+                while (true)
+                {
+                    status = await GetSwitchStatusAsync(control, cancellationToken);
+                    if (status != null && status.Ready && Satisfied(status))
+                    {
+                        if (sw.Elapsed > TimeSpan.FromSeconds(3))
+                            _logger.LogInfo($"llama-service: '{status.Current}' ready after {sw.Elapsed.TotalSeconds:F0}s");
+                        return true;
+                    }
+                    if (status != null && !status.Running && sw.Elapsed > TimeSpan.FromSeconds(15))
+                    {
+                        _logger.LogError($"llama-service: '{name}' stopped while loading — check llama-server.log on the server.");
+                        return false;
+                    }
+                    if (DateTime.UtcNow > deadline)
+                    {
+                        _logger.LogError($"llama-service: '{name}' still not ready after {SwitchLoadTimeout.TotalMinutes:F0} min.");
+                        return false;
+                    }
+                    await Task.Delay(2000, cancellationToken);
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"llama-service model switch to '{name}' failed: {ex.Message}");
+                return false;
+            }
+            finally
+            {
+                _switchGate.Release();
+            }
+        }
+
+        /// <summary>The tray's /status, or null when nothing answers there.</summary>
+        private async Task<SwitchStatus?> GetSwitchStatusAsync(string control, CancellationToken cancellationToken)
+        {
+            try
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                cts.CancelAfter(TimeSpan.FromSeconds(3));
+                using var response = await _httpClient.GetAsync($"{control}/status", cts.Token);
+                if (!response.IsSuccessStatusCode) return null;
+                if (JsonNode.Parse(await response.Content.ReadAsStringAsync(cts.Token)) is not JsonObject node) return null;
+
+                var models = (node["models"] as JsonArray)?
+                    .Select(m => m?["name"]?.GetValue<string>())
+                    .Where(n => !string.IsNullOrEmpty(n))
+                    .Select(n => n!)
+                    .ToList() ?? new List<string>();
+                return new SwitchStatus(
+                    node["current"]?.GetValue<string>(),
+                    node["running"]?.GetValue<bool>() ?? false,
+                    node["ready"]?.GetValue<bool>() ?? false,
+                    node["vision"]?.GetValue<bool>() ?? false,
+                    models);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         public async Task<List<LMStudioModel>> GetAvailableModelsAsync(CancellationToken cancellationToken = default)
         {
             await _semaphore.WaitAsync(cancellationToken);
@@ -135,6 +352,7 @@ namespace FlipPix.UI.Services
             await _semaphore.WaitAsync(cancellationToken);
             try
             {
+                await EnsureVisionModelAsync(cancellationToken);
                 // Off the caller's (UI) thread: on a slow network share the check and the read
                 // can take minutes and would freeze the window.
                 var imageBytes = await Task.Run(() =>
@@ -255,6 +473,7 @@ namespace FlipPix.UI.Services
             await _semaphore.WaitAsync(cancellationToken);
             try
             {
+                await EnsureVisionModelAsync(cancellationToken);
                 string ToDataUrl(string path)
                 {
                     var bytes = ResizeImageForVision(path, 512, 512, useJpeg: true);
@@ -354,6 +573,7 @@ namespace FlipPix.UI.Services
             await _semaphore.WaitAsync(cancellationToken);
             try
             {
+                await EnsureVisionModelAsync(cancellationToken);
                 // Off the caller's (UI) thread: on a slow network share the check and the read
                 // can take minutes and would freeze the window.
                 var imageBytes = await Task.Run(() =>
@@ -763,6 +983,7 @@ namespace FlipPix.UI.Services
             await _semaphore.WaitAsync(cancellationToken);
             try
             {
+                if (imagePaths.Count > 0) await EnsureVisionModelAsync(cancellationToken);
                 var contentParts = new List<object>();
                 contentParts.Add(new { type = "text", text = SuppressThinking(userPrompt, modelName) });
 
@@ -1154,4 +1375,4 @@ namespace FlipPix.UI.Services
             }
         }
     }
-}
+}

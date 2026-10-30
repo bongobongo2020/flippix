@@ -159,6 +159,29 @@ namespace FlipPix.UI.ViewModels.Video
                 }
             }
 
+            // Story mode's location plate goes right after the last cast picture, which is where the clip's prompt
+            // numbered it (<Picture N> = the Nth image the reference node receives).
+            if (!string.IsNullOrEmpty(clip.LocationPlatePath) && File.Exists(clip.LocationPlatePath))
+            {
+                try
+                {
+                    AddLog($"Uploading location plate: {Path.GetFileName(clip.LocationPlatePath)}...");
+                    var plate = await _comfyUIService.UploadImageAsync(clip.LocationPlatePath, ct);
+                    var lastCast = Array.FindLastIndex(uploadedImages, u => !string.IsNullOrEmpty(u));
+                    uploadedImages = uploadedImages.Take(lastCast + 1).Append(plate).ToArray();
+
+                    var landsAt = uploadedImages.Count(u => !string.IsNullOrEmpty(u));
+                    if (clip.LocationPictureIndex > 0 && clip.LocationPictureIndex != landsAt)
+                        AddLog($"⚠ Clip {clip.DisplayIndex}'s prompt calls the location plate <Picture {clip.LocationPictureIndex}>, " +
+                               $"but it is sent as picture {landsAt} because the Picture slots changed after the prompt " +
+                               "was written. Re-run Populate, or fix the <Picture N> number in the prompt.");
+                }
+                catch (Exception ex)
+                {
+                    AddLog($"WARNING: Failed to upload the location plate: {ex.Message} — the clip renders without it.");
+                }
+            }
+
             // Build the workflow JSON based on h3_obvpm_timeline workflow
             AddLog($"Building workflow for clip {clip.DisplayIndex}...");
             // A 2-Pass final continues the very preview its approved take continued; a preview, the one there now.
@@ -575,13 +598,16 @@ namespace FlipPix.UI.ViewModels.Video
             Input(workflow, "save")["filename_prefix"] = $"video/{ProjectFolder}/clip_{clip.DisplayIndex:D5}";
         }
 
-        /// <summary>Up to four reference pictures, in slot order. Unused slots are removed from the graph so
-        /// ComfyUI never tries to load the template's placeholder.</summary>
+        /// <summary>The reference pictures, in slot order: the four Picture slots, then Story mode's location plate.
+        /// The graph ships four LoadImage nodes; a fifth and later picture gets a copy of the first (H3 takes up to
+        /// nine). Unused nodes are removed from the graph so ComfyUI never tries to load the template's
+        /// placeholder.</summary>
         private void ApplyReferences(JsonObject workflow, string?[] uploadedImages)
         {
             var refInputs = Input(workflow, "ref");
-            for (int i = 0; i < PictureNodeIds.Length; i++)
+            for (int i = 0; i < H3RewriterBeatWriter.MaxPictures; i++)
                 refInputs.Remove($"ref_images.ref_image_{i}");
+            var loadTemplate = workflow[PictureNodeIds[0]]?.DeepClone();
 
             // <Picture N> in the prompt is the Nth image the node receives, so a gap would renumber every
             // picture after it.
@@ -590,17 +616,28 @@ namespace FlipPix.UI.ViewModels.Video
                 AddLog("⚠ A Picture slot before the last filled one is empty — the pictures after it are renumbered " +
                        "and no longer match the <Picture N> tags in the prompt. Fill the slots in order.");
 
-            var images = uploadedImages.Take(PictureNodeIds.Length).Where(u => !string.IsNullOrEmpty(u)).ToList();
-            for (int i = 0; i < PictureNodeIds.Length; i++)
+            var images = uploadedImages.Where(u => !string.IsNullOrEmpty(u)).Take(H3RewriterBeatWriter.MaxPictures).ToList();
+            var slots = Math.Max(PictureNodeIds.Length, images.Count);
+            for (int i = 0; i < slots; i++)
             {
+                var nodeId = i < PictureNodeIds.Length ? PictureNodeIds[i] : $"img{i + 1}";
                 if (i < images.Count)
                 {
-                    Input(workflow, PictureNodeIds[i])["image"] = images[i];
-                    refInputs[$"ref_images.ref_image_{i}"] = new JsonArray(PictureNodeIds[i], 0);
+                    if (!workflow.ContainsKey(nodeId))
+                    {
+                        if (loadTemplate == null)
+                        {
+                            AddLog($"⚠ The clip graph has no {PictureNodeIds[0]} node to copy — picture {i + 1} is not sent.");
+                            continue;
+                        }
+                        workflow[nodeId] = loadTemplate.DeepClone();
+                    }
+                    Input(workflow, nodeId)["image"] = images[i];
+                    refInputs[$"ref_images.ref_image_{i}"] = new JsonArray(nodeId, 0);
                 }
                 else
                 {
-                    workflow.Remove(PictureNodeIds[i]);
+                    workflow.Remove(nodeId);
                 }
             }
             AddLog(images.Count > 0 ? $"References: {images.Count} picture(s)" : "No reference pictures — text-to-video");

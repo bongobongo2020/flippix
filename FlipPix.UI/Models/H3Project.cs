@@ -61,6 +61,8 @@ namespace FlipPix.UI.Models
         public string? PreviewedPrompt { get; set; }
         public string? PreviewGuidePath { get; set; }
         public long Seed { get; set; }
+        public string? LocationPlatePath { get; set; }
+        public int LocationPictureIndex { get; set; }
     }
 
     public class H3ProjectReferenceImages

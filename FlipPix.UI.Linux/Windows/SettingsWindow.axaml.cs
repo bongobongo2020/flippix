@@ -194,7 +194,10 @@ public partial class SettingsWindow : DialogWindow
                 Model = p.Model,
                 ModelName = p.ModelName,
                 IsDefault = p.IsDefault
-            }).ToList() ?? new List<LlmServerProfile>()
+            }).ToList() ?? new List<LlmServerProfile>(),
+            ModelSwitchPort = original.LMStudioSettings?.ModelSwitchPort ?? 8812,
+            VisionSwitchModel = original.LMStudioSettings?.VisionSwitchModel ?? "qwen-vision",
+            RewriterSwitchModel = original.LMStudioSettings?.RewriterSwitchModel ?? "h3-rewriter"
         }
     };
 

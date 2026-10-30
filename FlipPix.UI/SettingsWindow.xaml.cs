@@ -95,7 +95,73 @@ namespace FlipPix.UI
 
             RefreshSavedServerItems();
             UpdateDefaultLlmTargetText();
+
+            RewriterModelComboBox.Text = lm?.RewriterSwitchModel ?? string.Empty;
+            // Not from the constructor: the Server box's binding has not filled it yet, so the list would
+            // find no host and stay empty. Once shown, and again whenever the list is opened empty.
+            Loaded += async (_, __) => await LoadRewriterModelsAsync(quiet: true);
+            RewriterModelComboBox.DropDownOpened += async (_, __) =>
+            {
+                if (!RewriterModelComboBox.HasItems) await LoadRewriterModelsAsync(quiet: false);
+            };
         }
+
+        private const string LoraTag = "  (LoRA)";
+
+        /// <summary>The models.json name in a rewriter combo entry, without the (LoRA) marker.</summary>
+        private static string RewriterModelName(string? text)
+        {
+            var name = (text ?? string.Empty).Trim();
+            var tag = LoraTag.Trim();
+            return name.EndsWith(tag, StringComparison.Ordinal) ? name[..^tag.Length].TrimEnd() : name;
+        }
+
+        /// <summary>
+        /// Lists llama-service's models (its model-switch endpoint's /status, on the LLM server's host) in the
+        /// H3 rewriter dropdown, LoRA entries marked. Keeps whatever is typed or saved. Quiet on load: a server
+        /// that is not llama-service just leaves the box free-text.
+        /// </summary>
+        private async Task LoadRewriterModelsAsync(bool quiet)
+        {
+            var typed = RewriterModelName(RewriterModelComboBox.Text);
+            var port = _originalSettings.LMStudioSettings?.ModelSwitchPort ?? 8812;
+            var host = LMStudioServerTextBox.Text?.Trim();
+            if (string.IsNullOrEmpty(host))
+                host = LMStudioSettings.ParseBaseUrl(_originalSettings.LMStudioSettings?.BaseUrl).Host;
+            if (port <= 0 || string.IsNullOrEmpty(host))
+            {
+                if (!quiet) MessageBox.Show("Model switching is off (ModelSwitchPort is 0) or no server is set.", "H3 Rewriter Model",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                using var client = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+                var json = await client.GetStringAsync($"http://{host}:{port}/status");
+                var models = System.Text.Json.Nodes.JsonNode.Parse(json)?["models"] as System.Text.Json.Nodes.JsonArray;
+                var items = new List<string>();
+                foreach (var m in models ?? new System.Text.Json.Nodes.JsonArray())
+                {
+                    var name = m?["name"]?.GetValue<string>();
+                    if (string.IsNullOrEmpty(name)) continue;
+                    items.Add((m?["lora"]?.GetValue<bool>() ?? false) ? name + LoraTag : name);
+                }
+
+                RewriterModelComboBox.ItemsSource = items;
+                RewriterModelComboBox.SelectedItem = items.FirstOrDefault(i => RewriterModelName(i) == typed);
+                if (RewriterModelComboBox.SelectedItem == null) RewriterModelComboBox.Text = typed;
+            }
+            catch (Exception ex)
+            {
+                if (!quiet) MessageBox.Show($"Could not read llama-service's models from http://{host}:{port}/status:\n\n{ex.Message}\n\n" +
+                                            $"Is the llama-service tray running there, with port {port} open in its firewall?",
+                    "H3 Rewriter Model", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private async void RefreshRewriterModels_Click(object sender, RoutedEventArgs e) =>
+            await LoadRewriterModelsAsync(quiet: false);
 
         private void RefreshSavedServerItems()
         {
@@ -218,7 +284,10 @@ namespace FlipPix.UI
                         Model = p.Model,
                         ModelName = p.ModelName,
                         IsDefault = p.IsDefault
-                    }).ToList() ?? new List<LlmServerProfile>()
+                    }).ToList() ?? new List<LlmServerProfile>(),
+                    ModelSwitchPort = original.LMStudioSettings?.ModelSwitchPort ?? 8812,
+                    VisionSwitchModel = original.LMStudioSettings?.VisionSwitchModel ?? "qwen-vision",
+                    RewriterSwitchModel = original.LMStudioSettings?.RewriterSwitchModel ?? "h3-rewriter"
                 }
             };
         }
@@ -959,6 +1028,7 @@ namespace FlipPix.UI
                     LMStudioServerTextBox.Text, LMStudioPortTextBox.Text);
                 var lmModel = CurrentModelId();
                 if (!string.IsNullOrEmpty(lmModel)) lmSettings.SelectedModel = lmModel;
+                lmSettings.RewriterSwitchModel = RewriterModelName(RewriterModelComboBox.Text);
                 lmSettings.SaveProfile(
                     lmBaseUrl,
                     LMStudioServerNameTextBox.Text,

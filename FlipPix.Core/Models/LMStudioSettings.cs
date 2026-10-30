@@ -63,6 +63,21 @@ public class LMStudioSettings
     public bool AutoConnect { get; set; } = true;
 
     /// <summary>
+    /// Port of llama-service's model-switch endpoint on the same host as <see cref="BaseUrl"/>. The tray
+    /// serves one model at a time and loads another on request: <see cref="VisionSwitchModel"/> before a
+    /// request that carries images (when the loaded model has no vision projector), and
+    /// <see cref="RewriterSwitchModel"/> before the H3 Video Editor's h3-rewriter pass. 0 turns switching off;
+    /// a server with nothing on this port is left alone.
+    /// </summary>
+    public int ModelSwitchPort { get; set; } = 8812;
+
+    /// <summary>llama-service models.json entry loaded for image requests.</summary>
+    public string VisionSwitchModel { get; set; } = "qwen-vision";
+
+    /// <summary>llama-service models.json entry loaded for the H3 rewriter (Qwen + MiniMax H3 rewriter LoRA).</summary>
+    public string RewriterSwitchModel { get; set; } = "h3-rewriter";
+
+    /// <summary>
     /// Recently used LM Studio / llama-server base URLs, most-recent first. Lets the user
     /// keep a list of remote computers and switch between them without retyping the address.
     /// Kept for backwards compatibility with settings written before <see cref="Servers"/>;

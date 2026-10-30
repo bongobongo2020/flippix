@@ -234,6 +234,7 @@ namespace FlipPix.UI.ViewModels.Video
             _detectedCast.Clear();
             _continuityPlan.Clear();
             _storyWardrobe = string.Empty;
+            ClearStoryExtras();
         }
 
         private async Task ClearStoryAsync()
@@ -250,6 +251,7 @@ namespace FlipPix.UI.ViewModels.Video
             _detectedCast.Clear();
             _continuityPlan.Clear();
             _storyWardrobe = string.Empty;
+            ClearStoryExtras();
             AddLog("Story cleared");
         }
 
@@ -318,6 +320,7 @@ namespace FlipPix.UI.ViewModels.Video
             IsAnalyzing = true;
             StoryStatus = "Analyzing story...";
             var analyzed = false; // this run's result; IsStoryAnalyzed may still be true from a previous story
+            List<(int Id, double Scale)>? loraBefore = null; // llama-server LoRA scales to put back afterwards
 
             try
             {
@@ -332,6 +335,10 @@ namespace FlipPix.UI.ViewModels.Video
                     return;
                 }
                 var model = models.First().Name.Length > 0 ? models.First().Name : models.First().Id;
+
+                // The analysis passes are plain instructions for the base model; the H3 rewriter LoRA, if the
+                // server has one, is for clip prompts only and is switched back on for that pass.
+                loraBefore = await SwitchLoraAsync(on: false, token);
 
                 // Calculate clip count from target duration
                 var clipDuration = DefaultClipDuration > 0 ? DefaultClipDuration : 5.0;
@@ -388,6 +395,10 @@ namespace FlipPix.UI.ViewModels.Video
                     AddLog("WARNING: Could not derive a wardrobe — clothing may vary between clips.");
                 }
 
+                // What each character looks like and sounds like, for the cast photos and the spoken lines.
+                StoryStatus = "Deciding each character's look and voice...";
+                await DeriveStoryLooksAsync(model, token);
+
                 StoryStatus = $"Breaking story into {clipCount} beats...";
 
                 // Step 2: Build cast brief for beat sheet
@@ -420,6 +431,13 @@ namespace FlipPix.UI.ViewModels.Video
                 foreach (var line in StoryContinuity.Describe(_continuityPlan))
                     AddLog(line);
 
+                // One empty picture per place, written now (LLM) and rendered at populate time (GPU).
+                if (StoryLocationPlates)
+                {
+                    StoryStatus = "Writing location plates...";
+                    await WriteLocationPlatePromptsAsync(model, token);
+                }
+
                 IsStoryAnalyzed = true;
                 analyzed = true;
                 StoryStatus = $"Analyzed: {_detectedCast.Count} characters, {_storyBeats.Count} beats";
@@ -432,6 +450,7 @@ namespace FlipPix.UI.ViewModels.Video
             }
             finally
             {
+                await RestoreLoraAsync(loraBefore);
                 IsAnalyzing = false;
             }
 
@@ -711,6 +730,11 @@ namespace FlipPix.UI.ViewModels.Video
                 }
             }
 
+            // The look the story bible decided — face, hair, age, build — so the photo is this story's person.
+            var look = StoryLookFor(slotIndex);
+            if (look.Length > 0)
+                sb.Append($", {look}");
+
             // Dressed in the story's locked outfit, so the reference photo and every clip's text describe
             // the same clothes — a photo in other clothes would pull the clips away from the wardrobe.
             var outfit = StoryOutfitFor(slotIndex);
@@ -842,6 +866,12 @@ namespace FlipPix.UI.ViewModels.Video
                 StoryStatus = "Preparing cast photos...";
                 await PrepareCastPhotosAsync();
 
+                if (StoryLocationPlates && _plateGroups.Count > 0)
+                {
+                    StoryStatus = "Rendering location plates...";
+                    await RenderLocationPlatesAsync(CancellationToken.None);
+                }
+
                 StoryStatus = "Populating timeline...";
                 AddLog($"Populating timeline with {_storyBeats.Count} clips...");
 
@@ -855,6 +885,23 @@ namespace FlipPix.UI.ViewModels.Video
                 var clipDuration = TargetDurationSeconds / _storyBeats.Count;
                 clipDuration = Math.Max(5.0, Math.Min(15.0, clipDuration)); // H3's trained range is ~5-15 s
 
+                // ✍ The LLM writes each clip to the official H3 format; a clip it could not write comes from the
+                // template below instead.
+                List<string>? rewritten = null;
+                if (UseRewriter)
+                {
+                    StoryStatus = "Writing clip prompts (H3 rewriter)...";
+                    rewritten = await WriteRewriterPromptsAsync(cast, clipDuration, CancellationToken.None);
+                    if (rewritten == null)
+                        AddLog("H3 rewriter could not run — every clip is written from the template.");
+                    else if (rewritten.Any(p => p.Length == 0))
+                        AddLog("H3 rewriter: clip(s) " +
+                               string.Join(", ", rewritten.Select((p, n) => (p, n)).Where(x => x.p.Length == 0).Select(x => x.n + 1)) +
+                               " could not be written and use the template.");
+                }
+                var platePicture = PlatePictureNumber();
+                var plateSubject = cast.Count + 1;
+
                 for (int i = 0; i < _storyBeats.Count; i++)
                 {
                     var beat = _storyBeats[i];
@@ -864,8 +911,13 @@ namespace FlipPix.UI.ViewModels.Video
                     // Get previous beat for continuity handoff (null for first clip)
                     StoryBeatSheet.StoryBeat? previousBeat = i > 0 ? _storyBeats[i - 1] : null;
 
+                    var plate = PlateFor(i);
+
                     // Build the prompt for this clip with beat-to-beat continuity
-                    var prompt = BuildClipPrompt(beat, i, cast, env, previousBeat, clipDuration, isLastClip);
+                    var prompt = rewritten != null && i < rewritten.Count && rewritten[i].Length > 0
+                        ? rewritten[i]
+                        : BuildClipPrompt(beat, i, cast, env, previousBeat, clipDuration, isLastClip,
+                                          plate != null ? plateSubject : 0, platePicture);
 
                     // Create the timeline clip
                     var clip = new H3TimelineClip
@@ -874,6 +926,8 @@ namespace FlipPix.UI.ViewModels.Video
                         DurationSeconds = clipDuration,
                         Prompt = prompt,
                         UseMotionContext = i > 0 && ChainClips,
+                        LocationPlatePath = plate ?? string.Empty,
+                        LocationPictureIndex = plate != null ? platePicture : 0,
                     };
 
                     TimelineClips.Add(clip);
@@ -1027,12 +1081,16 @@ namespace FlipPix.UI.ViewModels.Video
             StoryContinuity.Environment env,
             StoryBeatSheet.StoryBeat? previousBeat,
             double clipDuration,
-            bool isLastClip)
+            bool isLastClip,
+            int plateSubject = 0,
+            int platePicture = 0)
         {
             var sb = new StringBuilder();
 
             sb.AppendLine("subject_definitions:");
-            sb.AppendLine(H3SpecPrompt.BuildSubjectDefinitions(cast, env, StorySetting));
+            sb.AppendLine(plateSubject > 0
+                ? H3RewriterBeatWriter.BuildSubjectDefinitions(cast, plateSubject, platePicture, env, StorySetting)
+                : H3SpecPrompt.BuildSubjectDefinitions(cast, env, StorySetting));
             sb.AppendLine();
 
             var action = TagSubjects(beat.Text, cast.Count);
@@ -1042,7 +1100,9 @@ namespace FlipPix.UI.ViewModels.Video
             sb.AppendLine();
 
             sb.AppendLine("retention_analysis:");
-            sb.AppendLine(H3SpecPrompt.BuildRetentionAnalysis(cast));
+            sb.AppendLine(plateSubject > 0
+                ? H3RewriterBeatWriter.BuildRetentionAnalysis(cast, plateSubject, platePicture)
+                : H3SpecPrompt.BuildRetentionAnalysis(cast));
             sb.AppendLine();
 
             sb.AppendLine("detailed_description:");
