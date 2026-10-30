@@ -2357,6 +2357,16 @@ namespace FlipPix.UI.ViewModels
                 SelectedKreaLoras = originalSelectedKreaLoras;
                 _selectedStyleIndex = originalSelectedStyleIndex;
 
+                if (item.SelectedWorkflow == TextGeneratorWorkflow.Qwen21Enhancer)
+                {
+                    if (item.UsePromptEnhancer)
+                    {
+                        System.Windows.Application.Current.Dispatcher.Invoke(() => ProcessingStatus = "Enhancing prompt...");
+                    }
+                    updatedWorkflow = await Qwen21PromptEnhancer.ResolveAsync(
+                        _comfyUIService, updatedWorkflow, m => _logger.LogInfo(m), cancellationToken);
+                }
+
                 // Execute workflow
                 System.Windows.Application.Current.Dispatcher.Invoke(() =>
                 {

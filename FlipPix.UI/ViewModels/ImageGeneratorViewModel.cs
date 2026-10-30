@@ -892,6 +892,12 @@ namespace FlipPix.UI.ViewModels
                 // Into the model's own output folder (Moss/, Krea2/, ...) rather than loose in output/.
                 var updatedWorkflow = OutputFolders.RouteSaves(
                     UpdateWorkflowParameters(workflow), OutputFolders.ForTextWorkflow(SelectedWorkflow));
+                if (SelectedWorkflow == TextGeneratorWorkflow.Qwen21Enhancer)
+                {
+                    if (UsePromptEnhancer) ProcessingStatus = "Enhancing prompt...";
+                    updatedWorkflow = await Qwen21PromptEnhancer.ResolveAsync(
+                        _comfyUIService, updatedWorkflow, AddLog, _cancellationTokenSource.Token);
+                }
                 _lastWorkflow = updatedWorkflow; // Store for later use in image retrieval
 
                 // Execute workflow
@@ -2661,7 +2667,8 @@ namespace FlipPix.UI.ViewModels
             //   461     = SaveImage, prefix "Qwen21"
             //
             // The prompt goes into 468 only. Writing it into 474 or 459:452 instead would cut the
-            // enhancer out of the graph, because both read their text through 468.
+            // enhancer out of the graph, because both read their text through 468. With the enhancer
+            // on, Qwen21PromptEnhancer then runs 472 as its own job and rewrites 468 / 473 from this.
 
             var (width, height) = Qwen21Resolution(AspectRatioIndex);
 
@@ -4245,6 +4252,13 @@ namespace FlipPix.UI.ViewModels
                 SelectedKreaLoras = originalSelectedKreaLoras;
                 SelectedWorkflow = originalSelectedWorkflow;
                 UsePromptEnhancer = originalUsePromptEnhancer;
+
+                if (queueItem.SelectedWorkflow == TextGeneratorWorkflow.Qwen21Enhancer)
+                {
+                    if (queueItem.UsePromptEnhancer) ProcessingStatus = "Enhancing prompt...";
+                    updatedWorkflow = await Qwen21PromptEnhancer.ResolveAsync(
+                        _comfyUIService, updatedWorkflow, AddLog, _cancellationTokenSource.Token);
+                }
 
                 // Execute workflow
                 ProcessingStatus = "Generating image...";

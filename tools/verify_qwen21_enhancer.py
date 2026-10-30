@@ -17,6 +17,9 @@ the enhancer's concatenate, so it is the one place the text can go; writing it i
 instead would submit a graph that renders, silently ignoring the enhancer. A renamed node would
 not fail the build either — it would render the workflow's authored prompt instead of the user's.
 
+With the enhancer on, Qwen21PromptEnhancer then submits 468/470/471/469/472/475 as a job of its own
+and writes the result back into 468 with 473 off, so the routes checked below must stay intact.
+
 Usage:  python tools/verify_qwen21_enhancer.py [--url http://10.0.0.10:8188]
         python tools/verify_qwen21_enhancer.py --offline     # structure only, no server needed
 
