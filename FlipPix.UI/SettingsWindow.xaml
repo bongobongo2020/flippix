@@ -242,6 +242,7 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Friendly Name:" VerticalAlignment="Center" Margin="0,0,10,10"/>
@@ -270,6 +271,17 @@
                             <TextBlock Grid.Row="4" Grid.Column="0" Text="Model Name:" VerticalAlignment="Center" Margin="0,0,10,10"/>
                             <TextBox Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" x:Name="LMStudioModelNameTextBox" Margin="0,0,0,10"
                                      ToolTip="What to call this model in status messages, e.g. &quot;Qwen2.5-VL 7B&quot;. Leave blank to use the model id."/>
+
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="H3 Rewriter Model:" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                            <Grid Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ComboBox Grid.Column="0" x:Name="RewriterModelComboBox" IsEditable="True" Margin="0,0,10,0"
+                                          ToolTip="The llama-service model loaded for the H3 Video Editor's h3-rewriter clip writing. The list comes from the server's models.json; (LoRA) marks entries that load the H3 rewriter LoRA. The LoRA only fits Qwen3.6-27B, so any other model writes from the system prompt alone. Leave blank to never switch."/>
+                                <Button Grid.Column="1" Content="Refresh" Click="RefreshRewriterModels_Click" Padding="15,5"/>
+                            </Grid>
                         </Grid>
 
                         <!-- What the app will actually use -->

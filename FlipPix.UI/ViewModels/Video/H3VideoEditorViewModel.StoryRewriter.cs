@@ -367,6 +367,13 @@ namespace FlipPix.UI.ViewModels.Video
         private async Task<List<string>?> WriteRewriterPromptsAsync(
             List<H3SpecPrompt.CastMember> cast, double clipDuration, CancellationToken token)
         {
+            // On llama-service, load the H3 rewriter model (Qwen + the rewriter LoRA) first; the model name is
+            // resolved after, so it is the one that will answer.
+            StoryStatus = "Loading the H3 rewriter model...";
+            if (await _lmStudioService.EnsureRewriterModelAsync(token))
+                AddLog("llama-service: H3 rewriter model loaded for clip writing.");
+            StoryStatus = "Writing clip prompts (H3 rewriter)...";
+
             var model = await ResolveStoryModelAsync(token);
             if (model == null) return null;
 
