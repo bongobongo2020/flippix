@@ -9151,6 +9151,447 @@
                     </Grid>
                 </Grid>
             </TabItem>
+            <!-- ════════════════════════════════════════════════════════════════ -->
+            <!-- Tab: Character Swap (Openjutsu one-click MiniMax H3 swap)         -->
+            <!-- ════════════════════════════════════════════════════════════════ -->
+            <TabItem Header="🔁 Character Swap">
+                <Grid x:DataType="vmv:CharacterSwapViewModel"
+                      x:Name="CharacterSwapRoot"
+                      DataContext="{Binding CharacterSwapVM}"
+                      Theme="{StaticResource TabPageStyle}">
+                    <Grid.Resources>
+                        <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource AccentVioletColor}"/>
+                    </Grid.Resources>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="360"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <!-- ═══ Left Panel: inputs and settings ═════════════════════════ -->
+                    <Border Grid.Column="0" Theme="{StaticResource SectionCardStyle}" Margin="10,8,6,8">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <StackPanel Grid.Row="0" Margin="0,0,0,8">
+                                <TextBlock Text="🔁 MiniMax Character Swap" FontWeight="Bold" FontSize="15" Foreground="{DynamicResource TabAccentBrush}"/>
+                                <TextBlock Text="Drop a video and a character photo: the person in the video is replaced by your character. Camera, cuts, motion and soundtrack stay. MiniMax H3 + SAM 3.1 + Qwen3-VL (Openjutsu)."
+                                           FontSize="10"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,3,0,0"/>
+                            </StackPanel>
+                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                <StackPanel Margin="0,0,6,0">
+                                    <!-- ─── Mode ─────────────────────────────────────── -->
+                                    <TextBlock Text="MODE" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,4"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                        <RadioButton Content="Simple (1 character)"
+                                                     GroupName="CharacterSwapMode"
+                                                     IsChecked="{Binding IsSimple}"
+                                                     FontSize="11"
+                                                     Margin="0,0,14,0"
+                                                     Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <RadioButton Content="Advanced (1–4)"
+                                                     GroupName="CharacterSwapMode"
+                                                     IsChecked="{Binding IsAdvanced}"
+                                                     FontSize="11"
+                                                     Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding ModeSummary}" FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,10"/>
+                                    <!-- ─── Source video ─────────────────────────────── -->
+                                    <TextBlock Text="SOURCE VIDEO" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,4"/>
+                                    <Grid Margin="0,0,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding VideoFileName}"
+                                                   FontSize="11"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                   ToolTip.Tip="{Binding VideoPath}"/>
+                                        <Button Grid.Column="1"
+                                                Content="📂 Video"
+                                                Command="{Binding BrowseVideoCommand}"
+                                                Theme="{StaticResource SecondaryButtonStyle}"
+                                                Height="26"
+                                                Padding="10,0"
+                                                FontSize="11"
+                                                Margin="6,0,4,0"/>
+                                        <Button Grid.Column="2"
+                                                Content="▶"
+                                                Command="{Binding PlaySourceCommand}"
+                                                Theme="{StaticResource SecondaryButtonStyle}"
+                                                Width="28"
+                                                Height="26"
+                                                Padding="0"
+                                                FontSize="11"
+                                                ToolTip.Tip="Play the source video in the preview."/>
+                                    </Grid>
+                                    <Grid Margin="0,0,0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="60"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="60"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Start (s)" FontSize="11" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                        <TextBox Grid.Column="1"
+                                                 Text="{Binding SectionStart}"
+                                                 FontSize="11"
+                                                 Height="24"
+                                                 HorizontalContentAlignment="Center"
+                                                 ToolTip.Tip="Seconds into the video where the swap starts."/>
+                                        <TextBlock Grid.Column="2" Text="  Length (s)" FontSize="11" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                        <TextBox Grid.Column="3"
+                                                 Text="{Binding SectionLength}"
+                                                 FontSize="11"
+                                                 Height="24"
+                                                 HorizontalContentAlignment="Center"
+                                                 ToolTip.Tip="How much of the video to swap. 0 = to the end. A shorter part renders faster."/>
+                                    </Grid>
+                                    <TextBlock Text="{Binding ClipEstimate}" FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,10"/>
+                                    <!-- ─── Characters ───────────────────────────────── -->
+                                    <TextBlock Text="CHARACTERS" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,4"/>
+                                    <ItemsControl ItemsSource="{Binding ActiveCharacters}" Margin="0,0,0,4">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="m:CharacterSwapSlot">
+                                                <Border Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="6" Margin="0,0,0,6">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="64"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Border Grid.Column="0"
+                                                                Width="64"
+                                                                Height="80"
+                                                                CornerRadius="3"
+                                                                Background="#1a1a1a"
+                                                                ClipToBounds="True"
+                                                                Cursor="Hand"
+                                                                ctrl:Click.Command="{Binding BrowseCommand}"
+                                                                ToolTip.Tip="Click to choose this character's photo.">
+                                                            <Grid>
+                                                                <TextBlock Text="🧑" FontSize="22" Foreground="#555" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                <Image Source="{Binding PicturePath, Converter={StaticResource PathToBitmapConverter}}" Stretch="UniformToFill"/>
+                                                            </Grid>
+                                                        </Border>
+                                                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                            <Grid>
+                                                                <TextBlock Text="{Binding Label}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                                    <Button Content="📂"
+                                                                            Command="{Binding BrowseCommand}"
+                                                                            Theme="{StaticResource SecondaryButtonStyle}"
+                                                                            Width="26"
+                                                                            Height="22"
+                                                                            Padding="0"
+                                                                            FontSize="10"
+                                                                            Margin="0,0,3,0"/>
+                                                                    <Button Content="✕"
+                                                                            Command="{Binding ClearCommand}"
+                                                                            Theme="{StaticResource SecondaryButtonStyle}"
+                                                                            Width="26"
+                                                                            Height="22"
+                                                                            Padding="0"
+                                                                            FontSize="10"/>
+                                                                </StackPanel>
+                                                            </Grid>
+                                                            <TextBlock Text="{Binding FileName}" FontSize="10" TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,4"/>
+                                                            <TextBlock Text="Who do they replace? (optional, a role)" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                            <TextBox Text="{Binding Role}"
+                                                                     FontSize="11"
+                                                                     Height="24"
+                                                                     Padding="4,0"
+                                                                     VerticalContentAlignment="Center"
+                                                                     ToolTip.Tip="Name the person by role, never by clothes: 'the singer', 'the drummer'. Clothing words leak into the result. In Advanced mode you may add how they look after ' - ' to help matching: 'the drummer - man in a cap'. Blank: the describer names them."/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <Grid Margin="0,0,0,10" IsVisible="{Binding IsSimple}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="150"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="What to replace (SAM)" FontSize="11" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                        <TextBox Grid.Column="1"
+                                                 Text="{Binding Target}"
+                                                 FontSize="11"
+                                                 Height="24"
+                                                 Padding="4,0"
+                                                 VerticalContentAlignment="Center"
+                                                 ToolTip.Tip="The text SAM tracks: 'person' by default, an animal like 'cat', or a short description ('black and white cat') when the biggest match is the wrong one. The biggest match in the frame is replaced."/>
+                                    </Grid>
+                                    <!-- ─── Settings ─────────────────────────────────── -->
+                                    <TextBlock Text="SETTINGS" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,6"/>
+                                    <Grid Margin="0,0,0,6" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="150"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Row="0" Text="Resolution (short edge)" FontSize="11" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                        <ComboBox Grid.Row="0"
+                                                  Grid.Column="1"
+                                                  ItemsSource="{Binding ResolutionOptions}"
+                                                  SelectedItem="{Binding Resolution}"
+                                                  HorizontalAlignment="Stretch"
+                                                  FontSize="11"
+                                                  Height="24"
+                                                  Margin="0,0,0,4"
+                                                  ToolTip.Tip="736p is the default. 480p is about twice as fast; 1080p about 2.5× slower than 736p and needs much more memory."/>
+                                        <TextBlock Grid.Row="1" Text="Clip length (s)" FontSize="11" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                        <TextBox Grid.Row="1"
+                                                 Grid.Column="1"
+                                                 Text="{Binding ClipSeconds}"
+                                                 FontSize="11"
+                                                 Height="24"
+                                                 HorizontalContentAlignment="Center"
+                                                 Margin="0,0,0,4"
+                                                 ToolTip.Tip="Length of each H3 clip in the chain (2.5–15 s). Clips overlap and are joined into one video."/>
+                                        <TextBlock Grid.Row="2" Text="Mask margin" FontSize="11" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                        <ComboBox Grid.Row="2"
+                                                  Grid.Column="1"
+                                                  ItemsSource="{Binding MarginOptions}"
+                                                  SelectedItem="{Binding Margin}"
+                                                  HorizontalAlignment="Stretch"
+                                                  FontSize="11"
+                                                  Height="24"
+                                                  Margin="0,0,0,4"
+                                                  ToolTip.Tip="How far the regenerated area reaches past the tracked person. Loose if the character is cut off, Tight if too much background changes. Check mask shows it."/>
+                                        <TextBlock Grid.Row="3" Text="Motion reference (px)" FontSize="11" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                        <ComboBox Grid.Row="3"
+                                                  Grid.Column="1"
+                                                  ItemsSource="{Binding MotionSizeOptions}"
+                                                  SelectedItem="{Binding MotionSize}"
+                                                  HorizontalAlignment="Stretch"
+                                                  FontSize="11"
+                                                  Height="24"
+                                                  Margin="0,0,0,4"
+                                                  ToolTip.Tip="Size of the grey mannequin H3 copies the motion from. Bigger follows poses more closely: ~⅓ longer at 768, ~2.4× at 1376."/>
+                                        <TextBlock Grid.Row="4" Text="Seed" FontSize="11" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                        <Grid Grid.Row="4" Grid.Column="1">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Text="{Binding Seed}"
+                                                     FontSize="11"
+                                                     Height="24"
+                                                     HorizontalContentAlignment="Center"
+                                                     ToolTip.Tip="Same inputs + same seed resume from the last finished clip. Change it for a new take."/>
+                                            <Button Grid.Column="1"
+                                                    Content="🎲"
+                                                    Command="{Binding NewSeedCommand}"
+                                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                                    Width="28"
+                                                    Height="24"
+                                                    Padding="0"
+                                                    FontSize="11"
+                                                    Margin="4,0,0,0"/>
+                                        </Grid>
+                                    </Grid>
+                                    <CheckBox Content="Hat fix (also replace the hat, ~45 s more per clip)"
+                                              IsChecked="{Binding HatFix}"
+                                              FontSize="11"
+                                              Margin="0,2,0,4"
+                                              Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <CheckBox Content="No lip-sync (people don't sing or talk along)"
+                                              IsChecked="{Binding NoLipSync}"
+                                              FontSize="11"
+                                              Margin="0,0,0,10"
+                                              Foreground="{StaticResource TextPrimaryBrush}"
+                                              ToolTip.Tip="For songs nobody in the video sings to. H3 hears silence and is told nobody sings; the final video keeps the original soundtrack. About 30 s more per clip."/>
+                                    <!-- ─── Model ────────────────────────────────────── -->
+                                    <Expander Header="Model"
+                                              IsExpanded="False"
+                                              FontSize="11"
+                                              Margin="0,0,0,6"
+                                              HorizontalAlignment="Stretch"
+                                              Foreground="{StaticResource TextSecondaryBrush}">
+                                        <Grid Margin="0,6,0,0" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="90"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Row="0" Text="H3 model" FontSize="11" VerticalAlignment="Center"/>
+                                            <ComboBox Grid.Row="0"
+                                                      Grid.Column="1"
+                                                      ItemsSource="{Binding ModelOptions}"
+                                                      SelectedItem="{Binding SelectedModel}"
+                                                      HorizontalAlignment="Stretch"
+                                                      FontSize="10"
+                                                      Height="24"
+                                                      Margin="0,0,0,4"
+                                                      ToolTip.Tip="Openjutsu uses the pruned INT8 ref2va model."/>
+                                            <TextBlock Grid.Row="1" Text="LoRA" FontSize="11" VerticalAlignment="Center"/>
+                                            <ComboBox Grid.Row="1"
+                                                      Grid.Column="1"
+                                                      ItemsSource="{Binding LoraOptions}"
+                                                      SelectedItem="{Binding SelectedLora}"
+                                                      HorizontalAlignment="Stretch"
+                                                      FontSize="10"
+                                                      Height="24"
+                                                      Margin="0,0,0,4"
+                                                      ToolTip.Tip="The DMAD 4-step speed LoRA at 6 steps is Openjutsu's default."/>
+                                            <TextBlock Grid.Row="2" Text="LoRA strength" FontSize="11" VerticalAlignment="Center"/>
+                                            <TextBox Grid.Row="2"
+                                                     Grid.Column="1"
+                                                     Text="{Binding LoraStrength}"
+                                                     FontSize="11"
+                                                     Height="24"
+                                                     HorizontalContentAlignment="Center"
+                                                     Margin="0,0,0,4"/>
+                                            <TextBlock Grid.Row="3" Text="Steps" FontSize="11" VerticalAlignment="Center"/>
+                                            <TextBox Grid.Row="3"
+                                                     Grid.Column="1"
+                                                     Text="{Binding Steps}"
+                                                     FontSize="11"
+                                                     Height="24"
+                                                     HorizontalContentAlignment="Center"
+                                                     Margin="0,0,0,4"
+                                                     ToolTip.Tip="6 with the speed LoRA; 20 or more without one."/>
+                                            <Button Grid.Row="4"
+                                                    Grid.Column="1"
+                                                    Content="🔄 Refresh model lists"
+                                                    Command="{Binding RefreshModelsCommand}"
+                                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                                    Height="24"
+                                                    FontSize="10"
+                                                    HorizontalAlignment="Left"
+                                                    Padding="8,0"/>
+                                        </Grid>
+                                    </Expander>
+                                </StackPanel>
+                            </ScrollViewer>
+                            <!-- ─── Actions ─────────────────────────────────────────── -->
+                            <StackPanel Grid.Row="2" Margin="0,8,0,0">
+                                <TextBlock Text="{Binding ProcessingStatus}" FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                <ProgressBar Value="{Binding ProcessingProgress}" Height="4" Margin="0,0,0,8" IsVisible="{Binding IsProcessing}"/>
+                                <Button Content="🔁 Generate swap"
+                                        Command="{Binding GenerateCommand}"
+                                        Theme="{StaticResource AccentButtonStyle}"
+                                        HorizontalAlignment="Stretch"
+                                        Height="34"
+                                        FontSize="12"
+                                        FontWeight="Bold"
+                                        Margin="0,0,0,5"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0"
+                                            Content="🎭 Check mask"
+                                            Command="{Binding CheckMaskCommand}"
+                                            Theme="{StaticResource SecondaryButtonStyle}"
+                                            HorizontalAlignment="Stretch"
+                                            Height="26"
+                                            FontSize="11"
+                                            Margin="0,0,3,0"
+                                            ToolTip.Tip="Runs only SAM and the mask (about a minute per 3 s of video): cyan is what H3 regenerates, orange the tracked person, right the grey mannequin H3 follows. Simple mode only."/>
+                                    <Button Grid.Column="1"
+                                            Content="⏹ Stop"
+                                            Command="{Binding StopCommand}"
+                                            Theme="{StaticResource SecondaryButtonStyle}"
+                                            HorizontalAlignment="Stretch"
+                                            Height="26"
+                                            FontSize="11"
+                                            Margin="3,0,0,0"/>
+                                </Grid>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <!-- ═══ Right Panel: preview and log ════════════════════════════ -->
+                    <Grid Grid.Column="1" Margin="0,8,10,8">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Border Grid.Row="0" CornerRadius="6" Background="{StaticResource PlayerSurfaceBrush}">
+                            <Grid>
+                                <TextBlock Text="Pick a source video to preview it here. The swapped video plays here when it is done."
+                                           IsVisible="{Binding ActivePreview, Converter={x:Static StringConverters.IsNullOrEmpty}}"
+                                           FontSize="11"
+                                           FontStyle="Italic"
+                                           TextWrapping="Wrap"
+                                           TextAlignment="Center"
+                                           Margin="30,0"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                                <!-- Source is set from code-behind (ApplyCharacterSwapSource), like the other H3 players. -->
+                                <ctrl:VideoPreview x:Name="CharacterSwapPlayer"
+                                                   IsVisible="{Binding ActivePreview, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                                   Stretch="Uniform"
+                                                   MediaOpened="CharacterSwapPlayer_MediaOpened"
+                                                   MediaEnded="CharacterSwapPlayer_MediaEnded"/>
+                            </Grid>
+                        </Border>
+                        <WrapPanel Grid.Row="1" Margin="0,6,0,0">
+                            <Button Content="▶ Swapped video"
+                                    Command="{Binding PlayResultCommand}"
+                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                    Height="26"
+                                    Padding="10,0"
+                                    FontSize="11"
+                                    Margin="0,0,5,0"/>
+                            <Button Content="▶ Source"
+                                    Command="{Binding PlaySourceCommand}"
+                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                    Height="26"
+                                    Padding="10,0"
+                                    FontSize="11"
+                                    Margin="0,0,5,0"/>
+                            <Button Content="📁 Open folder"
+                                    Command="{Binding OpenResultFolderCommand}"
+                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                    Height="26"
+                                    Padding="10,0"
+                                    FontSize="11"
+                                    Margin="0,0,10,0"/>
+                            <TextBlock Text="{Binding ResultVideoInfo}" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis"/>
+                        </WrapPanel>
+                        <Expander Grid.Row="2"
+                                  Header="📝 Log"
+                                  IsExpanded="True"
+                                  HorizontalAlignment="Stretch"
+                                  Foreground="{StaticResource TextMutedBrush}"
+                                  Margin="0,6,0,0">
+                            <Grid>
+                                <TextBox Text="{Binding LogOutput, Mode=OneWay}"
+                                         IsReadOnly="True"
+                                         FontFamily="Consolas, DejaVu Sans Mono, Liberation Mono, monospace"
+                                         FontSize="10"
+                                         Height="130"
+                                         TextWrapping="Wrap"
+                                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                         Background="{StaticResource SurfaceAltBrush}"
+                                         Foreground="{StaticResource TextSecondaryBrush}"
+                                         BorderThickness="0"
+                                         TextChanged="CharacterSwapLog_TextChanged"/>
+                                <Button Content="Clear"
+                                        Command="{Binding ClearLogCommand}"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Top"
+                                        Height="18"
+                                        Padding="6,0"
+                                        FontSize="8"
+                                        Theme="{StaticResource SecondaryButtonStyle}"
+                                        Margin="0,2,18,0"/>
+                            </Grid>
+                        </Expander>
+                    </Grid>
+                </Grid>
+            </TabItem>
         </TabControl>
         <!-- Status Bar -->
         <Border Grid.Row="3"

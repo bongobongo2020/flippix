@@ -69,6 +69,7 @@ public partial class VideoGeneratorWindow : AppWindow
         _viewModel.H3ExpressVM.PropertyChanged += H3ExpressVM_PropertyChanged;
         _viewModel.SeedUpscaleVM.PropertyChanged += SeedUpscaleVM_PropertyChanged;
         _viewModel.H3VideoEditorVM.PropertyChanged += H3VideoEditorVM_PropertyChanged;
+        _viewModel.CharacterSwapVM.PropertyChanged += CharacterSwapVM_PropertyChanged;
 
         // WPF's CastThumbnailStyle carried an EventSetter; Avalonia themes cannot, so the window
         // listens for clicks on any border wearing that theme.
@@ -83,6 +84,7 @@ public partial class VideoGeneratorWindow : AppWindow
         ApplyH3ExpressSource();
         ApplySeedUpscaleSource();
         ApplyH3EditorSource();
+        ApplyCharacterSwapSource();
     }
 
     private void Header_MouseLeftButtonDown(object? sender, PointerPressedEventArgs e) => Header_PointerPressed(sender, e);
@@ -153,6 +155,21 @@ public partial class VideoGeneratorWindow : AppWindow
     private void SeedUpscalePlayer_MediaEnded(object? sender, RoutedEventArgs e) => Loop(SeedUpscaleVideoPlayer);
     private void SeedUpscalePlayer_MediaFailed(object? sender, MediaFailedEventArgs e) =>
         _viewModel.SeedUpscaleVM.ReportPreviewFailed(e.ErrorException?.Message ?? "unknown media error");
+
+    private void CharacterSwapVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(CharacterSwapViewModel.ActivePreview)) OnUi(ApplyCharacterSwapSource);
+    }
+
+    private void ApplyCharacterSwapSource() => ApplySharedPlayerSource(CharacterSwapPlayer, _viewModel.CharacterSwapVM.ActivePreview);
+    private void CharacterSwapPlayer_MediaOpened(object? sender, RoutedEventArgs e) => CharacterSwapPlayer.Play();
+    private void CharacterSwapPlayer_MediaEnded(object? sender, RoutedEventArgs e) => Loop(CharacterSwapPlayer);
+
+    // Moving the caret to the end is how an Avalonia TextBox scrolls to it.
+    private void CharacterSwapLog_TextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (sender is TextBox log) log.CaretIndex = log.Text?.Length ?? 0;
+    }
 
     private void H3VideoEditorVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
@@ -595,6 +612,7 @@ public partial class VideoGeneratorWindow : AppWindow
         H3ExpressVideoPlayer?.Stop();
         SeedUpscaleVideoPlayer?.Stop();
         H3EditorVideoPlayer?.Stop();
+        CharacterSwapPlayer?.Stop();
     }
 
     protected override void OnClosing(WindowClosingEventArgs e)
@@ -616,6 +634,7 @@ public partial class VideoGeneratorWindow : AppWindow
         _viewModel.Scail2VM.SeekRequested -= OnScail2SeekRequested;
         _viewModel.Scail2VM.PropertyChanged -= Scail2VM_PropertyChanged;
         _viewModel.H3VideoEditorVM.PropertyChanged -= H3VideoEditorVM_PropertyChanged;
+        _viewModel.CharacterSwapVM.PropertyChanged -= CharacterSwapVM_PropertyChanged;
         _viewModel.PlayRequested -= OnPlayRequested;
         if (_viewModel is IDisposable disposable) disposable.Dispose();
         DataContext = null;
