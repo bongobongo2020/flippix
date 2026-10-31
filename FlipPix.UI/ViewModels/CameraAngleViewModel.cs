@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -41,6 +42,8 @@ namespace FlipPix.UI.ViewModels
         /// <summary>The image-generation engines this tab can drive.</summary>
         public const string EngineFluxKlein = "Flux2 Klein 9B (1-click batch)";
         public const string EngineQwenEdit21 = "Qwen Image 2.1 Edit";
+        public const string EngineFibo2 = "FIBO 2";
+        public const string EngineFireRed = "FireRed";
 
         private string _selectedEngine = EngineFluxKlein;
 
@@ -372,7 +375,7 @@ namespace FlipPix.UI.ViewModels
         // Properties
 
         /// <summary>The image-generation engines selectable in the dropdown.</summary>
-        public ObservableCollection<string> Engines { get; } = new() { EngineFluxKlein, EngineQwenEdit21 };
+        public ObservableCollection<string> Engines { get; } = new() { EngineFluxKlein, EngineQwenEdit21, EngineFibo2, EngineFireRed };
 
         /// <summary>Which engine/workflow will be used for the next generation.</summary>
         public string SelectedEngine
@@ -578,9 +581,13 @@ namespace FlipPix.UI.ViewModels
                 _cancellationTokenSource.Token.ThrowIfCancellationRequested();
 
                 AddLog($"Engine: {SelectedEngine}");
-                var outputImages = SelectedEngine == EngineQwenEdit21
-                    ? await GenerateWithQwenEdit21Async(uploadedImageName, _cancellationTokenSource.Token)
-                    : await GenerateWithFluxKleinAsync(uploadedImageName, _cancellationTokenSource.Token);
+                var outputImages = SelectedEngine switch
+                {
+                    EngineQwenEdit21 => await GenerateWithQwenEdit21Async(uploadedImageName, _cancellationTokenSource.Token),
+                    EngineFibo2 => await GenerateWithFibo2Async(uploadedImageName, _cancellationTokenSource.Token),
+                    EngineFireRed => await GenerateWithFireRedAsync(uploadedImageName, _cancellationTokenSource.Token),
+                    _ => await GenerateWithFluxKleinAsync(uploadedImageName, _cancellationTokenSource.Token)
+                };
 
                 if (outputImages.Any())
                 {
@@ -728,7 +735,42 @@ namespace FlipPix.UI.ViewModels
         /// the Klein batch for the same prompt count, but it's the only way to drive this workflow
         /// per-prompt.
         /// </summary>
-        private async Task<List<byte[]>> GenerateWithQwenEdit21Async(string uploadedImageName, CancellationToken token)
+        private Task<List<byte[]>> GenerateWithQwenEdit21Async(string uploadedImageName, CancellationToken token) =>
+            GeneratePerPromptAsync(
+                WorkflowLocator.Resolve("workflow", "image", "qwen-edit", QwenWorkflowFile),
+                EngineQwenEdit21, "QwenEdit21",
+                (workflowJson, prompt, filenamePrefix) => BuildQwenEdit21Workflow(workflowJson, uploadedImageName, prompt, filenamePrefix),
+                token);
+
+        /// <summary>
+        /// FIBO 2 edit turbo path: like Qwen, the workflow takes a single prompt, so one angle means
+        /// one ComfyUI submission. Steps and CFG stay as authored in fibo2API.json.
+        /// </summary>
+        private Task<List<byte[]>> GenerateWithFibo2Async(string uploadedImageName, CancellationToken token) =>
+            GeneratePerPromptAsync(
+                WorkflowLocator.Resolve("workflow", "image", "fibo2API.json"),
+                EngineFibo2, "Fibo2",
+                (workflowJson, prompt, filenamePrefix) => BuildFibo2Workflow(workflowJson, uploadedImageName, prompt, filenamePrefix),
+                token);
+
+        /// <summary>
+        /// FireRed path: also one prompt per submission. The Lightning LoRA, 8 steps and CFG 1 stay
+        /// as authored in firered-image-edit-1.1API.json.
+        /// </summary>
+        private Task<List<byte[]>> GenerateWithFireRedAsync(string uploadedImageName, CancellationToken token) =>
+            GeneratePerPromptAsync(
+                WorkflowLocator.Resolve("workflow", "firered-image-edit-1.1API.json"),
+                EngineFireRed, "FireRed",
+                (workflowJson, prompt, filenamePrefix) => BuildFireRedWorkflow(workflowJson, uploadedImageName, prompt, filenamePrefix),
+                token);
+
+        /// <summary>Runs one ComfyUI submission per prompt in the batcher, in order, and collects the images.</summary>
+        private async Task<List<byte[]>> GeneratePerPromptAsync(
+            string workflowPath,
+            string engineName,
+            string filenameTag,
+            Func<string, string, string, string> buildWorkflow,
+            CancellationToken token)
         {
             var images = new List<byte[]>();
 
@@ -746,7 +788,6 @@ namespace FlipPix.UI.ViewModels
                 return images;
             }
 
-            var workflowPath = WorkflowLocator.Resolve("workflow", "image", "qwen-edit", QwenWorkflowFile);
             if (!File.Exists(workflowPath))
             {
                 AddLog($"ERROR: Workflow file not found: {workflowPath}");
@@ -756,7 +797,7 @@ namespace FlipPix.UI.ViewModels
             }
 
             var runId = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            AddLog($"Generating {prompts.Count} camera angle(s) with Qwen Image 2.1 Edit");
+            AddLog($"Generating {prompts.Count} camera angle(s) with {engineName}");
 
             for (int i = 0; i < prompts.Count; i++)
             {
@@ -769,29 +810,9 @@ namespace FlipPix.UI.ViewModels
                 AddLog($"[{step}/{prompts.Count}] Prompt: {prompt}");
 
                 var workflowJson = await File.ReadAllTextAsync(workflowPath, token);
-                var filenamePrefix = $"QwenEdit21_camera-angles_{runId}_{step:D2}";
+                var filenamePrefix = $"{filenameTag}_camera-angles_{runId}_{step:D2}";
 
-                WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "470", "image", uploadedImageName);
-                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "459:474", new Dictionary<string, object>
-                {
-                    { "prompt", prompt },
-                    { "negative_prompt", QwenNegativePrompt }
-                });
-                // custom_size stays off: the canvas is taken from the source image, matching how
-                // every other engine on this tab keeps the input's own aspect ratio for a
-                // camera-angle re-shoot. Node 459:468 is the template's custom_size If/Else switch.
-                WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "459:468", "switch", false);
-                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "459:458", new Dictionary<string, object>
-                {
-                    { "steps", QwenSteps },
-                    { "cfg", QwenCfg },
-                    { "seed", new Random().NextInt64(0, 999_999_999_999_999L) }
-                });
-                // Into output/camera-angles/ rather than loose in output/ (see OutputFolders).
-                WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "461", "filename_prefix",
-                    OutputFolders.Prefix(OutputFolders.CameraAngles, filenamePrefix));
-
-                var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
+                var workflow = JsonSerializer.Deserialize<JsonElement>(buildWorkflow(workflowJson, prompt, filenamePrefix));
 
                 var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
                 {
@@ -826,6 +847,74 @@ namespace FlipPix.UI.ViewModels
             }
 
             return images;
+        }
+
+        private static string BuildQwenEdit21Workflow(string workflowJson, string uploadedImageName, string prompt, string filenamePrefix)
+        {
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "470", "image", uploadedImageName);
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "459:474", new Dictionary<string, object>
+            {
+                { "prompt", prompt },
+                { "negative_prompt", QwenNegativePrompt }
+            });
+            // custom_size stays off: the canvas is taken from the source image, matching how
+            // every other engine on this tab keeps the input's own aspect ratio for a
+            // camera-angle re-shoot. Node 459:468 is the template's custom_size If/Else switch.
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "459:468", "switch", false);
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "459:458", new Dictionary<string, object>
+            {
+                { "steps", QwenSteps },
+                { "cfg", QwenCfg },
+                { "seed", new Random().NextInt64(0, 999_999_999_999_999L) }
+            });
+            // Into output/camera-angles/ rather than loose in output/ (see OutputFolders).
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "461", "filename_prefix",
+                OutputFolders.Prefix(OutputFolders.CameraAngles, filenamePrefix));
+
+            return workflowJson;
+        }
+
+        private static string BuildFibo2Workflow(string workflowJson, string uploadedImageName, string prompt, string filenamePrefix)
+        {
+            // Node 38 - LoadImage (the canvas follows the source image's aspect ratio, at ~4MP)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "38", "image", uploadedImageName);
+            // Node 49 - prompt text. FIBO 2 refers to the reference as <image_1>, so anchor prompts
+            // that don't mention it.
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "49", "value",
+                prompt.Contains("<image_1>") ? prompt : $"in <image_1>, {prompt}");
+            // Node 35 - KSampler (turbo model, steps/CFG as authored)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "35", "seed", Random.Shared.NextInt64(0, long.MaxValue));
+
+            // The graph ends in a PreviewImage (16), whose temp file can't be found by the
+            // filename_prefix pattern; turn it into a SaveImage.
+            var root = JsonNode.Parse(workflowJson)!.AsObject();
+            root["16"] = new JsonObject
+            {
+                ["inputs"] = new JsonObject
+                {
+                    // Into output/camera-angles/ rather than loose in output/ (see OutputFolders).
+                    ["filename_prefix"] = OutputFolders.Prefix(OutputFolders.CameraAngles, filenamePrefix),
+                    ["images"] = new JsonArray("7", 0)
+                },
+                ["class_type"] = "SaveImage"
+            };
+
+            return root.ToJsonString();
+        }
+
+        private static string BuildFireRedWorkflow(string workflowJson, string uploadedImageName, string prompt, string filenamePrefix)
+        {
+            // Node 143 - LoadImage
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "143", "image", uploadedImageName);
+            // Node 118 - TextEncodeQwenImageEditPlus (positive)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "118", "prompt", prompt);
+            // Node 130 - KSampler (steps/CFG come from the LoRA switch nodes, as authored)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "130", "seed", Random.Shared.Next());
+            // Node 9 - SaveImage. Into output/camera-angles/ rather than loose in output/ (see OutputFolders).
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "9", "filename_prefix",
+                OutputFolders.Prefix(OutputFolders.CameraAngles, filenamePrefix));
+
+            return workflowJson;
         }
 
         private JsonElement UpdateWorkflowParameters(JsonElement workflow, string inputImageName)
