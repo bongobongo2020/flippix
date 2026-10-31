@@ -1808,7 +1808,7 @@
                                 </Style>
                             </Border.Style>
                             <StackPanel>
-                                <TextBlock Text="&#x1F4D0; Orientation (Krea2 / MOSS)"
+                                <TextBlock Text="&#x1F4D0; Orientation (Krea2)"
                                            FontWeight="SemiBold" FontSize="13" Foreground="#6D28D9" Margin="0,0,0,2"/>
                                 <TextBlock Text="Canvas every image in the story is rendered at. All sizes sit near 1 MP so the fast few-step passes stay fast."
                                            FontSize="11" Opacity="0.6" TextWrapping="Wrap" Margin="0,0,0,8"/>
@@ -1883,63 +1883,6 @@
                                     <Button Content="➕ Add LoRA" Command="{Binding StoryGeneratorQ.AddKreaLoraCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="30" Padding="10,5" Margin="0,0,6,0"/>
                                     <Button Content="Refresh" Command="{Binding StoryGeneratorQ.RefreshKreaLorasCommand}" Style="{StaticResource SecondaryButtonStyle}" Width="60" Height="30" Padding="10,5"/>
                                 </StackPanel>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Krea2 Edit Panel (reference image B) -->
-                        <Border Background="{StaticResource SurfaceAltBrush}"
-                                BorderBrush="#C4B5FD"
-                                BorderThickness="1"
-                                CornerRadius="12"
-                                Padding="20"
-                                Margin="0,0,0,20">
-                            <Border.Style>
-                                <Style TargetType="Border">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding StoryGeneratorQ.ShowKrea2EditOption}" Value="True">
-                                            <Setter Property="Visibility" Value="Visible"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
-                            <StackPanel>
-                                <TextBlock Text="🧑 Krea2 Edit — Reference Image (image B)"
-                                           FontWeight="SemiBold" FontSize="13" Foreground="#6D28D9" Margin="0,0,0,4"/>
-                                <TextBlock Text="The story queue's input image is image A (the scene edited each prompt). This reference is the subject swapped in — it stays the same for every image in the run."
-                                           FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,10"/>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBox Grid.Column="0"
-                                             Text="{Binding StoryGeneratorQ.Krea2EditRefImagePath, Mode=TwoWay}"
-                                             IsReadOnly="True"
-                                             Padding="10"
-                                             Background="White"
-                                             BorderBrush="{StaticResource BorderStrongBrush}"
-                                             VerticalContentAlignment="Center"
-                                             FontSize="11"
-                                             Height="38"/>
-                                    <Button Grid.Column="1"
-                                            Content="Browse"
-                                            Command="{Binding StoryGeneratorQ.SelectKrea2EditRefImageCommand}"
-                                            Style="{StaticResource SecondaryButtonStyle}"
-                                            Margin="8,0,0,0" Width="80" Height="38" FontSize="12"/>
-                                    <Border Grid.Column="2"
-                                            Width="52" Height="52"
-                                            Margin="8,0,0,0"
-                                            Background="White"
-                                            BorderBrush="{StaticResource BorderStrongBrush}"
-                                            BorderThickness="1"
-                                            CornerRadius="6">
-                                        <Image Source="{Binding StoryGeneratorQ.Krea2EditRefImagePreview, Mode=OneWay}"
-                                               Stretch="UniformToFill"
-                                               Margin="2"/>
-                                    </Border>
-                                </Grid>
                             </StackPanel>
                         </Border>
 

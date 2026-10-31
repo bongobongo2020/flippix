@@ -2714,7 +2714,7 @@ namespace FlipPix.UI.ViewModels
         }
 
         /// <summary>
-        /// Fills moss-serenity-API2.json. Shared with the Image Analyzer and the Story Image tab.
+        /// Fills moss-serenity-API2.json. Shared with the Image Analyzer.
         /// Node map:
         ///   7  = CLIPTextEncode (positive prompt) → inputs.text                 [set here]
         ///   9  = EmptyFlux2LatentImage → inputs.width / height                  [set here]
