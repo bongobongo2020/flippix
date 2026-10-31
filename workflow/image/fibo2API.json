@@ -36,14 +36,8 @@
         0
       ],
       "negative_prompt": "",
-      "width": [
-        "40",
-        1
-      ],
-      "height": [
-        "41",
-        1
-      ],
+      "width": 0,
+      "height": 0,
       "batch_size": 1,
       "clip": [
         "2",
@@ -91,40 +85,16 @@
       "title": "Preview Image"
     }
   },
-  "34": {
-    "inputs": {
-      "scale_x": [
-        "37",
-        0
-      ],
-      "shift_x": 0,
-      "scale_y": [
-        "36",
-        0
-      ],
-      "shift_y": 0,
-      "scale_t": 1,
-      "shift_t": 0,
-      "model": [
-        "1",
-        0
-      ]
-    },
-    "class_type": "ScaleROPE",
-    "_meta": {
-      "title": "ScaleROPE"
-    }
-  },
   "35": {
     "inputs": {
       "seed": 1080705714229444,
-      "steps": 8,
+      "steps": 4,
       "cfg": 1,
       "sampler_name": "euler",
       "scheduler": "simple",
       "denoise": 1,
       "model": [
-        "34",
+        "1",
         0
       ],
       "positive": [
@@ -145,24 +115,6 @@
       "title": "KSampler"
     }
   },
-  "36": {
-    "inputs": {
-      "Number": 0.8
-    },
-    "class_type": "Float",
-    "_meta": {
-      "title": "Float"
-    }
-  },
-  "37": {
-    "inputs": {
-      "Number": 0.85
-    },
-    "class_type": "Float",
-    "_meta": {
-      "title": "Float"
-    }
-  },
   "38": {
     "inputs": {
       "image": "f2k-txt2img_20261024_011455.png"
@@ -170,52 +122,6 @@
     "class_type": "LoadImage",
     "_meta": {
       "title": "Load Image"
-    }
-  },
-  "39": {
-    "inputs": {
-      "image": [
-        "38",
-        0
-      ]
-    },
-    "class_type": "GetImageSize",
-    "_meta": {
-      "title": "Get Image Size"
-    }
-  },
-  "40": {
-    "inputs": {
-      "expression": "round(a * sqrt(4000000 / (a*b)) / 8) * 8",
-      "values.a": [
-        "39",
-        0
-      ],
-      "values.b": [
-        "39",
-        1
-      ]
-    },
-    "class_type": "ComfyMathExpression",
-    "_meta": {
-      "title": "Math Expression"
-    }
-  },
-  "41": {
-    "inputs": {
-      "expression": "round(b * sqrt(4000000 / (a*b)) / 8) * 8",
-      "values.a": [
-        "39",
-        0
-      ],
-      "values.b": [
-        "39",
-        1
-      ]
-    },
-    "class_type": "ComfyMathExpression",
-    "_meta": {
-      "title": "Math Expression"
     }
   },
   "49": {

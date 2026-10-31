@@ -82,7 +82,7 @@ namespace FlipPix.UI.ViewModels
                     else if (value == "Krea2")
                         Steps = 8; // Krea2 Turbo
                     else if (value == Fibo2Mode)
-                        Steps = 8; // FIBO 2 edit turbo, as authored
+                        Steps = 4; // FIBO 2 edit turbo, as authored
                     else
                         Steps = DefaultSteps;
 
@@ -1552,7 +1552,7 @@ namespace FlipPix.UI.ViewModels
             var workflowJson = workflow.GetRawText();
 
             // fibo2API.json node map.
-            // Node 38 - LoadImage (the scene being edited; output size is ~4MP at its aspect ratio)
+            // Node 38 - LoadImage (the scene being edited; output is the ~1MP size the model was trained at for its aspect ratio)
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "38", "image", inputImageName);
             // Node 49 - PrimitiveStringMultiline feeding TextEncodeFibo2 (node 4). FIBO 2 refers
             // to the reference as <image_1>, so anchor prompts that don't mention it.
@@ -1560,7 +1560,7 @@ namespace FlipPix.UI.ViewModels
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "49", "value", fiboPrompt);
             // Node 4 - TextEncodeFibo2 (negative is ignored at CFG 1, set for when CFG is raised)
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "4", "negative_prompt", NegativePrompt);
-            // Node 35 - KSampler (turbo model, 8 steps / CFG 1 as authored)
+            // Node 35 - KSampler (turbo model, 4 steps / CFG 1 as authored)
             WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "35", new Dictionary<string, object>
             {
                 { "seed", Random.Shared.NextInt64(0, long.MaxValue) },

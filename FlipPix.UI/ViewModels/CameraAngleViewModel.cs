@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -874,14 +875,23 @@ namespace FlipPix.UI.ViewModels
             return workflowJson;
         }
 
+        /// <summary>
+        /// FIBO 2 tends to repaint the subject in place unless the viewpoint change is stated as an
+        /// edit instruction, so camera prompts are framed as one. Other edits (loaded training
+        /// prompts) pass through as written: the framing makes the camera drift on them. No
+        /// "in &lt;image_1&gt;" anchor is added, because it holds the original pose and framing.
+        /// </summary>
+        private static string Fibo2Instruction(string prompt) =>
+            Regex.IsMatch(prompt, @"\b(camera|shot|angle|view|viewpoint|perspective|lens|close-?up|framing)\b", RegexOptions.IgnoreCase)
+                ? $"Change the camera angle. {prompt} Keep the same person, clothing and location."
+                : prompt;
+
         private static string BuildFibo2Workflow(string workflowJson, string uploadedImageName, string prompt, string filenamePrefix)
         {
-            // Node 38 - LoadImage (the canvas follows the source image's aspect ratio, at ~4MP)
+            // Node 38 - LoadImage (the canvas is the ~1MP size the model was trained at for this aspect ratio)
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "38", "image", uploadedImageName);
-            // Node 49 - prompt text. FIBO 2 refers to the reference as <image_1>, so anchor prompts
-            // that don't mention it.
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "49", "value",
-                prompt.Contains("<image_1>") ? prompt : $"in <image_1>, {prompt}");
+            // Node 49 - prompt text
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "49", "value", Fibo2Instruction(prompt));
             // Node 35 - KSampler (turbo model, steps/CFG as authored)
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "35", "seed", Random.Shared.NextInt64(0, long.MaxValue));
 
