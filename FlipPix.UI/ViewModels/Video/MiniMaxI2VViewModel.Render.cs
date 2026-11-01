@@ -74,6 +74,9 @@ namespace FlipPix.UI.ViewModels.Video
         /// of the files the pack ships a curve fit for.</summary>
         public const string HyperFlowModel = "h3-minimax/Minimax-h3_Singularity_ref2va_Pruned_v1.3_int8.safetensors";
 
+        /// <summary>🎯's checkpoint: the fl2va/ref2va hybrid that won the likeness bake-off.</summary>
+        public const string LikenessModel = "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors";
+
         /// <summary>The checkpoint a stack is authored on. Picking a stack moves the dropdown here; moving
         /// the dropdown afterwards sticks, so a stack can be sampled on another checkpoint on purpose.</summary>
         public static string ShippedModelFor(I2VStack stack) => stack switch
@@ -84,6 +87,7 @@ namespace FlipPix.UI.ViewModels.Video
             I2VStack.Bunny => BunnyModel,
             I2VStack.Parasyte => ParasyteModel,
             I2VStack.HyperFlow => HyperFlowModel,
+            I2VStack.Likeness => LikenessModel,
             _ => ShippedI2VModel,
         };
 
@@ -312,6 +316,13 @@ namespace FlipPix.UI.ViewModels.Video
             set { if (value) Stack = I2VStack.HyperFlow; }
         }
 
+        /// <inheritdoc cref="StackIsShipped"/>
+        public bool StackIsLikeness
+        {
+            get => _stack == I2VStack.Likeness;
+            set { if (value) Stack = I2VStack.Likeness; }
+        }
+
         /// <summary>✴️'s sub-option: keep the Singularity graph's checkpoint and its 12/3 shift, but sample
         /// it the H3 Eros way — er_sde/beta at 12 instead of euler/simple at 10.</summary>
         public bool SingularityErSde
@@ -384,6 +395,7 @@ namespace FlipPix.UI.ViewModels.Video
             I2VStack.Bunny => "🐰 BUNNY (action)",
             I2VStack.Parasyte => "🦠 Parasyte (sparse)",
             I2VStack.HyperFlow => "🌊 HyperFlow (8-step)",
+            I2VStack.Likeness => "🎯 Likeness",
             _ => "🌀 Shipped",
         };
 
@@ -418,6 +430,9 @@ namespace FlipPix.UI.ViewModels.Video
                 "0.28 where the motion is decided, the schedule cut at 75%, the first three quarters sampled on " +
                 "the Combat LoRA at 1.00 and the tail run out by a second sampler that does not re-noise, on the " +
                 "same LoRA at 0.65.",
+            I2VStack.Likeness =>
+                "the b25-49 hybrid on the 4-step turbo LoRA with the people realism LoRA at 0.50, euler/simple at 8 " +
+                "with the 12/3 shift. Pair it with full-size references and SLA off, which is how it was measured.",
             _ =>
                 "the graph as authored: the ref2va checkpoint on the lightx2v 4-step turbo LoRA, euler/simple at " +
                 "8 with the 12/3 shift.",
@@ -446,6 +461,7 @@ namespace FlipPix.UI.ViewModels.Video
             OnPropertyChanged(nameof(StackIsBunny));
             OnPropertyChanged(nameof(StackIsParasyte));
             OnPropertyChanged(nameof(StackIsHyperFlow));
+            OnPropertyChanged(nameof(StackIsLikeness));
             OnPropertyChanged(nameof(StackSummary));
             OnPropertyChanged(nameof(UsesDraftCanvas));
             OnPropertyChanged(nameof(UsesStepDials));
@@ -806,6 +822,9 @@ namespace FlipPix.UI.ViewModels.Video
                 case I2VStack.Bunny:
                     yield return new MiniMaxI2VLora { Name = "H3/H3_Combat_V2.safetensors", Strength = 1.0 };
                     break;
+                case I2VStack.Likeness:
+                    yield return new MiniMaxI2VLora { Name = LikenessRealismLora, Strength = LikenessRealismStrength };
+                    break;
             }
         }
 
@@ -884,6 +903,7 @@ namespace FlipPix.UI.ViewModels.Video
                         ? "er_sde/beta over the Singularity graph"
                         : "euler/simple, as the Singularity graph is authored",
                     I2VStack.Eros => "er_sde/beta on the 10Eros hybrid",
+                    I2VStack.Likeness => "euler/simple on the turbo LoRA, as the bake-off measured it",
                     I2VStack.Parasyte => "res_multistep/simple on the Parasyte turbo LoRA",
                     I2VStack.HyperFlow =>
                         "not read at all — HyperFlow samples its own trained 8-step sigma grid, so this dial " +

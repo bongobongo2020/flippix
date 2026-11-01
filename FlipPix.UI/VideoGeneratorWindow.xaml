@@ -4989,6 +4989,12 @@
                                                                  FontSize="11" Margin="0,2,0,2"
                                                                  Foreground="{StaticResource TextPrimaryBrush}"
                                                                  ToolTip="The action recipe: Video Rebirth's HyperFlow 8-step adapter on the Singularity ref2va pruned checkpoint (bypass, curve refit on), euler on the adapter's own trained sigma grid in place of every scheduler, SLA forced on at 0.90. The upscale pass swaps HyperFlow for the TaoMate 3-step LoRA and runs exactly two steps. The shipped turbo LoRA, the sigma shift and the Sol-Attn toggle come off the wire, and neither steps dial does anything here. Leave the LoRA stack empty.&#x0a;&#x0a;Needs the ComfyUI-HyperFlow-H3 pack and custom_node_hyperflow_8step_v1.0_comfyui_pruned.safetensors in models/hyperflow."/>
+                                                    <RadioButton Content="🎯 Likeness" GroupName="I2VStack"
+                                                                 IsChecked="{Binding StackIsLikeness, Mode=TwoWay}"
+                                                                 IsEnabled="{Binding CanChangeRender}"
+                                                                 FontSize="11" Margin="0,2,0,2"
+                                                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                                                 ToolTip="The bake-off winner for likeness: the b25-49 hybrid on the 4-step turbo LoRA with the people realism LoRA at 0.50, euler/simple at 8 steps with the 12/3 sigma shift. Measured with full-size references and SLA off; the 🎯 Likeness + Action workflow sets those for you."/>
                                                     <TextBlock Text="{Binding StackSummary}" FontSize="10" TextWrapping="Wrap"
                                                                Foreground="{StaticResource TextMutedBrush}" Margin="20,2,0,10"/>
 

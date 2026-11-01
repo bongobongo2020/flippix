@@ -131,6 +131,7 @@ namespace FlipPix.UI.ViewModels.Video
 
             if (_workflow == I2VWorkflow.Ultra)
                 AddLog($"Workflow: {WorkflowName(_workflow)}");
+            if (_workflow == I2VWorkflow.Likeness) ApplyLikenessPreset(clearLoras: false);
         }
 
         // ── The dropdown ────────────────────────────────────────────────────────────────────────────
@@ -138,6 +139,7 @@ namespace FlipPix.UI.ViewModels.Video
         public IReadOnlyList<I2VWorkflowOption> WorkflowOptions { get; } = new[]
         {
             new I2VWorkflowOption(I2VWorkflow.Ref2VA, "🌀 Ref2VA + continuations (h3-minimax-i2v)"),
+            new I2VWorkflowOption(I2VWorkflow.Likeness, "🎯 Likeness + Action (optimized Ref2VA)"),
             new I2VWorkflowOption(I2VWorkflow.Ultra, "💎 All-In-One Ultra (Full-Res Tiled)"),
             new I2VWorkflowOption(I2VWorkflow.TwoPass, "🌹 ErosMax Turbo 2-Pass (b7 · RefMods · continue)"),
         };
@@ -152,6 +154,17 @@ namespace FlipPix.UI.ViewModels.Video
             set
             {
                 if (_workflow == value) return;
+
+                // The preset moves the render card, which is locked while anything is on the GPU. Refused
+                // rather than half applied: the dropdown would name settings the next item did not get.
+                if (value == I2VWorkflow.Likeness && !CanChangeRender)
+                {
+                    AddLog("Workflow: 🎯 Likeness + Action sets the render card, so it can be picked once the " +
+                           "queue has finished.");
+                    OnUiThread(() => OnPropertyChanged());
+                    return;
+                }
+
                 _workflow = value;
                 OnPropertyChanged();
                 RaiseWorkflowState();
@@ -170,7 +183,8 @@ namespace FlipPix.UI.ViewModels.Video
                     _ = LoadRefModsAsync();
                 }
                 AddLog($"Workflow: {WorkflowName(value)}");
-                if (value != I2VWorkflow.Ref2VA && HasContinuations)
+                if (value == I2VWorkflow.Likeness) ApplyLikenessPreset(clearLoras: true);
+                if (IsMediaWorkflow && HasContinuations)
                     AddLog("  Note: this workflow renders one pass of up to 15s — the continuations below are kept " +
                            "for the Ref2VA workflow and ignored here." +
                            (value == I2VWorkflow.TwoPass ? " To extend a video, use 2-Pass Continue mode." : string.Empty));
@@ -179,10 +193,33 @@ namespace FlipPix.UI.ViewModels.Video
 
         public bool IsUltra => _workflow == I2VWorkflow.Ultra;
 
-        public bool IsRef2VA => _workflow == I2VWorkflow.Ref2VA;
+        /// <summary>Whether the Ref2VA graph and its cards are in play — 🎯 is that graph with its dials set.</summary>
+        public bool IsRef2VA => _workflow is I2VWorkflow.Ref2VA or I2VWorkflow.Likeness;
+
+        /// <summary>
+        /// Sets every dial 🎯 Likeness + Action was measured on. Moving a dial afterwards sticks until the
+        /// workflow is picked again. The canvas and attention dials are not persisted, so a restart on 🎯 calls
+        /// this too, without clearing LoRAs the user has added since.
+        /// </summary>
+        private void ApplyLikenessPreset(bool clearLoras)
+        {
+            Stack = I2VStack.Likeness;
+            SelectedDiffusionModel = ShippedModelFor(I2VStack.Likeness);
+            FirstPassStepCount = AuthoredStepsFor(I2VStack.Likeness, false);
+            UpscaleSteps = 3;
+            MaxFidelityReferences = true;
+            UseSla = false;
+            UseSparseAttention = false;
+            UseLatentUpscale = true;
+            Megapixels = 0.7;
+
+            if (clearLoras)
+                foreach (var slot in Loras.ToList()) RemoveLoraSlot(slot);
+        }
 
         private static string WorkflowName(I2VWorkflow workflow) => workflow switch
         {
+            I2VWorkflow.Likeness => "🎯 Likeness + Action — h3-minimax-i2v.json, optimized",
             I2VWorkflow.Ultra => "💎 All-In-One Ultra (Full-Res Tiled) — h3-minimax-ultra.json",
             I2VWorkflow.TwoPass => "🌹 ErosMax Turbo 2-Pass — h3-erosmax-2pass.json",
             _ => "🌀 Ref2VA + continuations — h3-minimax-i2v.json",
@@ -190,6 +227,11 @@ namespace FlipPix.UI.ViewModels.Video
 
         public string WorkflowSummary => _workflow switch
         {
+            I2VWorkflow.Likeness =>
+                "The bake-off winner for keeping the reference's face while following the prompt: the b25-49 hybrid, " +
+                "the 4-step turbo LoRA, the people realism LoRA at 0.50, euler/simple at 8 steps, references at full " +
+                "size and SLA off, at 0.7 MP. Picking it sets the cards below and clears your LoRA rows; any dial you " +
+                "move afterwards sticks.",
             I2VWorkflow.Ultra =>
                 "JunkunStudio's All-In-One Ultra, as tested: one pass at the finished canvas, sampled by SelfLift — " +
                 "the first steps at 0.6× scale, then the LMS latent upscaler lifts it and the rest run tiled at full " +

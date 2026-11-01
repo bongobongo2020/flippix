@@ -127,6 +127,25 @@ public sealed class MiniMaxI2VStackTests
 
     // ── Every stack leaves a graph whose links all resolve ──────────────────────────────────────────
 
+    [Fact]
+    public void Likeness_keeps_the_turbo_lora_and_puts_the_realism_lora_on_the_shared_wire()
+    {
+        var root = Patched(I2VStack.Likeness);
+
+        Assert.Equal(MiniMaxI2VViewModel.LikenessModel, Inputs(root, "55:3701")["model_name"]!.GetValue<string>());
+        Assert.Equal(8, Inputs(root, "draft_sched")["steps"]!.GetValue<int>());
+        Assert.Equal("simple", Inputs(root, "draft_sched")["scheduler"]!.GetValue<string>());
+
+        var (top, _) = Link(root, "39", "model");
+        var realism = Inputs(root, top);
+        Assert.Equal("H3/h3-realism-people-t2v-i2v-r2v.safetensors", realism["lora_name"]!.GetValue<string>());
+        Assert.Equal(0.5, realism["strength_model"]!.GetValue<double>());
+
+        var wire = ModelWire(root, "39");
+        Assert.Contains("55:3690", wire);
+        Assert.Contains("55:3704", wire);
+    }
+
     [Theory]
     [InlineData(I2VStack.Shipped)]
     [InlineData(I2VStack.Eros)]
@@ -134,6 +153,7 @@ public sealed class MiniMaxI2VStackTests
     [InlineData(I2VStack.TaoMate)]
     [InlineData(I2VStack.Bunny)]
     [InlineData(I2VStack.HyperFlow)]
+    [InlineData(I2VStack.Likeness)]
     public void Every_link_points_at_a_node_that_exists(I2VStack stack)
     {
         var root = Patched(stack,
@@ -159,6 +179,7 @@ public sealed class MiniMaxI2VStackTests
     [InlineData(I2VStack.TaoMate)]
     [InlineData(I2VStack.Bunny)]
     [InlineData(I2VStack.HyperFlow)]
+    [InlineData(I2VStack.Likeness)]
     public void Both_sinks_still_reach_the_checkpoint(I2VStack stack)
     {
         var root = Patched(stack);

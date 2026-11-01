@@ -117,6 +117,10 @@ namespace FlipPix.UI.ViewModels.Video
             // reaches BasicSchedulers nothing reads once the grid is wired in.
             I2VStack.HyperFlow => new StackSpec("euler", "simple", false, 0, 0),
 
+            // The graph's own sampling and turbo LoRA: the bake-off's gains came from the checkpoint, the
+            // realism LoRA and the attention and reference dials, not from a different scheduler.
+            I2VStack.Likeness => new StackSpec("euler", "simple", true, 12, 3),
+
             // The graph as authored.
             _ => new StackSpec("euler", "simple", true, 12, 3),
         };
@@ -128,8 +132,12 @@ namespace FlipPix.UI.ViewModels.Video
         {
             I2VStack.Bunny => new[] { (BunnyCombatLora, 1.0) },
             I2VStack.Parasyte => new[] { (ParasyteTurboLora, 1.0) },
+            I2VStack.Likeness => new[] { (LikenessRealismLora, LikenessRealismStrength) },
             _ => Array.Empty<(string, double)>(),
         };
+
+        private const string LikenessRealismLora = "H3/h3-realism-people-t2v-i2v-r2v.safetensors";
+        private const double LikenessRealismStrength = 0.5;
 
         /// <summary>The LoRA 🦠 is built around, at the strength the authored graph leaves it on. It goes on
         /// the shared wire above the SLA patch, so both the base pass and the continuation loop sample

@@ -387,6 +387,10 @@ namespace FlipPix.UI.Models
         /// adapter's own sigma grid in place of every scheduler, the curve refit on, and its Sol-Attn recipe
         /// in place of the graph's SLA. The shipped turbo LoRA and the sigma shift come off the wire.</summary>
         HyperFlow,
+
+        /// <summary>🎯 The bake-off winner for likeness: the b25-49 hybrid on the shipped turbo LoRA, the people
+        /// realism LoRA at 0.50, euler/simple at 8 with the 12/3 shift. See <see cref="I2VWorkflow.Likeness"/>.</summary>
+        Likeness,
     }
 
     /// <summary>
@@ -409,6 +413,11 @@ namespace FlipPix.UI.Models
         /// the learned latent upscaler, a short refining second pass, RTX super resolution / frame generation,
         /// RefMods, and Continue mode, which extends an existing video inside the same submission.</summary>
         TwoPass,
+
+        /// <summary><see cref="Ref2VA"/>'s graph with every dial set to what measured best for likeness:
+        /// <see cref="I2VStack.Likeness"/>, references at full size and SLA off. A preset rather than a file, so
+        /// references, continuations and the queue behave exactly as they do on <see cref="Ref2VA"/>.</summary>
+        Likeness,
     }
 
     /// <summary>
