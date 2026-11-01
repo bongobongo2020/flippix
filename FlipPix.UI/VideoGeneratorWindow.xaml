@@ -4195,13 +4195,18 @@
                                                         <ColumnDefinition Width="*"/>
                                                         <ColumnDefinition Width="Auto"/>
                                                         <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
                                                     </Grid.ColumnDefinitions>
                                                     <ctrl:SectionHeader Title="IDEA" Note="  · optional, or a finished prompt" VerticalAlignment="Center"/>
-                                                    <Button Grid.Column="1" Content="📚" Command="{Binding OpenPromptLibraryCommand}"
+                                                    <Button Grid.Column="1" Content="📝" Command="{Binding OpenDraftsCommand}"
+                                                            Width="30" Height="26" Padding="0" FontSize="12" Margin="0,0,4,0"
+                                                            Style="{StaticResource AccentOutlineButtonStyle}"
+                                                            ToolTip="{Binding DraftsLabel}"/>
+                                                    <Button Grid.Column="2" Content="📚" Command="{Binding OpenPromptLibraryCommand}"
                                                             Width="30" Height="26" Padding="0" FontSize="12" Margin="0,0,4,0"
                                                             Style="{StaticResource AccentOutlineButtonStyle}"
                                                             ToolTip="{Binding PromptLibraryLabel}"/>
-                                                    <Button Grid.Column="2" Content="💾" Command="{Binding SavePromptCommand}"
+                                                    <Button Grid.Column="3" Content="💾" Command="{Binding SavePromptCommand}"
                                                             Width="30" Height="26" Padding="0" FontSize="12"
                                                             Style="{StaticResource AccentOutlineButtonStyle}"
                                                             ToolTip="File the prompt in the boxes in the library. Analyzed and rendered takes are saved automatically — this is for hand-edited ones."/>

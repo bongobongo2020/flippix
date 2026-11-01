@@ -265,6 +265,9 @@ namespace FlipPix.UI.ViewModels.Video
             // Reads the index off the UI thread; the button caption picks up the count when it lands.
             _ = PrimePromptLibraryAsync();
 
+            // Last: restoring a draft fills the boxes, which needs everything above to exist.
+            InitDrafts();
+
             AddLog("MiniMax I2V initialized");
         }
 
@@ -457,7 +460,7 @@ namespace FlipPix.UI.ViewModels.Video
         public string Prompt
         {
             get => _prompt;
-            set { if (_prompt != value) { _prompt = value; OnPropertyChanged(); OnCanExecuteChanged(); } }
+            set { if (_prompt != value) { _prompt = value; OnPropertyChanged(); OnCanExecuteChanged(); ScheduleDraftSave(); } }
         }
 
         public ObservableCollection<MiniMaxI2VSegment> Continuations { get; } = new();
@@ -471,7 +474,9 @@ namespace FlipPix.UI.ViewModels.Video
             // CanGenerate but never re-raised it, so the button stayed greyed out on a complete form.
             segment.PropertyChanged += (_, e) =>
             {
-                if (e.PropertyName == nameof(MiniMaxI2VSegment.Prompt)) OnCanExecuteChanged();
+                if (e.PropertyName != nameof(MiniMaxI2VSegment.Prompt)) return;
+                OnCanExecuteChanged();
+                ScheduleDraftSave();
             };
             Continuations.Add(segment);
             AfterContinuationsChanged();
@@ -491,6 +496,7 @@ namespace FlipPix.UI.ViewModels.Video
             RaiseMemoryEstimate();
             AddContinuationCommand.NotifyCanExecuteChanged();
             OnCanExecuteChanged();
+            ScheduleDraftSave();
         }
 
         public bool HasContinuations => Continuations.Count > 0;
@@ -1693,7 +1699,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// Files whatever is in the boxes right now. Called automatically after every Analyze, and by the
         /// Save button — which is the only caller that reports back when nothing was new.
         /// </summary>
-        private Task SaveCurrentPromptAsync(bool manual) =>
+        private Task<ScenePrompt?> SaveCurrentPromptAsync(bool manual) =>
             SavePromptAsync(Prompt,
                 Continuations.Select(c => c.Prompt).ToList(),
                 Continuations.Select(c => c.Seconds).ToList(),
@@ -1707,7 +1713,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// <para>The base pass and the continuations are stored apart, so recalling the entry puts each
         /// segment back in the box it came out of instead of leaving the user to split a wall of text.</para>
         /// </summary>
-        private async Task SavePromptAsync(
+        private async Task<ScenePrompt?> SavePromptAsync(
             string prompt, IReadOnlyList<string> continuationPrompts, IReadOnlyList<int> continuationSeconds,
             IReadOnlyList<string> referencePaths, int lengthSeconds, string aspectRatio, bool manual)
         {
@@ -1715,7 +1721,7 @@ namespace FlipPix.UI.ViewModels.Video
             if (body.Length == 0)
             {
                 if (manual) AddLog("Nothing to save — segment 1 is empty.");
-                return;
+                return null;
             }
 
             // Trailing empties are half-filled form state, not part of the take. A blank in the middle is
@@ -1764,11 +1770,13 @@ namespace FlipPix.UI.ViewModels.Video
                 AddLog(isNew
                     ? $"Saved to the prompt library as \"{entry.Name}\" ({SavedPromptCount} takes)."
                     : $"Already in the prompt library as \"{entry.Name}\" — timestamp refreshed.");
+                return entry;
             }
             catch (Exception ex)
             {
                 // Never let a library problem fail the Analyze or Generate that triggered it.
                 AddLog($"Could not save to the prompt library: {ex.Message}");
+                return null;
             }
             finally
             {
@@ -1819,8 +1827,11 @@ namespace FlipPix.UI.ViewModels.Video
                 SavedPromptCount = _savedPrompts!.Count;
                 if (picked == null) return;
 
-                Prompt = picked.Prompt;
-                RestoreContinuations(picked.ContinuationPrompts, picked.ContinuationSeconds);
+                FillBoxesWithTake(() =>
+                {
+                    Prompt = picked.Prompt;
+                    RestoreContinuations(picked.ContinuationPrompts, picked.ContinuationSeconds);
+                }, picked.Id);
 
                 if (picked.LengthSeconds > 0) LengthSeconds = (int)Math.Round(picked.LengthSeconds);
                 if (!string.IsNullOrEmpty(picked.AspectRatio) && AspectRatioOptions.Contains(picked.AspectRatio))

@@ -5681,7 +5681,20 @@
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
+                                                <Button Grid.Column="1"
+                                                        Content="{Binding DraftsLabel}"
+                                                        Command="{Binding OpenDraftsCommand}"
+                                                        Height="28"
+                                                        Padding="10,0"
+                                                        FontSize="11"
+                                                        Margin="0,0,6,0"
+                                                        Background="{StaticResource SurfaceAltBrush}"
+                                                        Foreground="{DynamicResource TabAccentBrush}"
+                                                        BorderBrush="{StaticResource BorderBrush}"
+                                                        BorderThickness="1"
+                                                        ToolTip.Tip="Everything typed in the idea box is saved here as you go, and survives a restart. Pick one to put it back in the boxes."/>
                                                 <Button Grid.Column="0"
                                                         Content="{Binding PromptLibraryLabel}"
                                                         Command="{Binding OpenPromptLibraryCommand}"
@@ -5694,7 +5707,7 @@
                                                         BorderBrush="{StaticResource BorderBrush}"
                                                         BorderThickness="1"
                                                         ToolTip.Tip="Browse the takes this tab has saved and put one back in the boxes — segment 1 and its continuations, at the length and aspect it was written for. The reference pictures are not restored."/>
-                                                <Button Grid.Column="1"
+                                                <Button Grid.Column="2"
                                                         Content="💾 Save"
                                                         Command="{Binding SavePromptCommand}"
                                                         Height="28"

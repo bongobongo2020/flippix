@@ -55,6 +55,10 @@ public class ComfyUISettings
     /// </summary>
     public string MiniMaxI2VStereoPrompt { get; set; } = MiniMaxI2VStereoPromptDefault;
 
+    /// <summary>The autosaved draft or prompt-library take the MiniMax I2V idea box held when last touched,
+    /// put back on launch. Empty when the box was left cleared.</summary>
+    public string MiniMaxI2VActiveDraftId { get; set; } = string.Empty;
+
     /// <summary>The shipped wording for <see cref="MiniMaxI2VStereoPrompt"/>, and what Reset restores.</summary>
     public const string MiniMaxI2VStereoPromptDefault =
         "The video maintains the identity and appearance of <Subject 2> from <Picture 2>. "

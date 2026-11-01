@@ -287,13 +287,16 @@ namespace FlipPix.UI.ViewModels.Video
                     OnPropertyChanged(nameof(LocationPlateSummary));
                 }
 
-                Prompt = result.Segments[0];
-                for (var i = 0; i < Continuations.Count && i + 1 < result.Segments.Count; i++)
-                    if (!string.IsNullOrWhiteSpace(result.Segments[i + 1]))
-                        Continuations[i].Prompt = result.Segments[i + 1];
+                FillBoxesWithTake(() =>
+                {
+                    Prompt = result.Segments[0];
+                    for (var i = 0; i < Continuations.Count && i + 1 < result.Segments.Count; i++)
+                        if (!string.IsNullOrWhiteSpace(result.Segments[i + 1]))
+                            Continuations[i].Prompt = result.Segments[i + 1];
+                });
                 OnCanExecuteChanged();
 
-                await SaveCurrentPromptAsync(manual: false);
+                RememberTakeInBoxes(await SaveCurrentPromptAsync(manual: false));
             }
             catch (OperationCanceledException) { }
             catch (Exception ex)

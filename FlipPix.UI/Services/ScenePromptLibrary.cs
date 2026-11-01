@@ -122,7 +122,15 @@ namespace FlipPix.UI.Services
                         .Take(MaxEntries)
                         .ToList();
 
-                    File.WriteAllText(IndexPath, JsonSerializer.Serialize(kept, JsonOptions));
+                    // Swapped into place, because Load reads a torn index as empty and the next save would
+                    // then make that permanent. A power cut is the case autosave exists for.
+                    var temp = IndexPath + ".tmp";
+                    using (var stream = new FileStream(temp, FileMode.Create, FileAccess.Write))
+                    {
+                        JsonSerializer.Serialize(stream, kept, JsonOptions);
+                        stream.Flush(flushToDisk: true);
+                    }
+                    File.Move(temp, IndexPath, overwrite: true);
                     PruneOrphanThumbnails(kept);
                 }
                 catch (Exception ex)
