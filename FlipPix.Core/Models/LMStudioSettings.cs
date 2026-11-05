@@ -78,6 +78,28 @@ public class LMStudioSettings
     public string RewriterSwitchModel { get; set; } = "h3-rewriter";
 
     /// <summary>
+    /// Sends the text-only story calls (beat sheets, clip writing, cast/wardrobe/location text) to the
+    /// DeepSeek API instead of the local llama-server. Requests that carry images still go to the local
+    /// server - the DeepSeek API has no vision - and so does the H3 rewriter pass, which needs its LoRA.
+    /// </summary>
+    public bool UseDeepSeekForStories { get; set; }
+
+    public string DeepSeekApiKey { get; set; } = string.Empty;
+
+    public string DeepSeekBaseUrl { get; set; } = "https://api.deepseek.com";
+
+    /// <summary>"deepseek-chat" (fast) or "deepseek-reasoner" (thinks first).</summary>
+    public string DeepSeekModel { get; set; } = "deepseek-chat";
+
+    /// <summary>Ceiling on max_tokens for DeepSeek: the API rejects anything above the model's output limit
+    /// (8K for deepseek-chat), and some callers ask the local server for far more.</summary>
+    public int DeepSeekMaxTokens { get; set; } = 8192;
+
+    /// <summary>True when story text calls should go to DeepSeek (switched on and a key is set).</summary>
+    [JsonIgnore]
+    public bool DeepSeekActive => UseDeepSeekForStories && !string.IsNullOrWhiteSpace(DeepSeekApiKey);
+
+    /// <summary>
     /// Recently used LM Studio / llama-server base URLs, most-recent first. Lets the user
     /// keep a list of remote computers and switch between them without retyping the address.
     /// Kept for backwards compatibility with settings written before <see cref="Servers"/>;

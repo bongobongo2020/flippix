@@ -44,6 +44,37 @@ namespace FlipPix.UI.Services
 
         private string _baseUrl => _getBaseUrl();
 
+        // Set for the duration of a pass that must stay on the local server even when DeepSeek is on —
+        // the H3 rewriter, whose LoRA only exists there. AsyncLocal so it follows the awaits of that pass
+        // and nothing else running at the same time.
+        private static readonly AsyncLocal<bool> _localOnly = new();
+
+        /// <summary>
+        /// Keeps every text call made inside the returned scope on the local llama-server, even when
+        /// Settings sends story text to DeepSeek. Dispose to end the scope.
+        /// </summary>
+        public IDisposable LocalOnly()
+        {
+            var previous = _localOnly.Value;
+            _localOnly.Value = true;
+            return new Scope(() => _localOnly.Value = previous);
+        }
+
+        private sealed class Scope : IDisposable
+        {
+            private Action? _onDispose;
+            public Scope(Action onDispose) => _onDispose = onDispose;
+            public void Dispose() { _onDispose?.Invoke(); _onDispose = null; }
+        }
+
+        /// <summary>The DeepSeek settings when this text call should go there, else null.</summary>
+        private FlipPix.Core.Models.LMStudioSettings? DeepSeekTarget()
+        {
+            if (_localOnly.Value) return null;
+            var settings = _getSettings?.Invoke();
+            return settings?.DeepSeekActive == true ? settings : null;
+        }
+
         /// <summary>
         /// Describes where a request is going using the friendly names configured in Settings,
         /// e.g. "Alien Box (http://alien:8080) · Qwen2.5-VL 7B [qwen2.5-vl-7b-instruct]". Pass the
@@ -330,6 +361,13 @@ namespace FlipPix.UI.Services
             {
                 _logger.LogInfo("Model fetching was cancelled");
                 throw;
+            }
+            catch (HttpRequestException ex) when (DeepSeekTarget() is { } deepSeek)
+            {
+                // Story tabs resolve a model before writing; with DeepSeek doing the writing, a local
+                // server that is off must not stop them. Image requests still need the local server.
+                _logger.LogWarning($"LM Studio unreachable at {_baseUrl} ({ex.Message}) — story text goes to DeepSeek ({deepSeek.DeepSeekModel}).");
+                return new List<LMStudioModel> { new() { Id = deepSeek.DeepSeekModel, Name = deepSeek.DeepSeekModel } };
             }
             catch (HttpRequestException ex)
             {
@@ -796,6 +834,10 @@ namespace FlipPix.UI.Services
             CancellationToken cancellationToken = default,
             LlmSampling? sampling = null)
         {
+            var deepSeek = DeepSeekTarget();
+            if (deepSeek != null)
+                return await SendDeepSeekTextAsync(deepSeek, systemPrompt, userMessage, maxTokens, sampling ?? LlmSampling.Default, cancellationToken);
+
             await _semaphore.WaitAsync(cancellationToken);
             try
             {
@@ -875,6 +917,11 @@ namespace FlipPix.UI.Services
             CancellationToken cancellationToken = default,
             LlmSampling? sampling = null)
         {
+            var deepSeek = DeepSeekTarget();
+            if (deepSeek != null)
+                return await CallDeepSeekToolAsync(deepSeek, systemPrompt, userMessage, toolName, toolDescription,
+                    parametersSchemaJson, maxTokens, sampling ?? LlmSampling.Default, cancellationToken);
+
             await _semaphore.WaitAsync(cancellationToken);
             try
             {
@@ -1274,6 +1321,176 @@ namespace FlipPix.UI.Services
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
             return await JsonSerializer.DeserializeAsync<LMStudioChatResponse>(stream,
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true }, cancellationToken);
+        }
+
+        // ── DeepSeek ──────────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// <see cref="SendTextChatAsync"/> against the DeepSeek API. The caller's local model name gives
+        /// way to the configured DeepSeek model, and the llama.cpp-only fields (/no_think,
+        /// chat_template_kwargs, reasoning_budget, repeat_penalty) are left off — deepseek-reasoner keeps
+        /// its thinking in reasoning_content, so content is always the answer.
+        /// </summary>
+        private async Task<string> SendDeepSeekTextAsync(
+            FlipPix.Core.Models.LMStudioSettings settings, string systemPrompt, string userMessage,
+            int maxTokens, LlmSampling sampling, CancellationToken cancellationToken)
+        {
+            var body = BuildDeepSeekBody(settings, new object[]
+            {
+                new { role = "system", content = systemPrompt },
+                new { role = "user",   content = userMessage }
+            }, maxTokens, sampling);
+
+            _logger.LogInfo($"SendTextChatAsync → DeepSeek: model={body["model"]}, userMessage length={userMessage.Length}{sampling.Describe()}");
+            var result = await PostDeepSeekAsync(settings, body, cancellationToken);
+            if (result?.Choices?.Count > 0)
+            {
+                var text = StripThinkingBlocks(result.Choices[0].Message?.EffectiveContent?.Trim() ?? string.Empty);
+                _logger.LogInfo($"SendTextChatAsync (DeepSeek) completed, response length={text.Length}");
+                return text;
+            }
+            throw new Exception("No choices in DeepSeek API response");
+        }
+
+        /// <summary>
+        /// <see cref="CallToolAsync"/> against the DeepSeek API: a forced function call first, then JSON
+        /// mode as the fallback. DeepSeek's response_format takes only <c>json_object</c>, not a schema, so
+        /// the schema rides in the system prompt instead (JSON mode also needs the prompt to say "json").
+        /// </summary>
+        private async Task<LMStudioToolCall?> CallDeepSeekToolAsync(
+            FlipPix.Core.Models.LMStudioSettings settings, string systemPrompt, string userMessage,
+            string toolName, string toolDescription, string parametersSchemaJson,
+            int maxTokens, LlmSampling sampling, CancellationToken cancellationToken)
+        {
+            _logger.LogInfo($"CallToolAsync → DeepSeek: tool={toolName}, userMessage length={userMessage.Length}{sampling.Describe()}");
+
+            var schema = JsonNode.Parse(parametersSchemaJson)
+                         ?? throw new ArgumentException("parametersSchemaJson is not valid JSON.");
+            var body = BuildDeepSeekBody(settings, new object[]
+            {
+                new { role = "system", content = systemPrompt },
+                new { role = "user",   content = userMessage }
+            }, maxTokens, sampling);
+            body["tools"] = new object[]
+            {
+                new { type = "function", function = new { name = toolName, description = toolDescription, parameters = schema } }
+            };
+            body["tool_choice"] = new Dictionary<string, object>
+            {
+                ["type"] = "function",
+                ["function"] = new Dictionary<string, object> { ["name"] = toolName }
+            };
+
+            try
+            {
+                var result = await PostDeepSeekAsync(settings, body, cancellationToken);
+                var call = result?.Choices?.FirstOrDefault(c => c.Message?.ToolCalls?.Count > 0)?.Message?.ToolCalls?[0];
+                if (call != null)
+                {
+                    _logger.LogInfo($"CallToolAsync (DeepSeek): model called '{call.Function.Name}' with {call.Function.Arguments?.Length ?? 0} chars of arguments");
+                    return call;
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // deepseek-reasoner has refused a forced tool_choice in some releases; JSON mode still works.
+                _logger.LogWarning($"CallToolAsync (DeepSeek): tool call failed ({ex.Message}) — retrying in JSON mode");
+            }
+
+            var jsonBody = BuildDeepSeekBody(settings, new object[]
+            {
+                new
+                {
+                    role = "system",
+                    content = systemPrompt + "\n\nReply with one json object and nothing else. It must match this JSON Schema:\n" + parametersSchemaJson
+                },
+                new { role = "user", content = userMessage }
+            }, maxTokens, sampling);
+            jsonBody["response_format"] = new Dictionary<string, object> { ["type"] = "json_object" };
+
+            var structured = await PostDeepSeekAsync(settings, jsonBody, cancellationToken);
+            var arguments = ExtractJsonObject(StripThinkingBlocks(
+                structured?.Choices?.FirstOrDefault()?.Message?.EffectiveContent?.Trim() ?? string.Empty));
+            if (string.IsNullOrWhiteSpace(arguments))
+            {
+                _logger.LogInfo("CallToolAsync (DeepSeek): no tool call and no JSON object in the reply");
+                return null;
+            }
+
+            _logger.LogInfo($"CallToolAsync (DeepSeek): JSON-mode fallback stood in for the tool call ({arguments.Length} chars of arguments)");
+            return new LMStudioToolCall
+            {
+                Type = "function",
+                Function = new LMStudioToolCallFunction { Name = toolName, Arguments = arguments }
+            };
+        }
+
+        private static Dictionary<string, object> BuildDeepSeekBody(
+            FlipPix.Core.Models.LMStudioSettings settings, object[] messages, int maxTokens, LlmSampling sampling)
+        {
+            var ceiling = settings.DeepSeekMaxTokens > 0 ? settings.DeepSeekMaxTokens : 8192;
+            var body = new Dictionary<string, object>
+            {
+                ["model"] = string.IsNullOrWhiteSpace(settings.DeepSeekModel) ? "deepseek-chat" : settings.DeepSeekModel.Trim(),
+                ["messages"] = messages,
+                ["max_tokens"] = Math.Clamp(maxTokens, 1, ceiling),
+                ["temperature"] = sampling.Temperature,
+                ["stream"] = false,
+            };
+            if (sampling.PresencePenalty != 0) body["presence_penalty"] = sampling.PresencePenalty;
+            if (sampling.FrequencyPenalty != 0) body["frequency_penalty"] = sampling.FrequencyPenalty;
+            return body;
+        }
+
+        private async Task<LMStudioChatResponse?> PostDeepSeekAsync(
+            FlipPix.Core.Models.LMStudioSettings settings, Dictionary<string, object> body, CancellationToken cancellationToken)
+        {
+            var baseUrl = string.IsNullOrWhiteSpace(settings.DeepSeekBaseUrl)
+                ? "https://api.deepseek.com"
+                : settings.DeepSeekBaseUrl.Trim().TrimEnd('/');
+            var json = JsonSerializer.Serialize(body, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/chat/completions")
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            };
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+                "Bearer", (settings.DeepSeekApiKey ?? string.Empty).Trim());
+
+            try
+            {
+                using var response = await _httpClient.SendAsync(request, cancellationToken);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                    _logger.LogError($"DeepSeek API returned {response.StatusCode}: {errorContent}");
+                    throw new Exception($"DeepSeek API error: {response.StatusCode} - {errorContent}");
+                }
+
+                await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                return await JsonSerializer.DeserializeAsync<LMStudioChatResponse>(stream,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }, cancellationToken);
+            }
+            catch (HttpRequestException ex)
+            {
+                throw new Exception($"Failed to connect to DeepSeek at {baseUrl}: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>Sends a tiny chat to DeepSeek with <paramref name="settings"/> to check the key and
+        /// model. Null on success, else the error.</summary>
+        public async Task<string?> TestDeepSeekAsync(FlipPix.Core.Models.LMStudioSettings settings, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var body = BuildDeepSeekBody(settings, new object[] { new { role = "user", content = "Reply with: ok" } }, 8, LlmSampling.Default);
+                var result = await PostDeepSeekAsync(settings, body, cancellationToken);
+                return result?.Choices?.Count > 0 ? null : "No choices in the reply.";
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                return ex.Message;
+            }
         }
 
         /// <summary>

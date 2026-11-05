@@ -415,6 +415,9 @@ namespace FlipPix.UI.ViewModels.Video
             }
 
             var bodies = new string[_storyBeats.Count];
+            // The rewriter LoRA lives on the local server, so this pass stays there even when Settings
+            // sends story text to DeepSeek.
+            using var localOnly = _lmStudioService.LocalOnly();
             var lora = await SwitchLoraAsync(on: true, token);
             try
             {

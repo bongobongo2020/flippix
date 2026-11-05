@@ -96,6 +96,11 @@ namespace FlipPix.UI
             RefreshSavedServerItems();
             UpdateDefaultLlmTargetText();
 
+            UseDeepSeekCheckBox.IsChecked = lm?.UseDeepSeekForStories ?? false;
+            DeepSeekApiKeyBox.Password = lm?.DeepSeekApiKey ?? string.Empty;
+            DeepSeekModelComboBox.Text = string.IsNullOrWhiteSpace(lm?.DeepSeekModel) ? "deepseek-chat" : lm!.DeepSeekModel;
+            DeepSeekBaseUrlTextBox.Text = string.IsNullOrWhiteSpace(lm?.DeepSeekBaseUrl) ? "https://api.deepseek.com" : lm!.DeepSeekBaseUrl;
+
             RewriterModelComboBox.Text = lm?.RewriterSwitchModel ?? string.Empty;
             // Not from the constructor: the Server box's binding has not filled it yet, so the list would
             // find no host and stay empty. Once shown, and again whenever the list is opened empty.
@@ -287,7 +292,12 @@ namespace FlipPix.UI
                     }).ToList() ?? new List<LlmServerProfile>(),
                     ModelSwitchPort = original.LMStudioSettings?.ModelSwitchPort ?? 8812,
                     VisionSwitchModel = original.LMStudioSettings?.VisionSwitchModel ?? "qwen-vision",
-                    RewriterSwitchModel = original.LMStudioSettings?.RewriterSwitchModel ?? "h3-rewriter"
+                    RewriterSwitchModel = original.LMStudioSettings?.RewriterSwitchModel ?? "h3-rewriter",
+                    UseDeepSeekForStories = original.LMStudioSettings?.UseDeepSeekForStories ?? false,
+                    DeepSeekApiKey = original.LMStudioSettings?.DeepSeekApiKey ?? string.Empty,
+                    DeepSeekBaseUrl = original.LMStudioSettings?.DeepSeekBaseUrl ?? "https://api.deepseek.com",
+                    DeepSeekModel = original.LMStudioSettings?.DeepSeekModel ?? "deepseek-chat",
+                    DeepSeekMaxTokens = original.LMStudioSettings?.DeepSeekMaxTokens ?? 8192
                 }
             };
         }
@@ -968,6 +978,53 @@ namespace FlipPix.UI
             Close();
         }
 
+        /// <summary>Copies the DeepSeek section's fields onto <paramref name="lm"/>.</summary>
+        private void ApplyDeepSeekFields(LMStudioSettings lm)
+        {
+            lm.UseDeepSeekForStories = UseDeepSeekCheckBox.IsChecked == true;
+            lm.DeepSeekApiKey = DeepSeekApiKeyBox.Password?.Trim() ?? string.Empty;
+            var model = DeepSeekModelComboBox.Text?.Trim();
+            lm.DeepSeekModel = string.IsNullOrEmpty(model) ? "deepseek-chat" : model;
+            var url = DeepSeekBaseUrlTextBox.Text?.Trim().TrimEnd('/');
+            lm.DeepSeekBaseUrl = string.IsNullOrEmpty(url) ? "https://api.deepseek.com" : url;
+        }
+
+        private async void TestDeepSeek_Click(object sender, RoutedEventArgs e)
+        {
+            var probe = new LMStudioSettings { DeepSeekMaxTokens = _originalSettings.LMStudioSettings?.DeepSeekMaxTokens ?? 8192 };
+            ApplyDeepSeekFields(probe);
+            if (string.IsNullOrWhiteSpace(probe.DeepSeekApiKey))
+            {
+                MessageBox.Show("Enter a DeepSeek API key first.", "DeepSeek", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var lm = (System.Windows.Application.Current as App)?.Services?.GetService(typeof(FlipPix.UI.Services.LMStudioService))
+                     as FlipPix.UI.Services.LMStudioService;
+            if (lm == null)
+            {
+                MessageBox.Show("The LLM service is not available.", "DeepSeek", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            var button = sender as Button;
+            if (button != null) button.IsEnabled = false;
+            try
+            {
+                var error = await lm.TestDeepSeekAsync(probe);
+                if (error == null)
+                    MessageBox.Show($"DeepSeek answered using {probe.DeepSeekModel}.", "DeepSeek",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                else
+                    MessageBox.Show($"DeepSeek test failed:\n\n{error}", "DeepSeek",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                if (button != null) button.IsEnabled = true;
+            }
+        }
+
         private void Save_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -1029,6 +1086,12 @@ namespace FlipPix.UI
                 var lmModel = CurrentModelId();
                 if (!string.IsNullOrEmpty(lmModel)) lmSettings.SelectedModel = lmModel;
                 lmSettings.RewriterSwitchModel = RewriterModelName(RewriterModelComboBox.Text);
+                ApplyDeepSeekFields(lmSettings);
+                if (lmSettings.UseDeepSeekForStories && string.IsNullOrWhiteSpace(lmSettings.DeepSeekApiKey))
+                {
+                    MessageBox.Show("DeepSeek is switched on but has no API key, so stories will keep using the local llama server.",
+                        "DeepSeek", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
                 lmSettings.SaveProfile(
                     lmBaseUrl,
                     LMStudioServerNameTextBox.Text,

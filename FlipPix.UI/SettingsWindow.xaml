@@ -298,6 +298,45 @@
                     </StackPanel>
                 </Border>
 
+                <!-- DeepSeek API for story writing -->
+                <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource SuccessBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,15">
+                    <StackPanel>
+                        <TextBlock Text="DeepSeek API (stories)" FontWeight="Bold" FontSize="16" Margin="0,0,0,10" Foreground="{StaticResource SuccessTextBrush}"/>
+                        <CheckBox x:Name="UseDeepSeekCheckBox" Content="Use DeepSeek to analyze and write stories instead of the local llama server" Margin="0,0,0,12"/>
+
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="120"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="API Key:" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                            <PasswordBox Grid.Row="0" Grid.Column="1" x:Name="DeepSeekApiKeyBox" Margin="0,0,10,10"
+                                         ToolTip="Your DeepSeek API key (platform.deepseek.com). Stored in the FlipPix settings file."/>
+                            <Button Grid.Row="0" Grid.Column="2" Content="Test" Click="TestDeepSeek_Click" Padding="15,5" Margin="0,0,0,10"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Model:" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                            <ComboBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" x:Name="DeepSeekModelComboBox" IsEditable="True" Margin="0,0,0,10"
+                                      ToolTip="deepseek-chat answers straight away; deepseek-reasoner thinks first (slower, better plotting).">
+                                <ComboBoxItem Content="deepseek-chat"/>
+                                <ComboBoxItem Content="deepseek-reasoner"/>
+                            </ComboBox>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="API URL:" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                            <TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" x:Name="DeepSeekBaseUrlTextBox" Margin="0,0,0,10"/>
+                        </Grid>
+
+                        <TextBlock Text="Only text calls go to DeepSeek. Steps that send pictures (image analysis, story steps with reference images) and the H3 rewriter LoRA pass still use the local llama server."
+                                   FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
                 <!-- Status Display -->
                 <Border Background="#D1ECF1" BorderBrush="#BEE5EB" BorderThickness="1" CornerRadius="8" Padding="15">
                     <StackPanel>
