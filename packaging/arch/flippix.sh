@@ -2,7 +2,7 @@
 # FlipPix launcher.
 #
 # The app is a framework-dependent .NET build, so it needs the system runtime that
-# dotnet-runtime-8.0 installs. Everything below is overridable from the environment.
+# dotnet-runtime-10.0 installs. Everything below is overridable from the environment.
 
 set -euo pipefail
 
@@ -20,7 +20,7 @@ export DOTNET_NOLOGO="${DOTNET_NOLOGO:-1}"
 export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
 
 if ! command -v dotnet >/dev/null 2>&1 && [[ ! -x "$DOTNET_ROOT/dotnet" ]]; then
-    echo "flippix: no .NET runtime found. Install it with: sudo pacman -S dotnet-runtime-8.0" >&2
+    echo "flippix: no .NET runtime found. Install it with: sudo pacman -S dotnet-runtime-10.0" >&2
     exit 1
 fi
 

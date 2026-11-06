@@ -107,9 +107,9 @@ fi
 # ---------------------------------------------------------------- dependencies
 if [[ "$SKIP_DEPS" == true ]]; then
     step "Skipping dependency install (--skip-deps)"
-    command -v dotnet >/dev/null 2>&1 || die "dotnet not found and --skip-deps was given. Install dotnet-sdk-8.0."
+    command -v dotnet >/dev/null 2>&1 || die "dotnet not found and --skip-deps was given. Install dotnet-sdk-10.0."
 else
-    deps=(dotnet-runtime-8.0 dotnet-sdk-8.0 fontconfig freetype2 libx11 libice libsm
+    deps=(dotnet-runtime-10.0 dotnet-sdk-10.0 fontconfig freetype2 libx11 libice libsm
           libxrandr libxi libxcursor libxext hicolor-icon-theme
           ffmpeg xdg-utils xdg-user-dirs git)
     [[ "$MODE" == "package" ]] && deps+=(base-devel)

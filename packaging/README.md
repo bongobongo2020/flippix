@@ -12,8 +12,8 @@ route and the things the one-liner can't tell you.
 ## Build
 
 ```bash
-sudo pacman -S --needed dotnet-sdk-8.0 ffmpeg
-./packaging/build-linux.sh              # framework-dependent, needs dotnet-runtime-8.0
+sudo pacman -S --needed dotnet-sdk-10.0 ffmpeg
+./packaging/build-linux.sh              # framework-dependent, needs dotnet-runtime-10.0
 ./packaging/build-linux.sh --self-contained   # bundles the runtime instead
 ./packaging/build-linux.sh --tarball          # also writes flippix-linux-x64.tar.gz
 ```
@@ -47,7 +47,7 @@ Installed layout:
 | `/usr/share/applications/flippix.desktop` | desktop entry |
 | `/usr/share/pixmaps/flippix.png` | icon |
 
-The package is framework-dependent (~57 MB) and depends on `dotnet-runtime-8.0`, so the runtime
+The package is framework-dependent (~57 MB) and depends on `dotnet-runtime-10.0`, so the runtime
 gets security updates through pacman rather than being vendored.
 
 ## Runtime configuration
@@ -76,7 +76,7 @@ it they fall back to literal `Pictures`/`Videos` under `$HOME`.
 
 ### Wayland
 
-Avalonia 11.2 has no Wayland backend, so a Wayland session runs FlipPix through XWayland. That is
+Avalonia 11 has no Wayland backend, so a Wayland session runs FlipPix through XWayland. That is
 transparent apart from fractional scaling, which the X11 backend reads from the usual
 `GDK_SCALE` / `QT_SCALE_FACTOR` environment variables.
 

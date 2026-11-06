@@ -5,10 +5,10 @@ stories and shows what they look like as they're made. The computer makes them, 
 ComfyUI and writing assistant settings. The Library shows everything in the computer's output
 folder, not only what the phone asked for.
 
-- `FlipPix.Mobile/`: all UI and logic (Avalonia 11, `net8.0`). It references only
+- `FlipPix.Mobile/`: all UI and logic (Avalonia 11, `net10.0`). It references only
   `FlipPix.Remote.Contracts`, the wire format. It has no workflows, ComfyUI client or LLM client.
-- `FlipPix.Mobile.Android/`: the Android head (`net9.0-android`, min API 26). It holds no logic.
-- `FlipPix.Mobile.iOS/`: the iPad (and iPhone) head (`net9.0-ios`, iOS 15+): the app delegate, the
+- `FlipPix.Mobile.Android/`: the Android head (`net10.0-android`, min API 26). It holds no logic.
+- `FlipPix.Mobile.iOS/`: the iPad (and iPhone) head (`net10.0-ios`, iOS 15+): the app delegate, the
   device name and an AVPlayer for videos. It is not in `FlipPix.sln`, since iOS builds only on a Mac
   and the solution has to keep building on Windows.
 - The desktop side is `FlipPix.Remote` (see its README). Both desktop builds host it.
@@ -21,7 +21,7 @@ dotnet build FlipPix.Mobile.Android -t:Install -c Debug
 
 # A signed release APK to sideload
 dotnet publish FlipPix.Mobile.Android -c Release
-#   -> FlipPix.Mobile.Android/bin/Release/net9.0-android/publish/com.flippix.mobile-Signed.apk
+#   -> FlipPix.Mobile.Android/bin/Release/net10.0-android/publish/com.flippix.mobile-Signed.apk
 ```
 
 The release APK is signed with the SDK's debug keystore. That works for sideloading. A Play
@@ -29,14 +29,14 @@ Store upload needs a real keystore (`AndroidSigningKeyStore` and friends).
 
 ### iPad
 
-Needs a Mac with Xcode. Each .NET iOS workload is tied to one Xcode: 18.5 wants Xcode 16.4, 26.x
-wants Xcode 26. Pin the workload set to match (`dotnet workload update --version 9.0.304` gives iOS
-18.5), or the build stops with "requires Xcode 26.5".
+Needs a Mac with Xcode. Each .NET iOS workload is tied to one Xcode version. Pin the .NET 10
+workload set to the one that matches your installed Xcode (`dotnet workload update --version <set>`),
+or the build stops with an error such as "requires Xcode 26.5".
 
 ```sh
 # Simulator
 dotnet build FlipPix.Mobile.iOS -c Debug -r iossimulator-arm64
-xcrun simctl install booted FlipPix.Mobile.iOS/bin/Debug/net9.0-ios/iossimulator-arm64/FlipPix.Mobile.iOS.app
+xcrun simctl install booted FlipPix.Mobile.iOS/bin/Debug/net10.0-ios/iossimulator-arm64/FlipPix.Mobile.iOS.app
 xcrun simctl launch booted com.flippix.mobile
 
 # A real iPad, plugged in: provisions, builds, signs, installs and launches

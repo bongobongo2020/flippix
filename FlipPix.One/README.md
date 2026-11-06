@@ -8,9 +8,9 @@ installs next to FlipPix Mobile (`com.flippix.mobile`, the remote for the deskto
 A phone-sized FlipPix for Android: type an idea, tap once, and watch it develop. It drives the
 same ComfyUI server as the desktop app, and optionally an OpenAI-style LLM server.
 
-- `FlipPix.One/`: all UI and logic (Avalonia 11, `net8.0`). It reuses `FlipPix.Core` and
+- `FlipPix.One/`: all UI and logic (Avalonia 11, `net10.0`). It reuses `FlipPix.Core` and
   `FlipPix.ComfyUI`, so every graph goes through the desktop's pre-submit repairs.
-- `FlipPix.One.Android/`: the Android head (`net9.0-android`, min API 26). It holds no logic.
+- `FlipPix.One.Android/`: the Android head (`net10.0-android`, min API 26). It holds no logic.
 
 ## Build and install
 
@@ -20,7 +20,7 @@ dotnet build FlipPix.One.Android -t:Install -c Debug
 
 # A signed release APK to sideload
 dotnet publish FlipPix.One.Android -c Release
-#   -> FlipPix.One.Android/bin/Release/net9.0-android/publish/com.flippix.mobile-Signed.apk
+#   -> FlipPix.One.Android/bin/Release/net10.0-android/publish/com.flippix.mobile-Signed.apk
 ```
 
 The release APK is signed with the SDK's debug keystore. That's fine for sideloading, but a

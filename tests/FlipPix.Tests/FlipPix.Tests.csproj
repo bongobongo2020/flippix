@@ -5,14 +5,14 @@
     ComfyUI or an LLM behind it: the deterministic passes that decide what gets rendered — the story
     continuity plan, the beat sheet's parsing and fitting, and the prompt stamping.
 
-    net8.0-windows with UseWPF, because it references FlipPix.UI, which is a WPF app: the services under
+    net10.0-windows with UseWPF, because it references FlipPix.UI, which is a WPF app: the services under
     test live beside view models that pull in PresentationFramework. Nothing here touches a Dispatcher or
     a window — the tests are pure functions over strings — but the reference brings the framework in.
 
     Run:  dotnet test tests/FlipPix.Tests
   -->
   <PropertyGroup>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>

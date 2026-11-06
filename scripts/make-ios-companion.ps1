@@ -63,7 +63,7 @@ Write-Host 'FlipPix iOS Companion packager' -ForegroundColor Magenta
 # 1. build the companion (self-contained, single file)
 # ---------------------------------------------------------------------------
 $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
-if (-not $dotnet) { throw 'dotnet SDK not found. Install the .NET 8 SDK.' }
+if (-not $dotnet) { throw 'dotnet SDK not found. Install the .NET 10 SDK.' }
 Get-Process FlipPix.IosCompanion -ErrorAction SilentlyContinue | ForEach-Object {
     Write-Step "Stopping the running companion (pid $($_.Id)) so its exe can be rebuilt"
     $_ | Stop-Process -Force

@@ -29,7 +29,7 @@ Logs are in `%LOCALAPPDATA%\FlipPix\setup-logs`.
 
 FlipPix is published self-contained, so end users need **no .NET runtime**. If the repo already
 has a built `publish\` folder it's used directly; otherwise the wizard builds it with
-`dotnet publish` (that build step needs the .NET 8 SDK).
+`dotnet publish` (that build step needs the .NET 10 SDK).
 
 The wizard is `scripts\flippix-installer.ps1` (WinForms, intentionally classic-themed). The `.bat`
 just launches it with the right execution policy in STA mode. The child scripts report progress
@@ -47,7 +47,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup-llm.ps1 -InstallDir D:\Fl
 
 For a PC that only serves the FlipPix iPad / iPhone app, ship **`release\FlipPix-iOS-Companion-Setup.exe`**
 (built by `scripts\make-ios-companion.ps1`, which also cross-builds from macOS with PowerShell 7 and the
-.NET 8 SDK). The user double-clicks it; it unpacks the package under
+.NET 10 SDK). The user double-clicks it; it unpacks the package under
 `%LocalAppData%\FlipPix\ios-companion-setup\` and runs the same wizard with `-Companion`. The same package
 is also in `release\ios-companion.zip` for anyone who prefers to unzip it and double-click
 `Install-iOS-Companion.bat`. The exe is unsigned, so Windows SmartScreen warns until it's code-signed.

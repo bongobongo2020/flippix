@@ -59,7 +59,7 @@ Write-Host 'FlipPix iOS Companion packager (Ubuntu)' -ForegroundColor Magenta
 # 1. build the companion (linux-x64, self-contained, single file)
 # ---------------------------------------------------------------------------
 $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
-if (-not $dotnet) { throw 'dotnet SDK not found. Install the .NET 8 SDK.' }
+if (-not $dotnet) { throw 'dotnet SDK not found. Install the .NET 10 SDK.' }
 if (-not (Get-Command tar -ErrorAction SilentlyContinue)) { throw 'tar not found (Windows 10 and later include it).' }
 
 Write-Step 'Building flippix-companion (Release, linux-x64, self-contained, single-file)'
