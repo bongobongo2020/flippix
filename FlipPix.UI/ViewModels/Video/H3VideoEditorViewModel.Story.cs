@@ -689,6 +689,7 @@ namespace FlipPix.UI.ViewModels.Video
             foreach (var slotIndex in _autoCastSlots.OrderBy(i => i))
                 ClearPicture(slotIndex);
             _autoCastSlots.Clear();
+            _sheetSlots.Clear();
         }
 
         private string BuildCastPhotoPrompt(string kind, string role, int slotIndex)
@@ -865,6 +866,14 @@ namespace FlipPix.UI.ViewModels.Video
                 // Generate missing cast photos
                 StoryStatus = "Preparing cast photos...";
                 await PrepareCastPhotosAsync();
+
+                // Each generated cast photo becomes an H3 character sheet (front/¾/side/back/face), so the
+                // clips are conditioned on the character from every side.
+                if (GenerateCharacterSheets)
+                {
+                    StoryStatus = "Generating character sheets...";
+                    await PrepareCharacterSheetsAsync(CancellationToken.None);
+                }
 
                 if (StoryLocationPlates && _plateGroups.Count > 0)
                 {

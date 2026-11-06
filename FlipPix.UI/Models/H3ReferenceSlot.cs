@@ -79,6 +79,19 @@ namespace FlipPix.UI.Models
             OnPropertyChanged(nameof(StatusText));
         }
 
+        /// <summary>Puts an image in front of the others — the first image is the one uploaded for this
+        /// picture — and shows it as the preview.</summary>
+        public void InsertFirst(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return;
+            Images.Insert(0, new H3ReferenceImage { Path = path, FileName = Path.GetFileName(path) });
+            IsLoaded = true;
+            LoadPreview(path);
+            OnPropertyChanged(nameof(HasImages));
+            OnPropertyChanged(nameof(ImageCount));
+            OnPropertyChanged(nameof(StatusText));
+        }
+
         /// <summary>Clears all images from this slot.</summary>
         public void Clear()
         {

@@ -541,6 +541,7 @@ N/A
             TargetDurationSeconds = settings.TargetDurationSeconds;
             CastPhotoEngine = settings.CastPhotoEngine;
             AutoGenerateCast = settings.AutoGenerateCast;
+            GenerateCharacterSheets = settings.GenerateCharacterSheets;
             StoryPromptWriter = string.IsNullOrWhiteSpace(savedPromptWriter)
                 ? H3RewriterBeatWriter.RewriterWriter : savedPromptWriter;
             StoryLocationPlates = savedLocationPlates;
@@ -655,6 +656,7 @@ N/A
             settings.H3VideoEditor.TargetDurationSeconds = TargetDurationSeconds;
             settings.H3VideoEditor.CastPhotoEngine = CastPhotoEngine;
             settings.H3VideoEditor.AutoGenerateCast = AutoGenerateCast;
+            settings.H3VideoEditor.GenerateCharacterSheets = GenerateCharacterSheets;
             settings.H3VideoEditor.StoryPromptWriter = StoryPromptWriter;
             settings.H3VideoEditor.StoryLocationPlates = StoryLocationPlates;
 
@@ -860,7 +862,8 @@ N/A
                     TargetDurationSeconds = TargetDurationSeconds,
                     IsStoryAnalyzed = IsStoryAnalyzed,
                     CastPhotoEngine = CastPhotoEngine,
-                    AutoGenerateCast = AutoGenerateCast
+                    AutoGenerateCast = AutoGenerateCast,
+                    GenerateCharacterSheets = GenerateCharacterSheets
                 };
             }
 
@@ -1006,6 +1009,7 @@ N/A
                 IsStoryAnalyzed = project.StoryMode.IsStoryAnalyzed;
                 CastPhotoEngine = project.StoryMode.CastPhotoEngine;
                 AutoGenerateCast = project.StoryMode.AutoGenerateCast;
+                GenerateCharacterSheets = project.StoryMode.GenerateCharacterSheets;
             }
 
             // Select first clip if available

@@ -521,6 +521,8 @@ public class H3VideoEditorSettings
     public double TargetDurationSeconds { get; set; } = 30.0;
     public string CastPhotoEngine { get; set; } = "krea2spicy";
     public bool AutoGenerateCast { get; set; } = true;
+    /// <summary>Story mode: turn each generated cast photo into an H3 character sheet (Fizgig H3 Still nodes).</summary>
+    public bool GenerateCharacterSheets { get; set; } = true;
     /// <summary>Story mode's clip prompt writer: "h3-rewriter" (an LLM writes each beat to the official H3
     /// format) or "template" (the code template).</summary>
     public string StoryPromptWriter { get; set; } = "h3-rewriter";

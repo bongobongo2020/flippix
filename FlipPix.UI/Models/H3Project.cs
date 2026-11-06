@@ -124,6 +124,7 @@ namespace FlipPix.UI.Models
         public bool IsStoryAnalyzed { get; set; }
         public string CastPhotoEngine { get; set; } = "qwen21";
         public bool AutoGenerateCast { get; set; } = true;
+        public bool GenerateCharacterSheets { get; set; } = true;
 
         /// <summary>Detected cast members for restoration.</summary>
         public List<H3ProjectCastMember>? DetectedCast { get; set; }
