@@ -559,10 +559,27 @@ public class H3TimelineClipState
     public int LocationPictureIndex { get; set; }
 }
 
-/// <summary>A user-saved preset for the H3 Video Editor.</summary>
+/// <summary>A user-saved, named preset for the H3 Video Editor: the engine it renders through and every dial,
+/// model and LoRA of that engine at the moment it was saved.</summary>
 public class H3VideoEditorCustomPreset
 {
+    public const string ClassicEngine = "classic";
+    public const string UltraEngine = "ultra";
+    public const string TwoPassEngine = "twopass";
+
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>"classic" (the editor's chain graph), "ultra" (💎 card) or "twopass" (🌹 card).</summary>
+    public string Engine { get; set; } = ClassicEngine;
+
+    /// <summary>The 💎 card's dials (models, LoRAs, sampling) when <see cref="Engine"/> is "ultra".</summary>
+    public MiniMaxI2VUltraOptions? Ultra { get; set; }
+
+    /// <summary>The 🌹 card's dials (models, LoRA rows, RefMods, sampling) when <see cref="Engine"/> is "twopass".</summary>
+    public MiniMaxI2VTwoPassOptions? TwoPass { get; set; }
+
+    // Classic engine
+    public string Model { get; set; } = string.Empty;
     public string Attention { get; set; } = "comfy_kitchen";
     public string SparseAttention { get; set; } = "none";
     public bool Spectrum { get; set; }
@@ -576,6 +593,9 @@ public class H3VideoEditorCustomPreset
     public int ShiftAudio { get; set; } = 3;
     public double UpscaleFactor { get; set; } = 2.0;
     public double RefineAmount { get; set; } = 0.2;
+    public int CRF { get; set; } = 19;
+    public bool Crossfade { get; set; } = true;
+    public bool LevelLock { get; set; } = true;
 }
 
 // ── H3 Batch Upscale settings ─────────────────────────────────────────────────────────────────

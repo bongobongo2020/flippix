@@ -65,6 +65,16 @@ namespace FlipPix.UI.Models
         /// <summary>The dropdown name of the 2-Pass entry — also what settings store when it is picked.</summary>
         public const string TwoPassName = "🌹 ErosMax Turbo 2-Pass (preview → refine)";
 
+        /// <summary>The user's saved preset this entry was made from (null for the built-ins). Its Ultra/TwoPass
+        /// snapshot is copied onto the card when the entry is picked.</summary>
+        public FlipPix.Core.Models.H3VideoEditorCustomPreset? Saved { get; set; }
+
+        /// <summary>A preset the user saved and named (can be overwritten and deleted).</summary>
+        public bool IsCustom => Saved != null;
+
+        /// <summary>What the dropdown shows: the user's own presets are starred.</summary>
+        public string DisplayName => IsCustom ? $"★ {Name}" : Name;
+
         /// <summary>The H3 diffusion model (unet folder) the preset samples with.</summary>
         public string Model { get; set; } = VanillaModel;
 

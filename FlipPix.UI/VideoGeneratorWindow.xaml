@@ -5756,7 +5756,22 @@
                                                     <Ellipse Width="7" Height="7" Fill="{DynamicResource TabAccentBrush}" Margin="0,0,7,0" VerticalAlignment="Center"/>
                                                     <TextBlock Text="PRESET" FontSize="12" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
                                                 </StackPanel>
-                                                <ComboBox ItemsSource="{Binding Presets}" DisplayMemberPath="Name" SelectedValuePath="Name" SelectedValue="{Binding SelectedPresetName}" Height="28" FontSize="11" Margin="0,0,0,10" ToolTip="Select a preset configuration. 💎 All-In-One Ultra renders each clip through 🌀 MiniMax I2V's Ultra workflow (SelfLift, full-res tiled) with its own card of dials below."/>
+                                                <ComboBox ItemsSource="{Binding Presets}" DisplayMemberPath="DisplayName" SelectedValuePath="Name" SelectedValue="{Binding SelectedPresetName}" Height="28" FontSize="11" Margin="0,0,0,6" ToolTip="Select a preset configuration. ★ entries are your own saved presets. 💎 All-In-One Ultra renders each clip through 🌀 MiniMax I2V's Ultra workflow (SelfLift, full-res tiled) with its own card of dials below."/>
+                                                <Grid Margin="0,0,0,10">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox Text="{Binding NewPresetName, UpdateSourceTrigger=PropertyChanged}" Height="24" FontSize="11" Padding="4,2" VerticalContentAlignment="Center"
+                                                             ToolTip="Name for the preset. Saving under the name of one of your ★ presets overwrites it."/>
+                                                    <Button Grid.Column="1" Content="💾 Save" Command="{Binding SavePresetCommand}" Height="24" Padding="8,0" FontSize="10" Margin="6,0,0,0"
+                                                            Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand"
+                                                            ToolTip="Save the current engine with all its settings, models and LoRAs (the 💎/🌹 card when one of those is picked) plus the upscale settings as a named preset. Kept across restarts."/>
+                                                    <Button Grid.Column="2" Content="🗑" Command="{Binding DeletePresetCommand}" Width="26" Height="24" Padding="0" FontSize="11" Margin="4,0,0,0"
+                                                            Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand"
+                                                            ToolTip="Delete the selected ★ preset (built-in presets can't be deleted). The dials stay as they are."/>
+                                                </Grid>
                                                 <TextBlock Text="Clips render through h3-minimax-ultra.json — one SelfLift pass at the finished canvas, still chained clip to clip. Its dials are in the 💎 cards below." Visibility="{Binding IsUltra, Converter={StaticResource BooleanToVisibilityConverter}}" FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"/>
                                                 <TextBlock Text="Clips render through h3-erosmax-2pass.json in two stages: Generate previews every beat's first pass (quick, low-res) onto the timeline; edit and ↻ any beat from the clip panel on the right; nothing is refined until you click 'Happy — proceed with final refinement'. Its dials are in the 🌹 cards below." Visibility="{Binding IsTwoPass, Converter={StaticResource BooleanToVisibilityConverter}}" FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"/>
                                                 <Grid Visibility="{Binding IsClassicEngine, Converter={StaticResource BooleanToVisibilityConverter}}">

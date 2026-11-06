@@ -509,7 +509,11 @@ N/A
             var savedPromptWriter = settings.StoryPromptWriter;
             var savedLocationPlates = settings.StoryLocationPlates;
 
-            SelectedPresetName = settings.Preset;
+            // A saved preset's 💎/🌹 card is already the live card in settings: restore the pick without copying
+            // its snapshot over edits made after it was picked.
+            _restoringPreset = true;
+            try { SelectedPresetName = settings.Preset; }
+            finally { _restoringPreset = false; }
             Steps = settings.Steps;
             SelectedSampler = settings.Sampler;
             SelectedScheduler = settings.Scheduler;
