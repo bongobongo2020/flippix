@@ -789,38 +789,6 @@ namespace FlipPix.UI.ViewModels.Video
             return JsonSerializer.SerializeToElement(dict);
         }
 
-        /// <summary>True when the file carries at least one audio stream. ffprobe missing or the probe
-        /// failing answers "yes", which keeps the graph as authored — the loader's own error is then
-        /// the thing that reports the real problem.</summary>
-        private bool HasAudioStream(string videoPath)
-        {
-            try
-            {
-                var ffmpegPath = FindFFmpeg();
-                if (ffmpegPath == null) return true;
-                var ffprobePath = ffmpegPath.Replace("ffmpeg.exe", "ffprobe.exe");
-                if (!File.Exists(ffprobePath)) return true;
-
-                using var process = Process.Start(new ProcessStartInfo
-                {
-                    FileName = ffprobePath,
-                    Arguments = $"-v error -select_streams a -show_entries stream=index -of csv=p=0 \"{videoPath}\"",
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    CreateNoWindow = true
-                });
-                if (process == null) return true;
-                var output = process.StandardOutput.ReadToEnd().Trim();
-                process.WaitForExit(30000);
-                return !string.IsNullOrWhiteSpace(output);
-            }
-            catch (Exception ex)
-            {
-                AddLog($"Could not probe audio stream ({ex.Message}); assuming the clip has one.");
-                return true;
-            }
-        }
-
         #endregion
 
         private void OnTargetedCanExecuteChanged()

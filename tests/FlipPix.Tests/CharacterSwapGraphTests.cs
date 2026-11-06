@@ -112,6 +112,31 @@ public sealed class CharacterSwapGraphTests
         CharacterSwapGraph.AssertNoDanglingLinks(g);
     }
 
+    [Theory]
+    [InlineData(CharacterSwapGraph.SimpleFile)]
+    [InlineData(CharacterSwapGraph.AdvancedFile)]
+    [InlineData(CharacterSwapGraph.MaskFile)]
+    public void Sources_without_audio_never_link_the_loaders_audio_output(string file)
+    {
+        var g = Load(file);
+        CharacterSwapGraph.UseSilenceForSoundless(g);
+        g = file switch
+        {
+            CharacterSwapGraph.SimpleFile => CharacterSwapGraph.PruneSimple(g, new SwapSettings()),
+            CharacterSwapGraph.AdvancedFile => CharacterSwapGraph.PruneAdvanced(g, 2, new SwapSettings()),
+            _ => g,
+        };
+        CharacterSwapGraph.AssertNoDanglingLinks(g);
+
+        var videos = g.Where(kv => Class(g, kv.Key) == "VHS_LoadVideo").Select(kv => kv.Key).ToHashSet();
+        // ComfyUI 0.42 walks every linked output once a node finishes; a linked VHS audio output on a
+        // soundless file throws before anything downstream runs.
+        Assert.DoesNotContain(g, kv => kv.Value!["inputs"]!.AsObject()
+            .Any(i => CharacterSwapGraph.IsLink(i.Value, out var src, out var slot) && videos.Contains(src) && slot == 2));
+        foreach (var v in videos.Where(v => g.ContainsKey($"{v}_soundtrack")))
+            Assert.Equal("EmptyAudio", Class(g, $"{v}_soundtrack"));
+    }
+
     [Fact]
     public void Installed_names_win_over_upstream_names()
     {

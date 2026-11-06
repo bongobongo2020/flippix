@@ -509,15 +509,28 @@ public class ComfyUIService : IComfyUIService
                         // nodes report their file paths that way) lands in /history with zero files, and
                         // testing the file count instead made a successful run look like it never
                         // completed, and then like it had vanished once it also left /queue.
-                        if (await _httpClient.HasHistoryEntryAsync(promptId, combinedCts.Token))
+                        // A run that threw is in /history too, marked as an error. Remote servers often drop
+                        // the WebSocket execution_error, so read the outcome here or a failed run would be
+                        // reported as finished with no output.
+                        var outcome = await _httpClient.GetHistoryOutcomeAsync(promptId, combinedCts.Token);
+                        if (outcome != null)
                         {
                             lock (lockObj)
                             {
                                 if (!isCompleted)
                                 {
                                     isCompleted = true;
-                                    _logger.LogInfo("Completion detected via /history poll for prompt: {PromptId}", promptId);
-                                    completionSource.TrySetResult(promptId);
+                                    if (outcome.Failed)
+                                    {
+                                        _logger.LogError($"ComfyUI execution failed for prompt {promptId} (seen via /history): {outcome.Error}");
+                                        completionSource.TrySetException(
+                                            new ComfyUIExecutionException($"ComfyUI execution failed: {outcome.Error}", promptId));
+                                    }
+                                    else
+                                    {
+                                        _logger.LogInfo("Completion detected via /history poll for prompt: {PromptId}", promptId);
+                                        completionSource.TrySetResult(promptId);
+                                    }
                                 }
                             }
                             return;

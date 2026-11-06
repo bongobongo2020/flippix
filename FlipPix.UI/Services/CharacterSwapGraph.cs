@@ -173,6 +173,42 @@ namespace FlipPix.UI.Services
             }
         }
 
+        /// <summary>
+        /// For a source with no audio stream: the soundtrack becomes silence as long as the loaded frames, and
+        /// nothing links VHS_LoadVideo's audio output at all.
+        /// <para>H3SoundtrackOrSilence alone is not enough. Since ComfyUI 0.42, once a node finishes, the
+        /// executor walks each of its linked outputs (model_patcher's output-link callback), and walking
+        /// VHS's lazy audio runs ffmpeg on a file with no audio stream, which throws before the
+        /// silence node ever runs ("VHS failed to extract audio … Output file does not contain any stream").
+        /// Leaving the audio output unlinked means nothing reads it.</para>
+        /// <para>Run after <see cref="SilenceWhenSoundless"/>, which routes every reader through
+        /// <c>{video}_soundtrack</c>.</para>
+        /// </summary>
+        public static void UseSilenceForSoundless(JsonObject graph)
+        {
+            foreach (var videoId in graph.Where(kv => kv.Value?["class_type"]?.GetValue<string>() == "VHS_LoadVideo")
+                                         .Select(kv => kv.Key).ToList())
+            {
+                var soundtrack = $"{videoId}_soundtrack";
+                if (graph[soundtrack] is not JsonObject) continue;
+
+                var info = $"{videoId}_loaded_info";
+                graph[info] = new JsonObject
+                {
+                    ["class_type"] = "VHS_VideoInfoLoaded",
+                    ["inputs"] = new JsonObject { ["video_info"] = Link(videoId, 3) },
+                    ["_meta"] = new JsonObject { ["title"] = "Loaded length (source has no audio)" },
+                };
+                graph[soundtrack] = new JsonObject
+                {
+                    ["class_type"] = "EmptyAudio",
+                    // VHS_VideoInfoLoaded slot 2 = duration of the frames actually loaded (after skip/cap/rate).
+                    ["inputs"] = new JsonObject { ["duration"] = Link(info, 2), ["sample_rate"] = 44100, ["channels"] = 2 },
+                    ["_meta"] = new JsonObject { ["title"] = "Soundtrack (source has no audio: silence)" },
+                };
+            }
+        }
+
         /// <summary>Part of the source to use; every export loads the video at force_rate 24. Length 0 = to the end.</summary>
         public static void SetSection(JsonObject graph, string videoId, double startSeconds, double lengthSeconds)
         {

@@ -1102,29 +1102,41 @@ public class ComfyUIHttpClient : IDisposable
     /// the file count as the completion signal makes such a run look like it never landed, and then like
     /// it vanished once it also left /queue.</para>
     /// </summary>
-    public async Task<bool> HasHistoryEntryAsync(string promptId, CancellationToken cancellationToken = default)
+    public async Task<bool> HasHistoryEntryAsync(string promptId, CancellationToken cancellationToken = default) =>
+        await GetHistoryOutcomeAsync(promptId, cancellationToken) != null;
+
+    /// <summary>
+    /// How the prompt ended, once ComfyUI has recorded it in /history; null while it has not (still
+    /// queued or running, or the poll itself failed).
+    /// <para>A prompt that threw lands in /history too, with <c>status.status_str = "error"</c> and the
+    /// exception in an <c>execution_error</c> message. Remote servers often drop the WebSocket
+    /// <c>execution_error</c>, so this is the only place the failure is reliably visible.</para>
+    /// </summary>
+    public async Task<HistoryOutcome?> GetHistoryOutcomeAsync(string promptId, CancellationToken cancellationToken = default)
     {
         try
         {
             // Per-request timeout: the HttpClient's own timeout is infinite, so a connection a remote
             // server silently dropped would hang this one poll until the OS gave up (~20+ min), with the
-            // job long finished. A timed-out poll just returns false and the next one retries.
+            // job long finished. A timed-out poll just returns null and the next one retries.
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(TimeSpan.FromSeconds(15));
 
             // The per-prompt route avoids pulling (and parsing) the entire run history every 5 seconds.
             var response = await _httpClient.GetAsync($"/history/{Uri.EscapeDataString(promptId)}", cts.Token);
-            if (!response.IsSuccessStatusCode) return false;
+            if (!response.IsSuccessStatusCode) return null;
 
             var content = await response.Content.ReadAsStringAsync(cts.Token);
             using var doc = JsonDocument.Parse(content);
-            return doc.RootElement.ValueKind == JsonValueKind.Object &&
-                   doc.RootElement.TryGetProperty(promptId, out _);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object ||
+                !doc.RootElement.TryGetProperty(promptId, out var entry))
+                return null;
+            return HistoryOutcome.FromEntry(entry);
         }
         catch (Exception ex)
         {
-            _logger.LogDebug($"HasHistoryEntryAsync failed for {promptId}: {ex.Message}");
-            return false;
+            _logger.LogDebug($"GetHistoryOutcomeAsync failed for {promptId}: {ex.Message}");
+            return null;
         }
     }
 

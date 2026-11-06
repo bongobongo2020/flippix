@@ -370,13 +370,14 @@ namespace FlipPix.UI.ViewModels.Video
         private static string GraphPath(string file) =>
             Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "video", "h3-minimax", "character-swap", file);
 
-        private static JsonObject LoadGraph(string file)
+        private static JsonObject LoadGraph(string file, bool sourceHasAudio)
         {
             var path = GraphPath(file);
             if (!File.Exists(path)) throw new FileNotFoundException($"Character Swap workflow not found: {path}");
             var graph = JsonNode.Parse(File.ReadAllText(path)) as JsonObject
                         ?? throw new InvalidDataException($"{file} is not an API-format workflow.");
             CharacterSwapGraph.SilenceWhenSoundless(graph);
+            if (!sourceHasAudio) CharacterSwapGraph.UseSilenceForSoundless(graph);
             return graph;
         }
 
@@ -411,6 +412,8 @@ namespace FlipPix.UI.ViewModels.Video
 
                 ProcessingStatus = "Uploading the source video…";
                 AddLog($"{label}: uploading {Path.GetFileName(VideoPath)}");
+                var hasAudio = await Task.Run(() => HasAudioStream(VideoPath), ct);
+                if (!hasAudio) AddLog($"{label}: the source has no audio track; H3 gets silence instead.");
                 var video = await _comfyUIService.UploadVideoAsync(VideoPath, ct);
 
                 JsonObject graph;
@@ -419,7 +422,7 @@ namespace FlipPix.UI.ViewModels.Video
 
                 if (checkMask)
                 {
-                    graph = CharacterSwapGraph.PruneMask(LoadGraph(CharacterSwapGraph.MaskFile), HatFix, Margin, Target);
+                    graph = CharacterSwapGraph.PruneMask(LoadGraph(CharacterSwapGraph.MaskFile, hasAudio), HatFix, Margin, Target);
                     videoNode = CharacterSwapGraph.MaskNodes.Video;
                     finalNode = CharacterSwapGraph.MaskNodes.Preview;
                     var ckpts = await _comfyUIService.HttpClient.GetModelFilenamesAsync("CheckpointLoaderSimple", "ckpt_name", ct);
@@ -438,14 +441,14 @@ namespace FlipPix.UI.ViewModels.Video
 
                     if (IsAdvanced)
                     {
-                        graph = CharacterSwapGraph.PruneAdvanced(LoadGraph(CharacterSwapGraph.AdvancedFile), uploaded.Count, settings);
+                        graph = CharacterSwapGraph.PruneAdvanced(LoadGraph(CharacterSwapGraph.AdvancedFile, hasAudio), uploaded.Count, settings);
                         videoNode = CharacterSwapGraph.NodeByTitle(graph, CharacterSwapGraph.AdvancedVideoTitle);
                         for (var i = 0; i < uploaded.Count; i++)
                             CharacterSwapGraph.Inputs(graph, CharacterSwapGraph.NodeByTitle(graph, $"Picture {i + 1}"))["image"] = uploaded[i];
                     }
                     else
                     {
-                        graph = CharacterSwapGraph.PruneSimple(LoadGraph(CharacterSwapGraph.SimpleFile), settings);
+                        graph = CharacterSwapGraph.PruneSimple(LoadGraph(CharacterSwapGraph.SimpleFile, hasAudio), settings);
                         videoNode = CharacterSwapGraph.SimpleNodes.Video;
                         CharacterSwapGraph.Inputs(graph, CharacterSwapGraph.SimpleNodes.Picture)["image"] = uploaded[0];
                     }
