@@ -2184,11 +2184,12 @@ namespace FlipPix.UI.ViewModels
                 {
                     IsGenerating = true;
                     HasResultImage = false;
+                    _resultPreviewVersion++; // drop any preview decode still in flight
                     ResultImageSource = null;
                     _resultPreviewItem = null;
                 });
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
+                // No forced GC.Collect/WaitForPendingFinalizers here: it suspends every thread, the UI
+                // included, and with background downloads in flight it stalled the window per item.
 
                 System.Windows.Application.Current.Dispatcher.Invoke(() =>
                 {
@@ -4468,7 +4469,7 @@ namespace FlipPix.UI.ViewModels
 
         /// <summary>The preview format asked of ComfyUI. WebP is smallest, but WPF can only decode
         /// it when Windows has the WebP codec, so Windows gets JPEG.</summary>
-        private static string PreviewFormat => OperatingSystem.IsWindows() ? "jpeg;90" : "webp;90";
+        private static string PreviewFormat => ComfyPreview.Format;
 
         // The queue item whose preview the result panel is showing while its PNG downloads.
         private ImageAnalyzerQueueItem? _resultPreviewItem;
@@ -4495,9 +4496,8 @@ namespace FlipPix.UI.ViewModels
             {
                 if (item == CurrentQueueItem)
                 {
-                    LoadResultPreview(previewPath);
+                    LoadResultPreview(previewPath, "Preview, full-quality image downloading…");
                     _resultPreviewItem = item;
-                    ImageInfo = "Preview, full-quality image downloading…";
                 }
                 ProcessingProgress = 100;
                 item.Progress = 100;
@@ -4571,22 +4571,30 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        private void LoadResultPreview(string imagePath)
+        // Bumped per request (UI thread) so a decode that finishes after a newer one is dropped.
+        private int _resultPreviewVersion;
+
+        /// <summary>Shows <paramref name="imagePath"/> in the result pane. The decode (capped at
+        /// preview size) runs on a worker thread; call on the UI thread.</summary>
+        private void LoadResultPreview(string imagePath, string? info = null)
         {
-            try
+            var version = ++_resultPreviewVersion;
+            _ = LoadAsync();
+
+            async Task LoadAsync()
             {
-                var bitmap = BitmapLoader.Load(imagePath);
-
-                ResultImageSource = bitmap;
-
-                var fileInfo = new FileInfo(imagePath);
-                ImageInfo = $"Size: {fileInfo.Length / 1024}KB | {bitmap.PixelWidth}x{bitmap.PixelHeight}";
-
-                _logger.LogInfo("Result image preview loaded");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"Error loading result preview: {ex.Message}");
+                try
+                {
+                    var (bitmap, bytes, w, h) = await BitmapLoader.LoadPreviewAsync(imagePath);
+                    if (version != _resultPreviewVersion) return;
+                    ResultImageSource = bitmap;
+                    ImageInfo = info ?? $"Size: {bytes / 1024}KB | {w}x{h}";
+                    _logger.LogInfo("Result image preview loaded");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError($"Error loading result preview: {ex.Message}");
+                }
             }
         }
 

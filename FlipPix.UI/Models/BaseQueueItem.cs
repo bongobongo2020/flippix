@@ -258,45 +258,61 @@ namespace FlipPix.UI.Models
                 LoadThumbnailFrom(previewPath);
         }
 
+        // Bumped on every thumbnail request so a slow decode that finishes late (say the preview's,
+        // after the full image's) never overwrites the newer thumbnail.
+        private int _thumbnailVersion;
+
         private void LoadThumbnailFrom(string? imagePath)
         {
-            if (string.IsNullOrEmpty(imagePath) || !File.Exists(imagePath))
+            var version = System.Threading.Interlocked.Increment(ref _thumbnailVersion);
+
+            if (string.IsNullOrEmpty(imagePath))
             {
                 ThumbnailImage = null;
                 StoryboardThumbnailImage = null;
                 return;
             }
 
+            // Decoding a multi-megapixel PNG takes a noticeable slice of a second even when scaled
+            // down, so it runs off the UI thread; with a queue finishing image after image, doing it
+            // on the UI thread made the whole window stutter. Frozen bitmaps can cross threads.
+            _ = System.Threading.Tasks.Task.Run(() =>
+            {
+                if (!File.Exists(imagePath)) return (Small: (BitmapImage?)null, Large: (BitmapImage?)null);
+                return (Small: DecodeThumbnail(imagePath, 60), Large: DecodeThumbnail(imagePath, 220));
+            }).ContinueWith(t =>
+            {
+                if (t.IsFaulted) _ = t.Exception; // observed; DecodeThumbnail already swallows errors
+                var (small, large) = t.IsCompletedSuccessfully ? t.Result : (null, null);
+                void Apply()
+                {
+                    if (version != _thumbnailVersion) return;
+                    ThumbnailImage = small;
+                    StoryboardThumbnailImage = large;
+                }
+
+                var dispatcher = System.Windows.Application.Current?.Dispatcher;
+                if (dispatcher == null || dispatcher.CheckAccess()) Apply();
+                else dispatcher.BeginInvoke(new Action(Apply));
+            }, System.Threading.Tasks.TaskScheduler.Default);
+        }
+
+        private static BitmapImage? DecodeThumbnail(string imagePath, int height)
+        {
             try
             {
                 var bitmap = new BitmapImage();
                 bitmap.BeginInit();
                 bitmap.UriSource = new Uri(imagePath, UriKind.Absolute);
-                bitmap.DecodePixelHeight = 60;
+                bitmap.DecodePixelHeight = height;
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
                 bitmap.EndInit();
                 bitmap.Freeze();
-                ThumbnailImage = bitmap;
+                return bitmap;
             }
             catch
             {
-                ThumbnailImage = null;
-            }
-
-            try
-            {
-                var largeBitmap = new BitmapImage();
-                largeBitmap.BeginInit();
-                largeBitmap.UriSource = new Uri(imagePath, UriKind.Absolute);
-                largeBitmap.DecodePixelHeight = 220;
-                largeBitmap.CacheOption = BitmapCacheOption.OnLoad;
-                largeBitmap.EndInit();
-                largeBitmap.Freeze();
-                StoryboardThumbnailImage = largeBitmap;
-            }
-            catch
-            {
-                StoryboardThumbnailImage = null;
+                return null;
             }
         }
 

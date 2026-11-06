@@ -914,8 +914,10 @@ public class ComfyUIHttpClient : IDisposable
         {
             _logger.LogInfo($"Getting output files for prompt: {promptId}");
 
-            var url = "/history";
-            var response = await _httpClient.GetAsync(url, cancellationToken);
+            // The per-prompt route: the bare /history returns every past run with its whole workflow,
+            // often many MB, which over a slow (e.g. Tailscale) link stalls each retry for seconds.
+            var url = $"/history/{Uri.EscapeDataString(promptId)}";
+            using var response = await _httpClient.GetAsync(url, cancellationToken);
 
             if (response.IsSuccessStatusCode)
             {
@@ -1048,11 +1050,12 @@ public class ComfyUIHttpClient : IDisposable
         try
         {
             // Bounded like HasHistoryEntryAsync: an infinite-timeout client would otherwise hang here on a
-            // dropped connection. Longer budget since this pulls the whole run history.
+            // dropped connection.
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(TimeSpan.FromSeconds(60));
 
-            var response = await _httpClient.GetAsync("/history", cts.Token);
+            // Per-prompt route, not the whole run history (see GetOutputFilesForPromptAsync).
+            using var response = await _httpClient.GetAsync($"/history/{Uri.EscapeDataString(promptId)}", cts.Token);
             if (!response.IsSuccessStatusCode) return result;
 
             var content = await response.Content.ReadAsStringAsync(cts.Token);

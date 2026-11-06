@@ -910,7 +910,7 @@ namespace FlipPix.UI.ViewModels
                 try
                 {
                     using var http = new HttpClient { BaseAddress = uri };
-                    var response = await http.GetAsync("/history", token);
+                    var response = await http.GetAsync($"/history/{Uri.EscapeDataString(promptId)}", token);
                     if (!response.IsSuccessStatusCode) continue;
                     var history = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(
                         await response.Content.ReadAsStringAsync(token));
