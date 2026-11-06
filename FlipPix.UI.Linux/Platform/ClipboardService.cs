@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Input.Platform;
 using Avalonia.Threading;
 
 namespace FlipPix.UI.Services;
@@ -54,5 +55,5 @@ public static class ClipboardService
     }
 
     private static async Task<string?> ReadAsync() =>
-        Clipboard is { } clipboard ? await clipboard.GetTextAsync() : null;
+        Clipboard is { } clipboard ? await clipboard.TryGetTextAsync() : null;
 }

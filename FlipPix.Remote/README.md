@@ -12,7 +12,7 @@ uploads and thumbnails live in `%LocalAppData%\FlipPix\remote\`.
 
 - TCP **47800**: the API (Kestrel). UDP **47801**: discovery.
 - Windows asks once whether FlipPix may use the network; allow private networks.
-- The Linux package needs `aspnet-runtime-8.0` (in the PKGBUILD); the Windows publish is
+- The Linux package needs `aspnet-runtime-10.0` (in the PKGBUILD); the Windows publish is
   self-contained, so it carries ASP.NET Core with it.
 
 ## Layout

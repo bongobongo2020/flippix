@@ -940,7 +940,7 @@ function Get-FlipPixSource {
     Write-Log 'No prebuilt binaries found - attempting to build from source...'
     $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
     if (-not $dotnet) {
-        throw "FlipPix is not built and the .NET SDK was not found. Install the .NET 8 SDK from https://dotnet.microsoft.com/download, then run Setup again (or run publish.bat first)."
+        throw "FlipPix is not built and the .NET SDK was not found. Install the .NET 10 SDK from https://dotnet.microsoft.com/download, then run Setup again (or run publish.bat first)."
     }
     $lblItem.Text = 'Building FlipPix from source (this can take a few minutes)...'
     Write-Log 'Running dotnet publish (self-contained, win-x64)...'

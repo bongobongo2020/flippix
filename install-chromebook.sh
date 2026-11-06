@@ -66,8 +66,8 @@ for d in "$(command -v dotnet || true)" "$HOME/.dotnet/dotnet"; do
     if [[ -n "$d" && -x "$d" ]] && "$d" --list-sdks 2>/dev/null | grep -q '^8\.'; then DOTNET="$d"; break; fi
 done
 if [[ -z "$DOTNET" ]]; then
-    step "Installing the .NET 8 SDK into ~/.dotnet (used only to build FlipPix)"
-    bash "$REPO/dotnet-install.sh" --channel 8.0 --install-dir "$HOME/.dotnet"
+    step "Installing the .NET 10 SDK into ~/.dotnet (used only to build FlipPix)"
+    bash "$REPO/dotnet-install.sh" --channel 10.0 --install-dir "$HOME/.dotnet"
     DOTNET="$HOME/.dotnet/dotnet"
 fi
 

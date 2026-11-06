@@ -3,7 +3,7 @@
 # Builds the optimized Linux publish of FlipPix without involving makepkg.
 # Use this to test a build, or to produce a tarball for a machine that has no SDK.
 #
-#   ./packaging/build-linux.sh                 # framework-dependent (needs dotnet-runtime-8.0)
+#   ./packaging/build-linux.sh                 # framework-dependent (needs dotnet-runtime-10.0)
 #   ./packaging/build-linux.sh --self-contained # bundles the runtime, no dotnet needed
 #   ./packaging/build-linux.sh --tarball        # also produce flippix-linux-x64.tar.gz
 
@@ -25,7 +25,7 @@ for arg in "$@"; do
 done
 
 command -v dotnet >/dev/null 2>&1 || {
-    echo "dotnet not found. Install the SDK: sudo pacman -S dotnet-sdk-8.0" >&2
+    echo "dotnet not found. Install the SDK: sudo pacman -S dotnet-sdk-10.0" >&2
     exit 1
 }
 

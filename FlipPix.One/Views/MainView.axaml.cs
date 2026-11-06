@@ -41,7 +41,7 @@ public partial class MainView : UserControl
         {
             // Opting in makes the platform report real insets instead of zero while still
             // drawing under the bars (which Android 15 enforces regardless).
-            insets.DisplayEdgeToEdge = true;
+            insets.DisplayEdgeToEdgePreference = true;
             insets.SystemBarColor = Avalonia.Media.Color.Parse("#1B1D2A");
             insets.SafeAreaChanged += OnInsetsChanged;
         }

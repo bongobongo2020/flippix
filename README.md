@@ -138,7 +138,7 @@ Along the way, three safety nets are always on:
 | | |
 |---|---|
 | OS | Windows 10/11 x64, or Arch Linux x86_64 (Avalonia port — see [gaps](#install-on-arch-linux)) |
-| Runtime | .NET 8 — bundled in the Windows build; `dotnet-runtime-8.0` from pacman on Arch |
+| Runtime | .NET 10 — bundled in the Windows build; `dotnet-runtime-10.0` from pacman on Arch |
 | RAM | 16 GB minimum, 32 GB recommended for video |
 | GPU | NVIDIA, 12 GB VRAM minimum; 16 GB triggers the memory-optimised tier; 24 GB+ recommended for the video tabs |
 | Storage | ~60 GB for models and dependencies (much more if you install every stack) |
@@ -195,7 +195,7 @@ application menu.
 |---|---|
 | *(none)* | Build and install the `flippix` pacman package (recommended) |
 | `--local` | Install into `~/.local` instead — no root, no package, nothing touched system-wide |
-| `--self-contained` | With `--local`, bundle the .NET runtime so `dotnet-runtime-8.0` isn't needed |
+| `--self-contained` | With `--local`, bundle the .NET runtime so `dotnet-runtime-10.0` isn't needed |
 | `-y`, `--yes` | Pass `--noconfirm` to pacman and makepkg (unattended) |
 | `--skip-deps` | Assume the dependencies are already installed |
 | `--uninstall` | Remove whichever of the two installs is present |
@@ -224,7 +224,7 @@ FlipPix follows the XDG Base Directory spec:
 | Installed app (package) | `/usr/lib/flippix`, launcher `/usr/bin/flippix` |
 
 `FLIPPIX_FFMPEG` / `FLIPPIX_FFPROBE` override ffmpeg discovery; `FLIPPIX_SOFTWARE_RENDER=1` skips
-GLX/EGL if the window comes up black. Avalonia 11.2 has no Wayland backend, so a Wayland session
+GLX/EGL if the window comes up black. Avalonia 11 has no Wayland backend, so a Wayland session
 runs FlipPix through XWayland — transparent apart from fractional scaling, which the X11 backend
 reads from `GDK_SCALE` / `QT_SCALE_FACTOR`.
 
@@ -252,7 +252,7 @@ Full detail, plus a hardware verification checklist and notes on porting further
 #### Other distributions
 
 There is no package for anything but Arch, but nothing in the app is Arch-specific. On any x86_64
-distro with .NET 8 and the X11/fontconfig libraries, `./packaging/build-linux.sh --self-contained`
+distro with .NET 10 and the X11/fontconfig libraries, `./packaging/build-linux.sh --self-contained`
 produces a tree that runs from `./launch-linux.sh`.
 
 ### Getting a ComfyUI that works
@@ -355,7 +355,7 @@ dotnet publish FlipPix.UI/FlipPix.UI.csproj -c Release -r win-x64 --self-contain
 **Linux (Avalonia):**
 
 ```bash
-sudo pacman -S --needed dotnet-sdk-8.0 ffmpeg
+sudo pacman -S --needed dotnet-sdk-10.0 ffmpeg
 ./packaging/build-linux.sh                    # framework-dependent → publish-linux/
 ./packaging/build-linux.sh --self-contained   # bundles the runtime instead
 ./launch-linux.sh                             # run it without installing
@@ -372,7 +372,7 @@ They cover the deterministic passes that decide what gets rendered — the story
 fitting — because those run without a GPU, a ComfyUI or an LLM behind them, and a chain whose place and
 time drift is a finished film that is wrong. Everything downstream of them still needs the app.
 
-Stack: .NET 8 · WPF (Windows) / Avalonia 11.2 (Linux) · MVVM (CommunityToolkit.Mvvm 8.2.2) ·
+Stack: .NET 10 · WPF (Windows) / Avalonia 11.3 (Linux) · MVVM (CommunityToolkit.Mvvm 8.2.2) ·
 Microsoft.Extensions.DependencyInjection · Serilog · FFMpegCore · System.Text.Json · YamlDotNet ·
 xUnit (tests).
 
@@ -425,7 +425,7 @@ GLX/EGL. Logs are in `~/.local/state/FlipPix/logs`.
 **Video previews are blank panels** — ffmpeg isn't found or can't read the container. Install it
 (`sudo pacman -S ffmpeg`), or point at a specific binary with `FLIPPIX_FFMPEG=/path/to/ffmpeg`.
 
-**`flippix: no .NET runtime found`** — `sudo pacman -S dotnet-runtime-8.0`, or set `DOTNET_ROOT` if
+**`flippix: no .NET runtime found`** — `sudo pacman -S dotnet-runtime-10.0`, or set `DOTNET_ROOT` if
 your runtime lives somewhere other than `/usr/share/dotnet`.
 
 **Output lands in `~/Pictures` literally rather than your localized folder name** — install

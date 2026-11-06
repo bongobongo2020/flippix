@@ -69,7 +69,7 @@ Write-Host "Stage: $Stage"
 # ---------------------------------------------------------------------------
 if (-not $NoBuild) {
     $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
-    if (-not $dotnet) { throw "dotnet SDK not found. Install the .NET 8 SDK, or pass -NoBuild to reuse an existing publish folder." }
+    if (-not $dotnet) { throw "dotnet SDK not found. Install the .NET 10 SDK, or pass -NoBuild to reuse an existing publish folder." }
     # Stop any running FlipPix so the single-file exe isn't locked during publish.
     Get-Process FlipPix.UI -ErrorAction SilentlyContinue | ForEach-Object {
         Write-Step "Stopping running FlipPix (pid $($_.Id)) so its exe can be rebuilt"

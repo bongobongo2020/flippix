@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-FlipPix is a .NET 8.0 WPF desktop application for AI-powered creative content generation. It integrates with ComfyUI (local or remote) for image/video generation, and LMStudio/Ollama for LLM-based analysis and prompt enhancement.
+FlipPix is a .NET 10.0 WPF desktop application for AI-powered creative content generation. It integrates with ComfyUI (local or remote) for image/video generation, and LMStudio/Ollama for LLM-based analysis and prompt enhancement.
 
 **Core capabilities:**
 - Text-to-image generation (Z-Image, Qwen2512, Flux2-Klien workflows)
@@ -19,9 +19,9 @@ FlipPix is a .NET 8.0 WPF desktop application for AI-powered creative content ge
 
 ```
 FlipPix.sln
-+-- FlipPix.Core/          (.NET 8.0 Class Library - shared models, interfaces, core services)
-+-- FlipPix.ComfyUI/       (.NET 8.0 Class Library - ComfyUI server integration)
-+-- FlipPix.UI/             (.NET 8.0 WPF Application - UI layer, MVVM)
++-- FlipPix.Core/          (.NET 10.0 Class Library - shared models, interfaces, core services)
++-- FlipPix.ComfyUI/       (.NET 10.0 Class Library - ComfyUI server integration)
++-- FlipPix.UI/             (.NET 10.0 WPF Application - UI layer, MVVM)
 +-- workflow/               (ComfyUI workflow JSON files)
 +-- prompts/                (System prompts for LLM-based video prompt generation)
 ```
@@ -39,14 +39,14 @@ FlipPix.UI --> FlipPix.Core
 
 | Component | Technology | Version |
 |---|---|---|
-| Framework | .NET | 8.0 |
+| Framework | .NET | 10.0 |
 | UI | WPF (Windows Presentation Foundation) | Built-in |
 | Architecture | MVVM | CommunityToolkit.Mvvm 8.2.2 |
-| DI Container | Microsoft.Extensions.DependencyInjection | 8.0.0 |
+| DI Container | Microsoft.Extensions.DependencyInjection | 10.0.14 |
 | Logging | Serilog (File) | 3.0.0 |
-| HTTP | HttpClient + IHttpClientFactory | 8.0.0 |
+| HTTP | HttpClient + IHttpClientFactory | 10.0.14 |
 | Video Processing | FFMpegCore | 5.0.2 |
-| Serialization | System.Text.Json | 9.0.10 |
+| Serialization | System.Text.Json | 10.0.14 |
 | Image Processing | System.Drawing.Common | 10.0.1 |
 | YAML | YamlDotNet | 15.1.2 |
 
