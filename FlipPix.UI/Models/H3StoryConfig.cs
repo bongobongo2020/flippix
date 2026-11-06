@@ -21,6 +21,9 @@ namespace FlipPix.UI.Models
         /// <summary>Whether to auto-generate cast photos when slots are empty.</summary>
         public bool AutoGenerateCast { get; set; } = true;
 
+        /// <summary>Whether to turn each generated cast photo into an H3 character sheet.</summary>
+        public bool GenerateCharacterSheets { get; set; } = true;
+
         /// <summary>Last used story folder path.</summary>
         public string LastStoryFolder { get; set; } = string.Empty;
     }

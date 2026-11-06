@@ -5699,6 +5699,7 @@
                                                     <!-- Cast Options -->
                                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                                         <CheckBox Content="Auto-gen cast" IsChecked="{Binding AutoGenerateCast}" FontSize="10" VerticalAlignment="Center" ToolTip="Automatically generate cast photos if slots are empty"/>
+                                                        <CheckBox Content="Char sheets" IsChecked="{Binding GenerateCharacterSheets}" FontSize="10" VerticalAlignment="Center" Margin="8,0,0,0" ToolTip="Turn each generated cast photo into an H3 character sheet (front, 3/4, side, back, face) with the Fizgig H3 Still nodes, so every clip sees the character from all sides"/>
                                                         <ComboBox SelectedValue="{Binding CastPhotoEngine}" Width="90" Height="22" FontSize="9" Margin="8,0,0,0" ToolTip="Cast photo generation engine">
                                                             <sys:String>qwen21</sys:String>
                                                             <sys:String>krea2spicy</sys:String>

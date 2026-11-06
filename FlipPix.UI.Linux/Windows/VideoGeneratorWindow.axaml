@@ -7421,6 +7421,12 @@
                                                           FontSize="10"
                                                           VerticalAlignment="Center"
                                                           ToolTip.Tip="Automatically generate cast photos if slots are empty"/>
+                                                <CheckBox Content="Char sheets"
+                                                          IsChecked="{Binding GenerateCharacterSheets}"
+                                                          FontSize="10"
+                                                          VerticalAlignment="Center"
+                                                          Margin="8,0,0,0"
+                                                          ToolTip.Tip="Turn each generated cast photo into an H3 character sheet (front, 3/4, side, back, face) with the Fizgig H3 Still nodes"/>
                                                 <ComboBox SelectedValue="{Binding CastPhotoEngine}"
                                                           Width="90"
                                                           Height="22"
