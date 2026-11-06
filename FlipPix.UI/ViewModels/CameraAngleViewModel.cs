@@ -499,9 +499,9 @@ namespace FlipPix.UI.ViewModels
             {
                 try
                 {
-                    var bitmap = BitmapLoader.Load(InputImagePath);
-
-                    InputImagePreview = bitmap;
+                    var path = InputImagePath;
+                    BitmapLoader.ShowPreview(path, b => InputImagePreview = b, () => InputImagePath == path,
+                        e => AddLog($"Error loading image preview: {e}"));
                 }
                 catch (Exception ex)
                 {

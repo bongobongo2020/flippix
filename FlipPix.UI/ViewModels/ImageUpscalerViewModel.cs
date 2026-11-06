@@ -555,7 +555,8 @@ namespace FlipPix.UI.ViewModels
             SourceImagePath = path;
             try
             {
-                SourceImageSource = LoadBitmap(path);
+                BitmapLoader.ShowPreview(path, b => SourceImageSource = b, () => SourceImagePath == path,
+                    e => AddLog($"ERROR loading image: {e}"));
                 HasSourceImage = true;
                 AddLog($"Source: {Path.GetFileName(path)}");
             }
@@ -823,11 +824,9 @@ namespace FlipPix.UI.ViewModels
             AddLog($"Saved: {outputPath}");
 
             ResultImagePath = outputPath;
-            WpfApp.Current?.Dispatcher.Invoke(() =>
-            {
-                try { ResultImageSource = LoadBitmap(outputPath); }
-                catch (Exception ex) { AddLog($"ERROR loading result: {ex.Message}"); }
-            });
+            // An upscaled result can be 8K+; decode it off the UI thread, at preview size.
+            BitmapLoader.ShowPreview(outputPath, b => ResultImageSource = b, () => ResultImagePath == outputPath,
+                e => AddLog($"ERROR loading result: {e}"));
             HasResult = true;
 
             Progress = slotStart + slotSize;

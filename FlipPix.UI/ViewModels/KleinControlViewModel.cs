@@ -458,8 +458,8 @@ namespace FlipPix.UI.ViewModels
             RefImagePath = path;
             try
             {
-                var bmp = LoadBitmap(path);
-                RefImageSource = bmp;
+                BitmapLoader.ShowPreview(path, b => RefImageSource = b, () => RefImagePath == path,
+                    e => AddLog($"ERROR loading reference image: {e}"));
                 HasRefImage = true;
                 AddLog($"Reference: {Path.GetFileName(path)}");
             }
@@ -472,8 +472,8 @@ namespace FlipPix.UI.ViewModels
             PoseImagePath = path;
             try
             {
-                var bmp = LoadBitmap(path);
-                PoseImageSource = bmp;
+                BitmapLoader.ShowPreview(path, b => PoseImageSource = b, () => PoseImagePath == path,
+                    e => AddLog($"ERROR loading pose image: {e}"));
                 HasPoseImage = true;
                 AddLog($"Pose: {Path.GetFileName(path)}");
             }
@@ -602,8 +602,8 @@ namespace FlipPix.UI.ViewModels
                 // Use IgnoreImageCache so WPF doesn't serve a stale cached bitmap
                 // when the same path was used before (shouldn't happen with gen-numbered
                 // filenames, but belt-and-suspenders).
-                var bmp = BitmapLoader.Load(path);
-                FramePreviewSource = bmp;
+                BitmapLoader.ShowPreview(path, b => FramePreviewSource = b,
+                    onError: e => AddLog($"ERROR loading frame preview: {e}"));
                 HasFramePreview = true;
             }
             catch (Exception ex) { AddLog($"ERROR loading frame preview: {ex.Message}"); }
@@ -1009,8 +1009,8 @@ namespace FlipPix.UI.ViewModels
 
         private void LoadResultImage(string path)
         {
-            try { ResultImageSource = LoadBitmap(path); }
-            catch (Exception ex) { AddLog($"ERROR loading result: {ex.Message}"); }
+            // Decoded off the UI thread, at preview size.
+            BitmapLoader.ShowPreview(path, b => ResultImageSource = b, onError: e => AddLog($"ERROR loading result: {e}"));
         }
 
         private static BitmapImage LoadBitmap(string path)

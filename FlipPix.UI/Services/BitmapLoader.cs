@@ -44,6 +44,56 @@ public static class BitmapLoader
             return (bmp, bytes, w, h);
         });
 
+    /// <summary>
+    /// Synchronous preview load for callers that must return a bitmap at once: no wider than
+    /// <paramref name="maxWidth"/>, with the file's true size (from its header) and byte count. Prefer
+    /// <see cref="ShowPreview(string, Action{BitmapImage}, Func{bool}?, Action{string}?)"/> where the
+    /// caller can take the bitmap later.
+    /// </summary>
+    public static BitmapImage LoadSmall(string path, int maxWidth, out int width, out int height, out long bytes)
+    {
+        bytes = new FileInfo(path).Length;
+        (width, height) = TryReadSize(path);
+        // A header this can't read (WebP, BMP...) gets a full decode, so the size reported stays true.
+        var bmp = Load(path, width > maxWidth ? maxWidth : 0);
+        if (width <= 0)
+        {
+            width = bmp.PixelWidth;
+            height = bmp.PixelHeight;
+        }
+        return bmp;
+    }
+
+    /// <summary>
+    /// Puts <paramref name="path"/> into a display-only image property without touching the UI thread
+    /// for the decode: decoded on a worker thread at preview size (see <see cref="LoadPreviewAsync"/>),
+    /// then <paramref name="set"/> runs on the UI thread, unless <paramref name="isCurrent"/> says a
+    /// newer picture has been chosen meanwhile. <paramref name="onError"/> gets the message on failure.
+    /// </summary>
+    public static void ShowPreview(string path, Action<BitmapImage> set,
+        Func<bool>? isCurrent = null, Action<string>? onError = null) =>
+        ShowPreview(path, (b, _, _, _) => set(b), isCurrent, onError);
+
+    /// <summary>As above, also passing the file's true pixel width and height and its size in bytes
+    /// (the bitmap's own are scaled), for the "W×H • KB" lines the pages show.</summary>
+    public static void ShowPreview(string path, Action<BitmapImage, int, int, long> set,
+        Func<bool>? isCurrent = null, Action<string>? onError = null)
+    {
+        LoadPreviewAsync(path).ContinueWith(t =>
+        {
+            void Apply()
+            {
+                if (isCurrent != null && !isCurrent()) return;
+                if (t.IsCompletedSuccessfully) set(t.Result.Bitmap, t.Result.Width, t.Result.Height, t.Result.Bytes);
+                else onError?.Invoke(t.Exception?.GetBaseException().Message ?? "could not load");
+            }
+
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher == null || dispatcher.CheckAccess()) Apply();
+            else dispatcher.BeginInvoke(new Action(Apply));
+        }, TaskScheduler.Default);
+    }
+
     /// <summary>Pixel size from a PNG or JPEG header without decoding; (0, 0) when unknown.</summary>
     public static (int Width, int Height) TryReadSize(string path)
     {

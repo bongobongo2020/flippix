@@ -6802,8 +6802,10 @@
 
                                                                 <!-- Thumbnail/Preview area -->
                                                                 <Grid Grid.Row="0" Background="#222">
-                                                                    <!-- Video preview loop -->
-                                                                    <MediaElement Source="{Binding PreviewVideoPath}" LoadedBehavior="Play" UnloadedBehavior="Close" Stretch="UniformToFill" IsMuted="True" MediaEnded="TimelineClipVideo_MediaEnded" MediaFailed="TimelineClipVideo_MediaFailed">
+                                                                    <!-- Video preview: loops only while selected or hovered; the others rest on their
+                                                                         first frame, so a long timeline doesn't keep a decoder per tile busy. -->
+                                                                    <MediaElement ctrl:HoverPlay.Source="{Binding PreviewVideoPath}" ctrl:HoverPlay.IsActive="{Binding IsSelected}"
+                                                                                  LoadedBehavior="Manual" UnloadedBehavior="Close" ScrubbingEnabled="True" Stretch="UniformToFill" IsMuted="True" MediaFailed="TimelineClipVideo_MediaFailed">
                                                                         <MediaElement.Style>
                                                                             <Style TargetType="MediaElement">
                                                                                 <Setter Property="Visibility" Value="Collapsed"/>
@@ -6816,7 +6818,7 @@
                                                                         </MediaElement.Style>
                                                                     </MediaElement>
                                                                     <!-- Thumbnail image fallback -->
-                                                                    <Image Source="{Binding ThumbnailPath}" Stretch="UniformToFill">
+                                                                    <Image ctrl:AsyncImage.Path="{Binding ThumbnailPath}" ctrl:AsyncImage.DecodeWidth="320" Stretch="UniformToFill">
                                                                         <Image.Style>
                                                                             <Style TargetType="Image">
                                                                                 <Setter Property="Visibility" Value="Visible"/>

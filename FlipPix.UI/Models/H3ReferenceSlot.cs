@@ -97,29 +97,23 @@ namespace FlipPix.UI.Models
         {
             Images.Clear();
             IsLoaded = false;
+            _previewVersion++; // drop a decode still in flight
             PreviewImage = null;
             OnPropertyChanged(nameof(HasImages));
             OnPropertyChanged(nameof(ImageCount));
             OnPropertyChanged(nameof(StatusText));
         }
 
+        private int _previewVersion;
+
+        /// <summary>Decoded on a worker thread; a newer image added meanwhile wins.</summary>
         private void LoadPreview(string path)
         {
-            try
+            var version = ++_previewVersion;
+            FlipPix.UI.Services.AsyncThumbnail.Load(path, 120, 0, bitmap =>
             {
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.DecodePixelWidth = 120;
-                bitmap.UriSource = new System.Uri(path, System.UriKind.Absolute);
-                bitmap.EndInit();
-                bitmap.Freeze();
-                PreviewImage = bitmap;
-            }
-            catch
-            {
-                PreviewImage = null;
-            }
+                if (version == _previewVersion && IsLoaded) PreviewImage = bitmap;
+            });
         }
     }
 

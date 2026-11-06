@@ -1129,20 +1129,20 @@ namespace FlipPix.UI.ViewModels.Video
                 return;
             }
 
-            try
-            {
-                var bitmap = BitmapLoader.Load(ImageFilePath);
-
-                ImagePreviewSource = bitmap;
-                var fileInfo = new FileInfo(ImageFilePath);
-                ImageInfo = $"{bitmap.PixelWidth}x{bitmap.PixelHeight} • {fileInfo.Length / 1024}KB";
-            }
-            catch (Exception ex)
-            {
-                AddLog($"Error loading image preview: {ex.Message}");
-                ImagePreviewSource = null;
-                ImageInfo = "Error loading image";
-            }
+            // Decoded on a worker thread at preview size; the file's real size goes in the info line.
+            var path = ImageFilePath;
+            BitmapLoader.ShowPreview(path, (bitmap, w, h, bytes) =>
+                {
+                    ImagePreviewSource = bitmap;
+                    ImageInfo = $"{w}x{h} • {bytes / 1024}KB";
+                },
+                () => ImageFilePath == path,
+                e =>
+                {
+                    AddLog($"Error loading image preview: {e}");
+                    ImagePreviewSource = null;
+                    ImageInfo = "Error loading image";
+                });
         }
 
         private void LoadFirstFrameImagePreview()
@@ -1154,20 +1154,19 @@ namespace FlipPix.UI.ViewModels.Video
                 return;
             }
 
-            try
-            {
-                var bitmap = BitmapLoader.Load(FirstFrameImagePath);
-
-                FirstFrameImagePreview = bitmap;
-                var fileInfo = new FileInfo(FirstFrameImagePath);
-                FirstFrameImageInfo = $"{bitmap.PixelWidth}x{bitmap.PixelHeight} • {fileInfo.Length / 1024}KB";
-            }
-            catch (Exception ex)
-            {
-                AddLog($"Error loading first frame preview: {ex.Message}");
-                FirstFrameImagePreview = null;
-                FirstFrameImageInfo = "Error loading image";
-            }
+            var path = FirstFrameImagePath;
+            BitmapLoader.ShowPreview(path, (bitmap, w, h, bytes) =>
+                {
+                    FirstFrameImagePreview = bitmap;
+                    FirstFrameImageInfo = $"{w}x{h} • {bytes / 1024}KB";
+                },
+                () => FirstFrameImagePath == path,
+                e =>
+                {
+                    AddLog($"Error loading first frame preview: {e}");
+                    FirstFrameImagePreview = null;
+                    FirstFrameImageInfo = "Error loading image";
+                });
         }
 
         private void LoadLastFrameImagePreview()
@@ -1179,20 +1178,19 @@ namespace FlipPix.UI.ViewModels.Video
                 return;
             }
 
-            try
-            {
-                var bitmap = BitmapLoader.Load(LastFrameImagePath);
-
-                LastFrameImagePreview = bitmap;
-                var fileInfo = new FileInfo(LastFrameImagePath);
-                LastFrameImageInfo = $"{bitmap.PixelWidth}x{bitmap.PixelHeight} • {fileInfo.Length / 1024}KB";
-            }
-            catch (Exception ex)
-            {
-                AddLog($"Error loading last frame preview: {ex.Message}");
-                LastFrameImagePreview = null;
-                LastFrameImageInfo = "Error loading image";
-            }
+            var path = LastFrameImagePath;
+            BitmapLoader.ShowPreview(path, (bitmap, w, h, bytes) =>
+                {
+                    LastFrameImagePreview = bitmap;
+                    LastFrameImageInfo = $"{w}x{h} • {bytes / 1024}KB";
+                },
+                () => LastFrameImagePath == path,
+                e =>
+                {
+                    AddLog($"Error loading last frame preview: {e}");
+                    LastFrameImagePreview = null;
+                    LastFrameImageInfo = "Error loading image";
+                });
         }
 
         #endregion

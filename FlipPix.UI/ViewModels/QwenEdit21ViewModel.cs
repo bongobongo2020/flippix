@@ -263,7 +263,8 @@ namespace FlipPix.UI.ViewModels
             SourceImagePath = path;
             try
             {
-                SourceImageSource = LoadBitmap(path);
+                BitmapLoader.ShowPreview(path, b => SourceImageSource = b, () => SourceImagePath == path,
+                    e => AddLog($"ERROR loading source image: {e}"));
                 HasSourceImage = true;
                 AddLog($"Source image: {Path.GetFileName(path)}");
                 StatusMessage = "Image loaded — enter a prompt and click Generate";
@@ -503,7 +504,7 @@ namespace FlipPix.UI.ViewModels
 
         private void LoadResultImage(string path)
         {
-            try { ResultImageSource = LoadBitmap(path); }
+            try { BitmapLoader.ShowPreview(path, b => ResultImageSource = b, onError: e => AddLog($"ERROR loading result: {e}")); }
             catch (Exception ex) { AddLog($"ERROR loading result: {ex.Message}"); }
         }
 

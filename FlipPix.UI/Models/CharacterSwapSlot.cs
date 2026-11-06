@@ -23,7 +23,7 @@ namespace FlipPix.UI.Models
         public string Label => $"Character {Number}";
 
         [ObservableProperty]
-        [NotifyPropertyChangedFor(nameof(HasPicture), nameof(Thumbnail), nameof(FileName))]
+        [NotifyPropertyChangedFor(nameof(HasPicture), nameof(FileName))]
         private string _picturePath = string.Empty;
 
         /// <summary>
@@ -36,17 +36,24 @@ namespace FlipPix.UI.Models
         public bool HasPicture => !string.IsNullOrEmpty(PicturePath) && File.Exists(PicturePath);
         public string FileName => HasPicture ? Path.GetFileName(PicturePath) : "No picture";
 
-        public BitmapImage? Thumbnail
-        {
-            get
-            {
-                if (!HasPicture) return null;
-                try { return FlipPix.UI.Services.BitmapLoader.Load(PicturePath, 240); }
-                catch { return null; }
-            }
-        }
+        private BitmapImage? _thumbnail;
 
-        partial void OnPicturePathChanged(string value) => ClearCommand.NotifyCanExecuteChanged();
+        /// <summary>Decoded once per picture, on a worker thread. (It used to decode the file on every read
+        /// of the property, on the UI thread.)</summary>
+        public BitmapImage? Thumbnail => _thumbnail;
+
+        partial void OnPicturePathChanged(string value)
+        {
+            ClearCommand.NotifyCanExecuteChanged();
+            _thumbnail = null;
+            OnPropertyChanged(nameof(Thumbnail));
+            FlipPix.UI.Services.AsyncThumbnail.Load(value, 240, 0, bitmap =>
+            {
+                if (PicturePath != value) return;
+                _thumbnail = bitmap;
+                OnPropertyChanged(nameof(Thumbnail));
+            });
+        }
 
         public RelayCommand BrowseCommand { get; }
         public RelayCommand ClearCommand { get; }

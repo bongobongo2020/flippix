@@ -819,9 +819,9 @@ namespace FlipPix.UI.ViewModels
                 IsProcessing = true;
 
                 HasResultImage = false;
+                _shownResultPath = null;
                 ResultImageSource = null;
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
+                // No forced GC.Collect/WaitForPendingFinalizers: it suspended every thread, the UI included.
 
                 ProcessingProgress = 0;
                 ProcessingStatus = "Preparing workflow...";
@@ -1343,8 +1343,8 @@ namespace FlipPix.UI.ViewModels
         {
             try
             {
-                var bitmap = BitmapLoader.Load(imagePath);
-                SourceImageSource = bitmap;
+                BitmapLoader.ShowPreview(imagePath, b => SourceImageSource = b,
+                    onError: e => AddLog($"ERROR loading image preview: {e}"));
             }
             catch (Exception ex)
             {
@@ -1414,22 +1414,29 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        // The file the result pane was last asked to show; a late decode of an older one is dropped.
+        private string? _shownResultPath;
+
+        /// <summary>Decoded on a worker thread at preview size, so a finished image never stalls the page.</summary>
         private void LoadResultPreview(string imagePath)
         {
-            try
+            _shownResultPath = imagePath;
+            _ = LoadAsync();
+
+            async Task LoadAsync()
             {
-                var bitmap = BitmapLoader.Load(imagePath);
-
-                ResultImageSource = bitmap;
-
-                var fileInfo = new FileInfo(imagePath);
-                ImageInfo = $"Size: {fileInfo.Length / 1024}KB | {bitmap.PixelWidth}x{bitmap.PixelHeight}";
-
-                AddLog("Result image preview loaded");
-            }
-            catch (Exception ex)
-            {
-                AddLog($"ERROR loading result preview: {ex.Message}");
+                try
+                {
+                    var (bitmap, bytes, w, h) = await BitmapLoader.LoadPreviewAsync(imagePath);
+                    if (_shownResultPath != imagePath) return;
+                    ResultImageSource = bitmap;
+                    ImageInfo = $"Size: {bytes / 1024}KB | {w}x{h}";
+                    AddLog("Result image preview loaded");
+                }
+                catch (Exception ex)
+                {
+                    AddLog($"ERROR loading result preview: {ex.Message}");
+                }
             }
         }
 

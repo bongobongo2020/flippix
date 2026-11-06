@@ -46,28 +46,16 @@ namespace FlipPix.UI.Models
             LoadThumbnail();
         }
 
+        private int _thumbnailVersion;
+
+        /// <summary>Decoded on a worker thread, so adding a batch of shots never stalls the page.</summary>
         private void LoadThumbnail()
         {
-            if (string.IsNullOrEmpty(ImagePath) || !File.Exists(ImagePath))
+            var version = ++_thumbnailVersion;
+            FlipPix.UI.Services.AsyncThumbnail.Load(ImagePath, 0, 160, bitmap =>
             {
-                Thumbnail = null;
-                return;
-            }
-            try
-            {
-                var bmp = new BitmapImage();
-                bmp.BeginInit();
-                bmp.UriSource = new Uri(ImagePath, UriKind.Absolute);
-                bmp.DecodePixelHeight = 160;
-                bmp.CacheOption = BitmapCacheOption.OnLoad;
-                bmp.EndInit();
-                bmp.Freeze();
-                Thumbnail = bmp;
-            }
-            catch
-            {
-                Thumbnail = null;
-            }
+                if (version == _thumbnailVersion) Thumbnail = bitmap;
+            });
         }
     }
 }

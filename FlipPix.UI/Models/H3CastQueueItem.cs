@@ -315,25 +315,17 @@ namespace FlipPix.UI.Models
                 if (_thumbnailTried) return _thumbnail;
                 _thumbnailTried = true;
 
-                var source = !string.IsNullOrEmpty(SceneImagePath) && File.Exists(SceneImagePath)
-                    ? SceneImagePath
-                    : Character1SheetPath;
-                if (string.IsNullOrEmpty(source) || !File.Exists(source)) return null;
-
-                try
-                {
-                    var bitmap = new BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.UriSource = new Uri(source, UriKind.Absolute);
-                    bitmap.DecodePixelHeight = 40;
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.EndInit();
-                    bitmap.Freeze();
-                    _thumbnail = bitmap;
-                }
-                catch { _thumbnail = null; }
-
-                return _thumbnail;
+                var scene = SceneImagePath;
+                var sheet = Character1SheetPath;
+                // Probed and decoded on a worker thread, so the queue never stalls the page.
+                FlipPix.UI.Services.AsyncThumbnail.Load(
+                    () => !string.IsNullOrEmpty(scene) && File.Exists(scene) ? scene : sheet, 0, 40,
+                    bitmap =>
+                    {
+                        _thumbnail = bitmap;
+                        OnPropertyChanged(nameof(QueueThumbnail));
+                    });
+                return null;
             }
         }
     }

@@ -237,23 +237,15 @@ namespace FlipPix.UI.Models
                 if (_thumbnailTried) return _thumbnail;
                 _thumbnailTried = true;
 
-                var source = ReferencePaths.FirstOrDefault(p => !string.IsNullOrEmpty(p) && File.Exists(p));
-                if (source == null) return null;
-
-                try
+                // Decoded on a worker thread (the row shows blank for a moment), so a long queue
+                // scrolling into view never stalls the page.
+                var source = ReferencePaths.FirstOrDefault(p => !string.IsNullOrEmpty(p));
+                FlipPix.UI.Services.AsyncThumbnail.Load(source, 0, 40, bitmap =>
                 {
-                    var bitmap = new BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.UriSource = new Uri(source, UriKind.Absolute);
-                    bitmap.DecodePixelHeight = 40;
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.EndInit();
-                    bitmap.Freeze();
                     _thumbnail = bitmap;
-                }
-                catch { _thumbnail = null; }
-
-                return _thumbnail;
+                    OnPropertyChanged(nameof(QueueThumbnail));
+                });
+                return null;
             }
         }
     }

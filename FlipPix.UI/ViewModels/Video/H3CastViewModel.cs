@@ -552,15 +552,21 @@ namespace FlipPix.UI.ViewModels.Video
                 persistKey: persistKey);
         }
 
+        /// <summary>Widest a slot preview (sheet, photo, keyframe) is decoded at; they show as small tiles.</summary>
+        internal const int SlotPreviewWidth = 480;
+
+        /// <summary>
+        /// The synchronous preview for the slots that need a bitmap at once (<see cref="CharacterSlot.PreviewLoader"/>),
+        /// decoded no wider than <see cref="SlotPreviewWidth"/> rather than at the sheet's full size.
+        /// </summary>
         private BitmapImage? LoadImagePreview(string path, out string info)
         {
             info = string.Empty;
             if (string.IsNullOrEmpty(path) || !File.Exists(path)) return null;
             try
             {
-                var bitmap = BitmapLoader.Load(path);
-                var fi = new FileInfo(path);
-                info = $"{bitmap.PixelWidth}×{bitmap.PixelHeight} • {fi.Length / 1024}KB";
+                var bitmap = BitmapLoader.LoadSmall(path, SlotPreviewWidth, out var w, out var h, out var bytes);
+                info = $"{w}×{h} • {bytes / 1024}KB";
                 return bitmap;
             }
             catch (Exception ex)
@@ -569,6 +575,29 @@ namespace FlipPix.UI.ViewModels.Video
                 info = "Error loading image";
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Decodes <paramref name="path"/> for its preview on a worker thread, at preview size, then calls
+        /// <paramref name="apply"/> on the UI thread with the bitmap and its "W×H • KB" line, unless
+        /// <paramref name="isCurrent"/> says a newer picture was chosen meanwhile. A big PNG decoded inline
+        /// stalled the page each time a picture was set.
+        /// </summary>
+        private void LoadImagePreviewAsync(string path, Func<bool> isCurrent, Action<BitmapImage?, string> apply)
+        {
+            if (string.IsNullOrEmpty(path) || !File.Exists(path))
+            {
+                apply(null, string.Empty);
+                return;
+            }
+            BitmapLoader.ShowPreview(path,
+                (bitmap, w, h, bytes) => apply(bitmap, $"{w}×{h} • {bytes / 1024}KB"),
+                isCurrent,
+                e =>
+                {
+                    AddLog($"Error loading image preview: {e}");
+                    apply(null, "Error loading image");
+                });
         }
 
         #endregion
@@ -1128,7 +1157,16 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 if (_sceneImagePath == value) return;
                 _sceneImagePath = value;
-                _sceneImagePreview = LoadImagePreview(value, out _sceneImageInfo);
+                _sceneImagePreview = null;
+                _sceneImageInfo = string.Empty;
+                var previewPath = value;
+                LoadImagePreviewAsync(value, () => _sceneImagePath == previewPath, (bitmap, info) =>
+                {
+                    _sceneImagePreview = bitmap;
+                    _sceneImageInfo = info;
+                    OnPropertyChanged(nameof(SceneImagePreview));
+                    OnPropertyChanged(nameof(SceneImageInfo));
+                });
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(SceneImagePreview));
                 OnPropertyChanged(nameof(SceneImageInfo));

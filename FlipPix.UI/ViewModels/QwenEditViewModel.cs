@@ -501,7 +501,8 @@ namespace FlipPix.UI.ViewModels
             Char1ImagePath = path;
             try
             {
-                Char1ImageSource = LoadBitmap(path);
+                BitmapLoader.ShowPreview(path, b => Char1ImageSource = b, () => Char1ImagePath == path,
+                    e => AddLog($"ERROR loading Character 1: {e}"));
                 HasChar1Image = true;
                 AddLog($"Character 1: {Path.GetFileName(path)}");
             }
@@ -514,7 +515,8 @@ namespace FlipPix.UI.ViewModels
             Char2ImagePath = path;
             try
             {
-                Char2ImageSource = LoadBitmap(path);
+                BitmapLoader.ShowPreview(path, b => Char2ImageSource = b, () => Char2ImagePath == path,
+                    e => AddLog($"ERROR loading Character 2: {e}"));
                 HasChar2Image = true;
                 AddLog($"Character 2: {Path.GetFileName(path)}");
             }
@@ -527,7 +529,8 @@ namespace FlipPix.UI.ViewModels
             BaseImagePath = path;
             try
             {
-                BaseImageSource = LoadBitmap(path);
+                BitmapLoader.ShowPreview(path, b => BaseImageSource = b, () => BaseImagePath == path,
+                    e => AddLog($"ERROR loading Base scene: {e}"));
                 HasBaseImage = true;
                 AddLog($"Base scene: {Path.GetFileName(path)}");
             }
@@ -1009,7 +1012,7 @@ namespace FlipPix.UI.ViewModels
 
         private void LoadResultImage(string path)
         {
-            try { ResultImageSource = LoadBitmap(path); }
+            try { BitmapLoader.ShowPreview(path, b => ResultImageSource = b, onError: e => AddLog($"ERROR loading result: {e}")); }
             catch (Exception ex) { AddLog($"ERROR loading result: {ex.Message}"); }
         }
 

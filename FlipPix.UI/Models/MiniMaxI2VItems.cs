@@ -75,6 +75,7 @@ namespace FlipPix.UI.Models
             {
                 if (_path == value) return;
                 _path = value ?? string.Empty;
+                _hasImage = _path.Length > 0 && File.Exists(_path);
                 IsLocationPlate = false;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(HasImage));
@@ -95,7 +96,12 @@ namespace FlipPix.UI.Models
             private set { _info = value; OnPropertyChanged(); }
         }
 
-        public bool HasImage => !string.IsNullOrEmpty(Path) && File.Exists(Path);
+        /// <summary>Whether the slot holds a readable picture. Checked once when the slot is filled: the tab's
+        /// getters ask this many times per form change, and a File.Exists each time adds up (and stalls
+        /// outright on a mapped drive).</summary>
+        public bool HasImage => _hasImage;
+
+        private bool _hasImage;
 
         /// <summary>
         /// The file's true pixel size, measured once when the slot was filled. Cached because the tab
@@ -119,47 +125,91 @@ namespace FlipPix.UI.Models
 
         public void Clear() => Path = string.Empty;
 
+        // Bumped per load so a slow decode of a picture since replaced is dropped.
+        private int _loadVersion;
+
         private void LoadPreview()
         {
+            var version = ++_loadVersion;
+            Stereo = StereoLayout.None;
+
             if (!HasImage)
             {
                 Preview = null;
                 Info = string.Empty;
                 _pixels = (0, 0);
-                Stereo = StereoLayout.None;
                 return;
             }
 
-            try
+            // The pixel size comes from the header (cheap) and is needed at once: the Changed handlers
+            // read it for Auto aspect. The decode and the stereo check are what cost, so they run on a
+            // worker thread and land when ready; the slot shows its file name meanwhile.
+            var path = Path;
+            _pixels = MeasurePixels(path);
+            Info = $"{_pixels.Width}×{_pixels.Height} • {System.IO.Path.GetFileName(path)}";
+            _ = DecodeAsync();
+
+            async System.Threading.Tasks.Task DecodeAsync()
             {
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.DecodePixelWidth = 320;
-                bitmap.UriSource = new Uri(Path, UriKind.Absolute);
-                bitmap.EndInit();
-                bitmap.Freeze();
-                Preview = bitmap;
-
-                _pixels = MeasurePixels(Path);
-                // The preview is already decoded small, which is all the detector wants - it compares
-                // halves, and parallax survives downscaling far better than it survives JPEG.
-                Stereo = DetectStereoLayout(bitmap);
-
-                var layout = Stereo switch
+                BitmapImage? bitmap = null;
+                var stereo = StereoLayout.None;
+                string? error = null;
+                await System.Threading.Tasks.Task.Run(() =>
                 {
-                    StereoLayout.SideBySide => " • SBS stereo",
-                    StereoLayout.OverUnder => " • over-under stereo",
-                    _ => string.Empty
-                };
-                Info = $"{_pixels.Width}×{_pixels.Height}{layout} • {System.IO.Path.GetFileName(Path)}";
-            }
-            catch (Exception ex)
-            {
-                Preview = null;
-                _pixels = (0, 0);
-                Stereo = StereoLayout.None;
-                Info = $"Could not load: {ex.Message}";
+                    try
+                    {
+                        bitmap = new BitmapImage();
+                        bitmap.BeginInit();
+                        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                        bitmap.DecodePixelWidth = 320;
+                        bitmap.UriSource = new Uri(path, UriKind.Absolute);
+                        bitmap.EndInit();
+                        bitmap.Freeze();
+                        // The preview is already decoded small, which is all the detector wants - it compares
+                        // halves, and parallax survives downscaling far better than it survives JPEG.
+                        stereo = DetectStereoLayout(bitmap);
+                    }
+                    catch (Exception ex)
+                    {
+                        bitmap = null;
+                        error = ex.Message;
+                    }
+                });
+
+                // Land on the UI thread whichever thread filled the slot (Analyze fills plates off it).
+                var dispatcher = System.Windows.Application.Current?.Dispatcher;
+                if (dispatcher != null && !dispatcher.CheckAccess())
+                    await dispatcher.InvokeAsync(Apply);
+                else
+                    Apply();
+
+                void Apply()
+                {
+                    if (version != _loadVersion) return;
+                    if (error != null)
+                    {
+                        Preview = null;
+                        _pixels = (0, 0);
+                        Info = $"Could not load: {error}";
+                        Changed?.Invoke(this, EventArgs.Empty);
+                        return;
+                    }
+
+                    Preview = bitmap;
+                    var layout = stereo switch
+                    {
+                        StereoLayout.SideBySide => " • SBS stereo",
+                        StereoLayout.OverUnder => " • over-under stereo",
+                        _ => string.Empty
+                    };
+                    Info = $"{_pixels.Width}×{_pixels.Height}{layout} • {System.IO.Path.GetFileName(path)}";
+                    if (stereo != StereoLayout.None)
+                    {
+                        Stereo = stereo;
+                        // The tab's stereo aspect and prompt read this; tell them it is known now.
+                        Changed?.Invoke(this, EventArgs.Empty);
+                    }
+                }
             }
         }
 
@@ -449,6 +499,7 @@ namespace FlipPix.UI.Models
             {
                 if (_path == value) return;
                 _path = value ?? string.Empty;
+                _hasFile = _path.Length > 0 && File.Exists(_path);
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(HasFile));
                 OnPropertyChanged(nameof(FileName));
@@ -456,7 +507,10 @@ namespace FlipPix.UI.Models
             }
         }
 
-        public bool HasFile => !string.IsNullOrEmpty(Path) && File.Exists(Path);
+        // Checked once when filled, not on every read (see MiniMaxI2VReference.HasImage).
+        private bool _hasFile;
+
+        public bool HasFile => _hasFile;
 
         public string FileName => HasFile ? System.IO.Path.GetFileName(Path) : "empty";
 

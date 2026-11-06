@@ -396,18 +396,19 @@ namespace FlipPix.UI.ViewModels.Video
                 ImageInfo = string.Empty;
                 return;
             }
-            try
-            {
-                var bitmap = BitmapLoader.Load(ImagePath);
-                ImagePreview = bitmap;
-                var fi = new FileInfo(ImagePath);
-                ImageInfo = $"{bitmap.PixelWidth}×{bitmap.PixelHeight} • {fi.Length / 1024}KB";
-            }
-            catch (Exception ex)
-            {
-                AddLog($"Error loading image preview: {ex.Message}");
-                ImageInfo = "Error loading image";
-            }
+            // Decoded on a worker thread at preview size; the file's real size goes in the info line.
+            var path = ImagePath;
+            BitmapLoader.ShowPreview(path, (bitmap, w, h, bytes) =>
+                {
+                    ImagePreview = bitmap;
+                    ImageInfo = $"{w}×{h} • {bytes / 1024}KB";
+                },
+                () => ImagePath == path,
+                e =>
+                {
+                    AddLog($"Error loading image preview: {e}");
+                    ImageInfo = "Error loading image";
+                });
         }
 
         #endregion

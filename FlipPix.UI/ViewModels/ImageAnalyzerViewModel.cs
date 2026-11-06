@@ -1605,10 +1605,7 @@ namespace FlipPix.UI.ViewModels
             {
                 // Decoded off the UI thread: from a network share the read can take minutes, and
                 // doing it inline froze the whole window. Frozen, the bitmap can cross threads.
-                var bitmap = await Task.Run(() =>
-                {
-                    return BitmapLoader.Load(imagePath);
-                });
+                var (bitmap, _, _, _) = await BitmapLoader.LoadPreviewAsync(imagePath);
 
                 // Another image may have been picked while this one was loading.
                 if (SourceImagePath != imagePath) return;

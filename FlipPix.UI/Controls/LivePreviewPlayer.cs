@@ -23,6 +23,9 @@ namespace FlipPix.UI.Controls
 
         private static readonly Duration Fade = new(TimeSpan.FromMilliseconds(250));
 
+        /// <summary>Widest a preview still is decoded at; the player is a panel, not a full screen.</summary>
+        private const int MaxStillWidth = 1280;
+
         private readonly MediaElement[] _media = new MediaElement[2];
         private readonly System.Windows.Controls.Image _still = new() { Stretch = Stretch.Uniform, Opacity = 0 };
         private int _front = -1;
@@ -59,8 +62,12 @@ namespace FlipPix.UI.Controls
             set => SetValue(SourceProperty, value);
         }
 
+        // Bumped per Source change so a still decoded after a newer step arrived is dropped.
+        private int _loadId;
+
         private void Load(string? path)
         {
+            var loadId = ++_loadId;
             if (string.IsNullOrEmpty(path) || !File.Exists(path))
             {
                 Reset();
@@ -69,19 +76,31 @@ namespace FlipPix.UI.Controls
 
             if (!path.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
             {
-                try
+                // Decoded on a worker thread (OnLoad reads it now, so the file is free to be reused) and
+                // no larger than the player can show; one arrives per sampler step.
+                System.Threading.Tasks.Task.Run(() =>
                 {
-                    var bitmap = new BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad; // read now, so the file is free to be reused
-                    bitmap.UriSource = new Uri(path);
-                    bitmap.EndInit();
-                    bitmap.Freeze();
-                    _still.Source = bitmap;
+                    try
+                    {
+                        var bitmap = new BitmapImage();
+                        bitmap.BeginInit();
+                        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                        bitmap.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
+                        if (FlipPix.UI.Services.BitmapLoader.TryReadSize(path).Width > MaxStillWidth)
+                            bitmap.DecodePixelWidth = MaxStillWidth;
+                        bitmap.UriSource = new Uri(path);
+                        bitmap.EndInit();
+                        bitmap.Freeze();
+                        return bitmap;
+                    }
+                    catch { return null; /* a half-written still: the next step replaces it */ }
+                }).ContinueWith(t =>
+                {
+                    if (t.Result == null || loadId != _loadId) return;
+                    _still.Source = t.Result;
                     FadeTo(_still, 1);
                     foreach (var m in _media) FadeTo(m, 0);
-                }
-                catch { /* a half-written still: the next step replaces it */ }
+                }, System.Threading.Tasks.TaskScheduler.FromCurrentSynchronizationContext());
                 return;
             }
 

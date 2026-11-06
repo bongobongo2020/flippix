@@ -42,23 +42,9 @@ namespace FlipPix.UI.Models
             }
         }
 
-        public void LoadVideoThumbnail(string thumbPath)
-        {
-            try
-            {
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.UriSource = new Uri(thumbPath, UriKind.Absolute);
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.EndInit();
-                bitmap.Freeze();
-                SetThumbnail(bitmap);
-            }
-            catch
-            {
-                SetThumbnail(null);
-            }
-        }
+        /// <summary>Decoded on a worker thread at thumbnail size, whichever thread asks.</summary>
+        public void LoadVideoThumbnail(string thumbPath) =>
+            FlipPix.UI.Services.AsyncThumbnail.Load(thumbPath, 320, 0, SetThumbnail);
 
         // Raises PropertyChanged on the UI thread so bindings update safely even when the
         // thumbnail is loaded from a background thread.
