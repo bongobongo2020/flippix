@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
@@ -526,6 +527,171 @@ namespace FlipPix.UI.Services
                 return index is > 0 && count is > 0 ? (index.Value, count.Value) : null;
             }
             catch (Exception) { return null; }
+        }
+
+        /// <summary>The chain's run folder name, from the same <c>h3_chain_active_scene</c> output.</summary>
+        public static string? ActiveRunName(string? outputJson)
+        {
+            if (string.IsNullOrEmpty(outputJson) || !outputJson.Contains("h3_chain_active_scene")) return null;
+            try
+            {
+                var name = JsonNode.Parse(outputJson)?["h3_chain_active_scene"]?[0]?["run_name"]?.GetValue<string>();
+                return string.IsNullOrWhiteSpace(name) ? null : name;
+            }
+            catch (Exception) { return null; }
+        }
+
+        // ── Resume ───────────────────────────────────────────────────────────────────────────────────
+        //
+        // The Context Loop pack saves every finished clip with a checkpoint under output/h3_chains/<run>,
+        // together with the exact API prompt that was queued (.h3/api_prompt.json). Queuing that prompt
+        // again with Loop Start's start_clip = N continues at clip N from checkpoint N-1; start_clip = 1
+        // starts over. So a swap cut short by a ComfyUI restart is resumed from what the server itself
+        // saved, even one this app has no record of.
+
+        /// <summary>Base of the pack's HTTP routes.</summary>
+        public const string ChainRoutes = "/minimax_h3_context_loop";
+
+        /// <summary>A chain run on the server: how many of its clips are saved.</summary>
+        public sealed record ChainRun(string RunName, DateTime ModifiedUtc, int Done, int Total)
+        {
+            public int Percent => Total > 0 ? (int)Math.Round(100.0 * Done / Total) : 0;
+        }
+
+        /// <summary>One saved clip of a run, servable through /view.</summary>
+        public sealed record SavedClip(int Number, string Filename, string Subfolder);
+
+        /// <summary>
+        /// Swap runs from the pack's <c>/runs</c> listing that stopped part-way: restorable, at least one
+        /// clip saved and not all of them. Newest first.
+        /// </summary>
+        public static List<ChainRun> UnfinishedRuns(string? runsJson)
+        {
+            var result = new List<ChainRun>();
+            if (string.IsNullOrWhiteSpace(runsJson)) return result;
+            try
+            {
+                if (JsonNode.Parse(runsJson)?["runs"] is not JsonArray runs) return result;
+                foreach (var r in runs)
+                {
+                    var name = r?["run_name"]?.GetValue<string>();
+                    if (name == null || !name.StartsWith("swap_", StringComparison.Ordinal)) continue;
+                    if (r?["restorable"]?.GetValue<bool>() != true) continue;
+                    if (r["sources"]?["api_prompt"]?.GetValue<bool>() != true) continue;
+                    var total = Int(r["scene_count"]);
+                    var done = Int(r["checkpoint_count"]);
+                    if (total <= 0 || done <= 0 || done >= total) continue;
+                    var modified = DateTime.TryParse(r["modified_at"]?.GetValue<string>(), System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out var m)
+                        ? m : DateTime.MinValue;
+                    result.Add(new ChainRun(name, modified, done, total));
+                }
+            }
+            catch (Exception) { return new List<ChainRun>(); }
+            return result.OrderByDescending(r => r.ModifiedUtc).ToList();
+
+            static int Int(JsonNode? n) => n is JsonValue v && v.TryGetValue<int>(out var i) ? i : 0;
+        }
+
+        /// <summary>
+        /// The clips a run can continue from, from the pack's <c>/checkpoints</c> listing: the ready clips
+        /// 1, 2, 3… up to the first gap (a later orphan cannot be joined across it). Next is where a resume
+        /// starts; Total + 1 means every clip is saved and only the assembly is left.
+        /// </summary>
+        public static (int Next, List<SavedClip> Clips) SavedClips(string? checkpointsJson)
+        {
+            var clips = new List<SavedClip>();
+            if (string.IsNullOrWhiteSpace(checkpointsJson)) return (1, clips);
+            try
+            {
+                if (JsonNode.Parse(checkpointsJson)?["checkpoints"] is not JsonArray list) return (1, clips);
+                var byScene = new Dictionary<int, SavedClip>();
+                foreach (var c in list)
+                {
+                    if (c?["ready"]?.GetValue<bool>() != true) continue;
+                    var scene = c["scene"]?.GetValue<int>() ?? 0;
+                    var file = c["video"]?["filename"]?.GetValue<string>();
+                    var folder = c["video"]?["subfolder"]?.GetValue<string>() ?? string.Empty;
+                    if (scene > 0 && !string.IsNullOrEmpty(file)) byScene[scene] = new SavedClip(scene, file, folder);
+                }
+                for (var n = 1; byScene.TryGetValue(n, out var clip); n++) clips.Add(clip);
+            }
+            catch (Exception) { clips.Clear(); }
+            return (clips.Count + 1, clips);
+        }
+
+        /// <summary>
+        /// Reads a run's saved <c>api_prompt.json</c>. ComfyUI records each node's cache key there as
+        /// <c>"is_changed": [NaN]</c>, written by Python's json, which allows NaN and Infinity where JSON does
+        /// not. Those bare tokens become null and the cache keys are dropped, leaving the prompt as queued.
+        /// </summary>
+        public static JsonObject? ParseSavedPrompt(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return null;
+            var json = Regex.Replace(text, @"(?<=[\[,:]\s*)-?(?:NaN|Infinity)(?=\s*[,\]\}])", "null");
+            try
+            {
+                if (JsonNode.Parse(json) is not JsonObject prompt) return null;
+                foreach (var (_, node) in prompt)
+                    if (node is JsonObject n) n.Remove("is_changed");
+                return prompt;
+            }
+            catch (System.Text.Json.JsonException) { return null; }
+        }
+
+        /// <summary>The source video a saved swap prompt loads (its VHS loader's file on the server).</summary>
+        public static string? ChainVideo(JsonObject prompt)
+        {
+            foreach (var (_, node) in prompt)
+            {
+                if (node?["class_type"]?.GetValue<string>() != "VHS_LoadVideo") continue;
+                if (node["inputs"]?["video"] is JsonValue v && v.TryGetValue<string>(out var name) && name.Length > 0)
+                    return name;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Whether a server input file is this local video. ComfyUI renames a clashing upload to
+        /// "name (1).mp4", so that suffix is ignored.
+        /// </summary>
+        public static bool SameVideo(string serverName, string localPath)
+        {
+            static string Stem(string file)
+            {
+                var name = Path.GetFileName(file.Replace('\\', '/').Split('/')[^1]);
+                var stem = Regex.Replace(Path.GetFileNameWithoutExtension(name), @" \(\d+\)$", "");
+                return stem + Path.GetExtension(name);
+            }
+            return !string.IsNullOrEmpty(serverName) && !string.IsNullOrEmpty(localPath)
+                   && string.Equals(Stem(serverName), Stem(localPath), StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Turns a run's saved prompt into its continuation: Loop Start begins at <paramref name="startClip"/>
+        /// and the plan is pinned to the run's folder, so it loads that folder's checkpoints.
+        /// <para>The run name is set literally rather than left to the Swap Plan: the plan derives it from
+        /// its inputs, and the describer's text is among them, so a describer that words a picture slightly
+        /// differently on the second pass would otherwise pick a new, empty folder. For the same reason
+        /// verify_resume_history is off: it compares the earlier clips' prompts with the new plan's. Saved
+        /// files are still checked (presence, SHA-256 of the context checkpoints, tensors).</para>
+        /// </summary>
+        public static void PrepareResume(JsonObject prompt, string runName, int startClip)
+        {
+            var loopStart = prompt.FirstOrDefault(kv => kv.Value?["class_type"]?.GetValue<string>() == "MiniMaxH3ChainLoopStart").Key
+                            ?? throw new InvalidOperationException("The saved swap has no Loop Start node, so it cannot be resumed.");
+            var start = Inputs(prompt, loopStart);
+            start["start_clip"] = Math.Max(1, startClip);
+            start["scene_range"] = string.Empty;
+            start["verify_resume_history"] = false;
+
+            var plans = prompt.Where(kv => kv.Value?["class_type"]?.GetValue<string>() is { } c
+                                           && c.StartsWith("MiniMaxH3ChainPlan", StringComparison.Ordinal)
+                                           && kv.Value["inputs"]?["run_name"] != null).Select(kv => kv.Key).ToList();
+            if (plans.Count == 0) throw new InvalidOperationException("The saved swap has no production plan node, so it cannot be resumed.");
+            foreach (var p in plans) Inputs(prompt, p)["run_name"] = runName;
+
+            if (!prompt.ContainsKey(ClipPreviewNode)) AddClipPreview(prompt);
         }
 
         // ── Find people ──────────────────────────────────────────────────────────────────────────────

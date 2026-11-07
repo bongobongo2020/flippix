@@ -298,6 +298,115 @@ public sealed class CharacterSwapGraphTests
     }
 
     [Fact]
+    public void Current_clip_output_gives_the_run_folder() =>
+        Assert.Equal("swap_x", CharacterSwapGraph.ActiveRunName(
+            "{\"h3_chain_active_scene\": [{\"run_name\": \"swap_x\", \"clip_index\": 3, \"clip_count\": 47}]}"));
+
+    // Shapes as the Context Loop pack's /runs and /checkpoints routes return them (trimmed).
+    private const string Runs = """
+        {"runs": [
+          {"run_name": "swap_old", "modified_at": "2026-11-07T05:39:26Z", "scene_count": 47, "checkpoint_count": 2,
+           "restorable": true, "sources": {"api_prompt": true, "workflow": true, "plan": true}},
+          {"run_name": "swap_new", "modified_at": "2026-11-07T06:19:28Z", "scene_count": 47, "checkpoint_count": 3,
+           "restorable": true, "sources": {"api_prompt": true, "workflow": true, "plan": true}},
+          {"run_name": "swap_done", "modified_at": "2026-11-07T06:02:23Z", "scene_count": 2, "checkpoint_count": 2,
+           "restorable": true, "sources": {"api_prompt": true, "workflow": false, "plan": true}},
+          {"run_name": "swap_empty", "modified_at": "2026-11-07T05:09:14Z", "scene_count": null, "checkpoint_count": 0,
+           "restorable": false, "sources": {"api_prompt": false, "workflow": false, "plan": false}},
+          {"run_name": "story_x", "modified_at": "2026-11-07T07:00:00Z", "scene_count": 9, "checkpoint_count": 4,
+           "restorable": true, "sources": {"api_prompt": true, "workflow": true, "plan": true}}
+        ]}
+        """;
+
+    [Fact]
+    public void Unfinished_runs_are_swaps_part_way_through_newest_first()
+    {
+        var runs = CharacterSwapGraph.UnfinishedRuns(Runs);
+        Assert.Equal(new[] { "swap_new", "swap_old" }, runs.Select(r => r.RunName));
+        Assert.Equal((3, 47, 6), (runs[0].Done, runs[0].Total, runs[0].Percent));
+        Assert.Equal(new DateTime(2026, 11, 7, 6, 19, 28, DateTimeKind.Utc), runs[0].ModifiedUtc);
+        Assert.Empty(CharacterSwapGraph.UnfinishedRuns(null));
+        Assert.Empty(CharacterSwapGraph.UnfinishedRuns("not json"));
+    }
+
+    private static string Checkpoint(int scene, bool ready = true) =>
+        "{\"scene\": " + scene + ", \"ready\": " + (ready ? "true" : "false") + ", \"video\": {\"filename\": \"clip_" + scene.ToString("0000") +
+        ".abc.mp4\", \"subfolder\": \"h3_chains/swap_new/generation/clips\", \"type\": \"output\"}}";
+
+    [Fact]
+    public void Resume_starts_after_the_unbroken_run_of_saved_clips()
+    {
+        var (next, clips) = CharacterSwapGraph.SavedClips(
+            $$"""{"run_name": "swap_new", "checkpoints": [{{Checkpoint(1)}}, {{Checkpoint(2)}}, {{Checkpoint(3)}}]}""");
+        Assert.Equal(4, next);
+        Assert.Equal(new[] { 1, 2, 3 }, clips.Select(c => c.Number));
+        Assert.Equal("clip_0002.abc.mp4", clips[1].Filename);
+        Assert.Equal("h3_chains/swap_new/generation/clips", clips[1].Subfolder);
+
+        // A clip that is not ready, or a gap, ends what can be continued from.
+        Assert.Equal(2, CharacterSwapGraph.SavedClips(
+            $$"""{"checkpoints": [{{Checkpoint(1)}}, {{Checkpoint(2, ready: false)}}, {{Checkpoint(3)}}]}""").Next);
+        Assert.Equal(3, CharacterSwapGraph.SavedClips(
+            $$"""{"checkpoints": [{{Checkpoint(2)}}, {{Checkpoint(1)}}, {{Checkpoint(4)}}]}""").Next);
+        Assert.Equal(1, CharacterSwapGraph.SavedClips("""{"checkpoints": []}""").Next);
+        Assert.Equal(1, CharacterSwapGraph.SavedClips(null).Next);
+    }
+
+    [Theory]
+    [InlineData("akkas-small.mp4", @"C:\Videos\akkas-small.mp4", true)]
+    [InlineData("akkas-small (1).mp4", @"C:\Videos\Akkas-Small.MP4", true)]
+    [InlineData("akkas-small.mp4", "/home/me/akkas-small.mov", false)]
+    [InlineData("akkas.mp4", @"C:\Videos\akkas-small.mp4", false)]
+    [InlineData("", @"C:\Videos\akkas-small.mp4", false)]
+    public void Saved_swap_is_matched_to_the_local_video_by_name(string server, string local, bool same) =>
+        Assert.Equal(same, CharacterSwapGraph.SameVideo(server, local));
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Resume_continues_the_saved_prompt_in_its_own_run_folder(bool advanced)
+    {
+        var s = new SwapSettings { Roles = { "the woman" } };
+        var g = advanced
+            ? CharacterSwapGraph.PruneAdvanced(Load(CharacterSwapGraph.AdvancedFile), 1, s)
+            : CharacterSwapGraph.PruneSimple(Load(CharacterSwapGraph.SimpleFile), s);
+        var video = g.First(kv => Class(g, kv.Key) == "VHS_LoadVideo").Key;
+        CharacterSwapGraph.Inputs(g, video)["video"] = "akkas-small.mp4";
+        Assert.Equal("akkas-small.mp4", CharacterSwapGraph.ChainVideo(g));
+
+        CharacterSwapGraph.PrepareResume(g, "swap_new", 4);
+
+        var start = CharacterSwapGraph.Inputs(g, g.Single(kv => Class(g, kv.Key) == "MiniMaxH3ChainLoopStart").Key);
+        Assert.Equal(4, start["start_clip"]!.GetValue<int>());
+        Assert.Equal("", start["scene_range"]!.GetValue<string>());
+        Assert.False(start["verify_resume_history"]!.GetValue<bool>());
+        var plan = CharacterSwapGraph.Inputs(g, g.Single(kv => Class(g, kv.Key) == "MiniMaxH3ChainPlanModern").Key);
+        Assert.Equal("swap_new", plan["run_name"]!.GetValue<string>());
+        Assert.True(g.ContainsKey(CharacterSwapGraph.ClipPreviewNode));
+        CharacterSwapGraph.AssertNoDanglingLinks(g);
+    }
+
+    [Fact]
+    public void Saved_prompt_with_python_nan_cache_keys_parses()
+    {
+        var prompt = CharacterSwapGraph.ParseSavedPrompt("""
+            {"14": {"class_type": "VHS_LoadVideo", "inputs": {"video": "akkas-small.mp4", "note": "keeps: NaN text"}, "is_changed": [NaN]},
+             "36": {"class_type": "X", "inputs": {"a": -Infinity, "b": [1, NaN]}, "is_changed": [ NaN ]}}
+            """);
+        Assert.NotNull(prompt);
+        Assert.False(prompt!["14"]!.AsObject().ContainsKey("is_changed"));
+        Assert.Equal("akkas-small.mp4", CharacterSwapGraph.ChainVideo(prompt));
+        Assert.Equal("keeps: NaN text", prompt["14"]!["inputs"]!["note"]!.GetValue<string>());
+        Assert.Null(prompt["36"]!["inputs"]!["a"]);
+        Assert.Null(CharacterSwapGraph.ParseSavedPrompt("<html>"));
+    }
+
+    [Fact]
+    public void Only_a_chain_can_be_resumed() =>
+        Assert.Throws<InvalidOperationException>(() =>
+            CharacterSwapGraph.PrepareResume(CharacterSwapGraph.PruneMask(Load(CharacterSwapGraph.MaskFile), false, SwapMargin.Normal, "person"), "swap_x", 2));
+
+    [Fact]
     public void Same_role_listed_twice_is_one_person()
     {
         var people = CharacterSwapGraph.ParsePeople(

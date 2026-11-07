@@ -170,12 +170,18 @@ public class ComfyUIWebSocketClient : IDisposable
         }
     }
 
-    public async Task EnsureConnectedAsync(CancellationToken cancellationToken = default)
+    /// <param name="clientId">The service's client id. A page that runs a workflow without ever calling the
+    /// service's ConnectAsync has no id here yet, and without one reconnection is refused, so the run gets
+    /// no websocket at all: no progress, no "executed" events, no live previews.</param>
+    public async Task EnsureConnectedAsync(string? clientId = null, CancellationToken cancellationToken = default)
     {
         if (IsConnected)
         {
             return;
         }
+
+        if (string.IsNullOrEmpty(_clientId) && !string.IsNullOrEmpty(clientId))
+            _clientId = clientId;
 
         _logger.LogWarning("WebSocket not connected, attempting reconnection");
         await ReconnectAsync();

@@ -9557,6 +9557,25 @@
                             </ScrollViewer>
                             <!-- ─── Actions ─────────────────────────────────────────── -->
                             <StackPanel Grid.Row="2" Margin="0,8,0,0">
+                                <!-- A swap that stopped part-way (Stop, or ComfyUI restarted): what was saved, and Resume. -->
+                                <Border BorderBrush="{StaticResource AccentAmberBrush}" BorderThickness="1" CornerRadius="4"
+                                        Background="{StaticResource SurfaceAltBrush}" Padding="8,6" Margin="0,0,0,8"
+                                        IsVisible="{Binding HasUnfinished}">
+                                    <StackPanel>
+                                        <TextBlock Text="UNFINISHED SWAP" FontSize="10" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource AccentAmberBrush}" Margin="0,0,0,3"/>
+                                        <TextBlock Text="{Binding UnfinishedStatus}" FontSize="10" TextWrapping="Wrap"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6"/>
+                                        <Button Content="⏵ Resume"
+                                                Command="{Binding ResumeCommand}"
+                                                Theme="{StaticResource AccentButtonStyle}"
+                                                HorizontalAlignment="Stretch"
+                                                Height="28"
+                                                FontSize="11"
+                                                FontWeight="Bold"
+                                                ToolTip.Tip="Continues at the first clip that was not saved, with the settings the swap was started with. The saved clips are listed under the preview."/>
+                                    </StackPanel>
+                                </Border>
                                 <TextBlock Text="{Binding ProcessingStatus}" FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                                 <ProgressBar Value="{Binding ProcessingProgress}" Height="4" Margin="0,0,0,8" IsVisible="{Binding IsProcessing}"/>
                                 <Button Content="🔁 Generate swap"
@@ -9669,6 +9688,14 @@
                                     Padding="10,0"
                                     FontSize="11"
                                     Margin="0,0,10,0"/>
+                            <Button Content="↻ Find unfinished"
+                                    Command="{Binding CheckUnfinishedCommand}"
+                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                    Height="26"
+                                    Padding="10,0"
+                                    FontSize="11"
+                                    Margin="0,0,10,0"
+                                    ToolTip.Tip="Looks on the ComfyUI server for a swap of this video that stopped part-way (Stop, or ComfyUI restarted), so Resume can continue it. Picking a video checks this by itself."/>
                             <TextBlock Text="{Binding ResultVideoInfo}" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis"/>
                         </WrapPanel>
                         </StackPanel>

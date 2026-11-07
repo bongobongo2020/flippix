@@ -1287,6 +1287,23 @@ public class ComfyUIHttpClient : IDisposable
     }
 
     /// <summary>
+    /// GETs a server route (e.g. a custom node pack's own API) and returns the body. Null when the route
+    /// answers with an error status; network failures throw.
+    /// </summary>
+    public async Task<string?> GetTextAsync(string relativeUrl, TimeSpan timeout, CancellationToken cancellationToken = default)
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(timeout);
+        using var response = await _httpClient.GetAsync(relativeUrl, cts.Token);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning($"GET {relativeUrl} returned {response.StatusCode}");
+            return null;
+        }
+        return await response.Content.ReadAsStringAsync(cts.Token);
+    }
+
+    /// <summary>
     /// Whether the connected ComfyUI has a node class installed, read from /object_info/&lt;class&gt;. Null
     /// when the server could not be asked at all — a caller that cannot tell should not act as if it were
     /// missing.

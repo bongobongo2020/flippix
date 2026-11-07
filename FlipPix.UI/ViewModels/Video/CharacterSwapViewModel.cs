@@ -26,8 +26,10 @@ namespace FlipPix.UI.ViewModels.Video
     /// of the frame (Simple) or every person Qwen3-VL matches to a role (Advanced) is masked with some
     /// headroom, and H3 regenerates only that area with the photo as reference. The motion H3 follows is the
     /// source clip with that person turned into a grey mannequin of their exact silhouette. Long videos run
-    /// as a chain of overlapping clips through the Context Loop pack, which saves a checkpoint per clip — so
-    /// running the same inputs again resumes from the last finished clip.</para>
+    /// as a chain of overlapping clips through the Context Loop pack, which saves a checkpoint per clip. A swap
+    /// cut short (Stop, or a ComfyUI restart) is continued from its last saved clip: by itself when the server
+    /// comes back within a few minutes, otherwise with Resume, which finds the run on the server from the source
+    /// video. Generate always starts a new swap.</para>
     ///
     /// <para>The graphs are upstream's API exports, unchanged; <see cref="CharacterSwapGraph"/> prunes and
     /// fills them per request exactly as Openjutsu's server does. Upstream's model filenames are resolved
@@ -66,6 +68,8 @@ namespace FlipPix.UI.ViewModels.Video
             GenerateCommand = new RelayCommand(() => _ = RunAsync(checkMask: false), CanGenerate);
             CheckMaskCommand = new RelayCommand(() => _ = RunAsync(checkMask: true), () => !IsProcessing && HasVideo && !IsAdvanced);
             StopCommand = new RelayCommand(Stop, () => IsProcessing);
+            ResumeCommand = new RelayCommand(() => _ = RunAsync(checkMask: false, resume: _pending), () => !IsProcessing && _pending != null);
+            CheckUnfinishedCommand = new RelayCommand(() => _ = CheckUnfinishedAsync(quiet: false), () => !IsProcessing && HasVideo);
             NewSeedCommand = new RelayCommand(() => Seed = NewSeed());
             RefreshModelsCommand = new RelayCommand(() => _ = LoadModelListsAsync());
             PlayResultCommand = new RelayCommand(() => ActivePreview = ResultVideoPath, () => HasResult);
@@ -199,9 +203,20 @@ namespace FlipPix.UI.ViewModels.Video
 
         // ── Live clips ───────────────────────────────────────────────────────────────────────────
 
-        /// <summary>One finished H3 clip of the running (or last) swap, previewed as it lands.</summary>
-        public sealed record LiveClip(int Number, string Path)
+        /// <summary>One finished H3 clip of the running (or last) swap, previewed as it lands. A clip that was
+        /// saved on the server by an earlier, interrupted run has no local file until it is first played.</summary>
+        public sealed class LiveClip
         {
+            public LiveClip(int number, string path, CharacterSwapGraph.SavedClip? saved = null)
+            {
+                Number = number;
+                Path = path;
+                Saved = saved;
+            }
+
+            public int Number { get; }
+            public string Path { get; set; }
+            public CharacterSwapGraph.SavedClip? Saved { get; }
             public string Label => Number.ToString();
         }
 
@@ -214,8 +229,46 @@ namespace FlipPix.UI.ViewModels.Video
             if (clip == null) return;
             // Picking an older clip stops the preview jumping to each new one; picking the newest resumes it.
             _followLatest = LiveClips.Count > 0 && clip == LiveClips[^1];
-            ActivePreview = clip.Path;
+            if (File.Exists(clip.Path)) ActivePreview = clip.Path;
+            else if (clip.Saved != null) _ = FetchSavedClipAsync(clip);
         });
+
+        private async Task FetchSavedClipAsync(LiveClip clip)
+        {
+            if (clip.Saved is not { } saved) return;
+            try
+            {
+                ProcessingStatus = $"Fetching clip {clip.Number} from the server…";
+                var bytes = await _comfyUIService.HttpClient.DownloadViewFileAsync(saved.Filename, saved.Subfolder, "output");
+                if (bytes is not { Length: > 0 })
+                {
+                    ProcessingStatus = $"The server no longer has clip {clip.Number}.";
+                    return;
+                }
+                var folder = System.IO.Path.Combine(LiveClipRoot, "saved");
+                Directory.CreateDirectory(folder);
+                var path = System.IO.Path.Combine(folder, saved.Filename);
+                await File.WriteAllBytesAsync(path, bytes);
+                clip.Path = path;
+                ActivePreview = path;
+                ProcessingStatus = $"Clip {clip.Number} (saved on the server).";
+            }
+            catch (Exception ex)
+            {
+                ProcessingStatus = $"Could not fetch clip {clip.Number}: {ex.Message}";
+            }
+        }
+
+        /// <summary>Lists a run's saved clips in the strip, so they can be watched before (or while) it resumes.</summary>
+        private void ShowSavedClips(IReadOnlyList<CharacterSwapGraph.SavedClip> clips)
+        {
+            Application.Current?.Dispatcher.Invoke(() =>
+            {
+                LiveClips.Clear();
+                foreach (var c in clips) LiveClips.Add(new LiveClip(c.Number, string.Empty, c));
+                OnPropertyChanged(nameof(HasLiveClips));
+            });
+        }
         private RelayCommand<LiveClip>? _playClipCommand;
         private bool _followLatest = true;
 
@@ -230,26 +283,33 @@ namespace FlipPix.UI.ViewModels.Video
             public int Done;
             public readonly List<DateTime> Landed = new();
             public string Folder = string.Empty;
+            public string? RunName;      // the chain's folder under output/h3_chains, once the chain reports it
+            public DateTime LastActivity = DateTime.Now;
             public EventHandler<FlipPix.ComfyUI.Models.NodeExecutedEventArgs> Handler = null!;
         }
 
-        private LiveRun StartLiveClips(CancellationToken ct)
+        /// <param name="saved">Clips an earlier, interrupted run already saved: they stay in the strip.</param>
+        private LiveRun StartLiveClips(CancellationToken ct, IReadOnlyList<CharacterSwapGraph.SavedClip>? saved = null)
         {
             var run = new LiveRun { Folder = System.IO.Path.Combine(LiveClipRoot, DateTime.Now.ToString("yyyyMMdd_HHmmss")) };
-            Application.Current?.Dispatcher.Invoke(() =>
-            {
-                LiveClips.Clear();
-                OnPropertyChanged(nameof(HasLiveClips));
-            });
-            _followLatest = true;
             ClearOldLiveClips();
+            if (saved is { Count: > 0 }) ShowSavedClips(saved);
+            else
+                Application.Current?.Dispatcher.Invoke(() =>
+                {
+                    LiveClips.Clear();
+                    OnPropertyChanged(nameof(HasLiveClips));
+                });
+            _followLatest = true;
 
             run.Handler = (_, e) =>
             {
+                run.LastActivity = DateTime.Now;
                 if (CharacterSwapGraph.ActiveClip(e.OutputJson) is { } scene)
                 {
                     run.Index = scene.Index;
                     run.Count = scene.Count;
+                    run.RunName ??= CharacterSwapGraph.ActiveRunName(e.OutputJson);
                     if (run.Done == 0)
                         ProcessingStatus = $"Rendering clip {scene.Index} of {scene.Count}… the first clip also loads the models.";
                     return;
@@ -318,6 +378,116 @@ namespace FlipPix.UI.ViewModels.Video
                     try { Directory.Delete(dir, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
             }
             catch (Exception) { }
+        }
+
+        // ── Resume ───────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>A swap that stopped part-way and can continue: the prompt it was queued with, and its
+        /// run folder on the server when known (found from the source video otherwise).</summary>
+        private sealed record PendingSwap(JsonObject Prompt, string? RunName, string VideoPath);
+
+        private PendingSwap? _pending;
+
+        /// <summary>A swap of this video stopped part-way and can continue from its last saved clip.</summary>
+        [ObservableProperty] private bool _hasUnfinished;
+
+        [ObservableProperty] private string _unfinishedStatus = string.Empty;
+
+        /// <summary>Times a run is continued by itself after ComfyUI drops it, before it is left to the Resume button.</summary>
+        private const int MaxAutoResumes = 3;
+        private static readonly TimeSpan ServerReturnWait = TimeSpan.FromMinutes(15);
+        /// <summary>No progress at all for this long during a clip, and the page says ComfyUI may be stuck.</summary>
+        private static readonly TimeSpan StallWarning = TimeSpan.FromMinutes(20);
+
+        private void SetPending(PendingSwap? pending, CharacterSwapGraph.ChainRun? run = null, bool fromServer = false)
+        {
+            _pending = pending;
+            HasUnfinished = pending != null;
+            UnfinishedStatus = pending == null ? string.Empty
+                : run == null ? "This swap stopped part-way. Its finished clips are saved on the server; Resume continues from the last one."
+                : $"{(fromServer ? $"An earlier swap of this video (last clip saved {run.ModifiedUtc.ToLocalTime():d MMM HH:mm})" : "This swap")} " +
+                  $"stopped after {run.Done} of {run.Total} clips ({run.Percent}%). Resume continues at clip {run.Done + 1} " +
+                  "with the settings it was started with.";
+            RefreshCommands();
+        }
+
+        /// <summary>
+        /// Looks on the server for a swap of <paramref name="localVideo"/> that stopped part-way: the newest
+        /// unfinished swap run whose saved prompt loads this video.
+        /// </summary>
+        private async Task<(CharacterSwapGraph.ChainRun Run, JsonObject Prompt)?> FindUnfinishedAsync(string localVideo, CancellationToken ct)
+        {
+            var http = _comfyUIService.HttpClient;
+            var runs = CharacterSwapGraph.UnfinishedRuns(
+                await http.GetTextAsync($"{CharacterSwapGraph.ChainRoutes}/runs", TimeSpan.FromMinutes(1), ct));
+            foreach (var run in runs.Where(r => r.ModifiedUtc > DateTime.UtcNow.AddDays(-30)).Take(8))
+            {
+                var bytes = await http.DownloadViewFileAsync("api_prompt.json", $"h3_chains/{run.RunName}/.h3", "output", ct);
+                if (bytes == null) continue;
+                var prompt = CharacterSwapGraph.ParseSavedPrompt(System.Text.Encoding.UTF8.GetString(bytes));
+                if (prompt == null || CharacterSwapGraph.ChainVideo(prompt) is not { } video
+                    || !CharacterSwapGraph.SameVideo(video, localVideo)) continue;
+                // /runs counts every checkpoint; only the unbroken run from clip 1 can be continued.
+                var (next, _) = await SavedClipsAsync(run.RunName, ct);
+                return (run with { Done = next - 1 }, prompt);
+            }
+            return null;
+        }
+
+        private async Task<(int Next, List<CharacterSwapGraph.SavedClip> Clips)> SavedClipsAsync(string runName, CancellationToken ct) =>
+            CharacterSwapGraph.SavedClips(await _comfyUIService.HttpClient.GetTextAsync(
+                $"{CharacterSwapGraph.ChainRoutes}/checkpoints?run_name={Uri.EscapeDataString(runName)}", TimeSpan.FromMinutes(1), ct));
+
+        /// <summary>Checks the server for an unfinished swap of the current video and offers Resume for it.</summary>
+        private async Task CheckUnfinishedAsync(bool quiet)
+        {
+            if (!HasVideo || IsProcessing) return;
+            var path = VideoPath;
+            try
+            {
+                if (!quiet) UnfinishedStatus = "Looking for an unfinished swap of this video on the server…";
+                var found = await FindUnfinishedAsync(path, CancellationToken.None);
+                if (path != VideoPath || IsProcessing) return;
+                if (found is { } f && f.Run.Done > 0)
+                {
+                    SetPending(new PendingSwap(f.Prompt, f.Run.RunName, path), f.Run, fromServer: true);
+                    var (_, clips) = await SavedClipsAsync(f.Run.RunName, CancellationToken.None);
+                    if (!IsProcessing) ShowSavedClips(clips);
+                    AddLog($"Unfinished swap of {Path.GetFileName(path)} on the server: {f.Run.Done} of {f.Run.Total} clips saved " +
+                           $"({f.Run.RunName}). Resume continues it; Generate starts a new one.");
+                }
+                else if (_pending?.VideoPath != path)
+                {
+                    SetPending(null);
+                    if (!quiet) AddLog($"No unfinished swap of {Path.GetFileName(path)} on the server.");
+                }
+                else if (!quiet) UnfinishedStatus = "Could not find this swap's saved clips on the server yet. Is ComfyUI back up?";
+            }
+            catch (Exception ex)
+            {
+                if (!quiet) UnfinishedStatus = $"Could not ask the server about unfinished swaps: {ex.Message}";
+                _logger.LogWarning($"Character Swap: unfinished-swap check failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// The prompt that continues <paramref name="pending"/>: its saved prompt pinned to its run folder and
+        /// starting at the first clip the server has not saved. Throws when the run cannot be found.
+        /// </summary>
+        private async Task<(JsonObject Graph, string RunName, int Next, List<CharacterSwapGraph.SavedClip> Clips)> PrepareContinueAsync(
+            PendingSwap pending, CancellationToken ct)
+        {
+            var runName = pending.RunName;
+            if (runName == null)
+            {
+                var found = await FindUnfinishedAsync(pending.VideoPath, ct)
+                            ?? throw new InvalidOperationException("No saved clips of this swap were found on the server, so it has to start over (Generate).");
+                runName = found.Run.RunName;
+            }
+            var (next, clips) = await SavedClipsAsync(runName, ct);
+            var graph = (JsonObject)pending.Prompt.DeepClone();
+            if (next > 1) CharacterSwapGraph.PrepareResume(graph, runName, next);
+            return (graph, runName, next, clips);
         }
 
         // ── People in the video ──────────────────────────────────────────────────────────────────
@@ -464,6 +634,9 @@ namespace FlipPix.UI.ViewModels.Video
         public RelayCommand CheckMaskCommand { get; }
         public RelayCommand FindPeopleCommand { get; }
         public RelayCommand StopCommand { get; }
+        /// <summary>Continues a swap that stopped part-way from its last clip saved on the server.</summary>
+        public RelayCommand ResumeCommand { get; }
+        public RelayCommand CheckUnfinishedCommand { get; }
         public RelayCommand NewSeedCommand { get; }
         public RelayCommand RefreshModelsCommand { get; }
         public RelayCommand PlayResultCommand { get; }
@@ -484,6 +657,8 @@ namespace FlipPix.UI.ViewModels.Video
                 CheckMaskCommand.NotifyCanExecuteChanged();
                 FindPeopleCommand.NotifyCanExecuteChanged();
                 StopCommand.NotifyCanExecuteChanged();
+                ResumeCommand.NotifyCanExecuteChanged();
+                CheckUnfinishedCommand.NotifyCanExecuteChanged();
                 PlayResultCommand.NotifyCanExecuteChanged();
                 PlaySourceCommand.NotifyCanExecuteChanged();
                 OpenResultFolderCommand.NotifyCanExecuteChanged();
@@ -525,6 +700,8 @@ namespace FlipPix.UI.ViewModels.Video
             PeopleStatus = "Find people lists who is in this video, so you can pick who each character replaces.";
             VideoDuration = await Task.Run(() => GetVideoDuration(path));
             AddLog($"Source video: {Path.GetFileName(path)} ({VideoDuration:F1} s)");
+            if (_pending?.VideoPath != path) SetPending(null);
+            _ = CheckUnfinishedAsync(quiet: true);
 
             var settings = _settingsService.Settings;
             if (settings != null)
@@ -551,7 +728,7 @@ namespace FlipPix.UI.ViewModels.Video
         private void Stop()
         {
             _runCts?.Cancel();
-            AddLog("Stopping… (ComfyUI is asked to interrupt; finished clips stay saved, so Generate resumes from them)");
+            AddLog("Stopping… (ComfyUI is asked to interrupt; finished clips stay saved on the server, and Resume continues from them)");
             _ = _comfyUIService.HttpClient.InterruptAsync(CancellationToken.None);
         }
 
@@ -654,96 +831,132 @@ namespace FlipPix.UI.ViewModels.Video
             ClipSeconds = Math.Clamp(ClipSeconds, CharacterSwapGraph.MinClipSeconds, CharacterSwapGraph.MaxClipSeconds),
         };
 
-        private async Task RunAsync(bool checkMask)
+        private async Task RunAsync(bool checkMask, PendingSwap? resume = null)
         {
-            if (IsProcessing || !HasVideo) return;
-            if (!checkMask && !CanGenerate()) return;
+            if (IsProcessing) return;
+            if (resume == null && (!HasVideo || (!checkMask && !CanGenerate()))) return;
 
             IsProcessing = true;
             ProcessingProgress = 0;
             _runCts = new CancellationTokenSource();
             var ct = _runCts.Token;
-            var label = checkMask ? "Check mask" : IsAdvanced ? "Advanced swap" : "Simple swap";
+            var label = resume != null ? "Resume swap" : checkMask ? "Check mask" : IsAdvanced ? "Advanced swap" : "Simple swap";
+            JsonObject? submitted = null;
+            LiveRun? live = null;
 
             try
             {
                 ProcessingStatus = "Waiting for the ComfyUI queue…";
                 using var lease = await _workflowCoordinator.AcquireAsync("character_swap", ct);
 
-                ProcessingStatus = "Sending the source video to ComfyUI…";
-                var hasAudio = await Task.Run(() => HasAudioStream(VideoPath), ct);
-                if (!hasAudio) AddLog($"{label}: the source has no audio track; H3 gets silence instead.");
-                var sent = DateTime.Now;
-                var video = await _comfyUIService.UploadVideoAsync(VideoPath, ct);
-                var took = DateTime.Now - sent;
-                AddLog(took.TotalSeconds < 5
-                    ? $"{label}: {Path.GetFileName(VideoPath)} is ready on the server"
-                    : $"{label}: uploaded {Path.GetFileName(VideoPath)} in {took:m\\:ss}");
-
                 JsonObject graph;
-                string videoNode, finalNode;
-                var settings = CurrentSettings();
+                string finalNode;
+                IReadOnlyList<CharacterSwapGraph.SavedClip>? saved = null;
 
-                if (checkMask)
+                if (resume != null)
                 {
-                    graph = CharacterSwapGraph.PruneMask(LoadGraph(CharacterSwapGraph.MaskFile, hasAudio), HatFix, Margin, Target, Outfit);
-                    videoNode = CharacterSwapGraph.MaskNodes.Video;
-                    finalNode = CharacterSwapGraph.MaskNodes.Preview;
-                    var ckpts = await _comfyUIService.HttpClient.GetModelFilenamesAsync("CheckpointLoaderSimple", "ckpt_name", ct);
-                    CharacterSwapGraph.Inputs(graph, "2")["ckpt_name"] =
-                        CharacterSwapGraph.ResolveFile("sam3.1_multiplex_fp16.safetensors", ckpts, @"sam3\.1", @"sam3");
+                    ProcessingStatus = "Checking ComfyUI is up…";
+                    if (!await _comfyUIService.WaitForServerReadyAsync(TimeSpan.FromSeconds(20), ct))
+                        throw new InvalidOperationException("ComfyUI is not answering. Start it, then press Resume again.");
+                    ProcessingStatus = "Reading the saved clips…";
+                    var (resumed, runName, next, clips) = await PrepareContinueAsync(resume, ct);
+                    graph = resumed;
+                    saved = clips;
+                    resume = resume with { RunName = runName };
+                    // The run loads its source by its server name; put the file back if the server lost it.
+                    if (File.Exists(resume.VideoPath) && CharacterSwapGraph.ChainVideo(graph) is { } serverVideo
+                        && CharacterSwapGraph.SameVideo(serverVideo, resume.VideoPath))
+                    {
+                        var name = await _comfyUIService.UploadVideoAsync(resume.VideoPath, ct);
+                        foreach (var (_, node) in graph)
+                            if (node?["class_type"]?.GetValue<string>() == "VHS_LoadVideo" && node["inputs"]?["video"]?.GetValue<string>() == serverVideo)
+                                node["inputs"]!["video"] = name;
+                    }
+                    finalNode = CharacterSwapGraph.NodeByTitle(graph, CharacterSwapGraph.FinalVideoTitle);
+                    AddLog(next > 1
+                        ? $"{label}: clips 1–{next - 1} are saved on the server ({runName}); continuing at clip {next} with the settings the swap was started with."
+                        : $"{label}: no clip of {runName} was saved yet, so it starts from clip 1 with the settings it was started with.");
                 }
                 else
                 {
-                    var pictures = ActiveCharacters.Where(c => c.HasPicture).ToList();
-                    var uploaded = new List<string>();
-                    foreach (var p in pictures)
-                    {
-                        ProcessingStatus = $"Uploading {p.Label}…";
-                        uploaded.Add(await _comfyUIService.UploadImageAsync(p.PicturePath, ct));
-                    }
+                    ProcessingStatus = "Sending the source video to ComfyUI…";
+                    var hasAudio = await Task.Run(() => HasAudioStream(VideoPath), ct);
+                    if (!hasAudio) AddLog($"{label}: the source has no audio track; H3 gets silence instead.");
+                    var sent = DateTime.Now;
+                    var video = await _comfyUIService.UploadVideoAsync(VideoPath, ct);
+                    var took = DateTime.Now - sent;
+                    AddLog(took.TotalSeconds < 5
+                        ? $"{label}: {Path.GetFileName(VideoPath)} is ready on the server"
+                        : $"{label}: uploaded {Path.GetFileName(VideoPath)} in {took:m\\:ss}");
 
-                    if (IsAdvanced)
+                    string videoNode;
+                    var settings = CurrentSettings();
+
+                    if (checkMask)
                     {
-                        graph = CharacterSwapGraph.PruneAdvanced(LoadGraph(CharacterSwapGraph.AdvancedFile, hasAudio), uploaded.Count, settings);
-                        videoNode = CharacterSwapGraph.NodeByTitle(graph, CharacterSwapGraph.AdvancedVideoTitle);
-                        for (var i = 0; i < uploaded.Count; i++)
-                            CharacterSwapGraph.Inputs(graph, CharacterSwapGraph.NodeByTitle(graph, $"Picture {i + 1}"))["image"] = uploaded[i];
+                        graph = CharacterSwapGraph.PruneMask(LoadGraph(CharacterSwapGraph.MaskFile, hasAudio), HatFix, Margin, Target, Outfit);
+                        videoNode = CharacterSwapGraph.MaskNodes.Video;
+                        finalNode = CharacterSwapGraph.MaskNodes.Preview;
+                        var ckpts = await _comfyUIService.HttpClient.GetModelFilenamesAsync("CheckpointLoaderSimple", "ckpt_name", ct);
+                        CharacterSwapGraph.Inputs(graph, "2")["ckpt_name"] =
+                            CharacterSwapGraph.ResolveFile("sam3.1_multiplex_fp16.safetensors", ckpts, @"sam3\.1", @"sam3");
                     }
                     else
                     {
-                        graph = CharacterSwapGraph.PruneSimple(LoadGraph(CharacterSwapGraph.SimpleFile, hasAudio), settings);
-                        videoNode = CharacterSwapGraph.SimpleNodes.Video;
-                        CharacterSwapGraph.Inputs(graph, CharacterSwapGraph.SimpleNodes.Picture)["image"] = uploaded[0];
+                        var pictures = ActiveCharacters.Where(c => c.HasPicture).ToList();
+                        var uploaded = new List<string>();
+                        foreach (var p in pictures)
+                        {
+                            ProcessingStatus = $"Uploading {p.Label}…";
+                            uploaded.Add(await _comfyUIService.UploadImageAsync(p.PicturePath, ct));
+                        }
+
+                        if (IsAdvanced)
+                        {
+                            graph = CharacterSwapGraph.PruneAdvanced(LoadGraph(CharacterSwapGraph.AdvancedFile, hasAudio), uploaded.Count, settings);
+                            videoNode = CharacterSwapGraph.NodeByTitle(graph, CharacterSwapGraph.AdvancedVideoTitle);
+                            for (var i = 0; i < uploaded.Count; i++)
+                                CharacterSwapGraph.Inputs(graph, CharacterSwapGraph.NodeByTitle(graph, $"Picture {i + 1}"))["image"] = uploaded[i];
+                        }
+                        else
+                        {
+                            graph = CharacterSwapGraph.PruneSimple(LoadGraph(CharacterSwapGraph.SimpleFile, hasAudio), settings);
+                            videoNode = CharacterSwapGraph.SimpleNodes.Video;
+                            CharacterSwapGraph.Inputs(graph, CharacterSwapGraph.SimpleNodes.Picture)["image"] = uploaded[0];
+                        }
+
+                        CharacterSwapGraph.ApplyModel(graph, await ResolveModelAsync(ct));
+                        CharacterSwapGraph.AddClipPreview(graph);
+                        finalNode = CharacterSwapGraph.NodeByTitle(graph, CharacterSwapGraph.FinalVideoTitle);
+                        var assemble = CharacterSwapGraph.Inputs(graph, finalNode);
+                        assemble["output_subfolder"] = "character_swap";
+                        assemble["filename"] = $"swap_{Path.GetFileNameWithoutExtension(VideoPath)}_%date:yyyy-MM-dd%";
                     }
 
-                    CharacterSwapGraph.ApplyModel(graph, await ResolveModelAsync(ct));
-                    CharacterSwapGraph.AddClipPreview(graph);
-                    finalNode = CharacterSwapGraph.NodeByTitle(graph, CharacterSwapGraph.FinalVideoTitle);
-                    var assemble = CharacterSwapGraph.Inputs(graph, finalNode);
-                    assemble["output_subfolder"] = "character_swap";
-                    assemble["filename"] = $"swap_{Path.GetFileNameWithoutExtension(VideoPath)}_%date:yyyy-MM-dd%";
+                    CharacterSwapGraph.Inputs(graph, videoNode)["video"] = video;
+                    CharacterSwapGraph.SetSection(graph, videoNode, SectionStart, SectionLength);
+
+                    AddLog(checkMask
+                        ? $"{label}: tracking \"{Target}\" with SAM 3.1 (margin {Margin}, hat fix {(HatFix ? "on" : "off")})"
+                        : $"{label}: {Resolution}, clips of {settings.ClipSeconds:0.#} s, motion reference {MotionSize} px, seed {Seed}, " +
+                          $"hat fix {(HatFix ? "on" : "off")}, no lip-sync {(NoLipSync ? "on" : "off")}. {ClipEstimate}");
+                    if (KeepVideoClothes)
+                        AddLog($"{label}: keeping the video's clothes — only the head (face and hair) is replaced.");
+                    if (!checkMask && IsAdvanced && ActiveCharacters.Count(c => c.HasPicture) == 1)
+                        AddLog($"{label}: tip — with one character, Simple mode with \"What to replace\" set to e.g. \"woman\" tracks " +
+                               "them by SAM alone. Advanced asks Qwen who each tracked person is, and parts it is unsure of stay unswapped, " +
+                               "which shows as the original look coming back for a few frames.");
                 }
 
-                CharacterSwapGraph.Inputs(graph, videoNode)["video"] = video;
-                CharacterSwapGraph.SetSection(graph, videoNode, SectionStart, SectionLength);
                 CharacterSwapGraph.AssertNoDanglingLinks(graph);
-
-                AddLog(checkMask
-                    ? $"{label}: tracking \"{Target}\" with SAM 3.1 (margin {Margin}, hat fix {(HatFix ? "on" : "off")})"
-                    : $"{label}: {Resolution}, clips of {settings.ClipSeconds:0.#} s, motion reference {MotionSize} px, seed {Seed}, " +
-                      $"hat fix {(HatFix ? "on" : "off")}, no lip-sync {(NoLipSync ? "on" : "off")}. {ClipEstimate}");
-                if (KeepVideoClothes)
-                    AddLog($"{label}: keeping the video's clothes — only the head (face and hair) is replaced.");
-                if (!checkMask && IsAdvanced && ActiveCharacters.Count(c => c.HasPicture) == 1)
-                    AddLog($"{label}: tip — with one character, Simple mode with \"What to replace\" set to e.g. \"woman\" tracks " +
-                           "them by SAM alone. Advanced asks Qwen who each tracked person is, and parts it is unsure of stay unswapped, " +
-                           "which shows as the original look coming back for a few frames.");
                 ProcessingStatus = checkMask ? "Checking the mask…" : "Rendering — H3 sampling takes most of the time…";
 
-                var live = checkMask ? null : StartLiveClips(ct);
+                live = checkMask ? null : StartLiveClips(ct, saved);
+                if (live != null && saved is { Count: > 0 }) live.Done = saved.Count;
+                if (live != null && resume?.RunName != null) live.RunName = resume.RunName;
                 var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(msg =>
                 {
+                    if (live != null) live.LastActivity = DateTime.Now;
                     if (msg.Data == null || msg.Data.Max <= 0) return;
                     var step = (double)msg.Data.Value / msg.Data.Max;
                     // Over the whole run once the clip count is known, so the bar does not refill every clip.
@@ -753,17 +966,12 @@ namespace FlipPix.UI.ViewModels.Video
                 });
 
                 var started = DateTime.Now;
-                string promptId;
-                try
-                {
-                    if (live != null) _comfyUIService.NodeExecuted += live.Handler;
-                    promptId = await _comfyUIService.ExecuteWorkflowAsync(graph, progress, ct, TimeSpan.FromHours(8));
-                }
-                finally
-                {
-                    if (live != null) _comfyUIService.NodeExecuted -= live.Handler;
-                }
+                submitted = graph;
+                var promptId = checkMask
+                    ? await _comfyUIService.ExecuteWorkflowAsync(graph, progress, ct, TimeSpan.FromHours(1))
+                    : await RenderChainAsync(graph, label, live!, progress, resume?.VideoPath ?? VideoPath, ct);
                 AddLog($"{label}: finished in {(DateTime.Now - started):h\\:mm\\:ss}");
+                if (!checkMask) SetPending(null);
 
                 var output = await ResolveOutputAsync(promptId, finalNode, ct);
                 if (output == null)
@@ -794,17 +1002,22 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 ProcessingStatus = "Stopped.";
                 AddLog($"{label} stopped.");
+                OfferResume(submitted, live, resume);
             }
             catch (Exception ex)
             {
                 ProcessingStatus = $"Failed: {ex.Message}";
                 AddLog($"{label} failed: {ex.Message}");
-                var hint = CharacterSwapGraph.EmptyMaskHint(ex.Message, IsAdvanced && !checkMask,
+                var hint = resume != null ? null : CharacterSwapGraph.EmptyMaskHint(ex.Message, IsAdvanced && !checkMask,
                     ActiveCharacters.Where(c => c.HasPicture).Select(c => c.Role).ToList(), Target, SectionLength <= 0);
                 if (hint != null)
                 {
                     ProcessingStatus = "Failed: nobody to replace was found. See the log.";
                     AddLog($"{label}: {hint}");
+                }
+                else if (ex is FlipPix.ComfyUI.Exceptions.ComfyUIPromptLostException)
+                {
+                    OfferResume(submitted, live, resume);
                 }
                 _logger.LogError(ex, "Character Swap run failed");
             }
@@ -814,6 +1027,102 @@ namespace FlipPix.UI.ViewModels.Video
                 _runCts?.Dispose();
                 _runCts = null;
                 RefreshCommands();
+            }
+        }
+
+        /// <summary>After a stop or a lost server: what was saved, and the Resume button for the rest.</summary>
+        private void OfferResume(JsonObject? submitted, LiveRun? live, PendingSwap? resume)
+        {
+            if (submitted == null || live == null) return;
+            var video = resume?.VideoPath ?? VideoPath;
+            var done = Math.Max(0, live.Index - 1);
+            SetPending(new PendingSwap(submitted, live.RunName ?? resume?.RunName, video),
+                live.Count > 0 ? new CharacterSwapGraph.ChainRun(live.RunName ?? string.Empty, DateTime.UtcNow, done, live.Count) : null);
+            AddLog(live.Count > 0
+                ? $"Clips 1–{done} of {live.Count} are saved on the server. Press Resume to continue from clip {done + 1} " +
+                  "(if ComfyUI is down, start it first)."
+                : "Finished clips are saved on the server. Press Resume to continue from the last one (if ComfyUI is down, start it first).");
+        }
+
+        /// <summary>
+        /// Runs a chain and keeps it going through ComfyUI restarts. A restart loses the queued prompt, but
+        /// every finished clip is saved with a checkpoint, so once the server is back the same prompt is
+        /// queued again starting at the first clip that was not saved (not at clip 1, which is what queuing
+        /// it unchanged would do). Also warns when nothing has happened for a long time.
+        /// </summary>
+        private async Task<string> RenderChainAsync(JsonObject graph, string label, LiveRun live,
+            IProgress<FlipPix.ComfyUI.Models.ProgressMessage> progress, string videoPath, CancellationToken ct)
+        {
+            using var watchCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            var watch = WatchForStallAsync(live, label, watchCts.Token);
+            try
+            {
+                for (var resumes = 0; ; resumes++)
+                {
+                    try
+                    {
+                        _comfyUIService.NodeExecuted += live.Handler;
+                        live.LastActivity = DateTime.Now;
+                        return await _comfyUIService.ExecuteWorkflowOnceAsync(graph, progress, ct, TimeSpan.FromHours(12));
+                    }
+                    catch (FlipPix.ComfyUI.Exceptions.ComfyUIPromptLostException) when (resumes < MaxAutoResumes)
+                    {
+                        var during = live.Index > 0 ? $" during clip {live.Index} of {live.Count}" : string.Empty;
+                        AddLog($"{label}: ComfyUI went away{during}. Waiting up to {ServerReturnWait.TotalMinutes:0} min for it to come back, " +
+                               "then continuing from the last saved clip.");
+                        ProcessingStatus = $"ComfyUI went away{during} — waiting for it to come back to continue…";
+                        if (!await _comfyUIService.WaitForServerReadyAsync(ServerReturnWait, ct))
+                            throw new FlipPix.ComfyUI.Exceptions.ComfyUIPromptLostException(
+                                $"ComfyUI went away{during} and did not come back within {ServerReturnWait.TotalMinutes:0} minutes.", string.Empty);
+
+                        var runName = live.RunName;
+                        if (runName == null && await FindUnfinishedAsync(videoPath, ct) is { } found) runName = found.Run.RunName;
+                        var next = 1;
+                        if (runName != null)
+                        {
+                            List<CharacterSwapGraph.SavedClip> clips;
+                            (next, clips) = await SavedClipsAsync(runName, ct);
+                            live.RunName = runName;
+                            live.Done = clips.Count;
+                        }
+                        if (next > 1)
+                        {
+                            CharacterSwapGraph.PrepareResume(graph, runName!, next);
+                            AddLog($"{label}: ComfyUI is back. Clips 1–{next - 1} are saved; continuing at clip {next}.");
+                        }
+                        else
+                        {
+                            AddLog($"{label}: ComfyUI is back. No clip had been saved yet, so the swap starts again from clip 1.");
+                        }
+                    }
+                    finally
+                    {
+                        _comfyUIService.NodeExecuted -= live.Handler;
+                    }
+                }
+            }
+            finally
+            {
+                watchCts.Cancel();
+                try { await watch; } catch (OperationCanceledException) { }
+            }
+        }
+
+        /// <summary>Says so in the log when ComfyUI has reported nothing for a long time, once per quiet spell.</summary>
+        private async Task WatchForStallAsync(LiveRun live, string label, CancellationToken ct)
+        {
+            var warnedAt = DateTime.MinValue;
+            while (!ct.IsCancellationRequested)
+            {
+                await Task.Delay(TimeSpan.FromMinutes(1), ct);
+                var quiet = DateTime.Now - live.LastActivity;
+                if (quiet < StallWarning || warnedAt >= live.LastActivity) continue;
+                warnedAt = DateTime.Now;
+                var clip = live.Index > 0 ? $"clip {live.Index} of {live.Count}" : "the run";
+                AddLog($"{label}: no progress from ComfyUI for {(int)quiet.TotalMinutes} min on {clip}. It may be stuck " +
+                       "(out of VRAM and swapping, or a hung node) — check the ComfyUI console. If you restart ComfyUI, Resume continues " +
+                       "from the last saved clip.");
+                ProcessingStatus = $"No progress for {(int)quiet.TotalMinutes} min on {clip} — ComfyUI may be stuck.";
             }
         }
 

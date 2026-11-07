@@ -272,7 +272,7 @@ public class ComfyUIService : IComfyUIService
             if (!_webSocketClient.IsConnected)
             {
                 _logger.LogWarning("WebSocket not connected, attempting reconnection before queueing prompt");
-                await _webSocketClient.EnsureConnectedAsync(cancellationToken);
+                await _webSocketClient.EnsureConnectedAsync(_clientId, cancellationToken);
             }
 
             var promptId = await RetryAsync(
@@ -359,10 +359,23 @@ public class ComfyUIService : IComfyUIService
     }
 
     /// <summary>
+    /// Submits a workflow and waits for it to finish, without the automatic resubmit of
+    /// <see cref="ExecuteWorkflowAsync"/>: a lost job throws <see cref="ComfyUIPromptLostException"/>.
+    /// For work that checkpoints itself (an H3 chain), where submitting the same prompt again would
+    /// start over from the beginning instead of continuing from what was saved.
+    /// </summary>
+    public Task<string> ExecuteWorkflowOnceAsync(
+        object workflow,
+        IProgress<ProgressMessage>? progress = null,
+        CancellationToken cancellationToken = default,
+        TimeSpan? executionTimeout = null) =>
+        ExecuteWorkflowAttemptAsync(workflow, progress, cancellationToken, executionTimeout);
+
+    /// <summary>
     /// Polls until ComfyUI answers /object_info (fully loaded, not just listening), or the wait
     /// budget runs out. False on timeout.
     /// </summary>
-    private async Task<bool> WaitForServerReadyAsync(TimeSpan budget, CancellationToken cancellationToken)
+    public async Task<bool> WaitForServerReadyAsync(TimeSpan budget, CancellationToken cancellationToken)
     {
         var deadline = DateTime.UtcNow + budget;
         while (DateTime.UtcNow < deadline)
@@ -394,7 +407,7 @@ public class ComfyUIService : IComfyUIService
             if (!_webSocketClient.IsConnected)
             {
                 _logger.LogWarning("WebSocket not connected, attempting reconnection before workflow execution");
-                await _webSocketClient.EnsureConnectedAsync(cancellationToken);
+                await _webSocketClient.EnsureConnectedAsync(_clientId, cancellationToken);
             }
 
             // Submit workflow
