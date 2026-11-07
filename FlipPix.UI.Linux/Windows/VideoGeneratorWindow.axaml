@@ -9614,7 +9614,34 @@
                                                    MediaEnded="CharacterSwapPlayer_MediaEnded"/>
                             </Grid>
                         </Border>
-                        <WrapPanel Grid.Row="1" Margin="0,6,0,0">
+                        <StackPanel Grid.Row="1">
+                        <DockPanel Margin="0,6,0,0" LastChildFill="True" IsVisible="{Binding HasLiveClips}">
+                            <TextBlock DockPanel.Dock="Left" Text="Clips" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"
+                                       ToolTip.Tip="Each H3 clip as it finishes. The preview follows the newest one; click a clip to watch it (click the last one to follow again)."/>
+                            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                                <ItemsControl ItemsSource="{Binding LiveClips}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vmv:CharacterSwapViewModel+LiveClip">
+                                            <Button Content="{Binding Label}"
+                                                    CommandParameter="{Binding}"
+                                                    Command="{Binding $parent[ItemsControl].((vmv:CharacterSwapViewModel)DataContext).PlayClipCommand}"
+                                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                                    MinWidth="28"
+                                                    Height="22"
+                                                    Padding="4,0"
+                                                    FontSize="10"
+                                                    Margin="0,0,3,2"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </DockPanel>
+                        <WrapPanel Margin="0,6,0,0">
                             <Button Content="▶ Swapped video"
                                     Command="{Binding PlayResultCommand}"
                                     Theme="{StaticResource SecondaryButtonStyle}"
@@ -9638,6 +9665,7 @@
                                     Margin="0,0,10,0"/>
                             <TextBlock Text="{Binding ResultVideoInfo}" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis"/>
                         </WrapPanel>
+                        </StackPanel>
                         <Expander Grid.Row="2"
                                   Header="📝 Log"
                                   IsExpanded="True"

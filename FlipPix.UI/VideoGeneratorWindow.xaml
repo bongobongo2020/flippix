@@ -7887,7 +7887,30 @@
                                     </Grid>
                                 </Border>
 
-                                <WrapPanel Grid.Row="1" Margin="0,6,0,0">
+                                <StackPanel Grid.Row="1">
+                                <DockPanel Margin="0,6,0,0" LastChildFill="True"
+                                           Visibility="{Binding HasLiveClips, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <TextBlock DockPanel.Dock="Left" Text="Clips" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"
+                                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"
+                                               ToolTip="Each H3 clip as it finishes. The preview follows the newest one; click a clip to watch it (click the last one to follow again)."/>
+                                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                                        <ItemsControl ItemsSource="{Binding LiveClips}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Orientation="Horizontal"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Button Content="{Binding Label}" CommandParameter="{Binding}"
+                                                            Command="{Binding DataContext.PlayClipCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            Style="{StaticResource SecondaryButtonStyle}" MinWidth="28" Height="22" Padding="4,0" FontSize="10" Margin="0,0,3,2"/>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </DockPanel>
+                                <WrapPanel Margin="0,6,0,0">
                                     <Button Content="▶ Swapped video" Command="{Binding PlayResultCommand}"
                                             Style="{StaticResource SecondaryButtonStyle}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,5,0"/>
                                     <Button Content="▶ Source" Command="{Binding PlaySourceCommand}"
@@ -7897,6 +7920,7 @@
                                     <TextBlock Text="{Binding ResultVideoInfo}" FontSize="10" VerticalAlignment="Center"
                                                Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis"/>
                                 </WrapPanel>
+                                </StackPanel>
 
                                 <Expander Grid.Row="2" Header="📝 Log" IsExpanded="True" Foreground="{StaticResource TextMutedBrush}" Margin="0,6,0,0">
                                     <Grid>

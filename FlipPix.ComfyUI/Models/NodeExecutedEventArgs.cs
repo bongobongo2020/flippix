@@ -25,5 +25,9 @@ namespace FlipPix.ComfyUI.Models
         public string PromptId { get; set; } = string.Empty;
         public string NodeId { get; set; } = string.Empty;
         public List<OutputFileRef> Files { get; } = new();
+
+        /// <summary>The node's whole "output" object as raw JSON, for UI data that is not a media file
+        /// (e.g. the H3 Context Loop's <c>h3_chain_active_scene</c> with the clip number). Null when absent.</summary>
+        public string? OutputJson { get; set; }
     }
 }

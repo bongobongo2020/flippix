@@ -183,6 +183,35 @@ public sealed class CharacterSwapGraphTests
         Assert.Equal("3. the drummer", people[2].Display);
     }
 
+    [Theory]
+    [InlineData("simple.api.json")]
+    [InlineData("advanced.api.json")]
+    public void Clip_preview_reads_the_trimmed_clip_and_saves_to_temp(string file)
+    {
+        var g = Load(file);
+        CharacterSwapGraph.AddClipPreview(g);
+        var preview = g[CharacterSwapGraph.ClipPreviewNode]!;
+        Assert.Equal("VHS_VideoCombine", preview["class_type"]!.GetValue<string>());
+        var inputs = preview["inputs"]!;
+        Assert.True(CharacterSwapGraph.IsLink(inputs["images"], out var src, out var slot));
+        Assert.Equal("MiniMaxH3LoopTrim", Class(g, src));
+        Assert.Equal(0, slot);
+        Assert.True(CharacterSwapGraph.IsLink(inputs["audio"], out var audioSrc, out var audioSlot));
+        Assert.Equal((src, 1), (audioSrc, audioSlot));
+        Assert.False(inputs["save_output"]!.GetValue<bool>());
+        Assert.StartsWith(CharacterSwapGraph.ClipPreviewPrefix, inputs["filename_prefix"]!.GetValue<string>());
+        CharacterSwapGraph.AssertNoDanglingLinks(g);
+    }
+
+    [Fact]
+    public void Current_clip_output_gives_clip_number_and_count()
+    {
+        Assert.Equal((3, 47), CharacterSwapGraph.ActiveClip(
+            "{\"h3_chain_active_scene\": [{\"run_name\": \"swap_x\", \"clip_index\": 3, \"clip_count\": 47}]}"));
+        Assert.Null(CharacterSwapGraph.ActiveClip("{\"text\": [\"saved\"]}"));
+        Assert.Null(CharacterSwapGraph.ActiveClip(null));
+    }
+
     [Fact]
     public void Same_role_listed_twice_is_one_person()
     {

@@ -319,6 +319,61 @@ namespace FlipPix.UI.Services
             return graph;
         }
 
+        // ── Live clip previews ───────────────────────────────────────────────────────────────────────
+
+        /// <summary>Filename prefix of the per-clip previews, so the page can tell them from other temp files.</summary>
+        public const string ClipPreviewPrefix = "flippix_swap_clip";
+        public const string ClipPreviewNode = "clip_preview";
+
+        /// <summary>
+        /// Adds a small H.264 preview of each finished clip, so a long swap (196 s is about 46 clips)
+        /// shows how it is going instead of nothing until the final assembly.
+        /// <para>The chain's own "Save Clip + Checkpoint" only reports its segment to the UI when no Review
+        /// Gate follows it, and these graphs have one. So a VHS_VideoCombine reads the Trim node's delivered
+        /// frames and audio, the same ones the clip is saved from. Context Loop's Loop End clones every
+        /// output node that directly consumes a loop-body node into each next clip, so it renders once per
+        /// clip. It saves to temp (save_output false): nothing is added to the output folder.</para>
+        /// </summary>
+        public static void AddClipPreview(JsonObject graph)
+        {
+            var trim = graph.FirstOrDefault(kv => kv.Value?["class_type"]?.GetValue<string>() == "MiniMaxH3LoopTrim").Key;
+            if (trim == null) return;
+            graph[ClipPreviewNode] = new JsonObject
+            {
+                ["class_type"] = "VHS_VideoCombine",
+                ["inputs"] = new JsonObject
+                {
+                    ["images"] = Link(trim, 0),
+                    ["audio"] = Link(trim, 1),
+                    ["frame_rate"] = 24,
+                    ["loop_count"] = 0,
+                    ["filename_prefix"] = ClipPreviewPrefix,
+                    ["format"] = "video/h264-mp4",
+                    ["pix_fmt"] = "yuv420p",
+                    ["crf"] = 23,
+                    ["save_metadata"] = false,
+                    ["trim_to_audio"] = false,
+                    ["pingpong"] = false,
+                    ["save_output"] = false,
+                },
+                ["_meta"] = new JsonObject { ["title"] = "Clip preview (FlipPix)" },
+            };
+        }
+
+        /// <summary>The clip the chain has just started, from Current Clip's <c>h3_chain_active_scene</c> UI output.</summary>
+        public static (int Index, int Count)? ActiveClip(string? outputJson)
+        {
+            if (string.IsNullOrEmpty(outputJson) || !outputJson.Contains("h3_chain_active_scene")) return null;
+            try
+            {
+                var scene = JsonNode.Parse(outputJson)?["h3_chain_active_scene"]?[0];
+                var index = scene?["clip_index"]?.GetValue<int>();
+                var count = scene?["clip_count"]?.GetValue<int>();
+                return index is > 0 && count is > 0 ? (index.Value, count.Value) : null;
+            }
+            catch (Exception) { return null; }
+        }
+
         // ── Find people ──────────────────────────────────────────────────────────────────────────────
 
         /// <summary>Node whose text output holds the describer's list of people.</summary>

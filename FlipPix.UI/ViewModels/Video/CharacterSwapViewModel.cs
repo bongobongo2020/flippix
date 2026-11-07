@@ -182,6 +182,129 @@ namespace FlipPix.UI.ViewModels.Video
             foreach (var slot in Characters) ApplyReplaces(slot);
         }
 
+        // ── Live clips ───────────────────────────────────────────────────────────────────────────
+
+        /// <summary>One finished H3 clip of the running (or last) swap, previewed as it lands.</summary>
+        public sealed record LiveClip(int Number, string Path)
+        {
+            public string Label => Number.ToString();
+        }
+
+        /// <summary>Clips of the current or last swap, in order; click one to play it.</summary>
+        public ObservableCollection<LiveClip> LiveClips { get; } = new();
+        public bool HasLiveClips => LiveClips.Count > 0;
+
+        public RelayCommand<LiveClip> PlayClipCommand => _playClipCommand ??= new RelayCommand<LiveClip>(clip =>
+        {
+            if (clip == null) return;
+            // Picking an older clip stops the preview jumping to each new one; picking the newest resumes it.
+            _followLatest = LiveClips.Count > 0 && clip == LiveClips[^1];
+            ActivePreview = clip.Path;
+        });
+        private RelayCommand<LiveClip>? _playClipCommand;
+        private bool _followLatest = true;
+
+        private static readonly string LiveClipRoot =
+            System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FlipPix", "character_swap_clips");
+
+        /// <summary>State of one run's live previews: which clip is rendering and when each one landed.</summary>
+        private sealed class LiveRun
+        {
+            public int Index;            // clip being rendered now (1-based); 0 until the chain reports it
+            public int Count;            // clips in the plan; 0 until known
+            public int Done;
+            public readonly List<DateTime> Landed = new();
+            public string Folder = string.Empty;
+            public EventHandler<FlipPix.ComfyUI.Models.NodeExecutedEventArgs> Handler = null!;
+        }
+
+        private LiveRun StartLiveClips(CancellationToken ct)
+        {
+            var run = new LiveRun { Folder = System.IO.Path.Combine(LiveClipRoot, DateTime.Now.ToString("yyyyMMdd_HHmmss")) };
+            Application.Current?.Dispatcher.Invoke(() =>
+            {
+                LiveClips.Clear();
+                OnPropertyChanged(nameof(HasLiveClips));
+            });
+            _followLatest = true;
+            ClearOldLiveClips();
+
+            run.Handler = (_, e) =>
+            {
+                if (CharacterSwapGraph.ActiveClip(e.OutputJson) is { } scene)
+                {
+                    run.Index = scene.Index;
+                    run.Count = scene.Count;
+                    if (run.Done == 0)
+                        ProcessingStatus = $"Rendering clip {scene.Index} of {scene.Count}… the first clip also loads the models.";
+                    return;
+                }
+                var file = e.Files.FirstOrDefault(f => f.Filename.StartsWith(CharacterSwapGraph.ClipPreviewPrefix, StringComparison.Ordinal));
+                if (file != null) _ = FetchLiveClipAsync(run, file, ct);
+            };
+            return run;
+        }
+
+        private async Task FetchLiveClipAsync(LiveRun run, FlipPix.ComfyUI.Models.OutputFileRef file, CancellationToken ct)
+        {
+            var number = run.Index > 0 ? run.Index : run.Done + 1;
+            run.Done++;
+            run.Landed.Add(DateTime.Now);
+            try
+            {
+                var bytes = await _comfyUIService.HttpClient.DownloadViewFileAsync(file.Filename, file.Subfolder, file.Type, ct);
+                if (bytes is not { Length: > 0 }) return;
+                Directory.CreateDirectory(run.Folder);
+                var path = System.IO.Path.Combine(run.Folder, $"clip_{number:000}.mp4");
+                await File.WriteAllBytesAsync(path, bytes, ct);
+
+                Application.Current?.Dispatcher.Invoke(() =>
+                {
+                    var clip = new LiveClip(number, path);
+                    var at = 0;
+                    while (at < LiveClips.Count && LiveClips[at].Number < number) at++;
+                    LiveClips.Insert(at, clip);
+                    OnPropertyChanged(nameof(HasLiveClips));
+                    if (_followLatest && at == LiveClips.Count - 1) ActivePreview = path;
+                });
+
+                var left = run.Count > 0 ? run.Count - number : 0;
+                var eta = RemainingEstimate(run.Landed, left);
+                ProcessingStatus = run.Count > 0
+                    ? $"Clip {number} of {run.Count} done{(eta != null ? $" · about {eta} left" : "")}. The preview shows each clip as it lands."
+                    : $"Clip {number} done. The preview shows each clip as it lands.";
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Character Swap: could not fetch the preview of clip {number}: {ex.Message}");
+            }
+        }
+
+        /// <summary>Time left from the gaps between finished clips. The first gap is skipped once there are
+        /// others: it includes loading the models, which later clips do not repeat.</summary>
+        private static string? RemainingEstimate(List<DateTime> landed, int clipsLeft)
+        {
+            if (clipsLeft <= 0 || landed.Count < 2) return null;
+            var gaps = landed.Zip(landed.Skip(1), (a, b) => (b - a).TotalSeconds).ToList();
+            if (gaps.Count > 1) gaps.RemoveAt(0);
+            var left = TimeSpan.FromSeconds(gaps.Average() * clipsLeft);
+            return left.TotalHours >= 1 ? $"{(int)left.TotalHours} h {left.Minutes:00} min" : $"{Math.Max(1, (int)Math.Round(left.TotalMinutes))} min";
+        }
+
+        /// <summary>Previews are only for watching a run; earlier runs' folders go when a new run starts.
+        /// A file the player still has open stays until next time.</summary>
+        private static void ClearOldLiveClips()
+        {
+            try
+            {
+                if (!Directory.Exists(LiveClipRoot)) return;
+                foreach (var dir in Directory.EnumerateDirectories(LiveClipRoot))
+                    try { Directory.Delete(dir, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            }
+            catch (Exception) { }
+        }
+
         // ── People in the video ──────────────────────────────────────────────────────────────────
 
         /// <summary>Who the describer saw in the source, for the "Replaces" picker under each character.</summary>
@@ -576,6 +699,7 @@ namespace FlipPix.UI.ViewModels.Video
                     }
 
                     CharacterSwapGraph.ApplyModel(graph, await ResolveModelAsync(ct));
+                    CharacterSwapGraph.AddClipPreview(graph);
                     finalNode = CharacterSwapGraph.NodeByTitle(graph, CharacterSwapGraph.FinalVideoTitle);
                     var assemble = CharacterSwapGraph.Inputs(graph, finalNode);
                     assemble["output_subfolder"] = "character_swap";
@@ -592,14 +716,28 @@ namespace FlipPix.UI.ViewModels.Video
                       $"hat fix {(HatFix ? "on" : "off")}, no lip-sync {(NoLipSync ? "on" : "off")}. {ClipEstimate}");
                 ProcessingStatus = checkMask ? "Checking the mask…" : "Rendering — H3 sampling takes most of the time…";
 
+                var live = checkMask ? null : StartLiveClips(ct);
                 var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(msg =>
                 {
-                    if (msg.Data != null && msg.Data.Max > 0)
-                        ProcessingProgress = (double)msg.Data.Value / msg.Data.Max * 100;
+                    if (msg.Data == null || msg.Data.Max <= 0) return;
+                    var step = (double)msg.Data.Value / msg.Data.Max;
+                    // Over the whole run once the clip count is known, so the bar does not refill every clip.
+                    ProcessingProgress = live is { Count: > 0 }
+                        ? Math.Min(99, (live.Index - 1 + step) / live.Count * 100)
+                        : step * 100;
                 });
 
                 var started = DateTime.Now;
-                var promptId = await _comfyUIService.ExecuteWorkflowAsync(graph, progress, ct, TimeSpan.FromHours(8));
+                string promptId;
+                try
+                {
+                    if (live != null) _comfyUIService.NodeExecuted += live.Handler;
+                    promptId = await _comfyUIService.ExecuteWorkflowAsync(graph, progress, ct, TimeSpan.FromHours(8));
+                }
+                finally
+                {
+                    if (live != null) _comfyUIService.NodeExecuted -= live.Handler;
+                }
                 AddLog($"{label}: finished in {(DateTime.Now - started):h\\:mm\\:ss}");
 
                 var output = await ResolveOutputAsync(promptId, finalNode, ct);

@@ -751,6 +751,7 @@ public class ComfyUIService : IComfyUIService
             if (data.TryGetProperty("output", out var output) &&
                 output.ValueKind == System.Text.Json.JsonValueKind.Object)
             {
+                args.OutputJson = output.GetRawText();
                 foreach (var key in new[] { "images", "videos", "gifs", "files" })
                 {
                     if (!output.TryGetProperty(key, out var arr) ||
