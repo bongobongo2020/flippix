@@ -303,20 +303,174 @@ namespace FlipPix.UI.Services
             plan["seed"] = s.Seed;
             plan["clip_seconds"] = s.ClipSeconds;
             plan["roles"] = Collapse(s.Roles.FirstOrDefault() ?? string.Empty);
+            if (s.Outfit == SwapOutfit.KeepVideo) KeepVideoClothes(graph, s.Margin);
             return graph;
         }
 
         /// <summary>Check mask (pruneMask): SAM + the edit mask only, tinted next to the grey mannequin.</summary>
-        public static JsonObject PruneMask(JsonObject source, bool hatFix, SwapMargin margin, string target)
+        public static JsonObject PruneMask(JsonObject source, bool hatFix, SwapMargin margin, string target,
+                                           SwapOutfit outfit = SwapOutfit.FromPicture)
         {
             var graph = (JsonObject)source.DeepClone();
             MaskSettings(graph, hatFix, margin, target, MaskNodes.Target, MaskNodes.GrowMask, MaskNodes.PeopleMask, MaskNodes.Hat);
+            if (outfit == SwapOutfit.KeepVideo) KeepVideoClothes(graph, margin);
             // Upstream keeps the preview as a temp file and serves it through the SDK; FlipPix fetches
             // outputs from history, so it is saved under the tab's folder instead.
             var preview = Inputs(graph, MaskNodes.Preview);
             preview["save_output"] = true;
             preview["filename_prefix"] = "character_swap/mask";
             return graph;
+        }
+
+        // ── Keep the video's clothes ─────────────────────────────────────────────────────────────────
+
+        public const string HeadTrackText = "head";
+
+        private const string HeadOnlyDescribe =
+            "Describe the face and hair of the person in this picture for a casting sheet, in one sentence of about 30 words: " +
+            "apparent age and gender, face shape, skin tone, eyes, hair and facial hair. Do not mention clothing, accessories, " +
+            "body or background. No preamble.";
+
+        /// <summary>
+        /// The upstream prompt hands the whole outfit to the picture; with only the head regenerated these
+        /// sentences would ask H3 to redraw clothes it cannot reach, so they are rewritten (pattern, replacement;
+        /// Python re syntax, as ComfyUI's RegexReplace runs them). A sentence the plan stops writing simply
+        /// does not match.
+        /// </summary>
+        public static readonly (string Pattern, string Replace)[] KeepClothesRewrites =
+        {
+            (@"Their face, hair, body and clothing all come from (<Picture \d+>)\.",
+             @"Only their face and hair come from \1; their body, clothing and accessories stay exactly as they are in <Video 1>."),
+            (@"in which the people to replace are shown as smooth grey figures",
+             "in which the heads of the people to replace are shown as smooth grey shapes"),
+            (@"The grey figures supply movement only; faces, hair, skin and clothing come from the pictures\.",
+             "The grey heads supply movement only; faces and hair come from the pictures, and everything below the head, including all clothing, is unchanged from <Video 1>."),
+            (@"Identities and complete outfits come from the pictures\.",
+             "Faces and hair come from the pictures; the clothing is unchanged from <Video 1>."),
+            (@"facial identity, hair, skin tone and complete outfit remain consistent",
+             "facial identity and hair remain consistent above the unchanged original clothing"),
+            (@"the replaced people's identities and outfits change",
+             "only the replaced people's faces and hair change; their clothing is kept"),
+            (@"Their outfits replace the original clothing completely; no face, hair, skin, costume, fabric pattern or accessory of .+? remains\.",
+             "Their face and hair replace the original face and hair; the clothing, costume, fabric patterns and accessories stay exactly as in <Video 1>."),
+        };
+
+        /// <summary>
+        /// "Keep the video's clothes": only the head of the person being replaced is regenerated, so the
+        /// outfit, body and everything else stay the source's own pixels — no clothing to flicker between
+        /// clips or shots.
+        /// <para>SAM tracks "head" on the same frames as the person track; the heads are multiplied with the
+        /// person mask (with its headroom, so big hair is kept) so only the chosen person's head counts, then
+        /// grown by half the usual margin. That mask is both what H3 regenerates and what the grey mannequin
+        /// hides, so the motion reference still shows the original clothes. The pictures are described by
+        /// face and hair only and the clip prompt's outfit sentences are rewritten (<see cref="KeepClothesRewrites"/>).
+        /// Works on the Simple, Advanced and Check mask graphs, after their pruning.</para>
+        /// </summary>
+        public static void KeepVideoClothes(JsonObject graph, SwapMargin margin)
+        {
+            var targetText = NodeByTitle(graph, "SAM: what to replace");
+            var personTrack = graph.Where(kv => kv.Value?["class_type"]?.GetValue<string>() == "SAM3_VideoTrack"
+                                                && IsLink(kv.Value?["inputs"]?["conditioning"], out var c, out _) && c == targetText)
+                                   .Select(kv => kv.Key).Single();
+            var track = Inputs(graph, personTrack);
+            var grow = graph.Where(kv => kv.Value?["class_type"]?.GetValue<string>() == "GrowMaskWithBlur"
+                                         && Regex.IsMatch(TitleOf(kv.Value), @"\bgrow mask\b", RegexOptions.IgnoreCase))
+                            .Select(kv => kv.Key).Single();
+
+            // The person mask with headroom: the grow node's input, or the people side of "people + hats".
+            if (!IsLink(Inputs(graph, grow)["mask"], out var person, out var personSlot))
+                throw new InvalidOperationException("The swap's grow mask has no mask input.");
+            if (graph[person]?["class_type"]?.GetValue<string>() == "MaskComposite" &&
+                IsLink(Inputs(graph, person)["destination"], out var people, out var peopleSlot))
+                (person, personSlot) = (people, peopleSlot);
+
+            graph["head_text"] = Node("CLIPTextEncode", "SAM: heads (keep clothes)", new JsonObject
+            {
+                ["text"] = HeadTrackText,
+                ["clip"] = Inputs(graph, targetText)["clip"]!.DeepClone(),
+            });
+            graph["head_track"] = Node("SAM3_VideoTrack", "SAM 3.1 track heads (keep clothes)", new JsonObject
+            {
+                ["images"] = track["images"]!.DeepClone(),
+                ["model"] = track["model"]!.DeepClone(),
+                ["conditioning"] = Link("head_text", 0),
+                ["detection_threshold"] = 0.3,
+                ["max_objects"] = 0,
+                ["detect_interval"] = 1,
+            });
+            graph["head_masks"] = Node("SAM3_TrackToMask", "All heads (keep clothes)", new JsonObject
+            {
+                ["track_data"] = Link("head_track", 0),
+                ["object_indices"] = string.Empty,
+            });
+            graph["head_only"] = Node("MaskComposite", "Only their heads (keep clothes)", new JsonObject
+            {
+                ["destination"] = Link("head_masks", 0),
+                ["source"] = Link(person, personSlot),
+                ["x"] = 0,
+                ["y"] = 0,
+                ["operation"] = "multiply",
+            });
+
+            var growInputs = Inputs(graph, grow);
+            growInputs["mask"] = Link("head_only", 0);
+            growInputs["expand"] = MarginPixels(margin) / 2;
+
+            foreach (var (_, node) in graph)
+                if (node?["class_type"]?.GetValue<string>() == "H3GreyMannequins")
+                    node["inputs"]!["mask"] = Link(grow, 0);
+
+            foreach (var (_, node) in graph)
+                if (node?["class_type"]?.GetValue<string>() == "TextGenerate" && Regex.IsMatch(TitleOf(node), @"^Describe picture \d$"))
+                    node["inputs"]!["prompt"] = HeadOnlyDescribe;
+
+            var fill = graph.FirstOrDefault(kv => kv.Value?["class_type"]?.GetValue<string>() == "H3FillShots").Key;
+            if (fill != null)
+            {
+                var readers = AllInputs(graph)
+                    .SelectMany(x => x.inputs.Where(kv => IsLink(kv.Value, out var src, out _) && src == fill)
+                                             .Select(kv => (x.inputs, kv.Key)))
+                    .ToList();
+                var last = fill;
+                for (var i = 0; i < KeepClothesRewrites.Length; i++)
+                {
+                    var id = $"keep_clothes_prompt_{i + 1}";
+                    graph[id] = Node("RegexReplace", $"Prompt: keep the video's clothes ({i + 1})", new JsonObject
+                    {
+                        ["string"] = Link(last, 0),
+                        ["regex_pattern"] = KeepClothesRewrites[i].Pattern,
+                        ["replace"] = KeepClothesRewrites[i].Replace,
+                        ["case_insensitive"] = false,
+                        ["multiline"] = false,
+                        ["dotall"] = false,
+                        ["count"] = 0,
+                    });
+                    last = id;
+                }
+                foreach (var (inputs, name) in readers) inputs[name] = Link(last, 0);
+            }
+            AssertNoDanglingLinks(graph);
+        }
+
+        private static JsonObject Node(string type, string title, JsonObject inputs) => new()
+        {
+            ["class_type"] = type,
+            ["inputs"] = inputs,
+            ["_meta"] = new JsonObject { ["title"] = title },
+        };
+
+        /// <summary>
+        /// A short SAM text for one person from the describer's look ("middle-aged woman with dark skin, …"
+        /// → "woman"). SAM matches a short noun far more reliably than a sentence, and Simple mode replaces the
+        /// biggest match, so the noun alone already picks the woman over the man.
+        /// </summary>
+        public static string SamTarget(string look)
+        {
+            var m = Regex.Match(look ?? string.Empty,
+                @"\b(woman|man|girl|boy|child|kid|lady|gentleman|teenager|baby|person|dog|cat|horse)\b", RegexOptions.IgnoreCase);
+            if (m.Success) return m.Value.ToLowerInvariant();
+            var head = Regex.Split(look ?? string.Empty, @",| with | in | wearing ", RegexOptions.IgnoreCase)[0].Trim();
+            return head.Length > 0 ? head : DefaultTarget;
         }
 
         // ── Live clip previews ───────────────────────────────────────────────────────────────────────
@@ -558,6 +712,7 @@ namespace FlipPix.UI.Services
             plan["roles"] = roles.Any(r => r.Length > 0)
                 ? string.Join("\n", roles.Select((r, i) => r.Length > 0 ? r : Ordinal(i, pictures)))
                 : string.Empty;
+            if (s.Outfit == SwapOutfit.KeepVideo) KeepVideoClothes(graph, s.Margin);
             return graph;
         }
 
@@ -660,6 +815,9 @@ namespace FlipPix.UI.Services
 
     public enum SwapMargin { Tight, Normal, Loose }
 
+    /// <summary>Whose clothes the result wears: the picture's, or the video's own (only face and hair are replaced).</summary>
+    public enum SwapOutfit { FromPicture, KeepVideo }
+
     /// <summary>One person the describer saw in the source video: a role ("the dancer") and how they look.</summary>
     public sealed record SwapPerson(int Number, string Role, string Look)
     {
@@ -677,6 +835,7 @@ namespace FlipPix.UI.Services
         public bool HatFix { get; init; }
         public bool NoLipSync { get; init; }
         public SwapMargin Margin { get; init; } = SwapMargin.Normal;
+        public SwapOutfit Outfit { get; init; } = SwapOutfit.FromPicture;
         public string Target { get; init; } = CharacterSwapGraph.DefaultTarget;
         public long Seed { get; init; }
         public double ClipSeconds { get; init; } = CharacterSwapGraph.DefaultClipSeconds;

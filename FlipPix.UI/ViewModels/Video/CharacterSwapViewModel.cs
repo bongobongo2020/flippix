@@ -82,6 +82,7 @@ namespace FlipPix.UI.ViewModels.Video
             _hatFix = saved.HatFix;
             _noLipSync = saved.NoLipSync;
             _target = string.IsNullOrWhiteSpace(saved.Target) ? CharacterSwapGraph.DefaultTarget : saved.Target;
+            _keepVideoClothes = saved.Outfit == nameof(SwapOutfit.KeepVideo);
             _steps = Math.Clamp(saved.Steps, 1, 100);
             _selectedModel = saved.Model;
             _selectedLora = saved.Lora;
@@ -152,6 +153,20 @@ namespace FlipPix.UI.ViewModels.Video
         [ObservableProperty] private bool _hatFix;
         [ObservableProperty] private bool _noLipSync;
         [ObservableProperty] private string _target = CharacterSwapGraph.DefaultTarget;
+
+        /// <summary>Keep the video's clothes: only the head (face and hair) of the person is replaced, so the
+        /// outfit is the source's own pixels and cannot change between clips. Off: the picture's outfit.</summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(UsePictureClothes))]
+        private bool _keepVideoClothes;
+
+        public bool UsePictureClothes
+        {
+            get => !KeepVideoClothes;
+            set => KeepVideoClothes = !value;
+        }
+
+        public SwapOutfit Outfit => KeepVideoClothes ? SwapOutfit.KeepVideo : SwapOutfit.FromPicture;
         [ObservableProperty] private long _seed;
         [ObservableProperty] private int _steps = CharacterSwapGraph.DefaultSteps;
         [ObservableProperty] private string _selectedModel = string.Empty;
@@ -330,7 +345,8 @@ namespace FlipPix.UI.ViewModels.Video
             else if (slot.Number == 1)
             {
                 slot.Role = person.Role;
-                if (person.Look.Length > 0) Target = person.Look;
+                // A short noun ("woman") tracks far more reliably than the whole description.
+                if (person.Look.Length > 0) Target = CharacterSwapGraph.SamTarget(person.Look);
             }
         }
 
@@ -411,6 +427,7 @@ namespace FlipPix.UI.ViewModels.Video
         partial void OnHatFixChanged(bool value) => Save();
         partial void OnNoLipSyncChanged(bool value) => Save();
         partial void OnTargetChanged(string value) => Save();
+        partial void OnKeepVideoClothesChanged(bool value) => Save();
         partial void OnStepsChanged(int value) => Save();
         partial void OnSelectedModelChanged(string value) => Save();
         partial void OnSelectedLoraChanged(string value) => Save();
@@ -431,6 +448,7 @@ namespace FlipPix.UI.ViewModels.Video
             s.HatFix = HatFix;
             s.NoLipSync = NoLipSync;
             s.Target = Target;
+            s.Outfit = Outfit.ToString();
             s.Steps = Steps;
             s.Model = SelectedModel;
             s.Lora = SelectedLora;
@@ -630,6 +648,7 @@ namespace FlipPix.UI.ViewModels.Video
             HatFix = HatFix,
             NoLipSync = NoLipSync,
             Margin = Margin,
+            Outfit = Outfit,
             Target = Target,
             Seed = Seed,
             ClipSeconds = Math.Clamp(ClipSeconds, CharacterSwapGraph.MinClipSeconds, CharacterSwapGraph.MaxClipSeconds),
@@ -667,7 +686,7 @@ namespace FlipPix.UI.ViewModels.Video
 
                 if (checkMask)
                 {
-                    graph = CharacterSwapGraph.PruneMask(LoadGraph(CharacterSwapGraph.MaskFile, hasAudio), HatFix, Margin, Target);
+                    graph = CharacterSwapGraph.PruneMask(LoadGraph(CharacterSwapGraph.MaskFile, hasAudio), HatFix, Margin, Target, Outfit);
                     videoNode = CharacterSwapGraph.MaskNodes.Video;
                     finalNode = CharacterSwapGraph.MaskNodes.Preview;
                     var ckpts = await _comfyUIService.HttpClient.GetModelFilenamesAsync("CheckpointLoaderSimple", "ckpt_name", ct);
@@ -714,6 +733,12 @@ namespace FlipPix.UI.ViewModels.Video
                     ? $"{label}: tracking \"{Target}\" with SAM 3.1 (margin {Margin}, hat fix {(HatFix ? "on" : "off")})"
                     : $"{label}: {Resolution}, clips of {settings.ClipSeconds:0.#} s, motion reference {MotionSize} px, seed {Seed}, " +
                       $"hat fix {(HatFix ? "on" : "off")}, no lip-sync {(NoLipSync ? "on" : "off")}. {ClipEstimate}");
+                if (KeepVideoClothes)
+                    AddLog($"{label}: keeping the video's clothes — only the head (face and hair) is replaced.");
+                if (!checkMask && IsAdvanced && ActiveCharacters.Count(c => c.HasPicture) == 1)
+                    AddLog($"{label}: tip — with one character, Simple mode with \"What to replace\" set to e.g. \"woman\" tracks " +
+                           "them by SAM alone. Advanced asks Qwen who each tracked person is, and parts it is unsure of stay unswapped, " +
+                           "which shows as the original look coming back for a few frames.");
                 ProcessingStatus = checkMask ? "Checking the mask…" : "Rendering — H3 sampling takes most of the time…";
 
                 var live = checkMask ? null : StartLiveClips(ct);

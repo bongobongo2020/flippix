@@ -619,6 +619,8 @@ public class CharacterSwapSettings
     public bool HatFix { get; set; }
     public bool NoLipSync { get; set; }
     public string Target { get; set; } = "person";
+    /// <summary>"FromPicture" (the photo's outfit) or "KeepVideo" (only face and hair are replaced).</summary>
+    public string Outfit { get; set; } = "FromPicture";
     public int Steps { get; set; } = 6;
     public string Model { get; set; } = string.Empty;
     public string Lora { get; set; } = string.Empty;

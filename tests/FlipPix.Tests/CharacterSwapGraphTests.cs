@@ -1,5 +1,7 @@
 using System.IO;
+using System;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Text.Json.Nodes;
 using FlipPix.UI.Services;
 
@@ -202,6 +204,89 @@ public sealed class CharacterSwapGraphTests
         Assert.StartsWith(CharacterSwapGraph.ClipPreviewPrefix, inputs["filename_prefix"]!.GetValue<string>());
         CharacterSwapGraph.AssertNoDanglingLinks(g);
     }
+
+    private static string Linked(JsonObject g, JsonNode? value)
+    {
+        Assert.True(CharacterSwapGraph.IsLink(value, out var id, out _));
+        return id;
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Keep_clothes_regenerates_only_the_chosen_persons_head(bool advanced)
+    {
+        var settings = new SwapSettings { Roles = new() { "the dancer" }, Outfit = SwapOutfit.KeepVideo, Margin = SwapMargin.Normal };
+        var g = advanced
+            ? CharacterSwapGraph.PruneAdvanced(Load(CharacterSwapGraph.AdvancedFile), 1, settings)
+            : CharacterSwapGraph.PruneSimple(Load(CharacterSwapGraph.SimpleFile), settings);
+
+        // What H3 regenerates: the grown head mask, heads multiplied by the person mask.
+        var edit = g.First(kv => Class(g, kv.Key) == "MiniMaxH3FantasticVideoEditLatent").Key;
+        var grow = Linked(g, g[edit]!["inputs"]!["mask"]);
+        Assert.Equal("head_only", Linked(g, g[grow]!["inputs"]!["mask"]));
+        Assert.Equal(CharacterSwapGraph.MarginPixels(SwapMargin.Normal) / 2, g[grow]!["inputs"]!["expand"]!.GetValue<int>());
+        Assert.Equal("head_masks", Linked(g, g["head_only"]!["inputs"]!["destination"]));
+        Assert.Contains(Class(g, Linked(g, g["head_only"]!["inputs"]!["source"])), new[] { "H3PeopleMask", "H3RoleMask" });
+        Assert.Equal(CharacterSwapGraph.HeadTrackText, g["head_text"]!["inputs"]!["text"]!.GetValue<string>());
+
+        // The mannequin hides only that head, so the motion reference still shows the clothes.
+        var mannequin = g.First(kv => Class(g, kv.Key) == "H3GreyMannequins").Key;
+        Assert.Equal(grow, Linked(g, g[mannequin]!["inputs"]!["mask"]));
+
+        // H3 reads the rewritten prompt; the pictures are described by face and hair only.
+        var reference = g.First(kv => Class(g, kv.Key) == "MiniMaxH3ReferenceToVideo").Key;
+        Assert.Equal($"keep_clothes_prompt_{CharacterSwapGraph.KeepClothesRewrites.Length}", Linked(g, g[reference]!["inputs"]!["prompt"]));
+        var describe = g[CharacterSwapGraph.NodeByTitle(g, "Describe picture 1")]!["inputs"]!["prompt"]!.GetValue<string>();
+        Assert.Contains("Do not mention clothing", describe);
+        CharacterSwapGraph.AssertNoDanglingLinks(g);
+    }
+
+    [Fact]
+    public void Keep_clothes_check_mask_shows_the_head_area()
+    {
+        var g = CharacterSwapGraph.PruneMask(Load(CharacterSwapGraph.MaskFile), false, SwapMargin.Normal, "woman", SwapOutfit.KeepVideo);
+        Assert.Equal("head_only", Linked(g, g[CharacterSwapGraph.MaskNodes.GrowMask]!["inputs"]!["mask"]));
+        Assert.Equal(CharacterSwapGraph.MaskNodes.PeopleMask, Linked(g, g["head_only"]!["inputs"]!["source"]));
+    }
+
+    [Fact]
+    public void From_picture_leaves_the_graph_as_upstream_builds_it()
+    {
+        var g = CharacterSwapGraph.PruneSimple(Load(CharacterSwapGraph.SimpleFile), new SwapSettings { Roles = new() { "" } });
+        Assert.Null(g["head_only"]);
+        Assert.DoesNotContain(g, kv => Class(g, kv.Key) == "RegexReplace");
+    }
+
+    [Fact]
+    public void Keep_clothes_rewrites_every_outfit_sentence_of_the_plan_prompt()
+    {
+        // Sentences as H3OneClickSwapPlan / H3AdvancedSwapPlan write them (from a run on the server).
+        const string prompt =
+            "They replace the person in <Video 1>, in every shot where that person appears. Their face, hair, body and clothing all come from <Picture 1>.\n" +
+            "<Video 1> is the source footage being edited, a 5.875-second section at 24 fps, in which the people to replace are shown as smooth grey figures. " +
+            "It supplies the exact camera framing. The grey figures supply movement only; faces, hair, skin and clothing come from the pictures.\n" +
+            "<Subject 1> takes the place of the person. Identities and complete outfits come from the pictures.\n" +
+            "<Subject 1> (all shots): fully_preserved - the referenced facial identity, hair, skin tone and complete outfit remain consistent while poses follow.\n" +
+            "<Video 1> (edited source): partially_preserved - the replaced people's identities and outfits change; camera movement is retained.\n" +
+            "Their outfits replace the original clothing completely; no face, hair, skin, costume, fabric pattern or accessory of the wrestler remains.";
+
+        var text = prompt;
+        foreach (var (pattern, replace) in CharacterSwapGraph.KeepClothesRewrites)
+        {
+            Assert.Single(Regex.Matches(text, pattern));
+            text = Regex.Replace(text, pattern, Regex.Replace(replace, @"\\(\d)", "$$$1"));  // Python \1 → .NET $1
+        }
+        Assert.DoesNotContain("outfit", text.Replace("unchanged original clothing", ""), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Only their face and hair come from <Picture 1>", text);
+    }
+
+    [Theory]
+    [InlineData("middle-aged woman with dark skin, short dark hair, wearing a dark patterned sari", "woman")]
+    [InlineData("muscular man with a beard in a dirty tank top", "man")]
+    [InlineData("tall figure in a red cloak", "tall figure")]
+    public void Simple_mode_target_is_a_short_noun(string look, string expected) =>
+        Assert.Equal(expected, CharacterSwapGraph.SamTarget(look));
 
     [Fact]
     public void Current_clip_output_gives_clip_number_and_count()

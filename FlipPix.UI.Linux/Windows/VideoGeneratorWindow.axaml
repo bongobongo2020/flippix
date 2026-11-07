@@ -9408,6 +9408,12 @@
                                                  VerticalContentAlignment="Center"
                                                  ToolTip.Tip="The text SAM tracks: 'person' by default, an animal like 'cat', or a short description ('black and white cat') when the biggest match is the wrong one. The biggest match in the frame is replaced."/>
                                     </Grid>
+                                    <!-- ─── Clothes ──────────────────────────────────── -->
+                                    <TextBlock Text="CLOTHES" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,4"/>
+                                    <StackPanel Margin="0,0,0,10" ToolTip.Tip="From the picture: the character wears the photo's outfit (the whole person is regenerated). Keep the video's clothes: only the head (face and hair) is replaced; the outfit and body stay the video's own, so clothing cannot change between clips.">
+                                        <RadioButton Content="From the picture (whole person)" GroupName="CharacterSwapOutfit" IsChecked="{Binding UsePictureClothes}" FontSize="11" Margin="0,0,0,3" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <RadioButton Content="Keep the video's clothes (replace face &amp; hair only)" GroupName="CharacterSwapOutfit" IsChecked="{Binding KeepVideoClothes}" FontSize="11" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    </StackPanel>
                                     <!-- ─── Settings ─────────────────────────────────── -->
                                     <TextBlock Text="SETTINGS" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,6"/>
                                     <Grid Margin="0,0,0,6" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
