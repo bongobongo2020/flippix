@@ -197,6 +197,9 @@ public class ComfyUIHttpClient : IDisposable
                 throw new FileNotFoundException($"File not found: {filePath}");
             }
 
+            if (type == "input" && await FindIdenticalInputFileAsync(filePath, cancellationToken) is { } existing)
+                return existing;
+
             var fileInfo = new FileInfo(filePath);
             _logger.LogInfo("Uploading video: {FilePath} ({FileSize} bytes)", filePath, fileInfo.Length);
 
@@ -267,6 +270,68 @@ public class ComfyUIHttpClient : IDisposable
     /// may answer 2xx without writing the file), so this guards against queueing a workflow that
     /// references a name the server can't load. Throws if the file is missing or empty.
     /// </summary>
+    private const int ReuseSampleBytes = 64 * 1024;
+
+    /// <summary>
+    /// The name of a file in ComfyUI's input folder that is byte-for-byte this local file, or null.
+    /// <para>ComfyUI's upload already keeps the same name when the content matches, but only after the
+    /// whole file has crossed the network: a 195 MB video took six minutes over Tailscale on every run.
+    /// This asks /view for four 64 KB ranges (start, a third, two thirds, end); a file with the same name,
+    /// the same size and the same bytes in all four is taken as the one already there. Anything else —
+    /// no such file, another size, a server or proxy that ignores Range — answers null and the caller
+    /// uploads as before. Never downloads more than the samples.</para>
+    /// </summary>
+    public async Task<string?> FindIdenticalInputFileAsync(string filePath, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var name = Path.GetFileName(filePath);
+            var length = new FileInfo(filePath).Length;
+            if (length == 0) return null;
+
+            var url = $"/view?filename={Uri.EscapeDataString(name)}&subfolder=&type=input";
+            var sample = (int)Math.Min(ReuseSampleBytes, length);
+            var offsets = new[] { 0L, length / 3, length * 2 / 3, length - sample }
+                .Select(o => Math.Clamp(o, 0, length - sample)).Distinct();
+
+            await using var local = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096, FileOptions.RandomAccess);
+            foreach (var offset in offsets)
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(offset, offset + sample - 1);
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                cts.CancelAfter(TimeSpan.FromSeconds(30));
+                using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+
+                // 206 with the full size in Content-Range, or it is not the same file (or Range is ignored,
+                // and reading the body would download all of it).
+                if (response.StatusCode != System.Net.HttpStatusCode.PartialContent ||
+                    response.Content.Headers.ContentRange?.Length != length)
+                    return null;
+
+                var remote = await response.Content.ReadAsByteArrayAsync(cts.Token);
+                if (remote.Length != sample) return null;
+
+                var mine = new byte[sample];
+                local.Position = offset;
+                await local.ReadExactlyAsync(mine, cts.Token);
+                if (!mine.AsSpan().SequenceEqual(remote)) return null;
+            }
+
+            _logger.LogInfo("{FileName} ({FileSize} bytes) is already in ComfyUI's input folder; not uploading it again", name, length);
+            return name;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug("Could not check the server for {FilePath}, uploading it: {Message}", filePath, ex.Message);
+            return null;
+        }
+    }
+
     public async Task VerifyInputFileExistsAsync(string filename, string? subfolder, CancellationToken cancellationToken = default)
     {
         var url = $"/view?filename={Uri.EscapeDataString(filename)}" +
@@ -308,6 +373,9 @@ public class ComfyUIHttpClient : IDisposable
             {
                 throw new FileNotFoundException($"File not found: {filePath}");
             }
+
+            if (type == "input" && await FindIdenticalInputFileAsync(filePath, cancellationToken) is { } existing)
+                return existing;
 
             var fileInfo = new FileInfo(filePath);
             _logger.LogInfo("Uploading audio: {FilePath} ({FileSize} bytes)", filePath, fileInfo.Length);

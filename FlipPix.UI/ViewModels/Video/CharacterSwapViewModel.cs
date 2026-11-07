@@ -528,11 +528,15 @@ namespace FlipPix.UI.ViewModels.Video
                 ProcessingStatus = "Waiting for the ComfyUI queue…";
                 using var lease = await _workflowCoordinator.AcquireAsync("character_swap", ct);
 
-                ProcessingStatus = "Uploading the source video…";
-                AddLog($"{label}: uploading {Path.GetFileName(VideoPath)}");
+                ProcessingStatus = "Sending the source video to ComfyUI…";
                 var hasAudio = await Task.Run(() => HasAudioStream(VideoPath), ct);
                 if (!hasAudio) AddLog($"{label}: the source has no audio track; H3 gets silence instead.");
+                var sent = DateTime.Now;
                 var video = await _comfyUIService.UploadVideoAsync(VideoPath, ct);
+                var took = DateTime.Now - sent;
+                AddLog(took.TotalSeconds < 5
+                    ? $"{label}: {Path.GetFileName(VideoPath)} is ready on the server"
+                    : $"{label}: uploaded {Path.GetFileName(VideoPath)} in {took:m\\:ss}");
 
                 JsonObject graph;
                 string videoNode, finalNode;
