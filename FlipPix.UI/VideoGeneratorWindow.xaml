@@ -36,6 +36,18 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+        <!-- Collapsed while the 🎬 H3 Video Editor tab is open in focus mode, so the viewer gets the screen. -->
+        <Style x:Key="H3FocusHiddenStyle" TargetType="Border">
+            <Style.Triggers>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsChecked, ElementName=H3FocusToggle}" Value="True"/>
+                        <Condition Binding="{Binding IsSelected, ElementName=H3EditorTab}" Value="True"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -47,7 +59,8 @@
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <Border Grid.Row="0" MouseLeftButtonDown="Header_MouseLeftButtonDown" Cursor="SizeAll">
+        <!-- 🎬 H3 Video Editor focus mode (its ⛶ Focus button) hides the header, the nav bar and the page margin. -->
+        <Border Grid.Row="0" MouseLeftButtonDown="Header_MouseLeftButtonDown" Cursor="SizeAll" Style="{StaticResource H3FocusHiddenStyle}">
             <Border.Background>
                 <SolidColorBrush Color="{StaticResource BrandColor}"/>
             </Border.Background>
@@ -62,7 +75,7 @@
         </Border>
 
         <!-- Navigation Bar -->
-        <Border Grid.Row="1" Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,1" Padding="15,5">
+        <Border Grid.Row="1" Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,1" Padding="15,5" Style="{StaticResource H3FocusHiddenStyle}">
             <StackPanel Orientation="Horizontal">
                 <TextBlock Text="Navigate:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" Margin="0,0,12,0" Foreground="{StaticResource TextSecondaryBrush}"/>
                 <Button Content="Image Generator" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToImageGeneratorCommand}"/>
@@ -70,7 +83,21 @@
         </Border>
 
         <!-- Main Content -->
-        <TabControl Grid.Row="2" Margin="15,10,15,10" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
+        <TabControl Grid.Row="2" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
+            <TabControl.Style>
+                <Style TargetType="TabControl">
+                    <Setter Property="Margin" Value="15,10,15,10"/>
+                    <Style.Triggers>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding IsChecked, ElementName=H3FocusToggle}" Value="True"/>
+                                <Condition Binding="{Binding IsSelected, ElementName=H3EditorTab}" Value="True"/>
+                            </MultiDataTrigger.Conditions>
+                            <Setter Property="Margin" Value="0,2,0,0"/>
+                        </MultiDataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TabControl.Style>
 
                     <!-- Tab: Scail 2 (unified Klein char-swap → SCAIL II motion transfer) -->
                     <TabItem Header="🎭 Scail 2">
@@ -5591,7 +5618,7 @@
                     <!-- ════════════════════════════════════════════════════════════════ -->
                     <!-- Tab: H3 Video Editor (timeline-based video editor)               -->
                     <!-- ════════════════════════════════════════════════════════════════ -->
-                    <TabItem Header="🎬 H3 Video Editor">
+                    <TabItem x:Name="H3EditorTab" Header="🎬 H3 Video Editor">
                         <Grid DataContext="{Binding H3VideoEditorVM}" Style="{StaticResource TabPageStyle}">
                             <Grid.Resources>
                                 <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource AccentTealColor}"/>
@@ -6423,7 +6450,7 @@
                                     <RowDefinition Height="Auto"/>                      <!-- top bar -->
                                     <RowDefinition Height="3*" MinHeight="200"/>        <!-- viewer + inspector -->
                                     <RowDefinition Height="Auto"/>                      <!-- splitter -->
-                                    <RowDefinition Height="*" MinHeight="110"/>         <!-- timeline -->
+                                    <RowDefinition Height="*" MinHeight="180"/>         <!-- timeline -->
                                     <RowDefinition Height="Auto"/>                      <!-- action bar -->
                                 </Grid.RowDefinitions>
 
@@ -6454,8 +6481,12 @@
                                             <ProgressBar Value="{Binding Progress}" Width="110" Height="4" Margin="0,0,10,0" Background="#2A2A2A" BorderThickness="0" Foreground="#2DD4BF"/>
                                             <TextBlock Text="{Binding StatusText}" ToolTip="{Binding StatusText}" FontSize="11" FontWeight="SemiBold" Foreground="#5EEAD4" TextTrimming="CharacterEllipsis" MaxWidth="420" VerticalAlignment="Center"/>
                                         </StackPanel>
-                                        <ToggleButton x:Name="H3InspectorToggle" Grid.Column="2" IsChecked="True" Content="☰ Inspector" Style="{StaticResource H3ToggleBtn}" Margin="0"
-                                                      ToolTip="Show / hide the clip inspector beside the viewer"/>
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                            <ToggleButton x:Name="H3FocusToggle" IsChecked="True" Content="⛶ Focus" Style="{StaticResource H3ToggleBtn}"
+                                                          ToolTip="Focus mode: hide the app header and navigation bar while this tab is open, so the viewer and timeline get the screen"/>
+                                            <ToggleButton x:Name="H3InspectorToggle" IsChecked="True" Content="☰ Inspector" Style="{StaticResource H3ToggleBtn}" Margin="0"
+                                                          ToolTip="Show / hide the clip inspector beside the viewer"/>
+                                        </StackPanel>
                                     </Grid>
                                 </Border>
 
@@ -6745,6 +6776,49 @@
                                         <!-- Clips track: tiles scale with the timeline height; the mouse wheel scrolls sideways. -->
                                         <ScrollViewer x:Name="H3TimelineScroll" Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
                                                       PreviewMouseWheel="H3TimelineScroll_PreviewMouseWheel">
+                                            <ScrollViewer.Resources>
+                                                <!-- Slim dark scrollbar: a pill thumb on a faint track. -->
+                                                <Style TargetType="ScrollBar">
+                                                    <Setter Property="Height" Value="12"/>
+                                                    <Setter Property="MinHeight" Value="12"/>
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="ScrollBar">
+                                                                <Border Background="Transparent" Padding="8,3">
+                                                                    <Grid>
+                                                                        <Border Height="2" CornerRadius="1" Background="#262626" VerticalAlignment="Center"/>
+                                                                        <Track x:Name="PART_Track" Orientation="{TemplateBinding Orientation}">
+                                                                            <Track.DecreaseRepeatButton>
+                                                                                <RepeatButton Command="ScrollBar.PageLeftCommand" Opacity="0" Focusable="False"/>
+                                                                            </Track.DecreaseRepeatButton>
+                                                                            <Track.IncreaseRepeatButton>
+                                                                                <RepeatButton Command="ScrollBar.PageRightCommand" Opacity="0" Focusable="False"/>
+                                                                            </Track.IncreaseRepeatButton>
+                                                                            <Track.Thumb>
+                                                                                <Thumb>
+                                                                                    <Thumb.Template>
+                                                                                        <ControlTemplate TargetType="Thumb">
+                                                                                            <Border x:Name="Pill" CornerRadius="3" Background="#4B5563"/>
+                                                                                            <ControlTemplate.Triggers>
+                                                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                                                    <Setter TargetName="Pill" Property="Background" Value="#6B7280"/>
+                                                                                                </Trigger>
+                                                                                                <Trigger Property="IsDragging" Value="True">
+                                                                                                    <Setter TargetName="Pill" Property="Background" Value="#2DD4BF"/>
+                                                                                                </Trigger>
+                                                                                            </ControlTemplate.Triggers>
+                                                                                        </ControlTemplate>
+                                                                                    </Thumb.Template>
+                                                                                </Thumb>
+                                                                            </Track.Thumb>
+                                                                        </Track>
+                                                                    </Grid>
+                                                                </Border>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </Style>
+                                            </ScrollViewer.Resources>
                                             <ItemsControl x:Name="H3TimelineStrip" ItemsSource="{Binding TimelineClips}" Margin="6,8,6,6">
                                                 <ItemsControl.ItemsPanel>
                                                     <ItemsPanelTemplate>
@@ -6806,8 +6880,8 @@
                                                                             </Style>
                                                                         </Image.Style>
                                                                     </Image>
-                                                                    <!-- Empty clip: big number -->
-                                                                    <TextBlock Text="{Binding DisplayIndex}" FontSize="28" FontWeight="Bold" Foreground="#333" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                    <!-- Empty clip: say so, quietly (the number is already in the chip) -->
+                                                                    <TextBlock Text="not generated" FontSize="10" Foreground="#4B5563" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,16,0,0">
                                                                         <TextBlock.Style>
                                                                             <Style TargetType="TextBlock">
                                                                                 <Setter Property="Visibility" Value="Collapsed"/>
@@ -6828,7 +6902,10 @@
                                                                     <Grid VerticalAlignment="Top" Margin="6">
                                                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
                                                                             <Border CornerRadius="4" Padding="6,1" Background="#CC000000" x:Name="IndexChip">
-                                                                                <TextBlock Text="{Binding DisplayIndex}" FontSize="11" FontWeight="Bold" Foreground="White"/>
+                                                                                <StackPanel Orientation="Horizontal">
+                                                                                    <TextBlock Text="{Binding DisplayIndex}" FontSize="11" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
+                                                                                    <TextBlock Text="{Binding DurationDisplay}" FontSize="10" FontFamily="Consolas" Foreground="#D1D5DB" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                                                                </StackPanel>
                                                                             </Border>
                                                                             <!-- 🌹 2-Pass tag: PREVIEW / EDITED / RE-JOIN / FINAL -->
                                                                             <Grid Visibility="{Binding DataContext.IsTwoPass, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -6844,17 +6921,6 @@
                                                                             <Button Content="✕" Style="{StaticResource H3TileBtn}" Foreground="#FCA5A5" Command="{Binding DataContext.RemoveClipCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" ToolTip="Remove"/>
                                                                         </StackPanel>
                                                                     </Grid>
-
-                                                                    <!-- Bottom: duration, over a soft gradient so it reads on any frame -->
-                                                                    <Border VerticalAlignment="Bottom" Padding="7,10,7,4">
-                                                                        <Border.Background>
-                                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                                                                <GradientStop Color="#00000000" Offset="0"/>
-                                                                                <GradientStop Color="#CC000000" Offset="1"/>
-                                                                            </LinearGradientBrush>
-                                                                        </Border.Background>
-                                                                        <TextBlock Text="{Binding DurationDisplay}" FontSize="10" FontFamily="Consolas" Foreground="#E5E7EB"/>
-                                                                    </Border>
 
                                                                     <!-- Generating now: pulsing band -->
                                                                     <Border VerticalAlignment="Bottom" Background="#E6B45309" Padding="0,3"
