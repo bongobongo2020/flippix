@@ -779,17 +779,24 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        /// <summary>True when the file carries at least one audio stream. ffprobe missing or the probe
-        /// failing answers "yes", which keeps the graph as authored — the loader's own error is then
-        /// the thing that reports the real problem.</summary>
+        /// <summary>True when the file carries at least one audio stream. MP4/MOV files are read
+        /// directly (<see cref="Mp4Probe"/>), so this works without ffmpeg installed; other containers
+        /// go to ffprobe. When neither can tell, the answer is "yes", which keeps the graph as
+        /// authored — the loader's own error is then the thing that reports the real problem.</summary>
         protected bool HasAudioStream(string videoPath)
         {
+            var mp4 = Mp4Probe.TryRead(videoPath);
+            if (mp4 != null) return mp4.HasAudio;
+
             try
             {
                 var ffmpegPath = FindFFmpeg();
-                if (ffmpegPath == null) return true;
-                var ffprobePath = ffmpegPath.Replace("ffmpeg.exe", "ffprobe.exe");
-                if (!File.Exists(ffprobePath)) return true;
+                var ffprobePath = ffmpegPath?.Replace("ffmpeg.exe", "ffprobe.exe");
+                if (ffprobePath == null || !File.Exists(ffprobePath))
+                {
+                    AddLog("Could not check the clip for an audio track (ffprobe not found); assuming it has one.");
+                    return true;
+                }
 
                 using var process = Process.Start(new ProcessStartInfo
                 {
@@ -908,6 +915,10 @@ namespace FlipPix.UI.ViewModels.Video
         /// </summary>
         protected double GetVideoDuration(string videoPath)
         {
+            // MP4/MOV: read the movie header directly, so the length is known without ffmpeg installed.
+            var mp4 = Mp4Probe.TryRead(videoPath);
+            if (mp4 is { DurationSeconds: > 0 }) return mp4.DurationSeconds;
+
             try
             {
                 var ffmpegPath = FindFFmpeg();
