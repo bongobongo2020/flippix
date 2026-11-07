@@ -32,7 +32,8 @@ namespace FlipPix.UI.Controls
             image.Source = null;
             if (string.IsNullOrEmpty(path)) return;
 
-            AsyncThumbnail.Load(path, GetDecodeWidth(image), 0, bitmap =>
+            // Through the local cache: a thumbnail on a slow network share is read once, not per re-template.
+            AsyncThumbnail.Load(() => LocalMediaCache.GetLocal(path), GetDecodeWidth(image), 0, bitmap =>
             {
                 // Only if the image still wants this file; a recycled container may have moved on.
                 if (GetPath(image) == path) image.Source = bitmap;
@@ -90,7 +91,7 @@ namespace FlipPix.UI.Controls
         public static string? GetSource(DependencyObject d) => (string?)d.GetValue(SourceProperty);
         public static void SetSource(DependencyObject d, string? value) => d.SetValue(SourceProperty, value);
 
-        private static void OnSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        private static async void OnSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (d is not MediaElement media) return;
             Hook(media);
@@ -98,8 +99,16 @@ namespace FlipPix.UI.Controls
             try
             {
                 media.Close();
-                media.Source = string.IsNullOrEmpty(path) ? null : new Uri(path, UriKind.Absolute);
-                if (media.Source != null && media.IsLoaded) media.Play(); // opens it; MediaOpened settles play/pause
+                media.Source = null;
+                if (string.IsNullOrEmpty(path)) return;
+
+                // A file on a network share is copied locally first, off the UI thread; until then the
+                // tile's thumbnail shows through the empty player.
+                var local = await LocalMediaCache.GetLocalAsync(path);
+                if (GetSource(media) != path) return; // the tile moved on while the copy ran
+
+                media.Source = new Uri(local, UriKind.Absolute);
+                if (media.IsLoaded) media.Play(); // opens it; MediaOpened settles play/pause
             }
             catch
             {

@@ -137,7 +137,8 @@ namespace FlipPix.UI.ViewModels.Video
         private async Task GenerateSingleClipAsync(H3TimelineClip clip, CancellationToken ct, int batchIndex = 0, int batchTotal = 1,
                                                    bool twoPassPreview = false)
         {
-            // Upload reference images first
+            // Upload reference images first — once per batch; later clips reuse the names.
+            if (batchIndex == 0) _uploadedReferences.Clear();
             var uploadedImages = new string?[4];
             for (int i = 0; i < Math.Min(4, ReferenceSlots.Count); i++)
             {
@@ -149,9 +150,7 @@ namespace FlipPix.UI.ViewModels.Video
 
                 try
                 {
-                    AddLog($"Uploading Picture {i + 1}: {Path.GetFileName(imagePath)}...");
-                    uploadedImages[i] = await _comfyUIService.UploadImageAsync(imagePath, ct);
-                    AddLog($"Uploaded Picture {i + 1}: {uploadedImages[i]}");
+                    uploadedImages[i] = await UploadReferenceOnceAsync(imagePath, $"Picture {i + 1}", ct);
                 }
                 catch (Exception ex)
                 {
@@ -165,8 +164,7 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 try
                 {
-                    AddLog($"Uploading location plate: {Path.GetFileName(clip.LocationPlatePath)}...");
-                    var plate = await _comfyUIService.UploadImageAsync(clip.LocationPlatePath, ct);
+                    var plate = await UploadReferenceOnceAsync(clip.LocationPlatePath, "location plate", ct);
                     var lastCast = Array.FindLastIndex(uploadedImages, u => !string.IsNullOrEmpty(u));
                     uploadedImages = uploadedImages.Take(lastCast + 1).Append(plate).ToArray();
 
@@ -250,6 +248,8 @@ namespace FlipPix.UI.ViewModels.Video
             }
             catch (Exception ex)
             {
+                // In case the failure was a reused upload that ComfyUI no longer has: the next clip uploads afresh.
+                _uploadedReferences.Clear();
                 AddLog($"ERROR generating clip {clip.DisplayIndex}: {ex.Message}");
                 if (ex.Message.Contains("context_latent", StringComparison.OrdinalIgnoreCase))
                     AddLog("  The previous clip was rendered at another size, and a chain can't change resolution. " +
@@ -260,6 +260,28 @@ namespace FlipPix.UI.ViewModels.Video
                 }
                 throw;
             }
+        }
+
+        /// <summary>ComfyUI input names of reference pictures already uploaded, keyed by path, size and modified
+        /// time. Every clip uses the same character sheets, and re-uploading them per clip cost minutes each
+        /// when they sit on a slow network share.</summary>
+        private readonly Dictionary<string, string> _uploadedReferences = new(StringComparer.OrdinalIgnoreCase);
+
+        private async Task<string> UploadReferenceOnceAsync(string path, string label, CancellationToken ct)
+        {
+            var info = new FileInfo(path);
+            var key = $"{info.FullName}|{info.Length}|{info.LastWriteTimeUtc.Ticks}";
+            if (_uploadedReferences.TryGetValue(key, out var existing))
+            {
+                AddLog($"{label}: reusing upload {existing}");
+                return existing;
+            }
+
+            AddLog($"Uploading {label}: {Path.GetFileName(path)}...");
+            var name = await _comfyUIService.UploadImageAsync(path, ct);
+            _uploadedReferences[key] = name;
+            AddLog($"Uploaded {label}: {name}");
+            return name;
         }
 
         /// <summary>

@@ -6849,7 +6849,21 @@
 
                                                                 <!-- Picture -->
                                                                 <Grid Grid.Row="0" Background="#161616">
-                                                                    <!-- Video preview: loops only while selected or hovered; the others rest on their
+                                                                    <!-- Thumbnail underneath: it shows until the video has been fetched and opened
+                                                                         (slow on a network share), and stays if the video can't play. -->
+                                                                    <Image ctrl:AsyncImage.Path="{Binding ThumbnailPath}" ctrl:AsyncImage.DecodeWidth="480" Stretch="UniformToFill">
+                                                                        <Image.Style>
+                                                                            <Style TargetType="Image">
+                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding ThumbnailPath}" Value="">
+                                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </Image.Style>
+                                                                    </Image>
+                                                                    <!-- Video preview, drawn over the thumbnail: loops only while selected or hovered; the others rest on their
                                                                          first frame, so a long timeline doesn't keep a decoder per tile busy. -->
                                                                     <MediaElement ctrl:HoverPlay.Source="{Binding PreviewVideoPath}" ctrl:HoverPlay.IsActive="{Binding IsSelected}"
                                                                                   LoadedBehavior="Manual" UnloadedBehavior="Close" ScrubbingEnabled="True" Stretch="UniformToFill" IsMuted="True" MediaFailed="TimelineClipVideo_MediaFailed">
@@ -6864,22 +6878,6 @@
                                                                             </Style>
                                                                         </MediaElement.Style>
                                                                     </MediaElement>
-                                                                    <!-- Thumbnail image fallback -->
-                                                                    <Image ctrl:AsyncImage.Path="{Binding ThumbnailPath}" ctrl:AsyncImage.DecodeWidth="480" Stretch="UniformToFill">
-                                                                        <Image.Style>
-                                                                            <Style TargetType="Image">
-                                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                                                <Style.Triggers>
-                                                                                    <DataTrigger Binding="{Binding HasVideoPreview}" Value="True">
-                                                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                                                    </DataTrigger>
-                                                                                    <DataTrigger Binding="{Binding ThumbnailPath}" Value="">
-                                                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                                                    </DataTrigger>
-                                                                                </Style.Triggers>
-                                                                            </Style>
-                                                                        </Image.Style>
-                                                                    </Image>
                                                                     <!-- Empty clip: say so, quietly (the number is already in the chip) -->
                                                                     <TextBlock Text="not generated" FontSize="10" Foreground="#4B5563" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,16,0,0">
                                                                         <TextBlock.Style>

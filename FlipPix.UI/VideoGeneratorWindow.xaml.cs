@@ -329,10 +329,18 @@ namespace FlipPix.UI
             SeekH3Editor(vm.MarkOutSeconds - 1 / ViewModels.Video.H3VideoEditorViewModel.PreviewFps);
         }
 
-        private void ApplyH3EditorSource()
+        private async void ApplyH3EditorSource()
         {
-            ApplySharedPlayerSource(H3EditorVideoPlayer, _viewModel.H3VideoEditorVM.PreviewVideoPath);
-            SetH3EditorPlaying(!string.IsNullOrEmpty(_viewModel.H3VideoEditorVM.PreviewVideoPath));
+            var path = _viewModel.H3VideoEditorVM.PreviewVideoPath;
+            if (!string.IsNullOrEmpty(path))
+            {
+                // Play a local copy: opening a file on a slow network share blocks the player.
+                var local = await Services.LocalMediaCache.GetLocalAsync(path);
+                if (_viewModel.H3VideoEditorVM.PreviewVideoPath != path) return; // another clip was picked meanwhile
+                path = local;
+            }
+            ApplySharedPlayerSource(H3EditorVideoPlayer, path);
+            SetH3EditorPlaying(!string.IsNullOrEmpty(path));
         }
 
         private void H3EditorPlayer_MediaOpened(object sender, RoutedEventArgs e)
