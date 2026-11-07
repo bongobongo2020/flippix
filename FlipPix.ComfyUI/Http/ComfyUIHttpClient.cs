@@ -114,13 +114,16 @@ public class ComfyUIHttpClient : IDisposable
         {
             _logger.LogDebug("Checking if ComfyUI is fully ready...");
 
-            // The /object_info endpoint requires all nodes to be loaded
-            // This ensures ComfyUI is not just HTTP-responsive, but actually ready to process workflows
+            // /object_info answers only once every node is loaded, so ComfyUI is not just HTTP-responsive
+            // but ready to process workflows. One core node's entry says the same thing in a few KB: the
+            // full listing is several MB, and over a slow link (a remote server through a relay) it took
+            // longer than the timeout, so a server that was up was reported as down.
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(_settings.ConnectionTimeout);
-            var response = await _httpClient.GetAsync("/object_info", cts.Token);
+            using var response = await _httpClient.GetAsync("/object_info/KSampler", cts.Token);
 
-            if (response.IsSuccessStatusCode)
+            if (response.IsSuccessStatusCode
+                && (await response.Content.ReadAsStringAsync(cts.Token)).Contains("\"KSampler\"", StringComparison.Ordinal))
             {
                 _logger.LogDebug("ComfyUI is ready (object_info accessible)");
                 return true;

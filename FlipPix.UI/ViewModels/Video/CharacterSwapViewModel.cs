@@ -856,7 +856,7 @@ namespace FlipPix.UI.ViewModels.Video
                 if (resume != null)
                 {
                     ProcessingStatus = "Checking ComfyUI is up…";
-                    if (!await _comfyUIService.WaitForServerReadyAsync(TimeSpan.FromSeconds(20), ct))
+                    if (!await _comfyUIService.WaitForServerReadyAsync(TimeSpan.FromSeconds(45), ct))
                         throw new InvalidOperationException("ComfyUI is not answering. Start it, then press Resume again.");
                     ProcessingStatus = "Reading the saved clips…";
                     var (resumed, runName, next, clips) = await PrepareContinueAsync(resume, ct);
