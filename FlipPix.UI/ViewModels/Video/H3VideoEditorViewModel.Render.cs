@@ -719,7 +719,9 @@ namespace FlipPix.UI.ViewModels.Video
                 ["inputs"] = new JsonObject
                 {
                     ["image"] = new JsonArray { imagesSourceNode, 0 },
-                    ["batch_index"] = 0
+                    ["batch_index"] = 0,
+                    // Required by ImageFromBatch: without it ComfyUI rejects the node, and with it the whole clip.
+                    ["length"] = 1
                 },
                 ["class_type"] = "ImageFromBatch",
                 ["_meta"] = new JsonObject { ["title"] = "Extract Thumbnail Frame" }
