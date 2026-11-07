@@ -151,4 +151,67 @@ public sealed class CharacterSwapGraphTests
     [InlineData(0.1, 6, 0)]
     public void Clip_estimate_matches_upstream(double seconds, double clip, int expected) =>
         Assert.Equal(expected, CharacterSwapGraph.ClipCount(seconds, clip));
+
+    private const string EmptyMask =
+        "ComfyUI execution failed: node 68 (MiniMaxH3FantasticVideoEditLatent): The mask is empty on every frame, so nothing would change.";
+
+    [Fact]
+    public void Empty_mask_with_blank_roles_points_at_the_role_field()
+    {
+        var hint = CharacterSwapGraph.EmptyMaskHint(EmptyMask, advanced: true, new[] { "" }, "person", wholeVideo: true);
+        Assert.NotNull(hint);
+        Assert.Contains("Who do they replace?", hint);
+        Assert.Contains("set the section", hint);
+    }
+
+    [Fact]
+    public void Empty_mask_in_simple_mode_names_the_target()
+    {
+        var hint = CharacterSwapGraph.EmptyMaskHint(EmptyMask, advanced: false, new[] { "" }, "dancer", wholeVideo: false);
+        Assert.Contains("\"dancer\"", hint);
+    }
+
+    [Fact]
+    public void Describer_list_parses_into_role_and_look()
+    {
+        var people = CharacterSwapGraph.ParsePeople(
+            "1. the dancer - woman in a black dress with a red sash\n2) the onlooker - man with a beard in a white kurta\nnoise\n3. the drummer");
+        Assert.Equal(3, people.Count);
+        Assert.Equal("the dancer", people[0].Role);
+        Assert.Equal("woman in a black dress with a red sash", people[0].Look);
+        Assert.Equal("the onlooker - man with a beard in a white kurta", people[1].Line);
+        Assert.Equal("3. the drummer", people[2].Display);
+    }
+
+    [Fact]
+    public void Same_role_listed_twice_is_one_person()
+    {
+        var people = CharacterSwapGraph.ParsePeople(
+            "1. the woman - woman in a dark sari\n2. the man - bearded man in a tank top\n3. The woman - woman in a sari with a green shawl\n4. the man - bearded man");
+        Assert.Equal(new[] { "the woman", "the man" }, people.Select(p => p.Role));
+        Assert.Equal("woman in a dark sari", people[0].Look);
+        Assert.Equal(2, people[1].Number);
+    }
+
+    [Fact]
+    public void Find_people_graph_loads_twenty_frames_across_the_part_and_previews_the_list()
+    {
+        var source = Load(CharacterSwapGraph.AdvancedFile);
+        var g = CharacterSwapGraph.BuildFindPeople(source, "clip.mp4", "qwen3vl_8b_fp8_scaled.safetensors", 10, 0, 196.5);
+
+        var loader = CharacterSwapGraph.Inputs(g, CharacterSwapGraph.NodeByTitle(g, CharacterSwapGraph.AdvancedVideoTitle));
+        Assert.Equal("clip.mp4", loader["video"]!.GetValue<string>());
+        Assert.Equal(240, loader["skip_first_frames"]!.GetValue<int>());
+        Assert.Equal(CharacterSwapGraph.PeopleFrames, loader["frame_load_cap"]!.GetValue<int>());
+        Assert.Equal((int)(186.5 * 24 / 20), loader["select_every_nth"]!.GetValue<int>());
+        Assert.Equal("PreviewAny", g[CharacterSwapGraph.PeopleOutput]!["class_type"]!.GetValue<string>());
+        Assert.Equal("qwen3vl_8b_fp8_scaled.safetensors",
+            CharacterSwapGraph.Inputs(g, CharacterSwapGraph.NodeByTitle(g, "Describer: Qwen3-VL 8B"))["clip_name"]!.GetValue<string>());
+        // Nothing reads the loader's audio, so a soundless source cannot fail here.
+        Assert.Equal(5, g.Count);
+    }
+
+    [Fact]
+    public void Other_failures_get_no_hint() =>
+        Assert.Null(CharacterSwapGraph.EmptyMaskHint("node 14 (VHS_LoadVideo): VHS failed to extract audio", true, new[] { "" }, "person", true));
 }

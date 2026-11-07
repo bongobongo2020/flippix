@@ -319,6 +319,126 @@ namespace FlipPix.UI.Services
             return graph;
         }
 
+        // ── Find people ──────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>Node whose text output holds the describer's list of people.</summary>
+        public const string PeopleOutput = "people_list";
+        public const int PeopleFrames = 20;
+
+        private const string PeopleOnce =
+            " The frames come from different shots, so the same person can look different between them (lighting, angle, " +
+            "close-up or wide, holding a prop, a costume change). Tell people apart by face, build, hair and skin, not by what " +
+            "they are doing in one shot, and list each person exactly once: never list one person twice under two roles. " +
+            "Leave out people who are only blurred, tiny or in the background crowd. In the look, give gender, age, build, hair and " +
+            "face first, then clothing.";
+
+        /// <summary>
+        /// A small graph that only asks the describer who is in the video, using the Advanced export's own
+        /// "Who is in the video" prompt and model so the roles it returns are the wording the swap matches
+        /// tracks against. Takes <see cref="PeopleFrames"/> frames spread over the chosen part of the video
+        /// (the swap's own describer samples one every 2 s from the start, so it only sees the first 40 s),
+        /// and loads only those frames. Takes seconds, not minutes: no SAM, no H3.
+        /// </summary>
+        public static JsonObject BuildFindPeople(JsonObject advancedSource, string video, string describer,
+                                                 double startSeconds, double lengthSeconds, double videoSeconds)
+        {
+            var videoId = NodeByTitle(advancedSource, AdvancedVideoTitle);
+            var whoId = NodeByTitle(advancedSource, "Who is in the video");
+            // Each picture has its own "Shrink for the describer"; take the one feeding this node.
+            if (!IsLink(Inputs(advancedSource, whoId)["image"], out var shrinkId, out _))
+                throw new InvalidOperationException("\"Who is in the video\" has no image input.");
+            var clipId = NodeByTitle(advancedSource, "Describer: Qwen3-VL 8B");
+
+            var graph = new JsonObject();
+            foreach (var id in new[] { videoId, shrinkId, whoId, clipId })
+                graph[id] = advancedSource[id]!.DeepClone();
+
+            var loader = Inputs(graph, videoId);
+            loader["video"] = video;
+            SetSection(graph, videoId, startSeconds, lengthSeconds);
+            var span = lengthSeconds > 0 ? lengthSeconds : Math.Max(0, videoSeconds - Math.Max(0, startSeconds));
+            loader["select_every_nth"] = span > 0 ? Math.Max(1, (int)(span * 24 / PeopleFrames)) : 48;
+            loader["frame_load_cap"] = PeopleFrames;
+
+            Inputs(graph, shrinkId)["image"] = Link(videoId, 0);
+            var who = Inputs(graph, whoId);
+            who["image"] = Link(shrinkId, 0);
+            // Frames spread over a long video cross many shots, and the describer then lists one person
+            // twice under different roles ("the woman" and "the fighter"), which makes the picker a guess.
+            who["prompt"] = (who["prompt"]?.GetValue<string>() ?? string.Empty) + PeopleOnce;
+            who["clip"] = Link(clipId, 0);
+            Inputs(graph, clipId)["clip_name"] = describer;
+
+            graph[PeopleOutput] = new JsonObject
+            {
+                ["class_type"] = "PreviewAny",
+                ["inputs"] = new JsonObject { ["source"] = Link(whoId, 0) },
+                ["_meta"] = new JsonObject { ["title"] = "People in the video" },
+            };
+            AssertNoDanglingLinks(graph);
+            return graph;
+        }
+
+        private static readonly Regex PersonLine = new(@"^\s*(\d+)\s*[.)]\s*(.+?)\s*$");
+
+        /// <summary>Reads the describer's "1. the guitarist - tall man with a grey beard" lines.</summary>
+        public static List<SwapPerson> ParsePeople(string? text)
+        {
+            var people = new List<SwapPerson>();
+            foreach (var raw in (text ?? string.Empty).Split('\n'))
+            {
+                var m = PersonLine.Match(raw);
+                if (!m.Success) continue;
+                var body = m.Groups[2].Value.Trim().Trim('*').Trim();
+                var dash = body.IndexOf(" - ", StringComparison.Ordinal);
+                var role = (dash > 0 ? body[..dash] : body).Trim();
+                var look = dash > 0 ? body[(dash + 3)..].Trim() : string.Empty;
+                if (role.Length == 0) continue;
+                // The describer sometimes lists one person again from a later shot under the same role; one
+                // entry per role keeps the picker to the people actually there (first description wins).
+                if (people.Any(p => string.Equals(p.Role, role, StringComparison.OrdinalIgnoreCase))) continue;
+                people.Add(new SwapPerson(people.Count + 1, role, look));
+            }
+            return people;
+        }
+
+        // ── Failure hints ────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// What to change after a run that failed because the edit mask came out empty (H3's edit-latent
+        /// node refuses with "The mask is empty on every frame, so nothing would change."), or null for
+        /// any other failure.
+        /// <para>Advanced mode builds the mask from SAM's person tracks that Qwen matches to a role; with
+        /// the role left blank, Qwen names the person itself ("the wrestler") and can then fail to match
+        /// anyone in a clip. Simple mode and Check mask track whatever the "what to replace" text names.
+        /// Either way one clip with nobody matching ends the whole run, so a clip where the person is
+        /// absent fails it too.</para>
+        /// </summary>
+        public static string? EmptyMaskHint(string? error, bool advanced, IReadOnlyList<string> roles, string target, bool wholeVideo)
+        {
+            if (error == null || !error.Contains("mask is empty", StringComparison.OrdinalIgnoreCase)) return null;
+
+            string hint;
+            if (advanced)
+            {
+                hint = roles.All(string.IsNullOrWhiteSpace)
+                    ? "Nobody in this clip matched the person to replace. With \"Who do they replace?\" left blank, " +
+                      "the describer names them itself and may not recognise them again. Fill it in under each picture, " +
+                      "by role plus how they look after ' - ', e.g. \"the woman walking forward - woman in a black dress\"."
+                    : "Nobody in this clip matched the role(s) under the pictures. Make the role easier to spot " +
+                      "(add how they look after ' - ', e.g. \"the singer - woman with a red scarf\").";
+            }
+            else
+            {
+                var what = string.IsNullOrWhiteSpace(target) ? DefaultTarget : target.Trim();
+                hint = $"SAM found no \"{what}\" to replace. Change what to replace, or use Check mask to see what it picks up.";
+            }
+
+            return hint + (wholeVideo
+                ? " One clip without them stops the whole run: if they are not in every part of the video, set the section to where they appear."
+                : " If they are not in this section, set it to where they appear.");
+        }
+
         // ── Advanced ─────────────────────────────────────────────────────────────────────────────────
 
         private static readonly Regex Hat = new(@"\bhats?\b", RegexOptions.IgnoreCase);
@@ -484,6 +604,15 @@ namespace FlipPix.UI.Services
     }
 
     public enum SwapMargin { Tight, Normal, Loose }
+
+    /// <summary>One person the describer saw in the source video: a role ("the dancer") and how they look.</summary>
+    public sealed record SwapPerson(int Number, string Role, string Look)
+    {
+        /// <summary>The form the Advanced role field takes: role, then the look after " - " to help matching.</summary>
+        public string Line => Look.Length > 0 ? $"{Role} - {Look}" : Role;
+        public string Display => $"{Number}. {Line}";
+        public override string ToString() => Display;
+    }
 
     public sealed class SwapSettings
     {

@@ -9303,6 +9303,27 @@
                                                  ToolTip.Tip="How much of the video to swap. 0 = to the end. A shorter part renders faster."/>
                                     </Grid>
                                     <TextBlock Text="{Binding ClipEstimate}" FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,10"/>
+                                    <!-- ─── People in the video ──────────────────────── -->
+                                    <TextBlock Text="PEOPLE IN THE VIDEO" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,4"/>
+                                    <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,4">
+                                        <Button Grid.Column="0"
+                                                Content="👥 Find people"
+                                                Command="{Binding FindPeopleCommand}"
+                                                Theme="{StaticResource SecondaryButtonStyle}"
+                                                Height="26"
+                                                Padding="10,0"
+                                                FontSize="11"
+                                                VerticalAlignment="Top"
+                                                ToolTip.Tip="Qwen3-VL looks at 20 frames spread over the chosen part of the video and lists who is in it (about a minute). Then pick who each character replaces under its picture."/>
+                                        <TextBlock Grid.Column="1" Text="{Binding PeopleStatus}" FontSize="10" TextWrapping="Wrap" VerticalAlignment="Center" Margin="8,0,0,0" Foreground="{StaticResource TextMutedBrush}"/>
+                                    </Grid>
+                                    <ItemsControl ItemsSource="{Binding People}" Margin="0,0,0,10">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="svc:SwapPerson">
+                                                <TextBlock Text="{Binding Display}" FontSize="11" TextWrapping="Wrap" Margin="0,1" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
                                     <!-- ─── Characters ───────────────────────────────── -->
                                     <TextBlock Text="CHARACTERS" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,4"/>
                                     <ItemsControl ItemsSource="{Binding ActiveCharacters}" Margin="0,0,0,4">
@@ -9350,6 +9371,16 @@
                                                                 </StackPanel>
                                                             </Grid>
                                                             <TextBlock Text="{Binding FileName}" FontSize="10" TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,4"/>
+                                                            <StackPanel Margin="0,0,0,4" IsVisible="{Binding $parent[ItemsControl].((vmv:CharacterSwapViewModel)DataContext).HasPeople}">
+                                                                <TextBlock Text="Replaces" FontSize="9" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                                <ComboBox ItemsSource="{Binding $parent[ItemsControl].((vmv:CharacterSwapViewModel)DataContext).People}"
+                                                                          SelectedItem="{Binding Replaces}"
+                                                                          DisplayMemberBinding="{Binding Display, x:DataType=svc:SwapPerson}"
+                                                                          FontSize="11"
+                                                                          Height="24"
+                                                                          HorizontalAlignment="Stretch"
+                                                                          ToolTip.Tip="Who in the video this character replaces. Picking fills the role below (and, in Simple mode, what SAM tracks)."/>
+                                                            </StackPanel>
                                                             <TextBlock Text="Who do they replace? (optional, a role)" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}"/>
                                                             <TextBox Text="{Binding Role}"
                                                                      FontSize="11"

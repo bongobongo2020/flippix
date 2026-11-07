@@ -33,7 +33,12 @@ namespace FlipPix.UI.Models
         [ObservableProperty]
         private string _role = string.Empty;
 
-        public bool HasPicture => !string.IsNullOrEmpty(PicturePath) && File.Exists(PicturePath);
+        /// <summary>The person from "Find people" this character replaces; picking one fills <see cref="Role"/>
+        /// (and in Simple mode the SAM target). Null until the user picks.</summary>
+        [ObservableProperty]
+        private FlipPix.UI.Services.SwapPerson? _replaces;
+
+        public bool HasPicture =>!string.IsNullOrEmpty(PicturePath) && File.Exists(PicturePath);
         public string FileName => HasPicture ? Path.GetFileName(PicturePath) : "No picture";
 
         private BitmapImage? _thumbnail;

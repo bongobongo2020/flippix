@@ -54,7 +54,13 @@ namespace FlipPix.UI.ViewModels.Video
 
             for (var i = 1; i <= CharacterSwapGraph.MaxCharacters; i++)
                 Characters.Add(new CharacterSwapSlot(i, slot => _ = BrowsePictureAsync(slot)));
-            foreach (var slot in Characters) slot.PropertyChanged += (_, _) => RefreshCommands();
+            foreach (var slot in Characters)
+                slot.PropertyChanged += (_, e) =>
+                {
+                    if (e.PropertyName == nameof(CharacterSwapSlot.Replaces)) ApplyReplaces(slot);
+                    RefreshCommands();
+                };
+            FindPeopleCommand = new RelayCommand(() => _ = FindPeopleAsync(), () => !IsProcessing && HasVideo);
 
             BrowseVideoCommand = new RelayCommand(() => _ = BrowseVideoAsync(), () => !IsProcessing);
             GenerateCommand = new RelayCommand(() => _ = RunAsync(checkMask: false), CanGenerate);
@@ -168,7 +174,113 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        partial void OnIsAdvancedChanged(bool value) { Save(); RefreshCommands(); }
+        partial void OnIsAdvancedChanged(bool value)
+        {
+            Save();
+            RefreshCommands();
+            // Simple and Advanced write a pick differently (role + SAM target vs. "role - look").
+            foreach (var slot in Characters) ApplyReplaces(slot);
+        }
+
+        // ── People in the video ──────────────────────────────────────────────────────────────────
+
+        /// <summary>Who the describer saw in the source, for the "Replaces" picker under each character.</summary>
+        public ObservableCollection<SwapPerson> People { get; } = new();
+        public bool HasPeople => People.Count > 0;
+
+        [ObservableProperty]
+        private string _peopleStatus = "Find people lists who is in the video, so you can pick who each character replaces.";
+
+        /// <summary>
+        /// A pick fills the fields the swap already reads. Advanced: the role field gets "role - look", the
+        /// form Qwen matches tracks against. Simple: SAM replaces the biggest match of the target text, so
+        /// the look becomes the target ("man in a blue shirt") and the role names them in the prompt.
+        /// </summary>
+        private void ApplyReplaces(CharacterSwapSlot slot)
+        {
+            var person = slot.Replaces;
+            if (person == null) return;
+            if (IsAdvanced)
+            {
+                slot.Role = person.Line;
+            }
+            else if (slot.Number == 1)
+            {
+                slot.Role = person.Role;
+                if (person.Look.Length > 0) Target = person.Look;
+            }
+        }
+
+        private async Task FindPeopleAsync()
+        {
+            if (IsProcessing || !HasVideo) return;
+            IsProcessing = true;
+            _runCts = new CancellationTokenSource();
+            var ct = _runCts.Token;
+            try
+            {
+                PeopleStatus = "Waiting for the ComfyUI queue…";
+                using var lease = await _workflowCoordinator.AcquireAsync("character_swap", ct);
+
+                PeopleStatus = "Uploading the source video…";
+                ProcessingStatus = "Finding people in the video…";
+                var video = await _comfyUIService.UploadVideoAsync(VideoPath, ct);
+                var clips = await _comfyUIService.HttpClient.GetModelFilenamesAsync("CLIPLoader", "clip_name", ct);
+                var describer = CharacterSwapGraph.ResolveFile(CharacterSwapGraph.DefaultDescriber, clips,
+                    @"qwen3[-_]?vl[-_]?8b", @"qwen3[-_]?vl[-_]?4b");
+
+                var graph = CharacterSwapGraph.BuildFindPeople(LoadGraph(CharacterSwapGraph.AdvancedFile, sourceHasAudio: true),
+                    video, describer, SectionStart, SectionLength, VideoDuration);
+                PeopleStatus = "Qwen3-VL is looking at the video…";
+                AddLog($"Find people: {CharacterSwapGraph.PeopleFrames} frames across the {(SectionLength > 0 || SectionStart > 0 ? "chosen part" : "whole video")}, describer {describer}");
+
+                var promptId = await _comfyUIService.ExecuteWorkflowAsync(graph, null, ct, TimeSpan.FromMinutes(15));
+                var texts = await _comfyUIService.HttpClient.GetTextOutputsByNodeAsync(promptId, ct);
+                var text = texts.TryGetValue(CharacterSwapGraph.PeopleOutput, out var lines) ? string.Join("\n", lines) : null;
+                var people = CharacterSwapGraph.ParsePeople(text);
+
+                Application.Current?.Dispatcher.Invoke(() =>
+                {
+                    foreach (var slot in Characters) slot.Replaces = null;
+                    People.Clear();
+                    foreach (var p in people) People.Add(p);
+                    OnPropertyChanged(nameof(HasPeople));
+                });
+
+                if (people.Count == 0)
+                {
+                    PeopleStatus = "No people found. Try a part of the video where they are clearly visible.";
+                    AddLog($"Find people: the describer listed nobody{(string.IsNullOrWhiteSpace(text) ? "" : $" (it said: {text.Trim()})")}");
+                }
+                else
+                {
+                    PeopleStatus = IsAdvanced
+                        ? $"Found {people.Count}. Pick who each character replaces under its picture."
+                        : $"Found {people.Count}. Pick who the character replaces under its picture (Simple mode tracks them by their look).";
+                    foreach (var p in people) AddLog($"Find people: {p.Display}");
+                }
+                ProcessingStatus = string.Empty;
+            }
+            catch (OperationCanceledException)
+            {
+                PeopleStatus = "Stopped.";
+                ProcessingStatus = string.Empty;
+            }
+            catch (Exception ex)
+            {
+                PeopleStatus = $"Could not list people: {ex.Message}";
+                ProcessingStatus = string.Empty;
+                AddLog($"Find people failed: {ex.Message}");
+                _logger.LogError(ex, "Character Swap find people failed");
+            }
+            finally
+            {
+                IsProcessing = false;
+                _runCts?.Dispose();
+                _runCts = null;
+                RefreshCommands();
+            }
+        }
         partial void OnResolutionChanged(string value) => Save();
         partial void OnClipSecondsChanged(double value) => Save();
         partial void OnMotionSizeChanged(int value) => Save();
@@ -209,6 +321,7 @@ namespace FlipPix.UI.ViewModels.Video
         public RelayCommand BrowseVideoCommand { get; }
         public RelayCommand GenerateCommand { get; }
         public RelayCommand CheckMaskCommand { get; }
+        public RelayCommand FindPeopleCommand { get; }
         public RelayCommand StopCommand { get; }
         public RelayCommand NewSeedCommand { get; }
         public RelayCommand RefreshModelsCommand { get; }
@@ -228,6 +341,7 @@ namespace FlipPix.UI.ViewModels.Video
                 BrowseVideoCommand.NotifyCanExecuteChanged();
                 GenerateCommand.NotifyCanExecuteChanged();
                 CheckMaskCommand.NotifyCanExecuteChanged();
+                FindPeopleCommand.NotifyCanExecuteChanged();
                 StopCommand.NotifyCanExecuteChanged();
                 PlayResultCommand.NotifyCanExecuteChanged();
                 PlaySourceCommand.NotifyCanExecuteChanged();
@@ -264,6 +378,10 @@ namespace FlipPix.UI.ViewModels.Video
             SectionLength = 0;
             ActivePreview = path;
             MaskPreviewPath = string.Empty;
+            foreach (var slot in Characters) slot.Replaces = null;
+            People.Clear();
+            OnPropertyChanged(nameof(HasPeople));
+            PeopleStatus = "Find people lists who is in this video, so you can pick who each character replaces.";
             VideoDuration = await Task.Run(() => GetVideoDuration(path));
             AddLog($"Source video: {Path.GetFileName(path)} ({VideoDuration:F1} s)");
 
@@ -514,6 +632,13 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 ProcessingStatus = $"Failed: {ex.Message}";
                 AddLog($"{label} failed: {ex.Message}");
+                var hint = CharacterSwapGraph.EmptyMaskHint(ex.Message, IsAdvanced && !checkMask,
+                    ActiveCharacters.Where(c => c.HasPicture).Select(c => c.Role).ToList(), Target, SectionLength <= 0);
+                if (hint != null)
+                {
+                    ProcessingStatus = "Failed: nobody to replace was found. See the log.";
+                    AddLog($"{label}: {hint}");
+                }
                 _logger.LogError(ex, "Character Swap run failed");
             }
             finally
