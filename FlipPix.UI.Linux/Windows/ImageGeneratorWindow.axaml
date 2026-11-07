@@ -529,6 +529,7 @@
                                                         <ComboBoxItem Content="Zimage Base (no style)"/>
                                                         <ComboBoxItem Content="Qwen 2.1 (prompt enhancer)"/>
                                                         <ComboBoxItem Content="MOSS (Serenity)"/>
+                                                        <ComboBoxItem Content="MOSS Real (base)"/>
                                                     </ComboBox>
                                                 </StackPanel>
                                                 <!-- Prompt enhancer (Qwen 2.1 only) -->

@@ -30,6 +30,7 @@ namespace FlipPix.UI.Services
             TextGeneratorWorkflow.ZimageBase => "ZBase",
             TextGeneratorWorkflow.Qwen21Enhancer => "Qwen21",
             TextGeneratorWorkflow.Moss => "Moss",
+            TextGeneratorWorkflow.MossReal => "MossReal",
             _ => null,
         };
 

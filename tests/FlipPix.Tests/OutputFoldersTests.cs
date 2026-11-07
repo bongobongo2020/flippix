@@ -83,6 +83,7 @@ public sealed class OutputFoldersTests
 
     [Theory]
     [InlineData(TextGeneratorWorkflow.Moss, "Moss")]
+    [InlineData(TextGeneratorWorkflow.MossReal, "MossReal")]
     [InlineData(TextGeneratorWorkflow.Qwen21Enhancer, "Qwen21")]
     [InlineData(TextGeneratorWorkflow.Klien, "F2K_txt2img")]
     [InlineData(TextGeneratorWorkflow.Zimage, null)]

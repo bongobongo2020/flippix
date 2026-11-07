@@ -39,7 +39,11 @@ namespace FlipPix.UI.ViewModels
         Qwen21Enhancer,
         // MOSS-Image Serenity finetune + DMD 8-step LoRA (moss-serenity-API2.json). Sampler settings
         // are the workflow's own, so only prompt, seed and canvas size are injected.
-        Moss
+        Moss,
+        // MOSS-Image base model, no distill LoRA (moss-real-API.json): SamplerCustom with the
+        // ER-SDE sampler, 25 steps / cfg 3, skip-layer guidance on blocks 22+24. As with Moss,
+        // only prompt, seed and canvas size are injected.
+        MossReal
     }
 
     public class ImageGeneratorViewModel : BasePromptViewModel, IDisposable
@@ -542,7 +546,8 @@ namespace FlipPix.UI.ViewModels
         // baked into the JSON and changing them breaks the result, so hide the sampler panel.
         public bool ShowSamplerSettings => SelectedWorkflow != TextGeneratorWorkflow.Anima
                                            && SelectedWorkflow != TextGeneratorWorkflow.Krea2
-                                           && SelectedWorkflow != TextGeneratorWorkflow.Moss;
+                                           && SelectedWorkflow != TextGeneratorWorkflow.Moss
+                                           && SelectedWorkflow != TextGeneratorWorkflow.MossReal;
 
         // Only qwen21-prompt-enhancer.json carries the local rewriter, so only it shows the toggle.
         public bool ShowPromptEnhancerOption => SelectedWorkflow == TextGeneratorWorkflow.Qwen21Enhancer;
@@ -856,6 +861,11 @@ namespace FlipPix.UI.ViewModels
                         AddLog("Using MOSS Serenity workflow");
                         break;
 
+                    case TextGeneratorWorkflow.MossReal:
+                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "moss-real-API.json");
+                        AddLog("Using MOSS Real workflow");
+                        break;
+
                     case TextGeneratorWorkflow.Zimage:
                     default:
                         if (SelectedStyle != null)
@@ -970,6 +980,7 @@ namespace FlipPix.UI.ViewModels
                         TextGeneratorWorkflow.ZimageBase => "z-image-base",
                         TextGeneratorWorkflow.Qwen21Enhancer => "qwen21",
                         TextGeneratorWorkflow.Moss => "moss",
+                        TextGeneratorWorkflow.MossReal => "moss-real",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");
@@ -1518,6 +1529,8 @@ namespace FlipPix.UI.ViewModels
                     return UpdateQwen21EnhancerWorkflow(workflowDict);
                 case TextGeneratorWorkflow.Moss:
                     return UpdateMossWorkflow(workflowDict, ImagePrompt, AspectRatioIndex, Seed, AddLog);
+                case TextGeneratorWorkflow.MossReal:
+                    return UpdateMossRealWorkflow(workflowDict, ImagePrompt, AspectRatioIndex, Seed, AddLog);
                 default:
                     return workflow;
             }
@@ -2752,6 +2765,52 @@ namespace FlipPix.UI.ViewModels
             return JsonSerializer.SerializeToElement(workflowDict);
         }
 
+        /// <summary>
+        /// Landscape / portrait / square canvas for MOSS Real, ~2 MP in multiples of 16 — what the
+        /// authored ResolutionSelector (2:3, 2 MP, multiple 16) produced.
+        /// </summary>
+        internal static (int Width, int Height) MossRealResolution(int aspectRatioIndex)
+        {
+            var resolutions = new[]
+            {
+                (1728, 1152), // Landscape
+                (1152, 1728), // Portrait (as authored, 2:3)
+                (1408, 1408), // Square
+            };
+            return resolutions[Math.Min(Math.Max(aspectRatioIndex, 0), resolutions.Length - 1)];
+        }
+
+        /// <summary>
+        /// Fills moss-real-API.json (API conversion of moss-real.json). Shared with the Image Analyzer.
+        /// Node map:
+        ///   7  = CLIPTextEncode (positive prompt) → inputs.text                 [set here]
+        ///   9  = EmptyFlux2LatentImage → inputs.width / height                  [set here]
+        ///   10 = SamplerCustom → inputs.noise_seed                              [set here]
+        ///   12 = SaveImage → inputs.filename_prefix                             [set here]
+        ///   10 = cfg 3, 13 = ER-SDE sampler, 14 = simple / 25 steps             [as authored]
+        ///   6  = skip-layer guidance (blocks 22, 24); VAE decodes 10's denoised output
+        /// </summary>
+        internal static JsonElement UpdateMossRealWorkflow(Dictionary<string, JsonElement> workflowDict, string prompt,
+            int aspectRatioIndex, long seed, Action<string> log, (int Width, int Height)? canvas = null,
+            string filenamePrefix = "MossReal")
+        {
+            var (width, height) = canvas ?? MossRealResolution(aspectRatioIndex);
+            var actualSeed = seed == 0 ? Random.Shared.NextInt64(0, 999999999999999) : seed;
+
+            UpdateNodeInputs(workflowDict, "7", inputs => inputs["text"] = prompt);
+            UpdateNodeInputs(workflowDict, "9", inputs =>
+            {
+                inputs["width"] = width;
+                inputs["height"] = height;
+            });
+            UpdateNodeInputs(workflowDict, "10", inputs => inputs["noise_seed"] = actualSeed);
+            UpdateNodeInputs(workflowDict, "12", inputs => inputs["filename_prefix"] = filenamePrefix);
+
+            log($"MOSS Real: {width}x{height}, seed={actualSeed} (steps/cfg as authored)");
+
+            return JsonSerializer.SerializeToElement(workflowDict);
+        }
+
         private JsonElement UpdateZimageBaseWorkflow(Dictionary<string, JsonElement> workflowDict)
         {
             // z-image-base.json is run AS AUTHORED. Only the prompt and the seed are injected;
@@ -3239,6 +3298,7 @@ namespace FlipPix.UI.ViewModels
                             TextGeneratorWorkflow.ZimageBase => "ZBase_",
                             TextGeneratorWorkflow.Qwen21Enhancer => "Qwen21_",
                             TextGeneratorWorkflow.Moss => "Moss_",
+                            TextGeneratorWorkflow.MossReal => "MossReal_",
                             _ => "z-image_"
                         };
                         imageFiles = Directory.GetFiles(searchDirectory, $"{prefix}*.png")
@@ -3375,6 +3435,7 @@ namespace FlipPix.UI.ViewModels
                 TextGeneratorWorkflow.ZimageBase => new[] { @"ZBase_(\d+)_", @"ZBase_(\d+)$" },
                 TextGeneratorWorkflow.Qwen21Enhancer => new[] { @"Qwen21_(\d+)_", @"Qwen21_(\d+)$" },
                 TextGeneratorWorkflow.Moss => new[] { @"Moss_(\d+)_", @"Moss_(\d+)$" },
+                TextGeneratorWorkflow.MossReal => new[] { @"MossReal_(\d+)_", @"MossReal_(\d+)$" },
                 _ => new[] { @"z-image_(\d+)_", @"z-image_(\d+)$" }
             };
 
@@ -4307,6 +4368,11 @@ namespace FlipPix.UI.ViewModels
                         AddLog("Using MOSS Serenity workflow");
                         break;
 
+                    case TextGeneratorWorkflow.MossReal:
+                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "moss-real-API.json");
+                        AddLog("Using MOSS Real workflow");
+                        break;
+
                     case TextGeneratorWorkflow.Zimage:
                     default:
                         // Use ZStyle workflow file if a style was selected
@@ -4472,6 +4538,7 @@ namespace FlipPix.UI.ViewModels
                         TextGeneratorWorkflow.ZimageBase => "z-image-base",
                         TextGeneratorWorkflow.Qwen21Enhancer => "qwen21",
                         TextGeneratorWorkflow.Moss => "moss",
+                        TextGeneratorWorkflow.MossReal => "moss-real",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");

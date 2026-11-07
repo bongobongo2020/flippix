@@ -545,7 +545,8 @@ namespace FlipPix.UI.ViewModels
 
         public bool ShowSamplerSettings => SelectedWorkflow != TextGeneratorWorkflow.Anima
                                            && SelectedWorkflow != TextGeneratorWorkflow.Krea2
-                                           && SelectedWorkflow != TextGeneratorWorkflow.Moss;
+                                           && SelectedWorkflow != TextGeneratorWorkflow.Moss
+                                           && SelectedWorkflow != TextGeneratorWorkflow.MossReal;
 
         // Only qwen21-prompt-enhancer.json carries the local rewriter, so only it shows the toggle.
         public bool ShowPromptEnhancerOption => SelectedWorkflow == TextGeneratorWorkflow.Qwen21Enhancer;
@@ -2243,6 +2244,11 @@ namespace FlipPix.UI.ViewModels
                         _logger.LogInfo($"Using MOSS Serenity workflow");
                         break;
 
+                    case TextGeneratorWorkflow.MossReal:
+                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "moss-real-API.json");
+                        _logger.LogInfo($"Using MOSS Real workflow");
+                        break;
+
                     case TextGeneratorWorkflow.ZimageBase:
                         workflowPath = WorkflowLocator.Resolve("workflow", "image", "zimage", "base", "z-image-base.json");
                         _logger.LogInfo($"Using Zimage Base workflow");
@@ -2465,6 +2471,7 @@ namespace FlipPix.UI.ViewModels
                         TextGeneratorWorkflow.ZimageBase => "z-image-base",
                         TextGeneratorWorkflow.Qwen21Enhancer => "qwen21",
                         TextGeneratorWorkflow.Moss => "moss",
+                        TextGeneratorWorkflow.MossReal => "moss-real",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");
@@ -2949,6 +2956,7 @@ namespace FlipPix.UI.ViewModels
                     // The USER PROMPT primitive, not the encoder: the enhancer reads through it.
                     TextGeneratorWorkflow.Qwen21Enhancer => "468",
                     TextGeneratorWorkflow.Moss => "7",
+                    TextGeneratorWorkflow.MossReal => "7",
                     _ => ""  // Empty for Zimage (will use generic search)
                 };
 
@@ -3185,6 +3193,20 @@ namespace FlipPix.UI.ViewModels
                             UpdateNodeInputs(workflow, "12", nodeInputs => nodeInputs["filename_prefix"] = "Moss");
                             _logger.LogInfo($"✓ MOSS Serenity: {mossWidth}x{mossHeight} (steps/cfg as authored)");
                         }
+                        else if (selectedWorkflow == TextGeneratorWorkflow.MossReal)
+                        {
+                            // moss-real-API.json (see ImageGeneratorViewModel.UpdateMossRealWorkflow):
+                            //    9 = EmptyFlux2LatentImage → width / height   [set here]
+                            //   12 = SaveImage → filename_prefix              [set here]
+                            var (mrWidth, mrHeight) = ImageGeneratorViewModel.MossRealResolution(AspectRatioIndex);
+                            UpdateNodeInputs(workflow, "9", nodeInputs =>
+                            {
+                                nodeInputs["width"] = mrWidth;
+                                nodeInputs["height"] = mrHeight;
+                            });
+                            UpdateNodeInputs(workflow, "12", nodeInputs => nodeInputs["filename_prefix"] = "MossReal");
+                            _logger.LogInfo($"✓ MOSS Real: {mrWidth}x{mrHeight} (steps/cfg as authored)");
+                        }
                     }
 
                     // Randomize seed for non-Zimage workflows
@@ -3309,6 +3331,12 @@ namespace FlipPix.UI.ViewModels
                         // dpmpp_sde / simple are the workflow's own and are left alone.
                         UpdateNodeInputs(workflow, "10", nodeInputs => nodeInputs["seed"] = randomSeed);
                         _logger.LogInfo($"✓ Updated MOSS sampler node 10 with seed: {randomSeed}");
+                    }
+                    else if (selectedWorkflow == TextGeneratorWorkflow.MossReal)
+                    {
+                        // moss-real-API.json: node 10 = SamplerCustom, whose seed input is noise_seed.
+                        UpdateNodeInputs(workflow, "10", nodeInputs => nodeInputs["noise_seed"] = randomSeed);
+                        _logger.LogInfo($"✓ Updated MOSS Real sampler node 10 with seed: {randomSeed}");
                     }
 
                     return workflow;
@@ -4052,6 +4080,7 @@ namespace FlipPix.UI.ViewModels
                     TextGeneratorWorkflow.ZimageBase => "ZBase_",
                     TextGeneratorWorkflow.Qwen21Enhancer => "Qwen21_",
                     TextGeneratorWorkflow.Moss => "Moss_",
+                    TextGeneratorWorkflow.MossReal => "MossReal_",
                     _ => ""  // Empty for Zimage (will use ZI/z-image pattern)
                 };
 
