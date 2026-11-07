@@ -5597,12 +5597,14 @@
                                 <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource AccentTealColor}"/>
                             </Grid.Resources>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="320"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
                             <!-- ═══ LEFT PANEL: Settings & Reference Images ═══════════════════ -->
-                            <Border Grid.Column="0" Background="{StaticResource SurfaceBrush}" Padding="12">
+                            <Border Grid.Column="0" Width="320" Background="{StaticResource SurfaceBrush}" Padding="12"
+                                    Visibility="{Binding IsChecked, ElementName=H3SettingsToggle, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                                     <StackPanel>
                                         <!-- Reference Images Card -->
@@ -6286,522 +6288,493 @@
                                 </ScrollViewer>
                             </Border>
 
-                            <!-- ═══ RIGHT PANEL: Preview & Timeline (DaVinci-style) ═════════════ -->
-                            <Grid Grid.Column="1">
+                            <!-- ═══ SETTINGS RAIL: collapse / expand the settings panel ═════════════
+                                 Always visible, so the panel can be hidden to give the viewer and timeline
+                                 the whole window, and brought back with one click. -->
+                            <ToggleButton x:Name="H3SettingsToggle" Grid.Column="1" IsChecked="True" Width="22" Cursor="Hand"
+                                          Focusable="False" ToolTip="Show / hide the settings panel" AutomationProperties.Name="Settings panel">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="Bd" Background="#181818" BorderBrush="#2A2A2A" BorderThickness="0,0,1,0">
+                                            <StackPanel VerticalAlignment="Top" Margin="0,10,0,0">
+                                                <TextBlock x:Name="Chevron" Text="«" FontSize="14" FontWeight="Bold" Foreground="#9CA3AF" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="SETTINGS" FontSize="9" FontWeight="Bold" Foreground="#6B7280" Margin="0,14,0,0" HorizontalAlignment="Center">
+                                                    <TextBlock.LayoutTransform>
+                                                        <RotateTransform Angle="90"/>
+                                                    </TextBlock.LayoutTransform>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsChecked" Value="False">
+                                                <Setter TargetName="Chevron" Property="Text" Value="»"/>
+                                                <Setter TargetName="Chevron" Property="Foreground" Value="#2DD4BF"/>
+                                            </Trigger>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Bd" Property="Background" Value="#242424"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+
+                            <!-- ═══ EDITOR: viewer · inspector · timeline (dark studio surface) ══════ -->
+                            <Grid Grid.Column="2" Background="#121212">
+                                <Grid.Resources>
+                                    <!-- One button look for the whole editor. Colour comes from Background, so a
+                                         primary / warning button is just a different Background; hover and press
+                                         lay a translucent white wash over whatever colour it is. -->
+                                    <Style x:Key="H3Btn" TargetType="ButtonBase">
+                                        <Setter Property="Height" Value="28"/>
+                                        <Setter Property="Padding" Value="11,0"/>
+                                        <Setter Property="FontSize" Value="11"/>
+                                        <Setter Property="Background" Value="#2A2A2A"/>
+                                        <Setter Property="Foreground" Value="#E5E7EB"/>
+                                        <Setter Property="BorderThickness" Value="0"/>
+                                        <Setter Property="Cursor" Value="Hand"/>
+                                        <Setter Property="Margin" Value="0,0,4,0"/>
+                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="ButtonBase">
+                                                    <Grid>
+                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="6"/>
+                                                        <Border x:Name="Wash" Background="White" Opacity="0" CornerRadius="6"/>
+                                                        <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="Wash" Property="Opacity" Value="0.09"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsPressed" Value="True">
+                                                            <Setter TargetName="Wash" Property="Opacity" Value="0.18"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsEnabled" Value="False">
+                                                            <Setter Property="Opacity" Value="0.38"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                    <!-- Same look for an on/off toggle; on is a teal fill. -->
+                                    <Style x:Key="H3ToggleBtn" TargetType="ToggleButton" BasedOn="{StaticResource H3Btn}">
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="ToggleButton">
+                                                    <Grid>
+                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="6"/>
+                                                        <Border x:Name="Wash" Background="White" Opacity="0" CornerRadius="6"/>
+                                                        <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="Wash" Property="Opacity" Value="0.09"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsChecked" Value="True">
+                                                            <Setter TargetName="Bd" Property="Background" Value="#134E4A"/>
+                                                            <Setter Property="Foreground" Value="#5EEAD4"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                    <!-- Square transport button -->
+                                    <Style x:Key="H3IconBtn" TargetType="ButtonBase" BasedOn="{StaticResource H3Btn}">
+                                        <Setter Property="Width" Value="32"/>
+                                        <Setter Property="Padding" Value="0"/>
+                                        <Setter Property="FontSize" Value="12"/>
+                                        <Setter Property="FontFamily" Value="Segoe UI Symbol"/>
+                                        <Setter Property="Margin" Value="0,0,3,0"/>
+                                    </Style>
+                                    <!-- Small overlay button on a timeline tile -->
+                                    <Style x:Key="H3TileBtn" TargetType="Button" BasedOn="{StaticResource H3Btn}">
+                                        <Setter Property="Width" Value="24"/>
+                                        <Setter Property="Height" Value="24"/>
+                                        <Setter Property="Padding" Value="0"/>
+                                        <Setter Property="FontSize" Value="12"/>
+                                        <Setter Property="FontFamily" Value="Segoe UI Symbol"/>
+                                        <Setter Property="Background" Value="#CC000000"/>
+                                        <Setter Property="Margin" Value="3,0,0,0"/>
+                                    </Style>
+                                    <Style x:Key="H3Divider" TargetType="Rectangle">
+                                        <Setter Property="Width" Value="1"/>
+                                        <Setter Property="Height" Value="18"/>
+                                        <Setter Property="Fill" Value="#333"/>
+                                        <Setter Property="Margin" Value="6,0,10,0"/>
+                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                    </Style>
+                                    <Style x:Key="H3DarkText" TargetType="TextBox">
+                                        <Setter Property="Background" Value="#1A1A1A"/>
+                                        <Setter Property="Foreground" Value="#E5E7EB"/>
+                                        <Setter Property="CaretBrush" Value="#E5E7EB"/>
+                                        <Setter Property="BorderBrush" Value="#2E2E2E"/>
+                                        <Setter Property="BorderThickness" Value="1"/>
+                                        <Setter Property="Padding" Value="8,6"/>
+                                        <Setter Property="FontFamily" Value="Consolas"/>
+                                        <Setter Property="FontSize" Value="12"/>
+                                        <Setter Property="AcceptsReturn" Value="True"/>
+                                        <Setter Property="TextWrapping" Value="Wrap"/>
+                                        <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+                                    </Style>
+                                </Grid.Resources>
                                 <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*" MinHeight="120"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto" MaxHeight="300"/>
-                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>                      <!-- top bar -->
+                                    <RowDefinition Height="3*" MinHeight="200"/>        <!-- viewer + inspector -->
+                                    <RowDefinition Height="Auto"/>                      <!-- splitter -->
+                                    <RowDefinition Height="*" MinHeight="110"/>         <!-- timeline -->
+                                    <RowDefinition Height="Auto"/>                      <!-- action bar -->
                                 </Grid.RowDefinitions>
 
-                                <!-- Project Header - Compact -->
-                                <Border Grid.Row="0" Background="{StaticResource SurfaceAltBrush}" Padding="10,6">
-                                    <Grid>
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Button Content="💾" Command="{Binding SaveProjectCommand}" Width="24" Height="24" Padding="0" FontSize="12" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" ToolTip="Save Project (.h3proj)" Margin="0,0,4,0"/>
-                                            <Button Content="📂" Command="{Binding LoadProjectCommand}" Width="24" Height="24" Padding="0" FontSize="12" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" ToolTip="Load Project (.h3proj)" Margin="0,0,6,0"/>
-                                            <TextBox Text="{Binding ProjectFolder, UpdateSourceTrigger=PropertyChanged}" Width="120" Height="24" FontSize="10" VerticalContentAlignment="Center" ToolTip="Project folder name"/>
-                                            <Border Width="1" Background="{StaticResource BorderBrush}" Margin="10,0"/>
-                                            <ComboBox ItemsSource="{Binding AspectRatioOptions}" SelectedValue="{Binding SelectedAspectRatio}" Width="130" Height="24" FontSize="10" ToolTip="Aspect ratio"/>
-                                            <ComboBox SelectedValue="{Binding Megapixels}" Width="60" Height="24" FontSize="10" Margin="6,0,0,0" ToolTip="Megapixels" Visibility="{Binding IsClassicEngine, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                <sys:Double>0.3</sys:Double>
-                                                <sys:Double>0.5</sys:Double>
-                                                <sys:Double>0.7</sys:Double>
-                                                <sys:Double>1.0</sys:Double>
-                                            </ComboBox>
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                            <ProgressBar Value="{Binding Progress}" Width="120" Height="6" Margin="0,0,10,0" Foreground="{DynamicResource TabAccentBrush}"/>
-                                            <TextBlock Text="{Binding StatusText}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TabAccentBrush}"/>
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
-
-                                <!-- ═══ VIDEO PREVIEW (Main Area) ═══════════════════════════════════ -->
-                                <Border Grid.Row="1" Background="#1a1a1a" Margin="8,6,8,0" CornerRadius="4">
-                                    <Grid>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="*"/>
-                                            <RowDefinition Height="Auto"/>
-                                        </Grid.RowDefinitions>
-                                        <!-- Placeholder text when no video -->
-                                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                                            <TextBlock Text="▶" FontSize="48" Foreground="#333" HorizontalAlignment="Center"/>
-                                            <TextBlock Text="Video Preview" Foreground="#444" FontSize="12" HorizontalAlignment="Center" Margin="0,8,0,0"/>
-                                        </StackPanel>
-                                        <!-- Actual video player. ScrubbingEnabled shows the seeked frame while paused. -->
-                                        <MediaElement x:Name="H3EditorVideoPlayer" LoadedBehavior="Manual" UnloadedBehavior="Stop" Stretch="Uniform" ScrubbingEnabled="True" IsMuted="{Binding IsPreviewMuted}" Visibility="{Binding PreviewVideoPath, Converter={StaticResource StringToVisibilityConverter}}" MediaOpened="H3EditorPlayer_MediaOpened" MediaEnded="H3EditorPlayer_MediaEnded" MediaFailed="H3EditorPlayer_MediaFailed"/>
-                                        <!-- 🌹 2-Pass: the beat forming, step by step, while it renders (H3VideoEditorViewModel.TwoPass.cs). -->
-                                        <Grid Background="Black" Visibility="{Binding HasLivePreview, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                            <ctrl:LivePreviewPlayer Source="{Binding LivePreviewPath}"/>
-                                        </Grid>
-                                        <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="10" CornerRadius="6" Padding="8,3" Background="#CC000000"
-                                                Visibility="{Binding LivePreviewCaption, Converter={StaticResource StringToVisibilityConverter}}">
-                                            <TextBlock Text="{Binding LivePreviewCaption}" FontSize="10" FontFamily="Consolas" Foreground="#f0c060"/>
-                                        </Border>
-
-                                        <!-- Scrub bar: drag/click to seek (snaps to frames), step frames, cut at the playhead. -->
-                                        <Grid Grid.Row="1" Margin="8,4,8,6" Visibility="{Binding PreviewVideoPath, Converter={StaticResource StringToVisibilityConverter}}">
-                                            <Grid.InputBindings>
-                                                <KeyBinding Key="I" Command="{Binding MarkInCommand}"/>
-                                                <KeyBinding Key="O" Command="{Binding MarkOutCommand}"/>
-                                                <KeyBinding Key="Delete" Command="{Binding DeleteMarkedRangeCommand}"/>
-                                            </Grid.InputBindings>
-                                            <Grid.Resources>
-                                                <Style x:Key="H3MarkButton" TargetType="Button">
-                                                    <Setter Property="Height" Value="22"/>
-                                                    <Setter Property="Padding" Value="8,0"/>
-                                                    <Setter Property="FontSize" Value="10"/>
-                                                    <Setter Property="Margin" Value="0,0,3,0"/>
-                                                    <Setter Property="Background" Value="#3d3d3d"/>
-                                                    <Setter Property="Foreground" Value="#ddd"/>
-                                                    <Setter Property="Cursor" Value="Hand"/>
-                                                    <Setter Property="Template">
-                                                        <Setter.Value>
-                                                            <ControlTemplate TargetType="Button">
-                                                                <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
-                                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                                </Border>
-                                                                <ControlTemplate.Triggers>
-                                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                                        <Setter TargetName="Bd" Property="Opacity" Value="0.85"/>
-                                                                    </Trigger>
-                                                                    <Trigger Property="IsEnabled" Value="False">
-                                                                        <Setter Property="Opacity" Value="0.4"/>
-                                                                    </Trigger>
-                                                                </ControlTemplate.Triggers>
-                                                            </ControlTemplate>
-                                                        </Setter.Value>
-                                                    </Setter>
-                                                </Style>
-                                            </Grid.Resources>
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="Auto"/>
-                                                <RowDefinition Height="Auto"/>
-                                            </Grid.RowDefinitions>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                                <Button Grid.Column="0" Content="◂|" Width="26" FontSize="10" FontFamily="Segoe UI Symbol" ToolTip="Back one frame" Click="H3EditorFrameBack_Click" Margin="0,0,2,0" Height="22" Background="#3d3d3d" Foreground="#ddd" BorderThickness="0" Cursor="Hand">
-                                                    <Button.Template>
-                                                        <ControlTemplate TargetType="Button">
-                                                            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
-                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                            </Border>
-                                                            <ControlTemplate.Triggers>
-                                                                <Trigger Property="IsMouseOver" Value="True">
-                                                                    <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
-                                                                </Trigger>
-                                                                <Trigger Property="IsEnabled" Value="False">
-                                                                    <Setter Property="Opacity" Value="0.4"/>
-                                                                </Trigger>
-                                                            </ControlTemplate.Triggers>
-                                                        </ControlTemplate>
-                                                    </Button.Template>
-                                                </Button>
-                                                <Button Grid.Column="1" Content="|▸" Width="26" FontSize="10" FontFamily="Segoe UI Symbol" ToolTip="Forward one frame" Click="H3EditorFrameForward_Click" Margin="0,0,6,0" Height="22" Background="#3d3d3d" Foreground="#ddd" BorderThickness="0" Cursor="Hand">
-                                                    <Button.Template>
-                                                        <ControlTemplate TargetType="Button">
-                                                            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
-                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                            </Border>
-                                                            <ControlTemplate.Triggers>
-                                                                <Trigger Property="IsMouseOver" Value="True">
-                                                                    <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
-                                                                </Trigger>
-                                                                <Trigger Property="IsEnabled" Value="False">
-                                                                    <Setter Property="Opacity" Value="0.4"/>
-                                                                </Trigger>
-                                                            </ControlTemplate.Triggers>
-                                                        </ControlTemplate>
-                                                    </Button.Template>
-                                                </Button>
-                                            <Grid Grid.Column="2" VerticalAlignment="Center">
-                                                <Grid.RowDefinitions>
-                                                    <RowDefinition Height="Auto"/>
-                                                    <RowDefinition Height="Auto"/>
-                                                </Grid.RowDefinitions>
-                                                <!-- In/Out track: drag the green [ and red ] flags to bracket frames to delete or keep.
-                                                     Inset by half the slider's thumb so a marker lines up with the frame below it. -->
-                                                <Grid x:Name="H3TrimTrack" Grid.Row="0" Height="26" Margin="5,0,5,2"
-                                                      Background="Transparent" ClipToBounds="False"
-                                                      SizeChanged="H3TrimTrack_SizeChanged">
-                                                    <Border Height="10" VerticalAlignment="Center" CornerRadius="2" Background="#2a2a2a"/>
-                                                    <Border x:Name="H3TrimRegion" Height="14" Width="0"
-                                                            VerticalAlignment="Center" HorizontalAlignment="Left"
-                                                            Background="#55FFB000" BorderBrush="#FFB000" BorderThickness="0,2" IsHitTestVisible="False"/>
-                                                    <Border x:Name="H3TrimPlayhead" Width="2" Height="26"
-                                                            VerticalAlignment="Center" HorizontalAlignment="Left"
-                                                            Background="#FF3B3B" IsHitTestVisible="False"/>
-                                                    <Thumb x:Name="H3InThumb" Width="14" Height="26"
-                                                           HorizontalAlignment="Left" VerticalAlignment="Center" Cursor="SizeWE"
-                                                           DragStarted="H3MarkThumb_DragStarted"
-                                                           DragDelta="H3InThumb_DragDelta"
-                                                           ToolTip="IN — drag to the first frame to cut (or keep). Shortcut: I sets it at the playhead.">
-                                                        <Thumb.Template>
-                                                            <ControlTemplate TargetType="Thumb">
-                                                                <Border Background="#22C55E" CornerRadius="3,0,0,3" BorderBrush="White" BorderThickness="1">
-                                                                    <TextBlock Text="[" FontSize="13" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-2,0,0"/>
-                                                                </Border>
-                                                            </ControlTemplate>
-                                                        </Thumb.Template>
-                                                    </Thumb>
-                                                    <Thumb x:Name="H3OutThumb" Width="14" Height="26"
-                                                           HorizontalAlignment="Left" VerticalAlignment="Center" Cursor="SizeWE"
-                                                           DragStarted="H3MarkThumb_DragStarted"
-                                                           DragDelta="H3OutThumb_DragDelta"
-                                                           ToolTip="OUT — drag to the last frame to cut (or keep). Shortcut: O sets it at the playhead.">
-                                                        <Thumb.Template>
-                                                            <ControlTemplate TargetType="Thumb">
-                                                                <Border Background="#EF4444" CornerRadius="0,3,3,0" BorderBrush="White" BorderThickness="1">
-                                                                    <TextBlock Text="]" FontSize="13" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-2,0,0"/>
-                                                                </Border>
-                                                            </ControlTemplate>
-                                                        </Thumb.Template>
-                                                    </Thumb>
-                                                </Grid>
-                                                <Slider x:Name="H3EditorScrub" Grid.Row="1" VerticalAlignment="Center"
-                                                        Minimum="0" Maximum="{Binding PreviewDurationSeconds}"
-                                                        SmallChange="0.0416667" LargeChange="1"
-                                                        IsMoveToPointEnabled="True"
-                                                        ToolTip="Drag or click to scrub. With the bar focused, ← → step one frame, PgUp/PgDn one second, I / O set the In / Out markers."
-                                                        ValueChanged="H3EditorScrub_ValueChanged"
-                                                        Thumb.DragStarted="H3EditorScrub_DragStarted"
-                                                        Thumb.DragCompleted="H3EditorScrub_DragCompleted"/>
-                                            </Grid>
-                                            <TextBlock Grid.Column="3" Text="{Binding PlayheadDisplay}" FontFamily="Consolas" FontSize="11"
-                                                       Foreground="#ccc" VerticalAlignment="Center" Margin="8,0"/>
-                                            <StackPanel Grid.Column="4" Orientation="Horizontal">
-                                                <Button Content="⇤ Trim start" Padding="8,0" FontSize="10" Command="{Binding TrimStartToPlayheadCommand}" ToolTip="Cut away everything before the playhead" Margin="0,0,3,0" Height="22" Background="#3d3d3d" Foreground="#ddd" BorderThickness="0" Cursor="Hand">
-                                                    <Button.Template>
-                                                        <ControlTemplate TargetType="Button">
-                                                            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
-                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                            </Border>
-                                                            <ControlTemplate.Triggers>
-                                                                <Trigger Property="IsMouseOver" Value="True">
-                                                                    <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
-                                                                </Trigger>
-                                                                <Trigger Property="IsEnabled" Value="False">
-                                                                    <Setter Property="Opacity" Value="0.4"/>
-                                                                </Trigger>
-                                                            </ControlTemplate.Triggers>
-                                                        </ControlTemplate>
-                                                    </Button.Template>
-                                                </Button>
-                                                <Button Content="✂ Split" Padding="8,0" FontSize="10" Command="{Binding SplitAtPlayheadCommand}" ToolTip="Split this clip into two at the playhead" Margin="0,0,3,0" Height="22" Background="#3d3d3d" Foreground="#ddd" BorderThickness="0" Cursor="Hand">
-                                                    <Button.Template>
-                                                        <ControlTemplate TargetType="Button">
-                                                            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
-                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                            </Border>
-                                                            <ControlTemplate.Triggers>
-                                                                <Trigger Property="IsMouseOver" Value="True">
-                                                                    <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
-                                                                </Trigger>
-                                                                <Trigger Property="IsEnabled" Value="False">
-                                                                    <Setter Property="Opacity" Value="0.4"/>
-                                                                </Trigger>
-                                                            </ControlTemplate.Triggers>
-                                                        </ControlTemplate>
-                                                    </Button.Template>
-                                                </Button>
-                                                <Button Content="Trim end ⇥" Padding="8,0" FontSize="10" Command="{Binding TrimEndToPlayheadCommand}" ToolTip="Cut away everything after the playhead" Height="22" Background="#3d3d3d" Foreground="#ddd" BorderThickness="0" Cursor="Hand">
-                                                    <Button.Template>
-                                                        <ControlTemplate TargetType="Button">
-                                                            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
-                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                            </Border>
-                                                            <ControlTemplate.Triggers>
-                                                                <Trigger Property="IsMouseOver" Value="True">
-                                                                    <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
-                                                                </Trigger>
-                                                                <Trigger Property="IsEnabled" Value="False">
-                                                                    <Setter Property="Opacity" Value="0.4"/>
-                                                                </Trigger>
-                                                            </ControlTemplate.Triggers>
-                                                        </ControlTemplate>
-                                                    </Button.Template>
-                                                </Button>
-                                            </StackPanel>
-
-                                            <!-- In/Out range: mark frames, then delete them (joining the rest) or keep only them. -->
-                                            <StackPanel Grid.Row="1" Grid.ColumnSpan="5" Orientation="Horizontal" Margin="0,5,0,0">
-                                                <Button Content="[ Set In  (I)" Style="{StaticResource H3MarkButton}" Background="#1f6b3a" Foreground="White" FontWeight="SemiBold"
-                                                        Command="{Binding MarkInCommand}" ToolTip="Put the In marker on the frame under the playhead"/>
-                                                <Button Content="Set Out  (O) ]" Style="{StaticResource H3MarkButton}" Background="#8a2626" Foreground="White" FontWeight="SemiBold"
-                                                        Command="{Binding MarkOutCommand}" ToolTip="Put the Out marker on the frame under the playhead"/>
-                                                <Button Content="✕ Delete In→Out" Style="{StaticResource H3MarkButton}" Background="#b45309" Foreground="White" FontWeight="SemiBold" Margin="6,0,3,0"
-                                                        Command="{Binding DeleteMarkedRangeCommand}" ToolTip="Cut the marked frames out of this clip and join what is left (Delete key)"/>
-                                                <Button Content="Keep In→Out" Style="{StaticResource H3MarkButton}"
-                                                        Command="{Binding KeepMarkedRangeCommand}" ToolTip="Keep only the marked frames; drop everything before In and after Out"/>
-                                                <Button Content="Reset marks" Style="{StaticResource H3MarkButton}"
-                                                        Command="{Binding ClearMarksCommand}" ToolTip="Move the markers back to the start and end of the clip"/>
-                                                <TextBlock Text="{Binding MarkRangeDisplay}" FontFamily="Consolas" FontSize="11" Foreground="#FFB000"
-                                                           VerticalAlignment="Center" Margin="8,0,0,0"/>
-                                            </StackPanel>
-                                        </Grid>
-                                    </Grid>
-                                </Border>
-
-                                <!-- ═══ TRANSPORT & TIMELINE CONTROLS ═══════════════════════════════ -->
-                                <Border Grid.Row="2" Background="#252525" Padding="8,6" Margin="8,4,8,0" CornerRadius="4,4,0,0">
+                                <!-- ═══ TOP BAR: project · format · status ════════════════════════════ -->
+                                <Border Grid.Row="0" Background="#181818" BorderBrush="#262626" BorderThickness="0,0,0,1" Padding="10,7">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-
-                                        <!-- Playback controls -->
-                                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Button Content="|◀" Width="26" Height="22" FontSize="9" FontFamily="Segoe UI Symbol" Background="#3d3d3d" Foreground="#aaa" BorderThickness="0" Cursor="Hand" ToolTip="Previous clip" Command="{Binding PreviousClipCommand}" Margin="0,0,2,0">
-                                                <Button.Template>
-                                                    <ControlTemplate TargetType="Button">
-                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="0">
-                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                        </Border>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Button.Template>
-                                            </Button>
-                                            <Button x:Name="H3EditorPlayButton" Content="▶" Width="30" Height="22" FontSize="12" FontFamily="Segoe UI Symbol" Background="#3d3d3d" Foreground="#ddd" BorderThickness="0" Cursor="Hand" ToolTip="Play/Pause" Click="H3EditorPlayPause_Click" Margin="0,0,2,0">
-                                                <Button.Template>
-                                                    <ControlTemplate TargetType="Button">
-                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="0">
-                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                        </Border>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Button.Template>
-                                            </Button>
-                                            <Button Content="■" Width="26" Height="22" FontSize="10" FontFamily="Segoe UI Symbol" Background="#3d3d3d" Foreground="#aaa" BorderThickness="0" Cursor="Hand" ToolTip="Stop" Click="H3EditorStop_Click" Margin="0,0,2,0">
-                                                <Button.Template>
-                                                    <ControlTemplate TargetType="Button">
-                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="0">
-                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                        </Border>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Button.Template>
-                                            </Button>
-                                            <Button Content="▶|" Width="26" Height="22" FontSize="9" FontFamily="Segoe UI Symbol" Background="#3d3d3d" Foreground="#aaa" BorderThickness="0" Cursor="Hand" ToolTip="Next clip" Command="{Binding NextClipCommand}">
-                                                <Button.Template>
-                                                    <ControlTemplate TargetType="Button">
-                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="0">
-                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                        </Border>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Button.Template>
-                                            </Button>
-                                            <Button Content="{Binding MuteGlyph}" Width="30" Height="22" FontSize="11" Background="#3d3d3d" Foreground="#ddd" BorderThickness="0" Cursor="Hand" ToolTip="{Binding MuteTip}" Command="{Binding ToggleMuteCommand}" Margin="6,0,0,0">
-                                                <Button.Template>
-                                                    <ControlTemplate TargetType="Button">
-                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="0">
-                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                        </Border>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Button.Template>
-                                            </Button>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Button Content="💾" Command="{Binding SaveProjectCommand}" Style="{StaticResource H3IconBtn}" FontFamily="Segoe UI Emoji" ToolTip="Save Project (.h3proj)"/>
+                                            <Button Content="📂" Command="{Binding LoadProjectCommand}" Style="{StaticResource H3IconBtn}" FontFamily="Segoe UI Emoji" ToolTip="Load Project (.h3proj)" Margin="0,0,6,0"/>
+                                            <TextBox Text="{Binding ProjectFolder, UpdateSourceTrigger=PropertyChanged}" Width="130" Height="26" FontSize="11" VerticalContentAlignment="Center"
+                                                     Background="#1F1F1F" Foreground="#E5E7EB" CaretBrush="#E5E7EB" BorderBrush="#333" Padding="6,0" ToolTip="Project folder name"/>
+                                            <Rectangle Style="{StaticResource H3Divider}" Margin="10,0"/>
+                                            <ComboBox ItemsSource="{Binding AspectRatioOptions}" SelectedValue="{Binding SelectedAspectRatio}" Width="130" Height="26" FontSize="11" ToolTip="Aspect ratio"/>
+                                            <ComboBox SelectedValue="{Binding Megapixels}" Width="60" Height="26" FontSize="11" Margin="6,0,0,0" ToolTip="Megapixels" Visibility="{Binding IsClassicEngine, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <sys:Double>0.3</sys:Double>
+                                                <sys:Double>0.5</sys:Double>
+                                                <sys:Double>0.7</sys:Double>
+                                                <sys:Double>1.0</sys:Double>
+                                            </ComboBox>
                                         </StackPanel>
-
-                                        <!-- Timeline info -->
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding TimelineDurationDisplay}" FontFamily="Consolas" FontSize="12" FontWeight="Bold" Foreground="#eee"/>
-                                            <TextBlock Text=" • " Foreground="#666"/>
-                                            <TextBlock Text="{Binding TimelineClips.Count, StringFormat='{}{0} clips'}" FontSize="11" Foreground="#999"/>
-                                            <TextBlock Text="{Binding RegenQueueNote, StringFormat='  •  {0}'}" FontSize="11" FontWeight="SemiBold" Foreground="#7FB8FF"
-                                                       Visibility="{Binding RegenQueueNote, Converter={StaticResource StringToVisibilityConverter}}"/>
+                                        <!-- Status: one line, trimmed, full text on hover -->
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="12,0">
+                                            <ProgressBar Value="{Binding Progress}" Width="110" Height="4" Margin="0,0,10,0" Background="#2A2A2A" BorderThickness="0" Foreground="#2DD4BF"/>
+                                            <TextBlock Text="{Binding StatusText}" ToolTip="{Binding StatusText}" FontSize="11" FontWeight="SemiBold" Foreground="#5EEAD4" TextTrimming="CharacterEllipsis" MaxWidth="420" VerticalAlignment="Center"/>
                                         </StackPanel>
-
-                                        <!-- Timeline actions -->
-                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Button Content="+ Add" Height="24" Padding="8,0" FontSize="10" FontWeight="SemiBold" Background="#2d6a4f" Foreground="White" BorderThickness="0" Cursor="Hand" Command="{Binding AddClipCommand}" ToolTip="Add new clip">
-                                                <Button.Template>
-                                                    <ControlTemplate TargetType="Button">
-                                                        <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                        </Border>
-                                                    </ControlTemplate>
-                                                </Button.Template>
-                                            </Button>
-                                            <Rectangle Width="1" Fill="#444" Margin="6,4"/>
-                                            <Button Content="Cut" Height="24" Padding="8,0" FontSize="10" Background="#3d3d3d" Foreground="#ccc" BorderThickness="0" Cursor="Hand" Command="{Binding CutClipCommand}" CommandParameter="{Binding SelectedClip}" ToolTip="Split the previewed clip at the playhead (a clip not rendered yet: halve its duration)" Margin="0,0,3,0">
-                                                <Button.Template>
-                                                    <ControlTemplate TargetType="Button">
-                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                        </Border>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Button.Template>
-                                            </Button>
-                                            <Button Content="+ Before" Height="24" Padding="8,0" FontSize="10" Background="#3d3d3d" Foreground="#ccc" BorderThickness="0" Cursor="Hand" Command="{Binding PrependClipCommand}" ToolTip="Insert clip before selection" Margin="0,0,3,0">
-                                                <Button.Template>
-                                                    <ControlTemplate TargetType="Button">
-                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                        </Border>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Button.Template>
-                                            </Button>
-                                            <Button Content="+ After" Height="24" Padding="8,0" FontSize="10" Background="#3d3d3d" Foreground="#ccc" BorderThickness="0" Cursor="Hand" Command="{Binding AppendClipCommand}" ToolTip="Insert clip after selection" Margin="0,0,3,0">
-                                                <Button.Template>
-                                                    <ControlTemplate TargetType="Button">
-                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                        </Border>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Button.Template>
-                                            </Button>
-                                            <Button Content="Extend" Height="24" Padding="8,0" FontSize="10" Background="#3d3d3d" Foreground="#ccc" BorderThickness="0" Cursor="Hand" Command="{Binding ExtendClipCommand}" CommandParameter="{Binding SelectedClip}" ToolTip="Extend clip duration">
-                                                <Button.Template>
-                                                    <ControlTemplate TargetType="Button">
-                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                        </Border>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Button.Template>
-                                            </Button>
-                                        </StackPanel>
+                                        <ToggleButton x:Name="H3InspectorToggle" Grid.Column="2" IsChecked="True" Content="☰ Inspector" Style="{StaticResource H3ToggleBtn}" Margin="0"
+                                                      ToolTip="Show / hide the clip inspector beside the viewer"/>
                                     </Grid>
                                 </Border>
 
-                                <!-- ═══ TIMELINE (Horizontal Strip with Clips) ══════════════════════ -->
-                                <Border Grid.Row="3" Background="#1e1e1e" Margin="8,0,8,0" CornerRadius="0,0,4,4">
-                                    <Grid>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="20"/>
-                                            <RowDefinition Height="80"/>
-                                        </Grid.RowDefinitions>
+                                <!-- ═══ WORKSPACE: viewer (left) · clip inspector (right) ═════════════ -->
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" MinWidth="280"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
 
-                                        <!-- Timeline ruler -->
-                                        <Border Grid.Row="0" Background="#252525" BorderBrush="#333" BorderThickness="0,0,0,1">
-                                            <Canvas>
-                                                <!-- Time markers will be generated dynamically, showing placeholder ticks -->
-                                                <TextBlock Text="0:00" FontSize="9" Foreground="#666" Canvas.Left="4" Canvas.Top="3"/>
-                                                <Rectangle Width="1" Height="8" Fill="#444" Canvas.Left="60" Canvas.Top="10"/>
-                                                <TextBlock Text="0:05" FontSize="9" Foreground="#666" Canvas.Left="64" Canvas.Top="3"/>
-                                                <Rectangle Width="1" Height="8" Fill="#444" Canvas.Left="120" Canvas.Top="10"/>
-                                                <TextBlock Text="0:10" FontSize="9" Foreground="#666" Canvas.Left="124" Canvas.Top="3"/>
-                                                <Rectangle Width="1" Height="8" Fill="#444" Canvas.Left="180" Canvas.Top="10"/>
-                                                <TextBlock Text="0:15" FontSize="9" Foreground="#666" Canvas.Left="184" Canvas.Top="3"/>
-                                                <Rectangle Width="1" Height="8" Fill="#444" Canvas.Left="240" Canvas.Top="10"/>
-                                                <TextBlock Text="0:20" FontSize="9" Foreground="#666" Canvas.Left="244" Canvas.Top="3"/>
-                                                <Rectangle Width="1" Height="8" Fill="#444" Canvas.Left="300" Canvas.Top="10"/>
-                                                <TextBlock Text="0:25" FontSize="9" Foreground="#666" Canvas.Left="304" Canvas.Top="3"/>
-                                                <Rectangle Width="1" Height="8" Fill="#444" Canvas.Left="360" Canvas.Top="10"/>
-                                                <TextBlock Text="0:30" FontSize="9" Foreground="#666" Canvas.Left="364" Canvas.Top="3"/>
-                                            </Canvas>
+                                    <!-- ─── VIEWER ─────────────────────────────────────────────── -->
+                                    <Grid Grid.Column="0" Margin="10,10,10,0">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="*"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <Border Grid.Row="0" Background="Black" CornerRadius="8" ClipToBounds="True">
+                                            <Grid>
+                                                <!-- Placeholder when no video -->
+                                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                                    <TextBlock Text="▶" FontSize="44" Foreground="#2A2A2A" HorizontalAlignment="Center" FontFamily="Segoe UI Symbol"/>
+                                                    <TextBlock Text="Select a clip on the timeline to preview it" Foreground="#6B7280" FontSize="12" HorizontalAlignment="Center" Margin="0,10,0,0"/>
+                                                </StackPanel>
+                                                <!-- Actual video player. ScrubbingEnabled shows the seeked frame while paused. -->
+                                                <MediaElement x:Name="H3EditorVideoPlayer" LoadedBehavior="Manual" UnloadedBehavior="Stop" Stretch="Uniform" ScrubbingEnabled="True" IsMuted="{Binding IsPreviewMuted}" Visibility="{Binding PreviewVideoPath, Converter={StaticResource StringToVisibilityConverter}}" MediaOpened="H3EditorPlayer_MediaOpened" MediaEnded="H3EditorPlayer_MediaEnded" MediaFailed="H3EditorPlayer_MediaFailed"/>
+                                                <!-- 🌹 2-Pass: the beat forming, step by step, while it renders (H3VideoEditorViewModel.TwoPass.cs). -->
+                                                <Grid Background="Black" Visibility="{Binding HasLivePreview, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <ctrl:LivePreviewPlayer Source="{Binding LivePreviewPath}"/>
+                                                </Grid>
+                                                <!-- Clip being viewed, top-left -->
+                                                <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="12" CornerRadius="6" Padding="9,4" Background="#B3000000"
+                                                        Visibility="{Binding SelectedClip, Converter={StaticResource NotNullToVisibilityConverter}}">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding SelectedClip.DisplayIndex, StringFormat='Clip {0}'}" FontSize="11" FontWeight="Bold" Foreground="White"/>
+                                                        <TextBlock Text="{Binding SelectedClip.DurationDisplay, StringFormat='  ·  {0}'}" FontSize="11" FontFamily="Consolas" Foreground="#9CA3AF"/>
+                                                        <TextBlock Text="{Binding SelectedClip.TwoPassBadge, StringFormat='  ·  {0}'}" FontSize="11" FontWeight="Bold" Foreground="#FBBF24"
+                                                                   Visibility="{Binding IsTwoPass, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                    </StackPanel>
+                                                </Border>
+                                                <Border VerticalAlignment="Top" HorizontalAlignment="Right" Margin="12" CornerRadius="6" Padding="9,4" Background="#B3000000"
+                                                        Visibility="{Binding LivePreviewCaption, Converter={StaticResource StringToVisibilityConverter}}">
+                                                    <TextBlock Text="{Binding LivePreviewCaption}" FontSize="11" FontFamily="Consolas" Foreground="#FBBF24"/>
+                                                </Border>
+                                            </Grid>
                                         </Border>
 
-                                        <!-- Clips track -->
-                                        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Background="#1a1a1a">
-                                            <ItemsControl x:Name="H3TimelineStrip" ItemsSource="{Binding TimelineClips}">
+                                        <!-- ─── TRANSPORT: scrub · play controls · cut tools ───────── -->
+                                        <Border Grid.Row="1" Background="#1A1A1A" CornerRadius="8" Margin="0,8,0,0" Padding="10,8">
+                                            <Grid>
+                                                <Grid.InputBindings>
+                                                    <KeyBinding Key="I" Command="{Binding MarkInCommand}"/>
+                                                    <KeyBinding Key="O" Command="{Binding MarkOutCommand}"/>
+                                                    <KeyBinding Key="Delete" Command="{Binding DeleteMarkedRangeCommand}"/>
+                                                </Grid.InputBindings>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+
+                                                <!-- Scrub bar with In/Out track: drag the green [ and red ] flags to bracket frames.
+                                                     Inset by half the slider's thumb so a marker lines up with the frame below it. -->
+                                                <Grid Grid.Row="0" Margin="0,0,0,6" Visibility="{Binding PreviewVideoPath, Converter={StaticResource StringToVisibilityConverter}}">
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                    </Grid.RowDefinitions>
+                                                    <Grid x:Name="H3TrimTrack" Grid.Row="0" Height="24" Margin="5,0,5,2"
+                                                          Background="Transparent" ClipToBounds="False"
+                                                          SizeChanged="H3TrimTrack_SizeChanged">
+                                                        <Border Height="8" VerticalAlignment="Center" CornerRadius="4" Background="#262626"/>
+                                                        <Border x:Name="H3TrimRegion" Height="12" Width="0"
+                                                                VerticalAlignment="Center" HorizontalAlignment="Left"
+                                                                Background="#40FBBF24" BorderBrush="#FBBF24" BorderThickness="0,2" IsHitTestVisible="False"/>
+                                                        <Border x:Name="H3TrimPlayhead" Width="2" Height="24"
+                                                                VerticalAlignment="Center" HorizontalAlignment="Left"
+                                                                Background="#F87171" IsHitTestVisible="False"/>
+                                                        <Thumb x:Name="H3InThumb" Width="14" Height="24"
+                                                               HorizontalAlignment="Left" VerticalAlignment="Center" Cursor="SizeWE"
+                                                               DragStarted="H3MarkThumb_DragStarted"
+                                                               DragDelta="H3InThumb_DragDelta"
+                                                               ToolTip="IN — drag to the first frame to cut (or keep). Shortcut: I sets it at the playhead.">
+                                                            <Thumb.Template>
+                                                                <ControlTemplate TargetType="Thumb">
+                                                                    <Border Background="#22C55E" CornerRadius="4,0,0,4">
+                                                                        <TextBlock Text="[" FontSize="13" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-2,0,0"/>
+                                                                    </Border>
+                                                                </ControlTemplate>
+                                                            </Thumb.Template>
+                                                        </Thumb>
+                                                        <Thumb x:Name="H3OutThumb" Width="14" Height="24"
+                                                               HorizontalAlignment="Left" VerticalAlignment="Center" Cursor="SizeWE"
+                                                               DragStarted="H3MarkThumb_DragStarted"
+                                                               DragDelta="H3OutThumb_DragDelta"
+                                                               ToolTip="OUT — drag to the last frame to cut (or keep). Shortcut: O sets it at the playhead.">
+                                                            <Thumb.Template>
+                                                                <ControlTemplate TargetType="Thumb">
+                                                                    <Border Background="#EF4444" CornerRadius="0,4,4,0">
+                                                                        <TextBlock Text="]" FontSize="13" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-2,0,0"/>
+                                                                    </Border>
+                                                                </ControlTemplate>
+                                                            </Thumb.Template>
+                                                        </Thumb>
+                                                    </Grid>
+                                                    <Slider x:Name="H3EditorScrub" Grid.Row="1" VerticalAlignment="Center"
+                                                            Minimum="0" Maximum="{Binding PreviewDurationSeconds}"
+                                                            SmallChange="0.0416667" LargeChange="1"
+                                                            IsMoveToPointEnabled="True"
+                                                            ToolTip="Drag or click to scrub. With the bar focused, ← → step one frame, PgUp/PgDn one second, I / O set the In / Out markers."
+                                                            ValueChanged="H3EditorScrub_ValueChanged"
+                                                            Thumb.DragStarted="H3EditorScrub_DragStarted"
+                                                            Thumb.DragCompleted="H3EditorScrub_DragCompleted"/>
+                                                </Grid>
+
+                                                <!-- Play controls (left) · timecode (centre) · cut tools (right) -->
+                                                <Grid Grid.Row="1">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Button Content="⏮" Style="{StaticResource H3IconBtn}" ToolTip="Previous clip" Command="{Binding PreviousClipCommand}"/>
+                                                        <Button Content="◂|" Style="{StaticResource H3IconBtn}" FontSize="10" ToolTip="Back one frame" Click="H3EditorFrameBack_Click"/>
+                                                        <Button x:Name="H3EditorPlayButton" Content="▶" Style="{StaticResource H3IconBtn}" Width="44" Height="32" FontSize="15"
+                                                                Background="#0D9488" Foreground="White" ToolTip="Play / Pause" Click="H3EditorPlayPause_Click"/>
+                                                        <Button Content="|▸" Style="{StaticResource H3IconBtn}" FontSize="10" ToolTip="Forward one frame" Click="H3EditorFrameForward_Click"/>
+                                                        <Button Content="⏭" Style="{StaticResource H3IconBtn}" ToolTip="Next clip" Command="{Binding NextClipCommand}"/>
+                                                        <Button Content="■" Style="{StaticResource H3IconBtn}" FontSize="10" ToolTip="Stop" Click="H3EditorStop_Click"/>
+                                                        <Button Content="{Binding MuteGlyph}" Style="{StaticResource H3IconBtn}" FontFamily="Segoe UI Emoji" ToolTip="{Binding MuteTip}" Command="{Binding ToggleMuteCommand}" Margin="6,0,0,0"/>
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="1" Text="{Binding PlayheadDisplay}" FontFamily="Consolas" FontSize="12" Foreground="#E5E7EB"
+                                                               VerticalAlignment="Center" HorizontalAlignment="Center" Margin="10,0" TextTrimming="CharacterEllipsis"/>
+                                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Button Content="⇤ Trim start" Style="{StaticResource H3Btn}" Command="{Binding TrimStartToPlayheadCommand}" ToolTip="Cut away everything before the playhead"/>
+                                                        <Button Content="✂ Split" Style="{StaticResource H3Btn}" Command="{Binding SplitAtPlayheadCommand}" ToolTip="Split this clip into two at the playhead"/>
+                                                        <Button Content="Trim end ⇥" Style="{StaticResource H3Btn}" Command="{Binding TrimEndToPlayheadCommand}" ToolTip="Cut away everything after the playhead" Margin="0"/>
+                                                    </StackPanel>
+                                                </Grid>
+
+                                                <!-- In/Out range: mark frames, then delete them (joining the rest) or keep only them. -->
+                                                <WrapPanel Grid.Row="2" Orientation="Horizontal" Margin="0,8,0,0"
+                                                           Visibility="{Binding PreviewVideoPath, Converter={StaticResource StringToVisibilityConverter}}">
+                                                    <Button Content="[ Set In  (I)" Style="{StaticResource H3Btn}" Height="26" Background="#14532D" Foreground="#BBF7D0"
+                                                            Command="{Binding MarkInCommand}" ToolTip="Put the In marker on the frame under the playhead"/>
+                                                    <Button Content="Set Out  (O) ]" Style="{StaticResource H3Btn}" Height="26" Background="#7F1D1D" Foreground="#FECACA"
+                                                            Command="{Binding MarkOutCommand}" ToolTip="Put the Out marker on the frame under the playhead"/>
+                                                    <Rectangle Style="{StaticResource H3Divider}" Margin="4,0,8,0"/>
+                                                    <Button Content="✕ Delete In→Out" Style="{StaticResource H3Btn}" Height="26" Background="#92400E" Foreground="White"
+                                                            Command="{Binding DeleteMarkedRangeCommand}" ToolTip="Cut the marked frames out of this clip and join what is left (Delete key)"/>
+                                                    <Button Content="Keep In→Out" Style="{StaticResource H3Btn}" Height="26"
+                                                            Command="{Binding KeepMarkedRangeCommand}" ToolTip="Keep only the marked frames; drop everything before In and after Out"/>
+                                                    <Button Content="Reset marks" Style="{StaticResource H3Btn}" Height="26"
+                                                            Command="{Binding ClearMarksCommand}" ToolTip="Move the markers back to the start and end of the clip"/>
+                                                    <TextBlock Text="{Binding MarkRangeDisplay}" FontFamily="Consolas" FontSize="11" Foreground="#FBBF24"
+                                                               VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                                </WrapPanel>
+                                            </Grid>
+                                        </Border>
+                                    </Grid>
+
+                                    <!-- ─── CLIP INSPECTOR: edit the selected clip beside the picture ─── -->
+                                    <Border Grid.Column="1" Width="340" Background="#181818" BorderBrush="#262626" BorderThickness="1,0,0,0" Padding="14,12">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsChecked, ElementName=H3InspectorToggle}" Value="False">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding SelectedClip}" Value="{x:Null}">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="*" MinHeight="60"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <!-- Header -->
+                                            <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                                                <TextBlock Text="CLIP INSPECTOR" FontSize="10" FontWeight="Bold" Foreground="#6B7280"/>
+                                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                    <TextBlock Text="{Binding SelectedClip.DisplayIndex, StringFormat='Clip {0}'}" FontSize="18" FontWeight="SemiBold" Foreground="White"/>
+                                                    <Border CornerRadius="4" Background="#3D2E0A" Padding="6,1" Margin="10,0,0,0" VerticalAlignment="Center"
+                                                            Visibility="{Binding IsTwoPass, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <TextBlock Text="{Binding SelectedClip.TwoPassBadge}" FontSize="10" FontWeight="Bold" Foreground="#FBBF24"/>
+                                                    </Border>
+                                                </StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                    <TextBlock Text="{Binding SelectedClip.DurationDisplay}" FontSize="11" FontFamily="Consolas" Foreground="#9CA3AF"/>
+                                                    <TextBlock Text="{Binding SelectedClip.Seed, StringFormat='  ·  seed {0}'}" FontSize="11" FontFamily="Consolas" Foreground="#9CA3AF"
+                                                               Visibility="{Binding IsTwoPass, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                            <!-- Actions on this clip -->
+                                            <WrapPanel Grid.Row="1" Margin="0,0,0,12">
+                                                <!-- 🌹 2-Pass: re-preview just this beat -->
+                                                <Button Content="↻ Re-preview edit" Command="{Binding RepreviewSameSeedCommand}" CommandParameter="{Binding SelectedClip}"
+                                                        Style="{StaticResource H3Btn}" Margin="0,0,6,6"
+                                                        Visibility="{Binding IsTwoPass, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                        ToolTip="Preview this beat again from its edited prompt with the same seed, so the edit is the only thing that changes."/>
+                                                <Button Content="↻ New take" Command="{Binding NewTakePreviewCommand}" CommandParameter="{Binding SelectedClip}"
+                                                        Style="{StaticResource H3Btn}" Background="#854D0E" Foreground="White" Margin="0,0,6,6"
+                                                        Visibility="{Binding IsTwoPass, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                        ToolTip="Preview this beat again with a new seed — another take of the same prompt."/>
+                                                <Button Content="↻ Regenerate" Command="{Binding RegenerateClipCommand}" CommandParameter="{Binding SelectedClip}"
+                                                        Margin="0,0,6,6"
+                                                        ToolTip="Regenerate this clip. While another clip is generating this queues it; click again to unqueue.">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource H3Btn}">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsTwoPass}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+                                                <Button Content="🗑 Remove" Command="{Binding RemoveClipCommand}" CommandParameter="{Binding SelectedClip}"
+                                                        Style="{StaticResource H3Btn}" Foreground="#FCA5A5" Margin="0,0,6,6" FontFamily="Segoe UI Emoji"
+                                                        ToolTip="Remove this clip from the timeline"/>
+                                            </WrapPanel>
+                                            <TextBlock Grid.Row="2" Text="SHOT ACTIONS" FontSize="10" FontWeight="Bold" Foreground="#6B7280" Margin="0,0,0,6"/>
+                                            <TextBox Grid.Row="3" Style="{StaticResource H3DarkText}"
+                                                     Text="{Binding SelectedClip.ClipActions, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     ToolTip="Edit the shot-by-shot actions for this clip. Changes are saved automatically."/>
+                                            <Expander Grid.Row="4" Header="Full prompt" IsExpanded="False" FontSize="11" Foreground="#9CA3AF" Margin="0,10,0,0"
+                                                      ToolTip="Every section of this clip's prompt — subjects, summary, soundscape — editable here.">
+                                                <TextBox Text="{Binding SelectedClip.Prompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                         Style="{StaticResource H3DarkText}" Height="180" Margin="0,6,0,0"/>
+                                            </Expander>
+                                        </Grid>
+                                    </Border>
+                                </Grid>
+
+                                <!-- ═══ SPLITTER: drag to trade viewer height for timeline height ═════ -->
+                                <GridSplitter Grid.Row="2" Height="10" HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                              ResizeDirection="Rows" ResizeBehavior="PreviousAndNext" Cursor="SizeNS" Focusable="False"
+                                              ToolTip="Drag to resize the viewer and the timeline">
+                                    <GridSplitter.Template>
+                                        <ControlTemplate TargetType="GridSplitter">
+                                            <Grid Background="Transparent">
+                                                <Border Width="44" Height="4" CornerRadius="2" Background="#3A3A3A" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </ControlTemplate>
+                                    </GridSplitter.Template>
+                                </GridSplitter>
+
+                                <!-- ═══ TIMELINE ══════════════════════════════════════════════════════ -->
+                                <Border Grid.Row="3" Background="#181818" CornerRadius="8" Margin="10,0,10,0" BorderBrush="#262626" BorderThickness="1">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+
+                                        <!-- Timeline toolbar -->
+                                        <Border Grid.Row="0" BorderBrush="#262626" BorderThickness="0,0,0,1" Padding="10,6">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <TextBlock Text="TIMELINE" FontSize="10" FontWeight="Bold" Foreground="#6B7280" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                                    <TextBlock Text="{Binding TimelineDurationDisplay}" FontFamily="Consolas" FontSize="12" FontWeight="Bold" Foreground="#E5E7EB" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="{Binding TimelineClips.Count, StringFormat='  ·  {0} clips'}" FontSize="11" Foreground="#9CA3AF" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="{Binding RegenQueueNote, StringFormat='  ·  {0}'}" FontSize="11" FontWeight="SemiBold" Foreground="#93C5FD" VerticalAlignment="Center"
+                                                               Visibility="{Binding RegenQueueNote, Converter={StaticResource StringToVisibilityConverter}}"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Button Content="＋ Add clip" Style="{StaticResource H3Btn}" Height="26" Background="#0F766E" Foreground="White" FontWeight="SemiBold" Command="{Binding AddClipCommand}" ToolTip="Add new clip"/>
+                                                    <Rectangle Style="{StaticResource H3Divider}" Margin="4,0,8,0"/>
+                                                    <Button Content="+ Before" Style="{StaticResource H3Btn}" Height="26" Command="{Binding PrependClipCommand}" ToolTip="Insert clip before selection"/>
+                                                    <Button Content="+ After" Style="{StaticResource H3Btn}" Height="26" Command="{Binding AppendClipCommand}" ToolTip="Insert clip after selection"/>
+                                                    <Button Content="✂ Cut" Style="{StaticResource H3Btn}" Height="26" Command="{Binding CutClipCommand}" CommandParameter="{Binding SelectedClip}" ToolTip="Split the previewed clip at the playhead (a clip not rendered yet: halve its duration)"/>
+                                                    <Button Content="⟷ Extend" Style="{StaticResource H3Btn}" Height="26" Command="{Binding ExtendClipCommand}" CommandParameter="{Binding SelectedClip}" ToolTip="Extend clip duration" Margin="0"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+
+                                        <!-- Clips track: tiles scale with the timeline height; the mouse wheel scrolls sideways. -->
+                                        <ScrollViewer x:Name="H3TimelineScroll" Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                                                      PreviewMouseWheel="H3TimelineScroll_PreviewMouseWheel">
+                                            <ItemsControl x:Name="H3TimelineStrip" ItemsSource="{Binding TimelineClips}" Margin="6,8,6,6">
                                                 <ItemsControl.ItemsPanel>
                                                     <ItemsPanelTemplate>
-                                                        <StackPanel Orientation="Horizontal" Margin="4,2"/>
+                                                        <StackPanel Orientation="Horizontal"/>
                                                     </ItemsPanelTemplate>
                                                 </ItemsControl.ItemsPanel>
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
-                                                        <!-- Clip block - width based on duration (12px per second) -->
-                                                        <Border Height="72" Margin="3,2" CornerRadius="3" Cursor="Hand" ToolTip="{Binding ClipSummary}">
+                                                        <!-- Clip tile - width follows duration -->
+                                                        <Border x:Name="Tile" Margin="4,0" CornerRadius="7" Cursor="Hand" ToolTip="{Binding ClipSummary}"
+                                                                Background="#0A0A0A" BorderThickness="2" BorderBrush="#2A2A2A" ClipToBounds="True">
                                                             <Border.Width>
                                                                 <Binding Path="DurationSeconds">
                                                                     <Binding.Converter>
-                                                                        <converters:DurationToWidthConverter PixelsPerSecond="20" MinWidth="60"/>
+                                                                        <converters:DurationToWidthConverter PixelsPerSecond="30" MinWidth="150"/>
                                                                     </Binding.Converter>
                                                                 </Binding>
                                                             </Border.Width>
-                                                            <Border.Style>
-                                                                <Style TargetType="Border">
-                                                                    <Setter Property="Background" Value="#2d2d2d"/>
-                                                                    <Setter Property="BorderBrush" Value="#3d3d3d"/>
-                                                                    <Setter Property="BorderThickness" Value="1"/>
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding IsRendered}" Value="True">
-                                                                            <Setter Property="Background" Value="#1a3d1a"/>
-                                                                            <Setter Property="BorderBrush" Value="#2a5a2a"/>
-                                                                        </DataTrigger>
-                                                                        <!-- 🌹 2-Pass: previewed, waiting for the refinement -->
-                                                                        <DataTrigger Binding="{Binding State}" Value="Previewed">
-                                                                            <Setter Property="Background" Value="#3a3220"/>
-                                                                            <Setter Property="BorderBrush" Value="#7a6430"/>
-                                                                        </DataTrigger>
-                                                                        <!-- Selected: thick bright outline + glow, last so it wins over the state colours. -->
-                                                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                                            <Setter Property="BorderBrush" Value="#00E5FF"/>
-                                                                            <Setter Property="BorderThickness" Value="3"/>
-                                                                            <Setter Property="Effect">
-                                                                                <Setter.Value>
-                                                                                    <DropShadowEffect Color="#00E5FF" ShadowDepth="0" BlurRadius="14" Opacity="0.9"/>
-                                                                                </Setter.Value>
-                                                                            </Setter>
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </Border.Style>
                                                             <Border.InputBindings>
                                                                 <MouseBinding MouseAction="LeftClick" Command="{Binding DataContext.SelectClipCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/>
                                                                 <MouseBinding MouseAction="LeftDoubleClick" Command="{Binding DataContext.EditClipPromptCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/>
                                                             </Border.InputBindings>
-                                                            <Grid Margin="2">
+                                                            <Grid>
                                                                 <Grid.RowDefinitions>
                                                                     <RowDefinition Height="*"/>
-                                                                    <RowDefinition Height="Auto"/>
+                                                                    <RowDefinition Height="4"/>
                                                                 </Grid.RowDefinitions>
 
-                                                                <!-- Thumbnail/Preview area -->
-                                                                <Grid Grid.Row="0" Background="#222">
+                                                                <!-- Picture -->
+                                                                <Grid Grid.Row="0" Background="#161616">
                                                                     <!-- Video preview: loops only while selected or hovered; the others rest on their
                                                                          first frame, so a long timeline doesn't keep a decoder per tile busy. -->
                                                                     <MediaElement ctrl:HoverPlay.Source="{Binding PreviewVideoPath}" ctrl:HoverPlay.IsActive="{Binding IsSelected}"
@@ -6818,7 +6791,7 @@
                                                                         </MediaElement.Style>
                                                                     </MediaElement>
                                                                     <!-- Thumbnail image fallback -->
-                                                                    <Image ctrl:AsyncImage.Path="{Binding ThumbnailPath}" ctrl:AsyncImage.DecodeWidth="320" Stretch="UniformToFill">
+                                                                    <Image ctrl:AsyncImage.Path="{Binding ThumbnailPath}" ctrl:AsyncImage.DecodeWidth="480" Stretch="UniformToFill">
                                                                         <Image.Style>
                                                                             <Style TargetType="Image">
                                                                                 <Setter Property="Visibility" Value="Visible"/>
@@ -6833,16 +6806,8 @@
                                                                             </Style>
                                                                         </Image.Style>
                                                                     </Image>
-                                                                    <!-- 🌹 2-Pass tag: PREVIEW / EDITED / RE-JOIN / FINAL -->
-                                                                    <Grid Visibility="{Binding DataContext.IsTwoPass, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                                        <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="2" Padding="3,0" CornerRadius="2" Background="#CC000000"
-                                                                                Visibility="{Binding TwoPassBadge, Converter={StaticResource StringToVisibilityConverter}}"
-                                                                                ToolTip="PREVIEW: first pass only, waiting for your go-ahead. EDITED: the prompt changed since — ↻ to see it. RE-JOIN: the beat before was re-previewed — ↻ so the join matches. FINAL: refined.">
-                                                                            <TextBlock Text="{Binding TwoPassBadge}" FontSize="8" FontWeight="Bold" Foreground="#f0c060"/>
-                                                                        </Border>
-                                                                    </Grid>
-                                                                    <!-- Clip number placeholder -->
-                                                                    <TextBlock Text="{Binding DisplayIndex}" FontSize="18" FontWeight="Bold" Foreground="#444" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                    <!-- Empty clip: big number -->
+                                                                    <TextBlock Text="{Binding DisplayIndex}" FontSize="28" FontWeight="Bold" Foreground="#333" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                                         <TextBlock.Style>
                                                                             <Style TargetType="TextBlock">
                                                                                 <Setter Property="Visibility" Value="Collapsed"/>
@@ -6858,13 +6823,41 @@
                                                                             </Style>
                                                                         </TextBlock.Style>
                                                                     </TextBlock>
-                                                                    <!-- Selected badge -->
-                                                                    <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="2" Padding="4,0" CornerRadius="2" Background="#00E5FF"
-                                                                            Visibility="{Binding IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                                        <TextBlock Text="{Binding DisplayIndex, StringFormat='▶ {0}'}" FontSize="9" FontWeight="Bold" Foreground="Black"/>
+
+                                                                    <!-- Top: index chip + 2-pass tag (left), hover actions (right) -->
+                                                                    <Grid VerticalAlignment="Top" Margin="6">
+                                                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                                                                            <Border CornerRadius="4" Padding="6,1" Background="#CC000000" x:Name="IndexChip">
+                                                                                <TextBlock Text="{Binding DisplayIndex}" FontSize="11" FontWeight="Bold" Foreground="White"/>
+                                                                            </Border>
+                                                                            <!-- 🌹 2-Pass tag: PREVIEW / EDITED / RE-JOIN / FINAL -->
+                                                                            <Grid Visibility="{Binding DataContext.IsTwoPass, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                                <Border Margin="4,0,0,0" Padding="5,1" CornerRadius="4" Background="#CC000000"
+                                                                                        Visibility="{Binding TwoPassBadge, Converter={StaticResource StringToVisibilityConverter}}"
+                                                                                        ToolTip="PREVIEW: first pass only, waiting for your go-ahead. EDITED: the prompt changed since — ↻ to see it. RE-JOIN: the beat before was re-previewed — ↻ so the join matches. FINAL: refined.">
+                                                                                    <TextBlock Text="{Binding TwoPassBadge}" FontSize="9" FontWeight="Bold" Foreground="#FBBF24" VerticalAlignment="Center"/>
+                                                                                </Border>
+                                                                            </Grid>
+                                                                        </StackPanel>
+                                                                        <StackPanel x:Name="TileActions" Orientation="Horizontal" HorizontalAlignment="Right" Visibility="Collapsed">
+                                                                            <Button Content="↻" Style="{StaticResource H3TileBtn}" Command="{Binding DataContext.RegenerateClipCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" ToolTip="Regenerate (🌹 2-Pass: re-preview this beat — an edited beat keeps its seed, otherwise a new take). While another clip is generating this queues it; click again to unqueue."/>
+                                                                            <Button Content="✕" Style="{StaticResource H3TileBtn}" Foreground="#FCA5A5" Command="{Binding DataContext.RemoveClipCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" ToolTip="Remove"/>
+                                                                        </StackPanel>
+                                                                    </Grid>
+
+                                                                    <!-- Bottom: duration, over a soft gradient so it reads on any frame -->
+                                                                    <Border VerticalAlignment="Bottom" Padding="7,10,7,4">
+                                                                        <Border.Background>
+                                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                                                <GradientStop Color="#00000000" Offset="0"/>
+                                                                                <GradientStop Color="#CC000000" Offset="1"/>
+                                                                            </LinearGradientBrush>
+                                                                        </Border.Background>
+                                                                        <TextBlock Text="{Binding DurationDisplay}" FontSize="10" FontFamily="Consolas" Foreground="#E5E7EB"/>
                                                                     </Border>
-                                                                    <!-- Generating now: pulsing band across the thumbnail -->
-                                                                    <Border VerticalAlignment="Bottom" Background="#E6B45309" Padding="0,2"
+
+                                                                    <!-- Generating now: pulsing band -->
+                                                                    <Border VerticalAlignment="Bottom" Background="#E6B45309" Padding="0,3"
                                                                             Visibility="{Binding IsRendering, Converter={StaticResource BooleanToVisibilityConverter}}">
                                                                         <Border.Style>
                                                                             <Style TargetType="Border">
@@ -6884,43 +6877,44 @@
                                                                                 </Style.Triggers>
                                                                             </Style>
                                                                         </Border.Style>
-                                                                        <TextBlock Text="⟳ GENERATING" FontSize="9" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
+                                                                        <TextBlock Text="⟳ GENERATING" FontSize="10" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
                                                                     </Border>
                                                                     <!-- Waiting its turn (↻ queue or a Generate run) -->
-                                                                    <Border VerticalAlignment="Bottom" Background="#E61E3A5F" Padding="0,2"
+                                                                    <Border VerticalAlignment="Bottom" Background="#E61E3A5F" Padding="0,3"
                                                                             Visibility="{Binding QueueBadge, Converter={StaticResource StringToVisibilityConverter}}"
                                                                             ToolTip="Waiting to regenerate once the current job finishes. Click ↻ again to take it out of the queue.">
-                                                                        <TextBlock Text="{Binding QueueBadge}" FontSize="9" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
+                                                                        <TextBlock Text="{Binding QueueBadge}" FontSize="10" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
                                                                     </Border>
                                                                 </Grid>
 
-                                                                <!-- Bottom info bar (turns the selection colour on the selected clip) -->
-                                                                <Border Grid.Row="1" Padding="2,1">
-                                                                    <Border.Style>
-                                                                        <Style TargetType="Border">
-                                                                            <Setter Property="Background" Value="#252525"/>
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                                                    <Setter Property="Background" Value="#00838F"/>
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </Border.Style>
-                                                                    <Grid>
-                                                                        <Grid.ColumnDefinitions>
-                                                                            <ColumnDefinition Width="Auto"/>
-                                                                            <ColumnDefinition Width="*"/>
-                                                                            <ColumnDefinition Width="Auto"/>
-                                                                        </Grid.ColumnDefinitions>
-                                                                        <TextBlock Grid.Column="0" Text="{Binding DurationDisplay}" FontSize="8" FontFamily="Consolas" Foreground="#888" VerticalAlignment="Center"/>
-                                                                        <StackPanel Grid.Column="2" Orientation="Horizontal">
-                                                                            <Button Content="↻" Width="14" Height="14" Padding="0" FontSize="9" FontFamily="Segoe UI Symbol" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" Command="{Binding DataContext.RegenerateClipCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" ToolTip="Regenerate (🌹 2-Pass: re-preview this beat — an edited beat keeps its seed, otherwise a new take). While another clip is generating this queues it; click again to unqueue." Margin="0,0,1,0"/>
-                                                                            <Button Content="×" Width="14" Height="14" Padding="0" FontSize="10" Style="{StaticResource DangerButtonStyle}" Cursor="Hand" Command="{Binding DataContext.RemoveClipCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" ToolTip="Remove"/>
-                                                                        </StackPanel>
-                                                                    </Grid>
-                                                                </Border>
+                                                                <!-- State bar: grey pending · amber previewed · green rendered -->
+                                                                <Border Grid.Row="1" x:Name="StateBar" Background="#3A3A3A"/>
                                                             </Grid>
                                                         </Border>
+                                                        <DataTemplate.Triggers>
+                                                            <DataTrigger Binding="{Binding IsRendered}" Value="True">
+                                                                <Setter TargetName="StateBar" Property="Background" Value="#22C55E"/>
+                                                            </DataTrigger>
+                                                            <!-- 🌹 2-Pass: previewed, waiting for the refinement -->
+                                                            <DataTrigger Binding="{Binding State}" Value="Previewed">
+                                                                <Setter TargetName="StateBar" Property="Background" Value="#F59E0B"/>
+                                                            </DataTrigger>
+                                                            <Trigger SourceName="Tile" Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="TileActions" Property="Visibility" Value="Visible"/>
+                                                                <Setter TargetName="Tile" Property="BorderBrush" Value="#4B5563"/>
+                                                            </Trigger>
+                                                            <!-- Selected: accent outline + soft glow, last so it wins. -->
+                                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                <Setter TargetName="Tile" Property="BorderBrush" Value="#2DD4BF"/>
+                                                                <Setter TargetName="IndexChip" Property="Background" Value="#0D9488"/>
+                                                                <Setter TargetName="TileActions" Property="Visibility" Value="Visible"/>
+                                                                <Setter TargetName="Tile" Property="Effect">
+                                                                    <Setter.Value>
+                                                                        <DropShadowEffect Color="#2DD4BF" ShadowDepth="0" BlurRadius="10" Opacity="0.55"/>
+                                                                    </Setter.Value>
+                                                                </Setter>
+                                                            </DataTrigger>
+                                                        </DataTemplate.Triggers>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
@@ -6928,246 +6922,61 @@
                                     </Grid>
                                 </Border>
 
-                                <!-- ═══ CLIP ACTIONS EDITOR (Editable text for selected clip) ═══════ -->
-                                <Border Grid.Row="4" Background="#1e1e1e" Margin="8,4,8,0" CornerRadius="4" Padding="8"
-                                        Visibility="{Binding SelectedClip, Converter={StaticResource NotNullToVisibilityConverter}}">
-                                    <Grid>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto"/>
-                                            <RowDefinition Height="*"/>
-                                        </Grid.RowDefinitions>
-                                        <Grid Grid.Row="0" Margin="0,0,0,4">
-                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                <TextBlock Text="Clip " FontSize="10" FontWeight="Bold" Foreground="#888"/>
-                                                <TextBlock Text="{Binding SelectedClip.DisplayIndex}" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource TabAccentBrush}"/>
-                                                <TextBlock Text=" Actions" FontSize="10" FontWeight="Bold" Foreground="#888"/>
-                                                <TextBlock Text=" — " FontSize="10" Foreground="#555"/>
-                                                <TextBlock Text="{Binding SelectedClip.DurationDisplay}" FontSize="10" FontFamily="Consolas" Foreground="#666"/>
-                                                <TextBlock Text="{Binding SelectedClip.TwoPassBadge, StringFormat='  ·  {0}'}" FontSize="10" FontWeight="Bold" Foreground="#f0c060"
-                                                           Visibility="{Binding IsTwoPass, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                                <TextBlock Text="{Binding SelectedClip.Seed, StringFormat='  ·  seed {0}'}" FontSize="10" FontFamily="Consolas" Foreground="#666"
-                                                           Visibility="{Binding IsTwoPass, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                            </StackPanel>
-                                            <!-- 🌹 2-Pass: re-preview just this beat -->
-                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Visibility="{Binding IsTwoPass, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                <Button Content="↻ Re-preview edit (same seed)" Command="{Binding RepreviewSameSeedCommand}" CommandParameter="{Binding SelectedClip}"
-                                                        Height="22" Padding="8,0" FontSize="10" Background="#3d3d3d" Foreground="#ddd" BorderThickness="0" Cursor="Hand" Margin="0,0,4,0"
-                                                        ToolTip="Preview this beat again from its edited prompt with the same seed, so the edit is the only thing that changes.">
-                                                    <Button.Template>
-                                                        <ControlTemplate TargetType="Button">
-                                                            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
-                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                            </Border>
-                                                            <ControlTemplate.Triggers>
-                                                                <Trigger Property="IsMouseOver" Value="True">
-                                                                    <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
-                                                                </Trigger>
-                                                                <Trigger Property="IsEnabled" Value="False">
-                                                                    <Setter Property="Opacity" Value="0.4"/>
-                                                                </Trigger>
-                                                            </ControlTemplate.Triggers>
-                                                        </ControlTemplate>
-                                                    </Button.Template>
-                                                </Button>
-                                                <Button Content="↻ New take" Command="{Binding NewTakePreviewCommand}" CommandParameter="{Binding SelectedClip}"
-                                                        Height="22" Padding="8,0" FontSize="10" Background="#6a5a2d" Foreground="White" BorderThickness="0" Cursor="Hand"
-                                                        ToolTip="Preview this beat again with a new seed — another take of the same prompt.">
-                                                    <Button.Template>
-                                                        <ControlTemplate TargetType="Button">
-                                                            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
-                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                            </Border>
-                                                            <ControlTemplate.Triggers>
-                                                                <Trigger Property="IsMouseOver" Value="True">
-                                                                    <Setter TargetName="Bd" Property="Background" Value="#80703d"/>
-                                                                </Trigger>
-                                                                <Trigger Property="IsEnabled" Value="False">
-                                                                    <Setter Property="Opacity" Value="0.4"/>
-                                                                </Trigger>
-                                                            </ControlTemplate.Triggers>
-                                                        </ControlTemplate>
-                                                    </Button.Template>
-                                                </Button>
-                                            </StackPanel>
-                                        </Grid>
-                                        <StackPanel Grid.Row="1">
-                                            <TextBox Text="{Binding SelectedClip.ClipActions, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                     AcceptsReturn="True" TextWrapping="Wrap"
-                                                     VerticalScrollBarVisibility="Auto"
-                                                     Height="80" MaxHeight="120"
-                                                     FontSize="11" FontFamily="Consolas"
-                                                     Background="#252525" Foreground="#ccc"
-                                                     BorderBrush="#3d3d3d" BorderThickness="1"
-                                                     Padding="6"
-                                                     ToolTip="Edit the shot-by-shot actions for this clip. Changes are saved automatically."/>
-                                            <Expander Header="Full prompt" IsExpanded="False" FontSize="10" Foreground="#888" Margin="0,4,0,0"
-                                                      ToolTip="Every section of this clip's prompt — subjects, summary, soundscape — editable here.">
-                                                <TextBox Text="{Binding SelectedClip.Prompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                         AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
-                                                         Height="140" FontSize="11" FontFamily="Consolas" Margin="0,4,0,0"
-                                                         Background="#252525" Foreground="#ccc" BorderBrush="#3d3d3d" BorderThickness="1" Padding="6"/>
-                                            </Expander>
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
-
-                                <!-- ═══ ACTION BAR (Compact) ════════════════════════════════════════ -->
-                                <Border Grid.Row="5" Background="#252525" Padding="8,6" Margin="8,4,8,8" CornerRadius="4">
+                                <!-- ═══ ACTION BAR ════════════════════════════════════════════════════ -->
+                                <Border Grid.Row="4" Background="#181818" BorderBrush="#262626" BorderThickness="0,1,0,0" Padding="10,8" Margin="0,10,0,0">
                                     <Grid>
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
                                             <RowDefinition Height="Auto"/>
                                         </Grid.RowDefinitions>
-                                        <!-- 🌹 2-Pass review: how far it has got, and what is in the way -->
-                                        <TextBlock Grid.Row="1" Text="{Binding TwoPassReviewSummary}" FontSize="10" Foreground="#f0c060" TextWrapping="Wrap" Margin="0,6,0,0"
-                                                   Visibility="{Binding IsTwoPass, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                        <StackPanel Orientation="Horizontal">
-                                            <!-- Generate - primary action with subtle green -->
-                                            <Button Content="{Binding GenerateLabel}" Command="{Binding GenerateClipsCommand}" Height="28" Padding="14,0" FontSize="11" FontWeight="SemiBold" Background="#2d6a4f" Foreground="White" BorderThickness="0" Cursor="Hand" Margin="0,0,6,0" ToolTip="Generate all pending clips (🌹 2-Pass: the first-pass preview of every beat that needs one)">
-                                                <Button.Template>
-                                                    <ControlTemplate TargetType="Button">
-                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                        </Border>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter TargetName="Bd" Property="Background" Value="#3d8060"/>
-                                                            </Trigger>
-                                                            <Trigger Property="IsEnabled" Value="False">
-                                                                <Setter TargetName="Bd" Property="Background" Value="#3d3d3d"/>
-                                                                <Setter Property="Foreground" Value="#666"/>
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Button.Template>
-                                            </Button>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <WrapPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Button Content="{Binding GenerateLabel}" Command="{Binding GenerateClipsCommand}" Style="{StaticResource H3Btn}" Height="32" Padding="16,0"
+                                                    Background="#0D9488" Foreground="White" FontWeight="SemiBold" Margin="0,0,6,0"
+                                                    ToolTip="Generate all pending clips (🌹 2-Pass: the first-pass preview of every beat that needs one)"/>
                                             <!-- 🌹 2-Pass: the go-ahead for the full refinement -->
-                                            <Button Content="✅ Happy — proceed with final refinement" Command="{Binding ProceedRefineCommand}" Height="28" Padding="14,0" FontSize="11" FontWeight="SemiBold" Background="#7a5c1e" Foreground="White" BorderThickness="0" Cursor="Hand" Margin="0,0,6,0"
+                                            <Button Content="✅ Happy — proceed with final refinement" Command="{Binding ProceedRefineCommand}" Style="{StaticResource H3Btn}" Height="32" Padding="16,0"
+                                                    Background="#A16207" Foreground="White" FontWeight="SemiBold" Margin="0,0,6,0"
                                                     Visibility="{Binding IsTwoPass, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                    ToolTip="Refine every previewed beat in full — the same prompt, seed and guide as its preview, then the latent upscale, the refining pass, RTX and the encode. Enabled once every beat has an up-to-date preview. A story run then joins the refined beats.">
-                                                <Button.Template>
-                                                    <ControlTemplate TargetType="Button">
-                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                        </Border>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter TargetName="Bd" Property="Background" Value="#94722a"/>
-                                                            </Trigger>
-                                                            <Trigger Property="IsEnabled" Value="False">
-                                                                <Setter TargetName="Bd" Property="Background" Value="#3d3d3d"/>
-                                                                <Setter Property="Foreground" Value="#666"/>
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Button.Template>
-                                            </Button>
-                                            <!-- Join - secondary with neutral dark -->
-                                            <Button Content="Join Clips" Command="{Binding JoinClipsCommand}" Height="28" Padding="14,0" FontSize="11" FontWeight="SemiBold" Background="#3d3d3d" Foreground="#ddd" BorderThickness="0" Cursor="Hand" Margin="0,0,6,0" ToolTip="Join all rendered clips into one video">
-                                                <Button.Template>
-                                                    <ControlTemplate TargetType="Button">
-                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                        </Border>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
-                                                            </Trigger>
-                                                            <Trigger Property="IsEnabled" Value="False">
-                                                                <Setter TargetName="Bd" Property="Background" Value="#2d2d2d"/>
-                                                                <Setter Property="Foreground" Value="#555"/>
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Button.Template>
-                                            </Button>
-                                            <!-- Upscale - tertiary action -->
-                                            <Button Content="Upscale" Command="{Binding UpscaleCommand}" Height="28" Padding="14,0" FontSize="11" Background="#3d3d3d" Foreground="#bbb" BorderThickness="0" Cursor="Hand" ToolTip="Upscale joined video">
-                                                <Button.Template>
-                                                    <ControlTemplate TargetType="Button">
-                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                        </Border>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
-                                                            </Trigger>
-                                                            <Trigger Property="IsEnabled" Value="False">
-                                                                <Setter TargetName="Bd" Property="Background" Value="#2d2d2d"/>
-                                                                <Setter Property="Foreground" Value="#555"/>
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Button.Template>
-                                            </Button>
+                                                    ToolTip="Refine every previewed beat in full — the same prompt, seed and guide as its preview, then the latent upscale, the refining pass, RTX and the encode. Enabled once every beat has an up-to-date preview. A story run then joins the refined beats."/>
+                                            <Button Content="Join Clips" Command="{Binding JoinClipsCommand}" Style="{StaticResource H3Btn}" Height="32" Padding="14,0" Margin="0,0,6,0" ToolTip="Join all rendered clips into one video"/>
+                                            <Button Content="Upscale" Command="{Binding UpscaleCommand}" Style="{StaticResource H3Btn}" Height="32" Padding="14,0" ToolTip="Upscale joined video"/>
+                                        </WrapPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <ToggleButton x:Name="LogToggle" Content="Log" Style="{StaticResource H3ToggleBtn}" ToolTip="Toggle log panel"/>
+                                            <Button Content="Cancel" Command="{Binding CancelCommand}" Style="{StaticResource H3Btn}" Background="#4C1D1D" Foreground="#FCA5A5" Margin="0" ToolTip="Cancel current operation"/>
                                         </StackPanel>
-                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                            <!-- Progress indicator -->
-                                            <ProgressBar Value="{Binding Progress}" Width="100" Height="4" Margin="0,0,12,0" Background="#333" Foreground="#2d6a4f"/>
-                                            <!-- Log toggle -->
-                                            <ToggleButton x:Name="LogToggle" Content="Log" Height="24" Padding="10,0" FontSize="10" Background="#3d3d3d" Foreground="#aaa" BorderThickness="0" Cursor="Hand" ToolTip="Toggle log panel">
-                                                <ToggleButton.Template>
-                                                    <ControlTemplate TargetType="ToggleButton">
-                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                        </Border>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter TargetName="Bd" Property="Background" Value="#4d4d4d"/>
-                                                            </Trigger>
-                                                            <Trigger Property="IsChecked" Value="True">
-                                                                <Setter TargetName="Bd" Property="Background" Value="#4a4a4a"/>
-                                                                <Setter Property="Foreground" Value="#fff"/>
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </ToggleButton.Template>
-                                            </ToggleButton>
-                                            <!-- Cancel -->
-                                            <Button Content="Cancel" Command="{Binding CancelCommand}" Height="24" Padding="10,0" FontSize="10" Background="#5c3030" Foreground="#eaa" BorderThickness="0" Cursor="Hand" Margin="6,0,0,0" ToolTip="Cancel current operation">
-                                                <Button.Template>
-                                                    <ControlTemplate TargetType="Button">
-                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                        </Border>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter TargetName="Bd" Property="Background" Value="#7c4040"/>
-                                                            </Trigger>
-                                                            <Trigger Property="IsEnabled" Value="False">
-                                                                <Setter TargetName="Bd" Property="Background" Value="#3d3d3d"/>
-                                                                <Setter Property="Foreground" Value="#666"/>
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Button.Template>
-                                            </Button>
-                                        </StackPanel>
+                                        <!-- 🌹 2-Pass review: how far it has got, and what is in the way -->
+                                        <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding TwoPassReviewSummary}" FontSize="11" Foreground="#FBBF24" TextWrapping="Wrap" Margin="0,6,0,0"
+                                                   Visibility="{Binding IsTwoPass, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                     </Grid>
                                 </Border>
                             </Grid>
 
                             <!-- ═══ COLLAPSIBLE LOG PANEL (Overlay) ═════════════════════════════ -->
-                            <Border Grid.Column="1" Background="{StaticResource SurfaceBrush}" CornerRadius="4" Margin="8,0,8,54" Padding="8" VerticalAlignment="Bottom" MaxHeight="150"
+                            <Border Grid.Column="2" Background="#1A1A1A" BorderBrush="#333" BorderThickness="1" CornerRadius="8" Margin="10,0,10,64" Padding="10" VerticalAlignment="Bottom" MaxHeight="220"
                                     Visibility="{Binding IsChecked, ElementName=LogToggle, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="*"/>
                                     </Grid.RowDefinitions>
-                                    <Grid Grid.Row="0" Margin="0,0,0,4">
-                                        <TextBlock Text="LOG" FontSize="9" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                                    <Grid Grid.Row="0" Margin="0,0,0,6">
+                                        <TextBlock Text="LOG" FontSize="10" FontWeight="Bold" Foreground="#6B7280" VerticalAlignment="Center"/>
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                            <Button Content="Copy" Command="{Binding CopyLogCommand}" Height="18" Padding="6,0" FontSize="8" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" Margin="0,0,4,0"/>
-                                            <Button Content="Clear" Command="{Binding ClearLogCommand}" Height="18" Padding="6,0" FontSize="8" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand"/>
+                                            <Button Content="Copy" Command="{Binding CopyLogCommand}" Height="22" Padding="8,0" FontSize="10" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand" Margin="0,0,4,0"/>
+                                            <Button Content="Clear" Command="{Binding ClearLogCommand}" Height="22" Padding="8,0" FontSize="10" Style="{StaticResource SecondaryButtonStyle}" Cursor="Hand"/>
                                         </StackPanel>
                                     </Grid>
-                                    <Border Grid.Row="1" Background="#1a1a1a" CornerRadius="2" Padding="4">
-                                        <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="100">
+                                    <Border Grid.Row="1" Background="#111" CornerRadius="4" Padding="6">
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="160">
                                             <ItemsControl ItemsSource="{Binding LogMessages}">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
-                                                        <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="9" Foreground="#888" TextWrapping="NoWrap" Margin="0,1"/>
+                                                        <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="10" Foreground="#9CA3AF" TextWrapping="NoWrap" Margin="0,1"/>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>

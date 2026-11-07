@@ -259,6 +259,14 @@ namespace FlipPix.UI
                 System.Windows.Threading.DispatcherPriority.Loaded);
         }
 
+        /// <summary>The clip strip only scrolls sideways, so the mouse wheel moves it left and right.</summary>
+        private void H3TimelineScroll_PreviewMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
+        {
+            if (sender is not System.Windows.Controls.ScrollViewer sv) return;
+            sv.ScrollToHorizontalOffset(sv.HorizontalOffset - e.Delta);
+            e.Handled = true;
+        }
+
         // ── In/Out markers ───────────────────────────────────────────────────
         // The flags above the scrub bar mirror the view model's MarkIn/MarkOut. Dragging one pauses the player
         // and shows the frame under it, so the cut point is picked by eye.
