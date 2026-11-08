@@ -9731,6 +9731,577 @@
                     </Grid>
                 </Grid>
             </TabItem>
+
+            <!-- ════════════════════════════════════════════════════════════════ -->
+            <!-- Tab: Remake (Viggle Remake on MiniMax H3)                         -->
+            <!-- ════════════════════════════════════════════════════════════════ -->
+            <TabItem Header="🎞 Remake">
+                <Grid x:DataType="vmv:RemakeViewModel"
+                      x:Name="RemakeRoot"
+                      DataContext="{Binding RemakeVM}"
+                      Theme="{StaticResource TabPageStyle}">
+                    <Grid.Resources>
+                        <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource AccentRoseColor}"/>
+                        <SolidColorBrush x:Key="RemakeTintBrush" Color="#FFF1F2"/>
+                        <SolidColorBrush x:Key="RemakeTintStrongBrush" Color="#FFE4E6"/>
+                    </Grid.Resources>
+                    <Grid.Styles>
+                        <Style Selector="Border.step">
+                            <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                            <Setter Property="BorderThickness" Value="1"/>
+                            <Setter Property="CornerRadius" Value="10"/>
+                            <Setter Property="Padding" Value="12,10"/>
+                            <Setter Property="Margin" Value="0,0,0,10"/>
+                        </Style>
+                        <Style Selector="Border.badge">
+                            <Setter Property="Width" Value="20"/>
+                            <Setter Property="Height" Value="20"/>
+                            <Setter Property="CornerRadius" Value="10"/>
+                            <Setter Property="Background" Value="#E11D48"/>
+                            <Setter Property="Margin" Value="0,0,8,0"/>
+                            <Setter Property="VerticalAlignment" Value="Center"/>
+                        </Style>
+                        <Style Selector="Border.badge > TextBlock">
+                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="FontWeight" Value="Bold"/>
+                            <Setter Property="FontSize" Value="11"/>
+                            <Setter Property="HorizontalAlignment" Value="Center"/>
+                            <Setter Property="VerticalAlignment" Value="Center"/>
+                        </Style>
+                        <Style Selector="TextBlock.stepTitle">
+                            <Setter Property="FontSize" Value="11"/>
+                            <Setter Property="FontWeight" Value="Bold"/>
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                            <Setter Property="VerticalAlignment" Value="Center"/>
+                        </Style>
+                        <Style Selector="TextBlock.label">
+                            <Setter Property="FontSize" Value="10"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                            <Setter Property="Margin" Value="0,6,0,3"/>
+                        </Style>
+                        <Style Selector="TextBox.field">
+                            <Setter Property="FontSize" Value="11"/>
+                            <Setter Property="MinHeight" Value="26"/>
+                            <Setter Property="Padding" Value="5,3"/>
+                            <Setter Property="VerticalContentAlignment" Value="Center"/>
+                        </Style>
+                        <!-- Segmented pills: quality on the page, mode on the gradient header. -->
+                        <Style Selector="RadioButton.pill, RadioButton.hero">
+                            <Setter Property="Cursor" Value="Hand"/>
+                            <Setter Property="FontSize" Value="11"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+                            <Setter Property="Template">
+                                <ControlTemplate>
+                                    <Border Name="Bd" CornerRadius="8" Padding="10,7" Margin="1" Background="Transparent">
+                                        <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                                                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter>
+                        </Style>
+                        <Style Selector="RadioButton.pill">
+                            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                        </Style>
+                        <Style Selector="RadioButton.pill:pointerover /template/ Border#Bd">
+                            <Setter Property="Background" Value="{StaticResource RemakeTintStrongBrush}"/>
+                        </Style>
+                        <Style Selector="RadioButton.pill:checked /template/ Border#Bd">
+                            <Setter Property="Background" Value="#E11D48"/>
+                        </Style>
+                        <Style Selector="RadioButton.pill:checked">
+                            <Setter Property="Foreground" Value="White"/>
+                        </Style>
+                        <Style Selector="RadioButton.hero">
+                            <Setter Property="Foreground" Value="White"/>
+                        </Style>
+                        <Style Selector="RadioButton.hero:checked /template/ Border#Bd">
+                            <Setter Property="Background" Value="White"/>
+                        </Style>
+                        <Style Selector="RadioButton.hero:checked">
+                            <Setter Property="Foreground" Value="#BE123C"/>
+                        </Style>
+                        <Style Selector="Border.thumb">
+                            <Setter Property="Width" Value="108"/>
+                            <Setter Property="Height" Value="64"/>
+                            <Setter Property="CornerRadius" Value="6"/>
+                            <Setter Property="Background" Value="{StaticResource PlayerSurfaceRaisedBrush}"/>
+                            <Setter Property="Cursor" Value="Hand"/>
+                            <Setter Property="ClipToBounds" Value="True"/>
+                        </Style>
+                        <Style Selector="Border.dot">
+                            <Setter Property="Width" Value="20"/>
+                            <Setter Property="Height" Value="20"/>
+                            <Setter Property="CornerRadius" Value="10"/>
+                            <Setter Property="Background" Value="White"/>
+                            <Setter Property="BorderBrush" Value="#E11D48"/>
+                            <Setter Property="BorderThickness" Value="2"/>
+                        </Style>
+                        <Style Selector="Border.dot > TextBlock">
+                            <Setter Property="FontSize" Value="9.5"/>
+                            <Setter Property="FontWeight" Value="Bold"/>
+                            <Setter Property="Foreground" Value="#BE123C"/>
+                            <Setter Property="HorizontalAlignment" Value="Center"/>
+                            <Setter Property="VerticalAlignment" Value="Center"/>
+                        </Style>
+                        <Style Selector="Button.generate">
+                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="Cursor" Value="Hand"/>
+                            <Setter Property="Template">
+                                <ControlTemplate>
+                                    <Border Name="Bd" CornerRadius="9">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                                                <GradientStop Color="#E11D48" Offset="0"/>
+                                                <GradientStop Color="#7C3AED" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <ContentPresenter Content="{TemplateBinding Content}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter>
+                        </Style>
+                        <Style Selector="Button.generate:pointerover /template/ Border#Bd">
+                            <Setter Property="Opacity" Value="0.9"/>
+                        </Style>
+                        <Style Selector="Button.generate:disabled /template/ Border#Bd">
+                            <Setter Property="Background" Value="{StaticResource DisabledBrush}"/>
+                        </Style>
+                        <Style Selector="Button.generate:disabled">
+                            <Setter Property="Foreground" Value="{StaticResource DisabledTextBrush}"/>
+                        </Style>
+                    </Grid.Styles>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="380"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- ═══ Left: the recipe ═══════════════════════════════════════ -->
+                    <Grid Grid.Column="0" Margin="10,8,6,8" RowDefinitions="Auto,*,Auto">
+                        <Border Grid.Row="0" CornerRadius="12" Padding="14,12" Margin="0,0,0,10">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                                    <GradientStop Color="#E11D48" Offset="0"/>
+                                    <GradientStop Color="#7C3AED" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <StackPanel>
+                                <TextBlock Text="🎞 Remake" FontSize="17" FontWeight="Bold" Foreground="White"/>
+                                <TextBlock Text="Keep the shot — change who's in it, or the world around them. Same motion, camera, timing and sound."
+                                           FontSize="10.5" Foreground="#F2FFFFFF" TextWrapping="Wrap" Margin="0,2,0,10"/>
+                                <Border Background="#33FFFFFF" CornerRadius="9" Padding="1">
+                                    <UniformGrid Columns="2">
+                                        <RadioButton Classes="hero" GroupName="RemakeMode" IsChecked="{Binding IsSwap}" Content="🎭 Swap people"/>
+                                        <RadioButton Classes="hero" GroupName="RemakeMode" IsChecked="{Binding IsEdit}" Content="🌦 Edit the world"/>
+                                    </UniformGrid>
+                                </Border>
+                                <TextBlock Text="{Binding ModeSummary}" FontSize="10" Foreground="#E6FFFFFF" TextWrapping="Wrap" Margin="2,7,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="0,0,6,0">
+                                <!-- ① Clip -->
+                                <Border Classes="step">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                            <Border Classes="badge"><TextBlock Text="1"/></Border>
+                                            <TextBlock Classes="stepTitle" Text="THE CLIP"/>
+                                        </StackPanel>
+                                        <Border x:Name="RemakeDropZone" DragDrop.AllowDrop="True"
+                                                CornerRadius="8" BorderThickness="1.5" Padding="10,9" Cursor="Hand"
+                                                Background="{StaticResource RemakeTintBrush}" BorderBrush="#FDA4AF"
+                                                ctrl:Click.Command="{Binding BrowseVideoCommand}"
+                                                ToolTip.Tip="Drop a video here, or click to choose one.">
+                                            <Grid ColumnDefinitions="Auto,*">
+                                                <TextBlock Text="🎬" FontSize="22" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding VideoFileName}" FontSize="12" FontWeight="SemiBold"
+                                                               Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis"
+                                                               ToolTip.Tip="{Binding VideoPath}"/>
+                                                    <TextBlock Text="{Binding VideoInfo}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" IsVisible="{Binding HasVideo}"/>
+                                                    <TextBlock Text="Drop a video here, or click to browse" FontSize="10" Foreground="{StaticResource TextMutedBrush}"
+                                                               IsVisible="{Binding !HasVideo}"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                        <StackPanel IsEnabled="{Binding HasVideo}">
+                                            <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+                                                <TextBlock Classes="label" Text="Starts at" Margin="0"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding StartSeconds, StringFormat={}{0:0.00} s}" FontSize="10"
+                                                           FontWeight="SemiBold" Foreground="#E11D48"/>
+                                            </Grid>
+                                            <Slider Minimum="0" Maximum="{Binding MaxStartSeconds}" Value="{Binding StartSeconds}"
+                                                    SmallChange="0.0417" LargeChange="1" Margin="0,0,0,0"
+                                                    ToolTip.Tip="Where in the video the remade part starts."/>
+                                            <TextBlock Classes="label" Text="Length"/>
+                                            <ComboBox ItemsSource="{Binding LengthOptions}" SelectedItem="{Binding SelectedLength}" FontSize="11"
+                                                      HorizontalAlignment="Stretch"
+                                                      ToolTip.Tip="Remake renders 90–345 frames (3.75–14.4 s) at 24 fps in one go. Shorter renders faster.">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate x:DataType="vmv:RemakeViewModel+LengthOption">
+                                                        <TextBlock Text="{Binding Label}"/>
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                            <TextBlock Text="{Binding WindowLabel}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                            <TextBlock Classes="label" Text="Quality"/>
+                                            <Border Background="{StaticResource RemakeTintBrush}" CornerRadius="9" Padding="1">
+                                                <UniformGrid Columns="3">
+                                                    <RadioButton Classes="pill" GroupName="RemakeQuality" IsChecked="{Binding IsFast}" Content="⚡ Fast"
+                                                                 ToolTip.Tip="832×480 — quickest, for trying ideas."/>
+                                                    <RadioButton Classes="pill" GroupName="RemakeQuality" IsChecked="{Binding IsHd}" Content="💎 HD ×2"
+                                                                 ToolTip.Tip="1664×960 — rendered at 480, then latent-upscaled ×2 and refined, like the I2V tabs."/>
+                                                    <RadioButton Classes="pill" GroupName="RemakeQuality" IsChecked="{Binding IsSharp}" Content="✨ Sharp"
+                                                                 ToolTip.Tip="1280×736 sampled directly — up to 5.2 s on a 24 GB card."/>
+                                                </UniformGrid>
+                                            </Border>
+                                            <TextBlock Text="{Binding QualityNote}" FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- ② Cast (swap) -->
+                                <Border Classes="step" IsVisible="{Binding IsSwap}">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,8">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Border Classes="badge"><TextBlock Text="2"/></Border>
+                                                <TextBlock Classes="stepTitle" Text="THE NEW CAST"/>
+                                            </StackPanel>
+                                            <Button Content="＋ Character" Command="{Binding AddCastCommand}" HorizontalAlignment="Right"
+                                                    Theme="{StaticResource SecondaryButtonStyle}" Height="24" Padding="8,0" FontSize="10"/>
+                                        </Grid>
+                                        <ItemsControl ItemsSource="{Binding Cast}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="m:RemakeCastSlot">
+                                                    <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            CornerRadius="8" Padding="8" Margin="0,0,0,8">
+                                                        <Grid ColumnDefinitions="76,*">
+                                                            <Border Width="76" Height="96" CornerRadius="6" Background="{StaticResource RemakeTintBrush}"
+                                                                    BorderBrush="#FDA4AF" BorderThickness="1" Cursor="Hand" ClipToBounds="True" VerticalAlignment="Top"
+                                                                    ctrl:Click.Command="{Binding BrowseCommand}"
+                                                                    ToolTip.Tip="A photo of the character (optional if you describe them). Click to choose.">
+                                                                <Grid>
+                                                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                        <TextBlock Text="🧑" FontSize="22" HorizontalAlignment="Center" Opacity="0.55"/>
+                                                                        <TextBlock Text="add photo" FontSize="9" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Center"/>
+                                                                    </StackPanel>
+                                                                    <Image Source="{Binding PhotoPath, Converter={StaticResource PathToBitmapConverter}}" Stretch="UniformToFill"/>
+                                                                </Grid>
+                                                            </Border>
+                                                            <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                                                                <Grid>
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <TextBlock Text="{Binding Label}" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                                        <TextBlock Text="{Binding Tag}" FontSize="9.5" Margin="5,1,0,0" Foreground="{StaticResource TextFaintBrush}"/>
+                                                                    </StackPanel>
+                                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                                        <Button Content="⟲" Command="{Binding ClearCommand}" Theme="{StaticResource SecondaryButtonStyle}"
+                                                                                Width="22" Height="20" Padding="0" FontSize="10" Margin="0,0,3,0" ToolTip.Tip="Remove the photo"/>
+                                                                        <Button Content="✕" Command="{Binding RemoveCommand}" Theme="{StaticResource SecondaryButtonStyle}"
+                                                                                Width="22" Height="20" Padding="0" FontSize="10" ToolTip.Tip="Remove this character"/>
+                                                                    </StackPanel>
+                                                                </Grid>
+                                                                <TextBlock Text="Replaces" FontSize="9.5" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,5,0,2"/>
+                                                                <TextBox Classes="field" Text="{Binding Replaces}" Watermark="the pizza maker · the woman on the left"
+                                                                         ToolTip.Tip="Who in the clip this character takes the place of. Name them so nobody else matches: 'the pizza maker', 'the man on the right'."/>
+                                                                <TextBlock Text="Name · look (optional)" FontSize="9.5" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,5,0,2"/>
+                                                                <Grid ColumnDefinitions="70,*">
+                                                                    <TextBox Classes="field" Text="{Binding Name}" Watermark="Pete" Margin="0,0,4,0"
+                                                                             ToolTip.Tip="A name used in the prompt (optional)."/>
+                                                                    <TextBox Grid.Column="1" Classes="field" Text="{Binding Look}" Watermark="a plush pineapple mascot…"
+                                                                             ToolTip.Tip="How they look, in words. With a photo you can leave this blank: Qwen3-VL describes the photo. Without a photo this is what gets painted."/>
+                                                                </Grid>
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- ② / ③ The change -->
+                                <Border Classes="step">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                            <Border Classes="badge">
+                                                <Grid>
+                                                    <TextBlock Text="3" IsVisible="{Binding IsSwap}"/>
+                                                    <TextBlock Text="2" IsVisible="{Binding IsEdit}"/>
+                                                </Grid>
+                                            </Border>
+                                            <TextBlock Classes="stepTitle" Text="{Binding ChangeLabel}"/>
+                                        </StackPanel>
+                                        <TextBox Text="{Binding Change}" Watermark="{Binding ChangeHint}" FontSize="11.5" MinHeight="58" Padding="5,4"
+                                                 TextWrapping="Wrap" AcceptsReturn="False" VerticalContentAlignment="Top"/>
+                                        <CheckBox IsChecked="{Binding PinFrames}" Margin="0,10,0,0" FontSize="11" Foreground="{StaticResource TextPrimaryBrush}"
+                                                  Content="📌 Pin painted frames as keyframes"
+                                                  ToolTip.Tip="On (recommended): the render passes through each painted frame at its moment, which keeps shots on time. Off: the frames only set the look and the model decides where it lands."/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Prompt -->
+                                <Expander IsExpanded="False" Margin="0,0,0,8" HorizontalAlignment="Stretch">
+                                    <Expander.Header>
+                                        <StackPanel>
+                                            <TextBlock Text="📝 Prompt" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="{Binding PromptState}" FontSize="9.5" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"/>
+                                        </StackPanel>
+                                    </Expander.Header>
+                                    <StackPanel Margin="0,6,0,0">
+                                        <TextBox Text="{Binding PromptText}" FontFamily="Consolas,DejaVu Sans Mono,monospace" FontSize="10"
+                                                 Height="220" TextWrapping="Wrap" AcceptsReturn="True" Padding="4"/>
+                                        <TextBlock Text="{Binding PromptProblems}" FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource AccentAmberBrush}" Margin="0,3,0,0"
+                                                   IsVisible="{Binding PromptProblems, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                        <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                                            <Button Content="✨ Write now" Command="{Binding WritePromptCommand}" Theme="{StaticResource SecondaryButtonStyle}"
+                                                    Height="24" Padding="10,0" FontSize="10.5" Margin="0,0,5,0"
+                                                    ToolTip.Tip="Paints any frame still missing, then Qwen3-VL watches the clip and the six-section prompt is written from what it saw."/>
+                                            <Button Content="↺ Back to auto" Command="{Binding ResetPromptCommand}" Theme="{StaticResource SecondaryButtonStyle}"
+                                                    Height="24" Padding="10,0" FontSize="10.5"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Expander>
+
+                                <!-- Fine-tune -->
+                                <Expander IsExpanded="False" Margin="0,0,0,8" HorizontalAlignment="Stretch">
+                                    <Expander.Header>
+                                        <TextBlock Text="⚙ Fine-tune" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    </Expander.Header>
+                                    <Grid Margin="0,6,0,0" ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto,Auto">
+                                        <TextBlock Text="Seed" FontSize="11" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                        <Grid Grid.Column="1" ColumnDefinitions="*,Auto" Margin="0,0,0,5">
+                                            <TextBox Classes="field" Text="{Binding Seed}" HorizontalContentAlignment="Center"/>
+                                            <Button Grid.Column="1" Content="🎲" Command="{Binding NewSeedCommand}" Theme="{StaticResource SecondaryButtonStyle}"
+                                                    Width="28" Height="26" Padding="0" Margin="4,0,0,0" ToolTip.Tip="A new seed: a new take of the same recipe."/>
+                                        </Grid>
+                                        <TextBlock Grid.Row="1" FontSize="11" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Text="{Binding KeyframeUntil, StringFormat=Keyframe hold {0:0.00}}"/>
+                                        <Slider Grid.Row="1" Grid.Column="1" Minimum="0.5" Maximum="1" Value="{Binding KeyframeUntil}" SmallChange="0.01" LargeChange="0.05"
+                                                Margin="0,0,0,5" VerticalAlignment="Center"
+                                                ToolTip.Tip="How long pinned frames are held during the 6 denoising steps. 0.9 (default) holds them for the first four. Lower holds them longer: closer to the painted frames, less freedom of motion."/>
+                                        <TextBlock Grid.Row="2" Text="Remake model" FontSize="11" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                        <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="*,Auto" Margin="0,0,0,5">
+                                            <ComboBox ItemsSource="{Binding ModelOptions}" SelectedItem="{Binding SelectedModel}" FontSize="10" HorizontalAlignment="Stretch"/>
+                                            <Button Grid.Column="1" Content="🔄" Command="{Binding RefreshModelsCommand}" Theme="{StaticResource SecondaryButtonStyle}"
+                                                    Width="28" Height="26" Padding="0" Margin="4,0,0,0" ToolTip.Tip="Read the server's model list again."/>
+                                        </Grid>
+                                        <TextBlock Grid.Row="3" Grid.ColumnSpan="2" Text="{Binding ModelStatus}" FontSize="9.5" TextWrapping="Wrap"
+                                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                    </Grid>
+                                </Expander>
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <!-- Action bar -->
+                        <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                CornerRadius="10" Padding="12,10" Margin="0,6,0,0">
+                            <StackPanel>
+                                <TextBlock Text="{Binding ProcessingStatus}" FontSize="10.5" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"
+                                           IsVisible="{Binding ProcessingStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                <ProgressBar Value="{Binding ProcessingProgress}" Height="5" MinHeight="5" Margin="0,0,0,8" Foreground="#E11D48" IsVisible="{Binding IsProcessing}"/>
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <Button Classes="generate" Command="{Binding GenerateCommand}" Height="40" FontSize="13" FontWeight="Bold"
+                                            HorizontalAlignment="Stretch" Content="🎞  Generate"/>
+                                    <Button Grid.Column="1" Content="⏹" Command="{Binding StopCommand}" Theme="{StaticResource SecondaryButtonStyle}"
+                                            Width="40" Height="40" Padding="0" FontSize="13" Margin="6,0,0,0" ToolTip.Tip="Stop"/>
+                                </Grid>
+                                <TextBlock Text="{Binding ReadyHint}" FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"
+                                           HorizontalAlignment="Center" TextAlignment="Center" Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- ═══ Right: stage ════════════════════════════════════════════ -->
+                    <Grid Grid.Column="1" Margin="0,8,10,8" RowDefinitions="*,Auto,Auto,Auto,Auto">
+                        <Border Grid.Row="0" CornerRadius="12" Background="{StaticResource PlayerSurfaceBrush}" ClipToBounds="True" MinHeight="220">
+                            <Grid>
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding !HasVideo}">
+                                    <TextBlock Text="🎞" FontSize="40" HorizontalAlignment="Center" Opacity="0.6"/>
+                                    <TextBlock Text="Your clip plays here, then every take you render."
+                                               FontSize="12" Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center" Margin="0,8,0,2"/>
+                                    <TextBlock Text="Drop a video on step 1 to begin." FontSize="10.5" Foreground="#9CA3AF" HorizontalAlignment="Center"/>
+                                </StackPanel>
+                                <!-- Source is set from code-behind (ApplyRemakeSource), like the other players. -->
+                                <ctrl:VideoPreview x:Name="RemakePlayer"
+                                                   IsVisible="{Binding ActivePreview, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                                   Stretch="Uniform"
+                                                   MediaOpened="RemakePlayer_MediaOpened"
+                                                   MediaEnded="RemakePlayer_MediaEnded"/>
+                                <Grid Background="{StaticResource PlayerSurfaceBrush}" IsVisible="{Binding HasPreviewImage}">
+                                    <Image Source="{Binding PreviewImagePath, Converter={StaticResource PathToBitmapConverter}}" Stretch="Uniform"/>
+                                    <Button Content="✕  Back to video" Command="{Binding ClosePreviewImageCommand}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                            Margin="10" Height="26" Padding="10,0" FontSize="10.5" Theme="{StaticResource SecondaryButtonStyle}" Opacity="0.92"/>
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <!-- Timeline -->
+                        <Grid Grid.Row="1" Margin="2,10,2,0" Height="30" IsVisible="{Binding HasVideo}"
+                              ToolTip.Tip="The whole clip; the coloured part is what gets remade, the dots are your painted frames.">
+                            <Border Height="8" CornerRadius="4" Background="{StaticResource BorderBrush}" VerticalAlignment="Center"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="{Binding WindowStartFraction, Converter={x:Static conv:StarConverter.Instance}}"/>
+                                    <ColumnDefinition Width="{Binding WindowWidthFraction, Converter={x:Static conv:StarConverter.Instance}}"/>
+                                    <ColumnDefinition Width="{Binding WindowAfterFraction, Converter={x:Static conv:StarConverter.Instance}}"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid Grid.Column="1">
+                                    <Border Height="8" CornerRadius="4" VerticalAlignment="Center">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                                                <GradientStop Color="#FB7185" Offset="0"/>
+                                                <GradientStop Color="#A78BFA" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                    </Border>
+                                    <ItemsControl ItemsSource="{Binding TimelineMarks}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <Grid/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vmv:RemakeViewModel+TimelineMark">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="{Binding Fraction, Converter={x:Static conv:StarConverter.Instance}}"/>
+                                                        <ColumnDefinition Width="{Binding AfterFraction, Converter={x:Static conv:StarConverter.Instance}}"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Grid.Column="1" Classes="dot" HorizontalAlignment="Left" Margin="-10,0,0,0" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Label}"/>
+                                                    </Border>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Grid>
+                            </Grid>
+                        </Grid>
+
+                        <!-- Painted frames -->
+                        <Grid Grid.Row="2" Margin="0,8,0,0" RowDefinitions="Auto,Auto" IsVisible="{Binding HasVideo}">
+                            <Grid Margin="2,0,2,6">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="🎨 Painted frames" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="each is a moment of the clip, repainted to show the result" FontSize="10" Margin="8,1,0,0" Foreground="{StaticResource TextMutedBrush}"/>
+                                </StackPanel>
+                                <Button Content="🎨 Repaint all" Command="{Binding PaintAllCommand}" HorizontalAlignment="Right" Theme="{StaticResource SecondaryButtonStyle}"
+                                        Height="24" Padding="10,0" FontSize="10.5" ToolTip.Tip="Paint every frame again with Qwen Image 2.1 Edit (your own images are kept)."/>
+                            </Grid>
+                            <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                                <StackPanel Orientation="Horizontal">
+                                    <ItemsControl ItemsSource="{Binding Keyframes}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Horizontal"/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="m:RemakeKeyframeSlot">
+                                                <Border Width="252" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                        CornerRadius="10" Padding="9" Margin="0,0,8,4">
+                                                    <StackPanel>
+                                                        <Grid Margin="0,0,0,6">
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <Border Classes="dot" Margin="0,0,6,0"><TextBlock Text="{Binding Number}"/></Border>
+                                                                <TextBlock Text="{Binding Label}" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                                <TextBlock Text="{Binding TimeLabel}" FontSize="10" VerticalAlignment="Center" Margin="6,0,0,0" Foreground="#E11D48" FontWeight="SemiBold"/>
+                                                            </StackPanel>
+                                                            <Button Content="✕" Command="{Binding RemoveCommand}" HorizontalAlignment="Right" Theme="{StaticResource SecondaryButtonStyle}"
+                                                                    Width="22" Height="20" Padding="0" FontSize="10" ToolTip.Tip="Remove this frame"/>
+                                                        </Grid>
+                                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                                            <Border Classes="thumb" ctrl:Click.Command="{Binding ShowSourceCommand}"
+                                                                    ToolTip.Tip="The source frame at this moment. Click to view it large.">
+                                                                <Grid>
+                                                                    <TextBlock Text="source" FontSize="9" Foreground="#9CA3AF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                    <Image Source="{Binding FramePath, Converter={StaticResource PathToBitmapConverter}}" Stretch="UniformToFill"/>
+                                                                </Grid>
+                                                            </Border>
+                                                            <TextBlock Grid.Column="1" Text="→" FontSize="14" Foreground="{StaticResource TextFaintBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            <Border Grid.Column="2" Classes="thumb" BorderThickness="2" BorderBrush="#FDA4AF"
+                                                                    ctrl:Click.Command="{Binding ShowPaintedCommand}"
+                                                                    ToolTip.Tip="The painted frame: what the result shows at this moment. Click to view it large.">
+                                                                <Grid>
+                                                                    <TextBlock Text="painted" FontSize="9" Foreground="#9CA3AF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                    <Image Source="{Binding PaintedPath, Converter={StaticResource PathToBitmapConverter}}" Stretch="UniformToFill"/>
+                                                                    <Border Background="#B30C0A09" IsVisible="{Binding IsBusy}">
+                                                                        <TextBlock Text="✨" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                    </Border>
+                                                                </Grid>
+                                                            </Border>
+                                                        </Grid>
+                                                        <Slider Minimum="0" Maximum="{Binding MaxSeconds}" Value="{Binding Seconds}" Margin="0,4,0,0"
+                                                                SmallChange="0.0417" LargeChange="0.5" ToolTip.Tip="Which moment of the clip this frame shows."/>
+                                                        <TextBlock Text="{Binding StateLabel}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis" Margin="0,0,0,6"/>
+                                                        <UniformGrid Columns="2">
+                                                            <Button Content="🎨 Paint" Command="{Binding PaintCommand}" Theme="{StaticResource SecondaryButtonStyle}"
+                                                                    Height="26" Padding="6,0" FontSize="10.5" Margin="0,0,3,0" HorizontalAlignment="Stretch"
+                                                                    ToolTip.Tip="Paint this frame now with Qwen Image 2.1 Edit (again for another version)."/>
+                                                            <Button Content="📂 Use mine" Command="{Binding BrowseCommand}" Theme="{StaticResource SecondaryButtonStyle}"
+                                                                    Height="26" Padding="6,0" FontSize="10.5" Margin="3,0,0,0" HorizontalAlignment="Stretch"
+                                                                    ToolTip.Tip="Use a frame you painted elsewhere (paint it from the source frame, at its size or aspect)."/>
+                                                        </UniformGrid>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <Button Command="{Binding AddKeyframeCommand}" Width="96" Margin="0,0,0,4" Cursor="Hand" VerticalAlignment="Stretch"
+                                            Background="{StaticResource RemakeTintBrush}" BorderBrush="#FDA4AF" BorderThickness="1.5" CornerRadius="10"
+                                            ToolTip.Tip="Add another painted frame (up to 4) — useful where a character turns, or a new shot starts.">
+                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <TextBlock Text="＋" FontSize="20" Foreground="#E11D48" HorizontalAlignment="Center"/>
+                                            <TextBlock Text="Add frame" FontSize="10" Foreground="#BE123C" HorizontalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Grid>
+
+                        <!-- Takes -->
+                        <WrapPanel Grid.Row="3" Margin="0,8,0,0">
+                            <Button Content="▶ Source" Command="{Binding PlaySourceCommand}" Theme="{StaticResource SecondaryButtonStyle}"
+                                    Height="26" Padding="10,0" FontSize="11" Margin="0,0,5,4"/>
+                            <ItemsControl ItemsSource="{Binding Takes}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vmv:RemakeViewModel+Take">
+                                        <Button CommandParameter="{Binding}"
+                                                Command="{Binding $parent[ItemsControl].((vmv:RemakeViewModel)DataContext).PlayTakeCommand}"
+                                                Theme="{StaticResource AccentButtonStyle}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,5,4"
+                                                ToolTip.Tip="{Binding Info}" Content="{Binding Label, StringFormat=▶ {0}}"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button Content="📁 Open folder" Command="{Binding OpenResultFolderCommand}" Theme="{StaticResource SecondaryButtonStyle}"
+                                    Height="26" Padding="10,0" FontSize="11" Margin="0,0,10,4"/>
+                            <TextBlock Text="{Binding ResultVideoInfo}" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"
+                                       TextTrimming="CharacterEllipsis" Margin="0,0,0,4"/>
+                        </WrapPanel>
+
+                        <Expander Grid.Row="4" Header="📝 Log" IsExpanded="False" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0" HorizontalAlignment="Stretch">
+                            <Grid>
+                                <TextBox Text="{Binding LogOutput, Mode=OneWay}" IsReadOnly="True" FontFamily="Consolas,DejaVu Sans Mono,monospace" FontSize="10"
+                                         Height="130" TextWrapping="Wrap"
+                                         Background="#1a1a1a" Foreground="#999" BorderThickness="0"
+                                         TextChanged="RemakeLog_TextChanged"/>
+                                <Button Content="Clear" Command="{Binding ClearLogCommand}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                        Height="18" Padding="6,0" FontSize="8" Theme="{StaticResource SecondaryButtonStyle}" Margin="0,2,18,0"/>
+                            </Grid>
+                        </Expander>
+                    </Grid>
+                </Grid>
+            </TabItem>
         </TabControl>
         <!-- Status Bar -->
         <Border Grid.Row="3"

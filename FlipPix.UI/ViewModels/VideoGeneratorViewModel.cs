@@ -91,6 +91,12 @@ namespace FlipPix.UI.ViewModels
         /// </summary>
         public CharacterSwapViewModel CharacterSwapVM { get; }
 
+        /// <summary>
+        /// Remake ViewModel — Viggle Remake on MiniMax H3: a clip and 1–4 painted frames in, the clip re-rendered
+        /// with its motion, camera, timing and sound kept and the people or the place changed.
+        /// </summary>
+        public RemakeViewModel RemakeVM { get; }
+
         // Bound to the main TabControl so code can switch tabs programmatically.
         // 0 = Scail 2 tab.
         private int _selectedTabIndex = 0;
@@ -201,6 +207,14 @@ namespace FlipPix.UI.ViewModels
             CharacterSwapVM = new CharacterSwapViewModel(
                 comfyUIService,
                 lmStudioService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
+            RemakeVM = new RemakeViewModel(
+                comfyUIService,
                 logger,
                 settingsService,
                 serviceProvider,
