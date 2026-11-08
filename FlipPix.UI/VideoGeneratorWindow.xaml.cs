@@ -54,6 +54,7 @@ namespace FlipPix.UI
             _viewModel.SeedUpscaleVM.PropertyChanged += SeedUpscaleVM_PropertyChanged;
             _viewModel.H3VideoEditorVM.PropertyChanged += H3VideoEditorVM_PropertyChanged;
             _viewModel.CharacterSwapVM.PropertyChanged += CharacterSwapVM_PropertyChanged;
+            _viewModel.RemakeVM.PropertyChanged += RemakeVM_PropertyChanged;
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
@@ -66,6 +67,7 @@ namespace FlipPix.UI
             ApplySeedUpscaleSource();
             ApplyH3EditorSource();
             ApplyCharacterSwapSource();
+            ApplyRemakeSource();
         }
 
         private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -182,6 +184,44 @@ namespace FlipPix.UI
 
         private void CharacterSwapLog_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) =>
             (sender as System.Windows.Controls.TextBox)?.ScrollToEnd();
+
+        // ── Remake tab ──────────────────────────────────────────────────────────────────────────
+
+        private void RemakeVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(ViewModels.Video.RemakeViewModel.ActivePreview)) return;
+            if (Dispatcher.CheckAccess()) ApplyRemakeSource();
+            else Dispatcher.Invoke(ApplyRemakeSource);
+        }
+
+        private void ApplyRemakeSource() => ApplySharedPlayerSource(RemakePlayer, _viewModel.RemakeVM.ActivePreview);
+
+        private void RemakePlayer_MediaOpened(object sender, RoutedEventArgs e) => RemakePlayer.Play();
+
+        private void RemakePlayer_MediaEnded(object sender, RoutedEventArgs e)
+        {
+            RemakePlayer.Position = System.TimeSpan.FromMilliseconds(1);
+            RemakePlayer.Play();
+        }
+
+        private void RemakeLog_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) =>
+            (sender as System.Windows.Controls.TextBox)?.ScrollToEnd();
+
+        private static string? DroppedVideo(System.Windows.DragEventArgs e) =>
+            e.Data.GetData(System.Windows.DataFormats.FileDrop) is string[] { Length: > 0 } files
+            && new[] { ".mp4", ".mov", ".mkv", ".webm", ".avi" }.Contains(System.IO.Path.GetExtension(files[0]).ToLowerInvariant())
+                ? files[0] : null;
+
+        private void RemakeDropZone_DragOver(object sender, System.Windows.DragEventArgs e)
+        {
+            e.Effects = DroppedVideo(e) != null ? System.Windows.DragDropEffects.Copy : System.Windows.DragDropEffects.None;
+            e.Handled = true;
+        }
+
+        private void RemakeDropZone_Drop(object sender, System.Windows.DragEventArgs e)
+        {
+            if (DroppedVideo(e) is { } path) _ = _viewModel.RemakeVM.SetVideoAsync(path);
+        }
 
         private void H3VrPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e) =>
             _viewModel.H3VrVM.ReportPreviewFailed(e.ErrorException?.Message ?? "unknown media error");
@@ -800,6 +840,7 @@ namespace FlipPix.UI
             SeedUpscaleVideoPlayer?.Stop();
             H3EditorVideoPlayer?.Stop();
             CharacterSwapPlayer?.Stop();
+            RemakePlayer?.Stop();
         }
 
         protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
@@ -826,6 +867,7 @@ namespace FlipPix.UI
             _viewModel.Scail2VM.PropertyChanged -= Scail2VM_PropertyChanged;
             _viewModel.H3VideoEditorVM.PropertyChanged -= H3VideoEditorVM_PropertyChanged;
             _viewModel.CharacterSwapVM.PropertyChanged -= CharacterSwapVM_PropertyChanged;
+            _viewModel.RemakeVM.PropertyChanged -= RemakeVM_PropertyChanged;
             _viewModel.PlayRequested -= OnPlayRequested;
 
             if (_viewModel is IDisposable disposable)

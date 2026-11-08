@@ -324,6 +324,35 @@ wget https://huggingface.co/lightx2v/Qwen-Image-Lightning/resolve/main/Qwen-Imag
 wget "https://huggingface.co/dx8152/Qwen-Edit-2509-Multiple-angles/resolve/main/%E9%95%9C%E5%A4%B4%E8%BD%AC%E6%8D%A2.safetensors" -O mult-angles.safetensors
 ```
 
+### 3.5 Viggle Remake (for the 🎞 Remake tab)
+
+The Remake tab re-renders a clip with its motion, camera, timing and sound kept while painted frames change
+who is in it (swap) or what the place looks like (edit). It runs on the MiniMax H3 install the H3 tabs already
+use (Qwen3-VL 32B H3 text encoder, H3 video and audio VAEs) and needs three more things:
+
+1. **The node pack** `ComfyUI-Viggle-Remake` (Apache-2.0), copied into `custom_nodes`, then restart ComfyUI:
+   ```bash
+   hf download Viggle/Viggle-Remake --include "comfyui/ComfyUI-Viggle-Remake/*" --local-dir ./Viggle-Remake
+   cp -r Viggle-Remake/comfyui/ComfyUI-Viggle-Remake ComfyUI/custom_nodes/
+   ```
+2. **The Remake transformers**, one per mode, LoRA already merged (21 GB each, the right size for a 24–32 GB card):
+   ```bash
+   hf download Viggle/Viggle-Remake --include "int8/*" --local-dir ./Viggle-Remake
+   mv Viggle-Remake/int8/*.safetensors ComfyUI/models/diffusion_models/
+   ```
+   The tab finds `viggle_remake_swap_*` and `viggle_remake_edit_*` in any diffusion-models subfolder. Without them it
+   falls back to the base `minimax_h3_fl2va` model plus `viggle_remake_{swap,edit}_comfyui.safetensors` in `loras`.
+3. **Qwen Image 2.1 Edit** (paints the frames) and **Qwen3-VL 8B** (writes the prompt), both used by other tabs.
+
+On a 24 GB card the int8 files render 832×480 at any length (up to 345 frames) and 1280×736 up to 124 frames;
+the tab limits the length picker to match.
+
+**HD ×2** (the default quality) renders at 480, lifts the clip ×2 with the MiniMax H3 3D latent upscaler and refines
+it in three steps with the same Remake conditioning — the I2V tabs' scheme — for 1664×960 out. It needs
+`minimax_h3_latent_upscaler_3d_fp16.safetensors` in `latent_upscale_models` and the
+`Comfyui_Minimax_h3_latent_Upscaler` node pack, both already used by the I2V tabs. On a 4090: 124 frames in about
+2:30, 260 frames in about 7:20.
+
 ---
 
 ## Step 4: Verify Installation

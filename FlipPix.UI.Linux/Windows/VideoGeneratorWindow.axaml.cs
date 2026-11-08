@@ -9,6 +9,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using FlipPix.UI.Linux.Controls;
@@ -70,6 +71,9 @@ public partial class VideoGeneratorWindow : AppWindow
         _viewModel.SeedUpscaleVM.PropertyChanged += SeedUpscaleVM_PropertyChanged;
         _viewModel.H3VideoEditorVM.PropertyChanged += H3VideoEditorVM_PropertyChanged;
         _viewModel.CharacterSwapVM.PropertyChanged += CharacterSwapVM_PropertyChanged;
+        _viewModel.RemakeVM.PropertyChanged += RemakeVM_PropertyChanged;
+        RemakeDropZone.AddHandler(DragDrop.DragOverEvent, RemakeDropZone_DragOver);
+        RemakeDropZone.AddHandler(DragDrop.DropEvent, RemakeDropZone_Drop);
 
         // WPF's CastThumbnailStyle carried an EventSetter; Avalonia themes cannot, so the window
         // listens for clicks on any border wearing that theme.
@@ -85,6 +89,7 @@ public partial class VideoGeneratorWindow : AppWindow
         ApplySeedUpscaleSource();
         ApplyH3EditorSource();
         ApplyCharacterSwapSource();
+        ApplyRemakeSource();
     }
 
     private void Header_MouseLeftButtonDown(object? sender, PointerPressedEventArgs e) => Header_PointerPressed(sender, e);
@@ -169,6 +174,39 @@ public partial class VideoGeneratorWindow : AppWindow
     private void CharacterSwapLog_TextChanged(object? sender, TextChangedEventArgs e)
     {
         if (sender is TextBox log) log.CaretIndex = log.Text?.Length ?? 0;
+    }
+
+    // ── Remake tab ──────────────────────────────────────────────────────────────────────────
+    private void RemakeVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(RemakeViewModel.ActivePreview)) OnUi(ApplyRemakeSource);
+    }
+
+    private void ApplyRemakeSource() => ApplySharedPlayerSource(RemakePlayer, _viewModel.RemakeVM.ActivePreview);
+    private void RemakePlayer_MediaOpened(object? sender, RoutedEventArgs e) => RemakePlayer.Play();
+    private void RemakePlayer_MediaEnded(object? sender, RoutedEventArgs e) => Loop(RemakePlayer);
+
+    private void RemakeLog_TextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (sender is TextBox log) log.CaretIndex = log.Text?.Length ?? 0;
+    }
+
+    private static string? DroppedVideo(DragEventArgs e)
+    {
+        var path = e.Data.GetFiles()?.Select(f => f.TryGetLocalPath()).FirstOrDefault(p => p != null);
+        return path != null && new[] { ".mp4", ".mov", ".mkv", ".webm", ".avi" }
+            .Contains(System.IO.Path.GetExtension(path).ToLowerInvariant()) ? path : null;
+    }
+
+    private void RemakeDropZone_DragOver(object? sender, DragEventArgs e)
+    {
+        e.DragEffects = DroppedVideo(e) != null ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void RemakeDropZone_Drop(object? sender, DragEventArgs e)
+    {
+        if (DroppedVideo(e) is { } path) _ = _viewModel.RemakeVM.SetVideoAsync(path);
     }
 
     private void H3VideoEditorVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -613,6 +651,7 @@ public partial class VideoGeneratorWindow : AppWindow
         SeedUpscaleVideoPlayer?.Stop();
         H3EditorVideoPlayer?.Stop();
         CharacterSwapPlayer?.Stop();
+        RemakePlayer?.Stop();
     }
 
     protected override void OnClosing(WindowClosingEventArgs e)
@@ -635,6 +674,7 @@ public partial class VideoGeneratorWindow : AppWindow
         _viewModel.Scail2VM.PropertyChanged -= Scail2VM_PropertyChanged;
         _viewModel.H3VideoEditorVM.PropertyChanged -= H3VideoEditorVM_PropertyChanged;
         _viewModel.CharacterSwapVM.PropertyChanged -= CharacterSwapVM_PropertyChanged;
+        _viewModel.RemakeVM.PropertyChanged -= RemakeVM_PropertyChanged;
         _viewModel.PlayRequested -= OnPlayRequested;
         if (_viewModel is IDisposable disposable) disposable.Dispose();
         DataContext = null;

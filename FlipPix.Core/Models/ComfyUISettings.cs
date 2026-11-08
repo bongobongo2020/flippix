@@ -355,6 +355,9 @@ public class ComfyUISettings
     // Character Swap tab (Openjutsu's MiniMax H3 one-click swap): the last choices on the page.
     public CharacterSwapSettings CharacterSwap { get; set; } = new CharacterSwapSettings();
 
+    // Remake tab (Viggle Remake on MiniMax H3): the last choices on the page.
+    public RemakeSettings Remake { get; set; } = new RemakeSettings();
+
     // Painter (WAN 2.2 LightX2V) workflow model names — adjust to match your ComfyUI server
     public string PainterHighNoiseModel { get; set; } = @"wan\wan2.2_i2v_high_noise_14B_Q8_0.gguf";
     public string PainterLowNoiseModel { get; set; } = @"wan\wan2.2_i2v_low_noise_14B_Q8_0.gguf";
@@ -626,4 +629,18 @@ public class CharacterSwapSettings
     public string Lora { get; set; } = string.Empty;
     public double LoraStrength { get; set; } = 1.0;
     public string LastVideoFolder { get; set; } = string.Empty;
+}
+
+public class RemakeSettings
+{
+    /// <summary>"Swap" (people and characters) or "Edit" (objects, setting, weather, light).</summary>
+    public string Mode { get; set; } = "Swap";
+    public int ShortEdge { get; set; } = 480;
+    /// <summary>The 🎞 Remake tab's HD ×2: a 480 render lifted ×2 in latent space and refined.</summary>
+    public bool LatentUpscale { get; set; } = true;
+    public int Frames { get; set; } = 124;
+    public double KeyframeUntil { get; set; } = 0.9;
+    public string Model { get; set; } = string.Empty;
+    public string LastVideoFolder { get; set; } = string.Empty;
+    public string LastPhotoFolder { get; set; } = string.Empty;
 }
