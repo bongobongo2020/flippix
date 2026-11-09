@@ -4190,6 +4190,55 @@
                                                     </StackPanel>
                                                 </StackPanel>
 
+                                                <!-- ─── Subjects ── who is in Picture 1 and what they wear, read once per picture
+                                                     and pinned into the idea by 👕 Apply, so every draft keeps the same outfits.
+                                                     See MiniMaxI2VViewModel.Wardrobe.cs. -->
+                                                <StackPanel Margin="0,12,0,0" Visibility="{Binding ShowSubjectsBox, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <Grid Margin="0,0,0,6">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <ctrl:SectionHeader Title="SUBJECTS" Note="  · clothing kept the same in every take" VerticalAlignment="Center"/>
+                                                        <Button Grid.Column="1" Content="↻" Command="{Binding DetectSubjectsCommand}"
+                                                                Width="30" Height="26" Padding="0" FontSize="12"
+                                                                Style="{StaticResource AccentOutlineButtonStyle}"
+                                                                ToolTip="Look at Picture 1 again and re-describe who is in it and what they wear. Replaces the rows below."/>
+                                                    </Grid>
+                                                    <TextBlock Text="{Binding SubjectsStatus}" TextWrapping="Wrap" FontSize="10" Margin="0,0,0,6"
+                                                               Foreground="{StaticResource TextMutedBrush}"
+                                                               Visibility="{Binding HasSubjectsStatus, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                    <ItemsControl ItemsSource="{Binding Subjects}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <StackPanel Margin="0,0,0,8">
+                                                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
+                                                                        <TextBlock Text="{Binding Title}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"
+                                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                                                        <TextBlock Text=" — " FontSize="11" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
+                                                                        <ComboBox ItemsSource="{Binding Sexes}" SelectedItem="{Binding Sex}"
+                                                                                  Height="24" MinWidth="80" FontSize="11"
+                                                                                  ToolTip="Who this is. Fix it if the detector got it wrong."/>
+                                                                        <TextBlock Text="{Binding Position, StringFormat=  · {0}}" FontSize="10" VerticalAlignment="Center"
+                                                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                                                   Visibility="{Binding HasPosition, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                                    </StackPanel>
+                                                                    <TextBox Text="{Binding Clothing, UpdateSourceTrigger=PropertyChanged}"
+                                                                             TextWrapping="Wrap" AcceptsReturn="False" MinHeight="44"
+                                                                             BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                                                             FontSize="11" Padding="6"
+                                                                             ToolTip="What this person wears. Edit freely — 👕 Apply to idea writes exactly this into the idea."/>
+                                                                </StackPanel>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                    <Button Content="👕 Apply to idea" Command="{Binding ApplyWardrobeCommand}"
+                                                            Height="28" FontSize="11" Padding="10,0" HorizontalAlignment="Stretch"
+                                                            Style="{StaticResource AccentOutlineButtonStyle}"
+                                                            Visibility="{Binding HasSubjects, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                            ToolTip="Write these outfits into the idea below as a wardrobe block, replacing any earlier one. Press it again after loading another draft so every take keeps the same clothes."/>
+                                                </StackPanel>
+
                                                 <Grid Margin="0,12,0,6">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*"/>

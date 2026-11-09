@@ -5557,6 +5557,41 @@
                                                            Foreground="{StaticResource TextMutedBrush}"/>
                                             </StackPanel>
                                         </StackPanel>
+                                        <!-- Subjects: who is in Picture 1 and what they wear (MiniMaxI2VViewModel.Wardrobe.cs). -->
+                                        <StackPanel Margin="0,8,0,0" IsVisible="{Binding ShowSubjectsBox}">
+                                            <Grid Margin="0,0,0,6" ColumnDefinitions="*,Auto">
+                                                <ctrl:SectionHeader Title="SUBJECTS" Note="  · clothing kept the same in every take" VerticalAlignment="Center"/>
+                                                <Button Grid.Column="1" Content="↻" Command="{Binding DetectSubjectsCommand}"
+                                                        Width="30" Height="26" Padding="0" FontSize="12"
+                                                        Theme="{StaticResource AccentOutlineButtonStyle}"
+                                                        ToolTip.Tip="Look at Picture 1 again and re-describe who is in it and what they wear."/>
+                                            </Grid>
+                                            <TextBlock Text="{Binding SubjectsStatus}" TextWrapping="Wrap" FontSize="10" Margin="0,0,0,6"
+                                                       Foreground="{StaticResource TextMutedBrush}" IsVisible="{Binding HasSubjectsStatus}"/>
+                                            <ItemsControl ItemsSource="{Binding Subjects}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="m:MiniMaxI2VSubject">
+                                                        <StackPanel Margin="0,0,0,8">
+                                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,3" Spacing="6">
+                                                                <TextBlock Text="{Binding Title}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"
+                                                                           Foreground="{DynamicResource TabAccentBrush}"/>
+                                                                <ComboBox ItemsSource="{Binding Sexes}" SelectedItem="{Binding Sex}"
+                                                                          Height="26" MinWidth="90" FontSize="11"/>
+                                                                <TextBlock Text="{Binding Position}" FontSize="10" VerticalAlignment="Center"
+                                                                           Foreground="{StaticResource TextMutedBrush}" IsVisible="{Binding HasPosition}"/>
+                                                            </StackPanel>
+                                                            <TextBox Text="{Binding Clothing}" TextWrapping="Wrap" MinHeight="44"
+                                                                     BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                                                     FontSize="11" Padding="6"/>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <Button Content="👕 Apply to idea" Command="{Binding ApplyWardrobeCommand}"
+                                                    Height="28" FontSize="11" Padding="10,0" HorizontalAlignment="Stretch"
+                                                    Theme="{StaticResource AccentOutlineButtonStyle}" IsVisible="{Binding HasSubjects}"
+                                                    ToolTip.Tip="Write these outfits into the idea as a wardrobe block, replacing any earlier one."/>
+                                        </StackPanel>
                                         <ctrl:SectionHeader Title="IDEA" Note="  · a draft idea, or the full prompt" Margin="0,8,0,6"/>
                                         <TextBox Text="{Binding Prompt}"
                                                  TextWrapping="Wrap"
