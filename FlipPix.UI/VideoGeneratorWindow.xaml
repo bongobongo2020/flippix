@@ -4300,7 +4300,7 @@
                                                 </Grid>
                                                 <TextBlock Text="{Binding UltraFrameSummary}" Visibility="{Binding IsUltra, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="0,2,0,0"
                                                            FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
-                                                <!-- 🌹 2-Pass: its duration, preview and Continue mode — per-take choices, so on this card. -->
+                                                <!-- 🌹 2-Pass: its duration. Preview and Continue live under ⚙ Settings. -->
                                                 <StackPanel Visibility="{Binding IsTwoPass, Converter={StaticResource BooleanToVisibilityConverter}}">
                                                     <Grid Margin="0,8,0,0">
                                                         <Grid.ColumnDefinitions>
@@ -4320,8 +4320,98 @@
                                                     </Grid>
                                                     <TextBlock Text="{Binding TwoPassFrameSummary}" Margin="0,2,0,0" TextWrapping="Wrap"
                                                                FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                                                </StackPanel>
+
+                                                <Button Command="{Binding AnalyzeAndQueueCommand}" Height="42" Margin="0,14,0,0"
+                                                        Style="{StaticResource AccentButtonStyle}" FontSize="13"
+                                                        ToolTip="Freezes the pictures, the idea and every setting into a new queue row, writes its Ref2VA prompt in the background, and starts rendering as soon as the prompt is ready — unless something is already rendering, in which case it waits its turn.&#x0a;&#x0a;The card is free again immediately: load the next picture and press it again. Each press is its own row.">
+                                                    <TextBlock Text="✨  Analyze &amp; Queue" FontWeight="Bold"/>
+                                                </Button>
+                                                <TextBlock Text="Each press becomes its own queue row — load the next picture right away."
+                                                           FontSize="10" TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,6,0,0"
+                                                           Foreground="{StaticResource TextMutedBrush}"/>
+                                                <Grid Margin="0,10,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Button Content="✎  Write prompt" Command="{Binding AnalyzeCommand}" Height="30" FontSize="11" Margin="0,0,4,0"
+                                                            Style="{StaticResource AccentOutlineButtonStyle}"
+                                                            ToolTip="Writes the prompt into the box (and any continuation boxes) so you can read or edit it before queuing — nothing is queued. Use ⚡ Queue as written afterwards."/>
+                                                    <Button Grid.Column="1" Content="⚡  Queue as written" Command="{Binding GenerateCommand}" Height="30" FontSize="11" Margin="4,0,0,0"
+                                                            ToolTipService.ShowOnDisabled="True">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button" BasedOn="{StaticResource AccentOutlineButtonStyle}">
+                                                                <Setter Property="ToolTip" Value="Queues the prompt in the box exactly as written, with no analysis."/>
+                                                                <Style.Triggers>
+                                                                    <Trigger Property="IsEnabled" Value="False">
+                                                                        <Setter Property="ToolTip" Value="{Binding GenerateBlockedReason}"/>
+                                                                    </Trigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                    </Button>
+                                                </Grid>
+                                                <TextBlock Text="✍️ Writing the prompt into the box…" FontSize="11" FontStyle="Italic" Margin="0,8,0,0"
+                                                           Foreground="{DynamicResource TabAccentBrush}"
+                                                           Visibility="{Binding IsAnalyzing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- ─── ⚙ Settings ──────────────────────────────────────────────────
+                                             Everything that is set once and left: the location plate, continuations, the
+                                             render stack, the canvas, finishing and every 💎 Ultra dial. One click away, shut
+                                             by default so the card above is the whole page. -->
+                                        <ToggleButton IsChecked="{Binding ShowSettings}" Style="{StaticResource I2VDisclosureStyle}" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <TextBlock Text="⚙  Settings" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                <TextBlock Text="Location plate, preview, continue a video, continuations, model, LoRAs, canvas, finishing" FontSize="10" Margin="0,2,0,0"
+                                                           Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                        </ToggleButton>
+                                        <StackPanel Visibility="{Binding ShowSettings, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <Border Style="{StaticResource SectionCardStyle}">
+                                                <StackPanel>
+                                                    <ctrl:SectionHeader Title="GENERAL" Margin="0,0,0,8"/>
+                                                    <CheckBox Content="🏞️ Render a location plate on Analyze" IsChecked="{Binding AutoLocationPlate}"
+                                                              FontSize="11" Margin="0,0,0,2" Foreground="{StaticResource TextPrimaryBrush}"
+                                                              ToolTip="Before writing the prompt, Analyze asks the LLM for the place the draft idea happens in — two or three landmarks placed left, right and far, and nobody in it — renders it with the Image Generator's Qwen Image 2512 graph at the clip's aspect, and stages the take in it. Without a picture of the place, takes tend to come out flat.&#x0a;&#x0a;✨ Analyze &amp; Queue renders a fresh plate for each take and keeps it with that queue row. ✎ Write prompt puts it in the first free reference slot, where every later Analyze reuses it — clear the slot to get a new one. Skipped when all four slots are full or Picture 1 is a stereo pair.&#x0a;&#x0a;The plate waits its turn for the GPU, so while a video is rendering the prompt is written after that render finishes."/>
+                                                    <TextBlock Text="{Binding LocationPlateSummary}" Margin="20,0,0,10" TextWrapping="Wrap"
+                                                               FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                                                    <Grid Margin="0,8,0,0" Visibility="{Binding IsUltra, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="{Binding UltraAuthoredBadge}" FontSize="10" TextWrapping="Wrap" VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                                        <Button Grid.Column="1" Content="&#x21BA; Workflow defaults" Height="24" Padding="8,0" FontSize="10" Margin="6,0,0,0"
+                                                                Command="{Binding ResetUltraCommand}"
+                                                                Style="{StaticResource AccentOutlineButtonStyle}"
+                                                                ToolTip="Put every Ultra dial back on the value the workflow was tested with."/>
+                                                    </Grid>
+                                                    <Grid Margin="0,8,0,0" Visibility="{Binding IsTwoPass, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="{Binding TwoPassAuthoredBadge}" FontSize="10" TextWrapping="Wrap" VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                                        <Button Grid.Column="1" Content="&#x21BA; Workflow defaults" Height="24" Padding="8,0" FontSize="10" Margin="6,0,0,0"
+                                                                Command="{Binding ResetTwoPassCommand}"
+                                                                Style="{StaticResource AccentOutlineButtonStyle}"
+                                                                ToolTip="Put every 2-Pass dial back on the workflow's authored value, and clear its LoRA rows and RefMods."/>
+                                                    </Grid>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- ─── 🌹 2-Pass · preview and Continue ── per-take switches, moved off the
+                                                 New take card to keep it short. Still read when the take is queued. -->
+                                            <Border Style="{StaticResource SectionCardStyle}" Visibility="{Binding IsTwoPass, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <StackPanel>
+                                                    <ctrl:SectionHeader Title="🌹 2-PASS · PREVIEW &amp; CONTINUE" Margin="0,0,0,8"/>
                                                     <CheckBox Content="👁 Preview — first pass only" IsChecked="{Binding TwoPass.PreviewOnly}"
-                                                              FontSize="11" Margin="0,8,0,0" Foreground="{StaticResource TextPrimaryBrush}"
+                                                              FontSize="11" Margin="0,0,0,0" Foreground="{StaticResource TextPrimaryBrush}"
                                                               ToolTip="'Preview - skip second pass': skips the learned latent upscale and the refining pass and saves the first-pass video with its audio. Off as authored.&#x0a;&#x0a;Reusing a preview: render with a fixed seed, then queue it again with Preview off and nothing else changed — if ComfyUI still holds the cached first pass, the full take goes straight to the upscale and refinement."/>
 
                                                     <Border Margin="0,10,0,0" Padding="8" CornerRadius="6" BorderThickness="1"
@@ -4377,88 +4467,6 @@
                                                                        Foreground="{StaticResource TextMutedBrush}"/>
                                                         </StackPanel>
                                                     </Border>
-                                                </StackPanel>
-
-                                                <Button Command="{Binding AnalyzeAndQueueCommand}" Height="42" Margin="0,14,0,0"
-                                                        Style="{StaticResource AccentButtonStyle}" FontSize="13"
-                                                        ToolTip="Freezes the pictures, the idea and every setting into a new queue row, writes its Ref2VA prompt in the background, and starts rendering as soon as the prompt is ready — unless something is already rendering, in which case it waits its turn.&#x0a;&#x0a;The card is free again immediately: load the next picture and press it again. Each press is its own row.">
-                                                    <TextBlock Text="✨  Analyze &amp; Queue" FontWeight="Bold"/>
-                                                </Button>
-                                                <TextBlock Text="Each press becomes its own queue row — load the next picture right away."
-                                                           FontSize="10" TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,6,0,0"
-                                                           Foreground="{StaticResource TextMutedBrush}"/>
-                                                <Grid Margin="0,10,0,0">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <Button Content="✎  Write prompt" Command="{Binding AnalyzeCommand}" Height="30" FontSize="11" Margin="0,0,4,0"
-                                                            Style="{StaticResource AccentOutlineButtonStyle}"
-                                                            ToolTip="Writes the prompt into the box (and any continuation boxes) so you can read or edit it before queuing — nothing is queued. Use ⚡ Queue as written afterwards."/>
-                                                    <Button Grid.Column="1" Content="⚡  Queue as written" Command="{Binding GenerateCommand}" Height="30" FontSize="11" Margin="4,0,0,0"
-                                                            ToolTipService.ShowOnDisabled="True">
-                                                        <Button.Style>
-                                                            <Style TargetType="Button" BasedOn="{StaticResource AccentOutlineButtonStyle}">
-                                                                <Setter Property="ToolTip" Value="Queues the prompt in the box exactly as written, with no analysis."/>
-                                                                <Style.Triggers>
-                                                                    <Trigger Property="IsEnabled" Value="False">
-                                                                        <Setter Property="ToolTip" Value="{Binding GenerateBlockedReason}"/>
-                                                                    </Trigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Button.Style>
-                                                    </Button>
-                                                </Grid>
-                                                <TextBlock Text="✍️ Writing the prompt into the box…" FontSize="11" FontStyle="Italic" Margin="0,8,0,0"
-                                                           Foreground="{DynamicResource TabAccentBrush}"
-                                                           Visibility="{Binding IsAnalyzing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                            </StackPanel>
-                                        </Border>
-
-                                        <!-- ─── ⚙ Settings ──────────────────────────────────────────────────
-                                             Everything that is set once and left: the location plate, continuations, the
-                                             render stack, the canvas, finishing and every 💎 Ultra dial. One click away, shut
-                                             by default so the card above is the whole page. -->
-                                        <ToggleButton IsChecked="{Binding ShowSettings}" Style="{StaticResource I2VDisclosureStyle}" Margin="0,0,0,10">
-                                            <StackPanel>
-                                                <TextBlock Text="⚙  Settings" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                                <TextBlock Text="Location plate, continuations, model, LoRAs, canvas, finishing" FontSize="10" Margin="0,2,0,0"
-                                                           Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis"/>
-                                            </StackPanel>
-                                        </ToggleButton>
-                                        <StackPanel Visibility="{Binding ShowSettings, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                            <Border Style="{StaticResource SectionCardStyle}">
-                                                <StackPanel>
-                                                    <ctrl:SectionHeader Title="GENERAL" Margin="0,0,0,8"/>
-                                                    <CheckBox Content="🏞️ Render a location plate on Analyze" IsChecked="{Binding AutoLocationPlate}"
-                                                              FontSize="11" Margin="0,0,0,2" Foreground="{StaticResource TextPrimaryBrush}"
-                                                              ToolTip="Before writing the prompt, Analyze asks the LLM for the place the draft idea happens in — two or three landmarks placed left, right and far, and nobody in it — renders it with the Image Generator's Qwen Image 2512 graph at the clip's aspect, and stages the take in it. Without a picture of the place, takes tend to come out flat.&#x0a;&#x0a;✨ Analyze &amp; Queue renders a fresh plate for each take and keeps it with that queue row. ✎ Write prompt puts it in the first free reference slot, where every later Analyze reuses it — clear the slot to get a new one. Skipped when all four slots are full or Picture 1 is a stereo pair.&#x0a;&#x0a;The plate waits its turn for the GPU, so while a video is rendering the prompt is written after that render finishes."/>
-                                                    <TextBlock Text="{Binding LocationPlateSummary}" Margin="20,0,0,10" TextWrapping="Wrap"
-                                                               FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
-                                                    <Grid Margin="0,8,0,0" Visibility="{Binding IsUltra, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="*"/>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Text="{Binding UltraAuthoredBadge}" FontSize="10" TextWrapping="Wrap" VerticalAlignment="Center"
-                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
-                                                        <Button Grid.Column="1" Content="&#x21BA; Workflow defaults" Height="24" Padding="8,0" FontSize="10" Margin="6,0,0,0"
-                                                                Command="{Binding ResetUltraCommand}"
-                                                                Style="{StaticResource AccentOutlineButtonStyle}"
-                                                                ToolTip="Put every Ultra dial back on the value the workflow was tested with."/>
-                                                    </Grid>
-                                                    <Grid Margin="0,8,0,0" Visibility="{Binding IsTwoPass, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="*"/>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Text="{Binding TwoPassAuthoredBadge}" FontSize="10" TextWrapping="Wrap" VerticalAlignment="Center"
-                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
-                                                        <Button Grid.Column="1" Content="&#x21BA; Workflow defaults" Height="24" Padding="8,0" FontSize="10" Margin="6,0,0,0"
-                                                                Command="{Binding ResetTwoPassCommand}"
-                                                                Style="{StaticResource AccentOutlineButtonStyle}"
-                                                                ToolTip="Put every 2-Pass dial back on the workflow's authored value, and clear its LoRA rows and RefMods."/>
-                                                    </Grid>
                                                 </StackPanel>
                                             </Border>
 
