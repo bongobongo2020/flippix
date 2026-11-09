@@ -2999,1759 +2999,6 @@
                 </Grid>
             </TabItem>
             <!-- ═══════════════════════════════════════════════════════════════════════
-                         Tab: H3 Express
-
-                         H3 Batch without the seed hunt. A folder of story .txt files in, one joined
-                         film per story out; each story's clips are rendered once each, in order -
-                         no three drafts, no pick, no board.
-
-                         Deliberately small. Where Batch keeps the whole Eros rail under its folder
-                         card so a run can be inspected, this page is only what an unattended run
-                         needs: the folder and its stories, the handful of dials that change the
-                         film, a Render button, the player and a strip of clip chips.
-
-                         Singularity and Researched prompts both start ticked.
-                         ═══════════════════════════════════════════════════════════════════════ -->
-            <TabItem Header="⚡ H3 Express">
-                <Grid x:DataType="vmv:H3ExpressViewModel"
-                      x:Name="H3ExpressRoot"
-                      DataContext="{Binding H3ExpressVM}"
-                      Theme="{StaticResource TabPageStyle}">
-                    <Grid.Resources>
-                        <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource AccentVioletColor}"/>
-                        <!-- One CAST slot: the photo is the button; ✕ clears it; the sex is under it. -->
-                        <DataTemplate x:DataType="m:ExpressCastMember" x:Key="ExpressCastMemberTemplate">
-                            <StackPanel>
-                                <Grid Margin="0,0,0,4">
-                                    <TextBlock Text="{Binding Heading}"
-                                               FontSize="11"
-                                               FontWeight="SemiBold"
-                                               Foreground="{StaticResource TextPrimaryBrush}"/>
-                                    <TextBlock Text="{Binding Tag}"
-                                               FontSize="9"
-                                               FontFamily="Consolas, DejaVu Sans Mono, Liberation Mono, monospace"
-                                               HorizontalAlignment="Right"
-                                               VerticalAlignment="Center"
-                                               Foreground="{StaticResource TextMutedBrush}"/>
-                                </Grid>
-                                <Grid>
-                                    <Button Command="{Binding BrowseCommand}"
-                                            Height="124"
-                                            Cursor="Hand"
-                                            ToolTip.Tip="The person who plays this part in every story of the run. Click to choose or change the photo."
-                                            Classes="t21">
-                                        <Button.Styles>
-                                            <Style Selector="Button.t21:pointerover /template/ Border#Bd">
-                                                <Setter Property="BorderBrush" Value="{DynamicResource TabAccentBrush}"/>
-                                            </Style>
-                                            <Style Selector="Button.t21:disabled /template/ Border#Bd">
-                                                <Setter Property="Opacity" Value="0.6"/>
-                                            </Style>
-                                        </Button.Styles>
-                                        <Button.Template>
-                                            <ControlTemplate TargetType="Button">
-                                                <Border x:Name="Bd"
-                                                        CornerRadius="6"
-                                                        BorderThickness="1"
-                                                        ClipToBounds="True"
-                                                        BorderBrush="{StaticResource BorderBrush}"
-                                                        Background="{StaticResource SurfaceAltBrush}">
-                                                    <ContentPresenter Content="{TemplateBinding Content}"
-                                                                      ContentTemplate="{TemplateBinding ContentTemplate}"
-                                                                      Name="PART_ContentPresenter"/>
-                                                </Border>
-                                            </ControlTemplate>
-                                        </Button.Template>
-                                        <Button.Theme>
-                                            <ControlTheme TargetType="Button"/>
-                                        </Button.Theme>
-                                        <Grid>
-                                            <StackPanel HorizontalAlignment="Center"
-                                                        VerticalAlignment="Center"
-                                                        Classes="s22"
-                                                        Classes.s22_0="{Binding !HasPhoto}">
-                                                <StackPanel.Styles>
-                                                    <Style Selector="StackPanel.s22.s22_0" x:DataType="m:ExpressCastMember">
-                                                        <Setter Property="IsVisible" Value="True"/>
-                                                    </Style>
-                                                </StackPanel.Styles>
-                                                <StackPanel.Theme>
-                                                    <ControlTheme TargetType="StackPanel" x:DataType="m:ExpressCastMember">
-                                                        <Setter Property="IsVisible" Value="False"/>
-                                                    </ControlTheme>
-                                                </StackPanel.Theme>
-                                                <TextBlock Text="＋"
-                                                           FontSize="22"
-                                                           HorizontalAlignment="Center"
-                                                           Foreground="{DynamicResource TabAccentBrush}"/>
-                                                <TextBlock Text="Add photo"
-                                                           FontSize="11"
-                                                           FontWeight="SemiBold"
-                                                           HorizontalAlignment="Center"
-                                                           Foreground="{StaticResource TextSecondaryBrush}"/>
-                                                <TextBlock Text="empty: cast from the story"
-                                                           FontSize="9"
-                                                           HorizontalAlignment="Center"
-                                                           Margin="0,2,0,0"
-                                                           Foreground="{StaticResource TextMutedBrush}"/>
-                                            </StackPanel>
-                                            <Image Source="{Binding Preview, Converter={StaticResource PathToBitmapConverter}}" Stretch="UniformToFill"/>
-                                        </Grid>
-                                    </Button>
-                                    <Button Content="✕"
-                                            Command="{Binding ClearCommand}"
-                                            Width="22"
-                                            Height="22"
-                                            Margin="0,5,5,0"
-                                            FontSize="10"
-                                            Cursor="Hand"
-                                            HorizontalAlignment="Right"
-                                            VerticalAlignment="Top"
-                                            IsVisible="{Binding HasPhoto}"
-                                            ToolTip.Tip="Remove this photo — the part is cast from each story again.">
-                                        <Button.Template>
-                                            <ControlTemplate TargetType="Button">
-                                                <Border CornerRadius="11" Background="{StaticResource ScrimBrush}">
-                                                    <ContentPresenter HorizontalAlignment="Center"
-                                                                      VerticalAlignment="Center"
-                                                                      Foreground="{StaticResource PlayerTextBrush}"
-                                                                      Content="{TemplateBinding Content}"
-                                                                      ContentTemplate="{TemplateBinding ContentTemplate}"
-                                                                      Name="PART_ContentPresenter"/>
-                                                </Border>
-                                            </ControlTemplate>
-                                        </Button.Template>
-                                        <Button.Theme>
-                                            <ControlTheme TargetType="Button"/>
-                                        </Button.Theme>
-                                    </Button>
-                                </Grid>
-                                <ComboBox ItemsSource="{Binding SexOptions}"
-                                          SelectedItem="{Binding Sex, Mode=TwoWay}"
-                                          Height="26"
-                                          FontSize="11"
-                                          Margin="0,6,0,0"
-                                          ToolTip.Tip="Who is in the photo. The saved clips call each character he or she, so this should match the story's character — swap the photos if it does not."/>
-                            </StackPanel>
-                        </DataTemplate>
-                        <!-- What one photographed person wears, for the own-clothes mode. -->
-                        <DataTemplate x:DataType="m:ExpressCastMember" x:Key="ExpressCastOutfitTemplate">
-                            <StackPanel Margin="0,8,0,0">
-                                <Grid Margin="0,0,0,3">
-                                    <TextBlock Text="{Binding Heading, StringFormat={}{0} wears}"
-                                               FontSize="10"
-                                               VerticalAlignment="Center"
-                                               Foreground="{StaticResource TextSecondaryBrush}"/>
-                                    <Button Content="👁 Read from photo"
-                                            Command="{Binding ReadOutfitCommand}"
-                                            HorizontalAlignment="Right"
-                                            Height="22"
-                                            Padding="8,0"
-                                            FontSize="10"
-                                            Theme="{StaticResource AccentOutlineButtonStyle}"
-                                            ToolTip.Tip="Ask the vision model what this person is wearing in the photo. You can also just type it."/>
-                                </Grid>
-                                <TextBox Text="{Binding Outfit}"
-                                         TextWrapping="Wrap"
-                                         AcceptsReturn="False"
-                                         MinHeight="40"
-                                         FontSize="11"
-                                         Padding="6,4"
-                                         ToolTip.Tip="One sentence naming every garment with its colour and material. Locked into every clip and used to build this person's character sheet."/>
-                                <TextBlock Text="Reading the photo…"
-                                           FontSize="10"
-                                           Margin="0,3,0,0"
-                                           Foreground="{DynamicResource TabAccentBrush}"
-                                           IsVisible="{Binding IsReadingOutfit}"/>
-                            </StackPanel>
-                        </DataTemplate>
-                        <!-- A small square glyph button on a job row: edit, move, requeue, remove. -->
-                        <ControlTheme x:Key="JobGlyphButtonStyle" TargetType="Button" x:DataType="vmv:H3ExpressViewModel">
-                            <Setter Property="Margin" Value="1,0,0,0"/>
-                            <Setter Property="Padding" Value="0"/>
-                            <Setter Property="Cursor" Value="Hand"/>
-                            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-                            <Setter Property="Background" Value="Transparent"/>
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="Button">
-                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4">
-                                            <ContentPresenter HorizontalAlignment="Center"
-                                                              VerticalAlignment="Center"
-                                                              Content="{TemplateBinding Content}"
-                                                              ContentTemplate="{TemplateBinding ContentTemplate}"
-                                                              Name="PART_ContentPresenter"/>
-                                        </Border>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                            <Style Selector="^:pointerover">
-                                <Setter Property="Foreground" Value="{DynamicResource TabAccentBrush}"/>
-                                <Style Selector="^ /template/ Border#Bd">
-                                    <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
-                                </Style>
-                            </Style>
-                            <Style Selector="^:disabled">
-                                <Setter Property="Opacity" Value="0.3"/>
-                            </Style>
-                        </ControlTheme>
-                        <!-- A cast face on a job row: a small round thumbnail, absent when there is none. -->
-                        <ControlTheme x:Key="JobFaceStyle" TargetType="Border" x:DataType="vmv:H3ExpressViewModel">
-                            <Setter Property="Width" Value="20"/>
-                            <Setter Property="Height" Value="20"/>
-                            <Setter Property="CornerRadius" Value="10"/>
-                            <Setter Property="ClipToBounds" Value="True"/>
-                            <Setter Property="BorderThickness" Value="1"/>
-                            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
-                            <Setter Property="Margin" Value="0,0,3,0"/>
-                        </ControlTheme>
-                        <!-- ═══ One job on the queue ════════════════════════════════════
-                                     The row is the job: its place in the pipeline, what it renders,
-                                     who is in it and on what stack. A queued job can be opened (✎),
-                                     moved or dropped; the one rendering can only be watched; a
-                                     finished one can be sent round again (↻). -->
-                        <DataTemplate x:DataType="m:ExpressJob" x:Key="ExpressJobRowTemplate">
-                            <Border Margin="0,3"
-                                    CornerRadius="6"
-                                    Padding="8,7"
-                                    BorderThickness="1"
-                                    ToolTip.Tip="{Binding Tooltip}"
-                                    Classes="s23"
-                                    Classes.s23_0="{Binding IsRunning}"
-                                    Classes.s23_1="{Binding IsFinished}">
-                                <Border.Styles>
-                                    <Style Selector="Border.s23.s23_0" x:DataType="m:ExpressJob">
-                                        <Setter Property="BorderBrush" Value="{DynamicResource TabAccentBrush}"/>
-                                    </Style>
-                                    <Style Selector="Border.s23.s23_1" x:DataType="m:ExpressJob">
-                                        <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
-                                    </Style>
-                                </Border.Styles>
-                                <Border.Theme>
-                                    <ControlTheme TargetType="Border" x:DataType="m:ExpressJob">
-                                        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-                                        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
-                                    </ControlTheme>
-                                </Border.Theme>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <!-- ①②③ — where in the pipeline this job is. -->
-                                    <TextBlock Grid.Column="0"
-                                               Text="{Binding Ordinal}"
-                                               FontSize="15"
-                                               VerticalAlignment="Top"
-                                               Margin="0,-1,8,0"
-                                               Classes="s24"
-                                               Classes.s24_0="{Binding IsRunning}"
-                                               Classes.s24_1="{Binding IsFinished}">
-                                        <TextBlock.Styles>
-                                            <Style Selector="TextBlock.s24.s24_0" x:DataType="m:ExpressJob">
-                                                <Setter Property="Foreground" Value="{DynamicResource TabAccentBrush}"/>
-                                            </Style>
-                                            <Style Selector="TextBlock.s24.s24_1" x:DataType="m:ExpressJob">
-                                                <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
-                                            </Style>
-                                        </TextBlock.Styles>
-                                        <TextBlock.Theme>
-                                            <ControlTheme TargetType="TextBlock" x:DataType="m:ExpressJob">
-                                                <Setter Property="Foreground" Value="{StaticResource TextFaintBrush}"/>
-                                            </ControlTheme>
-                                        </TextBlock.Theme>
-                                    </TextBlock>
-                                    <StackPanel Grid.Column="1">
-                                        <Grid>
-                                            <TextBlock Text="{Binding Title}"
-                                                       FontSize="11"
-                                                       FontWeight="SemiBold"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       Margin="0,0,74,0"
-                                                       Foreground="{StaticResource TextPrimaryBrush}"/>
-                                            <TextBlock Text="{Binding StateText}"
-                                                       FontSize="9"
-                                                       HorizontalAlignment="Right"
-                                                       VerticalAlignment="Center"
-                                                       Classes="s25"
-                                                       Classes.s25_0="{Binding IsRunning}"
-                                                       Classes.s25_1="{Binding StateText, Converter={x:Static conv:WpfConverters.Equal}, ConverterParameter=finished}"
-                                                       Classes.s25_2="{Binding StateText, Converter={x:Static conv:WpfConverters.Equal}, ConverterParameter=stopped}">
-                                                <TextBlock.Styles>
-                                                    <Style Selector="TextBlock.s25.s25_0" x:DataType="m:ExpressJob">
-                                                        <Setter Property="Foreground" Value="{DynamicResource TabAccentBrush}"/>
-                                                        <Setter Property="FontWeight" Value="SemiBold"/>
-                                                    </Style>
-                                                    <Style Selector="TextBlock.s25.s25_1" x:DataType="m:ExpressJob">
-                                                        <Setter Property="Foreground" Value="{StaticResource SuccessTextBrush}"/>
-                                                    </Style>
-                                                    <Style Selector="TextBlock.s25.s25_2" x:DataType="m:ExpressJob">
-                                                        <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
-                                                    </Style>
-                                                </TextBlock.Styles>
-                                                <TextBlock.Theme>
-                                                    <ControlTheme TargetType="TextBlock" x:DataType="m:ExpressJob">
-                                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-                                                    </ControlTheme>
-                                                </TextBlock.Theme>
-                                            </TextBlock>
-                                        </Grid>
-                                        <TextBlock Text="{Binding StoriesLine}"
-                                                   FontSize="10"
-                                                   Margin="0,1,0,0"
-                                                   Foreground="{StaticResource TextMutedBrush}"/>
-                                        <!-- The faces this job casts with, then what it renders on. -->
-                                        <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
-                                            <Border Theme="{StaticResource JobFaceStyle}"
-                                                    IsVisible="{Binding Cast1Preview, Converter={x:Static ObjectConverters.IsNotNull}}">
-                                                <Image Source="{Binding Cast1Preview, Converter={StaticResource PathToBitmapConverter}}"
-                                                       Stretch="UniformToFill"/>
-                                            </Border>
-                                            <Border Theme="{StaticResource JobFaceStyle}"
-                                                    Margin="0,0,6,0"
-                                                    IsVisible="{Binding Cast2Preview, Converter={x:Static ObjectConverters.IsNotNull}}">
-                                                <Image Source="{Binding Cast2Preview, Converter={StaticResource PathToBitmapConverter}}"
-                                                       Stretch="UniformToFill"/>
-                                            </Border>
-                                            <TextBlock Text="{Binding RenderLine}"
-                                                       FontSize="10"
-                                                       VerticalAlignment="Center"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       Foreground="{StaticResource TextSecondaryBrush}"/>
-                                        </StackPanel>
-                                    </StackPanel>
-                                    <!-- What can be done to it, by state. -->
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
-                                        <Button Content="✎"
-                                                Width="22"
-                                                Height="20"
-                                                FontSize="11"
-                                                Theme="{StaticResource JobGlyphButtonStyle}"
-                                                Command="{Binding $parent[ItemsControl].((vmv:H3ExpressViewModel)DataContext).EditJobCommand}"
-                                                CommandParameter="{Binding}"
-                                                IsVisible="{Binding IsQueued}"
-                                                ToolTip.Tip="Open this job and change its folder, its cast or its settings."/>
-                                        <Button Content="↑"
-                                                Width="20"
-                                                Height="20"
-                                                FontSize="11"
-                                                Theme="{StaticResource JobGlyphButtonStyle}"
-                                                Command="{Binding $parent[ItemsControl].((vmv:H3ExpressViewModel)DataContext).MoveJobUpCommand}"
-                                                CommandParameter="{Binding}"
-                                                IsVisible="{Binding IsQueued}"
-                                                ToolTip.Tip="Run this job sooner."/>
-                                        <Button Content="↓"
-                                                Width="20"
-                                                Height="20"
-                                                FontSize="11"
-                                                Theme="{StaticResource JobGlyphButtonStyle}"
-                                                Command="{Binding $parent[ItemsControl].((vmv:H3ExpressViewModel)DataContext).MoveJobDownCommand}"
-                                                CommandParameter="{Binding}"
-                                                IsVisible="{Binding IsQueued}"
-                                                ToolTip.Tip="Run this job later."/>
-                                        <Button Content="↻"
-                                                Width="22"
-                                                Height="20"
-                                                FontSize="11"
-                                                Theme="{StaticResource JobGlyphButtonStyle}"
-                                                Command="{Binding $parent[ItemsControl].((vmv:H3ExpressViewModel)DataContext).RequeueJobCommand}"
-                                                CommandParameter="{Binding}"
-                                                IsVisible="{Binding IsFinished}"
-                                                ToolTip.Tip="Put this job back on the queue with every story waiting again."/>
-                                        <Button Content="✕"
-                                                Width="20"
-                                                Height="20"
-                                                FontSize="10"
-                                                Command="{Binding $parent[ItemsControl].((vmv:H3ExpressViewModel)DataContext).RemoveJobCommand}"
-                                                CommandParameter="{Binding}"
-                                                ToolTip.Tip="Take this job off the list. Nothing on disk is touched."
-                                                Classes="s26"
-                                                Classes.s26_0="{Binding IsRunning}">
-                                            <Button.Styles>
-                                                <Style Selector="Button.s26.s26_0" x:DataType="m:ExpressJob">
-                                                    <Setter Property="IsVisible" Value="False"/>
-                                                </Style>
-                                            </Button.Styles>
-                                            <Button.Theme>
-                                                <ControlTheme TargetType="Button"
-                                                              BasedOn="{StaticResource JobGlyphButtonStyle}"
-                                                              x:DataType="m:ExpressJob">
-                                                    <Setter Property="IsVisible" Value="True"/>
-                                                </ControlTheme>
-                                            </Button.Theme>
-                                        </Button>
-                                    </StackPanel>
-                                </Grid>
-                            </Border>
-                        </DataTemplate>
-                        <!-- One row of the LoRA stack: the LoRA, its strength, and ✕ to drop it.
-                                     The rows load in the order they are listed, each onto the one above. -->
-                        <DataTemplate x:DataType="m:H3ExpressLoraSlot" x:Key="ExpressLoraRowTemplate">
-                            <Grid Margin="0,0,0,6">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <StackPanel>
-                                    <ComboBox ItemsSource="{Binding $parent[ItemsControl].((vmv:H3ExpressViewModel)DataContext).LoraOptions}"
-                                              DisplayMemberBinding="{ReflectionBinding Label}"
-                                              SelectedValueBinding="{ReflectionBinding Value}"
-                                              SelectedValue="{Binding Name, Mode=TwoWay}"
-                                              Height="28"
-                                              FontSize="11"
-                                              ToolTip.Tip="A LoRA from loras/H3 on the server, applied on top of the checkpoint to every clip. Rows load in the order they are listed."/>
-                                    <StackPanel IsVisible="{Binding HasLora}">
-                                        <Grid Margin="0,3,0,0">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{Binding Title}"
-                                                       FontSize="10"
-                                                       VerticalAlignment="Center"
-                                                       Foreground="{StaticResource TextSecondaryBrush}"/>
-                                            <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="7,0">
-                                                <TextBlock Text="{Binding Strength, StringFormat={}{0:0.00}}"
-                                                           FontFamily="Consolas, DejaVu Sans Mono, Liberation Mono, monospace"
-                                                           FontSize="11"
-                                                           FontWeight="Bold"
-                                                           Foreground="{DynamicResource TabAccentBrush}"/>
-                                            </Border>
-                                        </Grid>
-                                        <Slider Value="{Binding Strength}"
-                                                Minimum="0"
-                                                Maximum="2"
-                                                TickFrequency="0.05"
-                                                IsSnapToTickEnabled="True"
-                                                SmallChange="0.05"
-                                                LargeChange="0.25"
-                                                Foreground="{DynamicResource TabAccentBrush}"
-                                                ToolTip.Tip="The LoRA's strength_model. 1.00 is the default; 0 leaves this row out of the graph."/>
-                                    </StackPanel>
-                                </StackPanel>
-                                <Button Grid.Column="1"
-                                        Content="✕"
-                                        Width="22"
-                                        Height="28"
-                                        FontSize="10"
-                                        Margin="4,0,0,0"
-                                        Padding="0"
-                                        VerticalAlignment="Top"
-                                        Cursor="Hand"
-                                        Command="{Binding $parent[ItemsControl].((vmv:H3ExpressViewModel)DataContext).RemoveLoraCommand}"
-                                        CommandParameter="{Binding}"
-                                        Background="{StaticResource SurfaceAltBrush}"
-                                        Foreground="{StaticResource TextMutedBrush}"
-                                        BorderBrush="{StaticResource BorderBrush}"
-                                        BorderThickness="1"
-                                        ToolTip.Tip="Drop this LoRA."/>
-                            </Grid>
-                        </DataTemplate>
-                    </Grid.Resources>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="340"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <!-- ═══ LEFT RAIL: what to render, and how ═══════════════════════ -->
-                    <Border Grid.Column="0" Theme="{StaticResource TabSideRailStyle}">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <StackPanel Margin="12">
-                                <Border Theme="{StaticResource IntroBannerStyle}">
-                                    <StackPanel>
-                                        <TextBlock Text="⚡ H3 Express" Theme="{StaticResource IntroTitleStyle}"/>
-                                        <TextBlock Theme="{StaticResource IntroBodyStyle}"
-                                                   Text="A folder of stories in, finished films out. No seed hunt: every clip is rendered once, in order, and each story is joined."/>
-                                    </StackPanel>
-                                </Border>
-                                <!-- ─── The job queue ───────────────────────────────────────
-                                             The pipeline, at the top of the rail, because everything under
-                                             it is one job — the one ⚡ Render runs, and the one the page is
-                                             frozen on while it does. ➕ composes another somewhere the
-                                             render is not reading (ExpressJobWindow) and lines it up behind
-                                             this one; it takes the tab over between two stories, bringing
-                                             its own folder, cast and stack with it. -->
-                                <Border Theme="{StaticResource SectionCardStyle}">
-                                    <StackPanel>
-                                        <Grid Margin="0,0,0,8">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <ctrl:SectionHeader Grid.Column="0" Title="JOBS" Note="  · run in order"/>
-                                            <Button Grid.Column="1"
-                                                    Content="Clear finished"
-                                                    Height="20"
-                                                    Padding="7,0"
-                                                    FontSize="9"
-                                                    VerticalAlignment="Top"
-                                                    Theme="{StaticResource JobGlyphButtonStyle}"
-                                                    Command="{Binding ClearFinishedJobsCommand}"
-                                                    IsVisible="{Binding HasFinishedJobs}"
-                                                    ToolTip.Tip="Take the jobs that have finished off the list."/>
-                                        </Grid>
-                                        <ItemsControl ItemsSource="{Binding Jobs}"
-                                                      ItemTemplate="{StaticResource ExpressJobRowTemplate}"
-                                                      IsVisible="{Binding HasJobs}"
-                                                      Margin="0,0,0,8"/>
-                                        <!-- ▶ is here as well as in the header strip because this is
-                                                     where the plan is: with a queue, ▶ starts at ① and works
-                                                     down it. The page is never put in front of the queue. -->
-                                        <Button Content="{Binding StartQueueText}"
-                                                Command="{Binding StartBatchCommand}"
-                                                Height="34"
-                                                FontSize="12"
-                                                Margin="0,0,0,6"
-                                                Theme="{StaticResource AccentButtonStyle}"
-                                                IsVisible="{Binding HasQueuedJobs}"
-                                                ToolTip.Tip="Render the jobs above, in this order — each one's own folder, cast and render settings applied as its turn comes. Same as ⚡ Render at the top of the page."/>
-                                        <Button Content="✕ Stop"
-                                                Command="{Binding StopBatchCommand}"
-                                                Height="30"
-                                                FontSize="11"
-                                                Margin="0,0,0,6"
-                                                Theme="{StaticResource DangerButtonStyle}"
-                                                IsVisible="{Binding IsBatchRunning}"
-                                                ToolTip.Tip="Cut the current story short and stop. Films already made are kept, and the jobs still queued stay on the list."/>
-                                        <Button Content="➕ Queue another job…"
-                                                Command="{Binding NewJobCommand}"
-                                                Height="34"
-                                                FontSize="12"
-                                                Theme="{StaticResource AccentOutlineButtonStyle}"
-                                                ToolTip.Tip="Set up a whole second job — its own folder of stories, its own cast photos and its own render workflow — and line it up behind whatever is running. It does not touch the run in progress: it starts when that one's last film is joined."/>
-                                        <!-- The page's own folder is not in the queue; this is how it
-                                                     gets there, rather than by being slipped in ahead of it. -->
-                                        <Button Content="➕ Add this page as a job"
-                                                Command="{Binding QueuePageCommand}"
-                                                Height="30"
-                                                FontSize="11"
-                                                Margin="0,6,0,0"
-                                                Theme="{StaticResource SecondaryButtonStyle}"
-                                                IsVisible="{Binding CanQueuePage}"
-                                                ToolTip.Tip="Put the folder, cast and settings on this page at the end of the queue, as a job of its own. Without this they are not part of a queued run."/>
-                                        <TextBlock Text="{Binding JobQueueSummary}"
-                                                   FontSize="10"
-                                                   TextWrapping="Wrap"
-                                                   Foreground="{StaticResource TextMutedBrush}"
-                                                   Margin="0,6,0,0"/>
-                                    </StackPanel>
-                                </Border>
-                                <!-- ─── Stories ─────────────────────────────────────────── -->
-                                <Border Theme="{StaticResource SectionCardStyle}">
-                                    <StackPanel>
-                                        <ctrl:SectionHeader Title="STORIES" Note="  · every .txt becomes a film" Margin="0,0,0,8"/>
-                                        <Grid Margin="0,0,0,6">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Grid Grid.Column="0" Margin="0,0,4,0">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="4"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                </Grid.ColumnDefinitions>
-                                                <Button Grid.Column="0"
-                                                        Content="Choose folder…"
-                                                        Command="{Binding PickFolderCommand}"
-                                                        Height="30"
-                                                        FontSize="11"
-                                                        Theme="{StaticResource SecondaryButtonStyle}"
-                                                        ToolTip.Tip="The folder of story files. Every .txt, .md or .text in it becomes one film, in name order. Sub-folders are not searched."/>
-                                                <!-- Saved stories: pick one in the window and press ➕ Add to stories list. -->
-                                                <Button Grid.Column="2"
-                                                        Content="📚 Add saved…"
-                                                        Command="{Binding OpenStoryPromptsCommand}"
-                                                        Height="30"
-                                                        FontSize="11"
-                                                        Padding="6,0"
-                                                        Theme="{StaticResource AccentOutlineButtonStyle}"
-                                                        ToolTip.Tip="Add stories whose clip prompts are already saved — from any folder, or imported from the other H3 tabs. Opens 📚 Story prompts: pick a story and press ➕ Add to stories list (or ➕ Add all). It renders like a story from the folder, with the CAST card."/>
-                                            </Grid>
-                                            <Button Grid.Column="1"
-                                                    Content="⟳"
-                                                    Width="30"
-                                                    Height="30"
-                                                    FontSize="13"
-                                                    Command="{Binding RescanCommand}"
-                                                    Margin="0,0,4,0"
-                                                    Background="{StaticResource SurfaceAltBrush}"
-                                                    Foreground="{DynamicResource TabAccentBrush}"
-                                                    BorderBrush="{StaticResource BorderBrush}"
-                                                    BorderThickness="1"
-                                                    ToolTip.Tip="Re-read the folder. Stories already in the list keep their state."/>
-                                            <Button Grid.Column="2"
-                                                    Content="📁"
-                                                    Width="30"
-                                                    Height="30"
-                                                    FontSize="13"
-                                                    Command="{Binding OpenStoryFolderCommand}"
-                                                    Background="{StaticResource SurfaceAltBrush}"
-                                                    Foreground="{DynamicResource TabAccentBrush}"
-                                                    BorderBrush="{StaticResource BorderBrush}"
-                                                    BorderThickness="1"
-                                                    ToolTip.Tip="Open the story folder in Explorer."/>
-                                        </Grid>
-                                        <TextBlock Text="{Binding FolderSummary}"
-                                                   FontSize="10"
-                                                   TextWrapping="Wrap"
-                                                   Foreground="{StaticResource TextMutedBrush}"
-                                                   Margin="0,0,0,8"/>
-                                        <!-- One row per story: a state dot, the name and what happened, ▶ once
-                                                     it has a film. Commands are reached through the ItemsControl's own
-                                                     DataContext rather than ElementName, which does not resolve from
-                                                     inside a DataTemplate. -->
-                                        <Border BorderBrush="{StaticResource BorderBrush}"
-                                                BorderThickness="1"
-                                                CornerRadius="6"
-                                                Background="{StaticResource SurfaceAltBrush}"
-                                                MinHeight="80"
-                                                MaxHeight="280">
-                                            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                                <ItemsControl ItemsSource="{Binding Stories}" Margin="6,4">
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate x:DataType="m:BatchStory">
-                                                            <Grid Margin="0,4">
-                                                                <Grid.ColumnDefinitions>
-                                                                    <ColumnDefinition Width="Auto"/>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                    <ColumnDefinition Width="Auto"/>
-                                                                    <ColumnDefinition Width="Auto"/>
-                                                                    <ColumnDefinition Width="Auto"/>
-                                                                </Grid.ColumnDefinitions>
-                                                                <Ellipse Grid.Column="0"
-                                                                         Width="8"
-                                                                         Height="8"
-                                                                         VerticalAlignment="Top"
-                                                                         Margin="0,4,8,0"
-                                                                         Classes="s27"
-                                                                         Classes.s27_0="{Binding IsProcessing}"
-                                                                         Classes.s27_1="{Binding IsDone}"
-                                                                         Classes.s27_2="{Binding IsFailed}">
-                                                                    <Ellipse.Styles>
-                                                                        <Style Selector="Ellipse.s27.s27_0" x:DataType="m:BatchStory">
-                                                                            <Setter Property="Fill" Value="{DynamicResource TabAccentBrush}"/>
-                                                                        </Style>
-                                                                        <Style Selector="Ellipse.s27.s27_1" x:DataType="m:BatchStory">
-                                                                            <Setter Property="Fill" Value="{StaticResource SuccessBrush}"/>
-                                                                        </Style>
-                                                                        <Style Selector="Ellipse.s27.s27_2" x:DataType="m:BatchStory">
-                                                                            <Setter Property="Fill" Value="{StaticResource DangerBrush}"/>
-                                                                        </Style>
-                                                                    </Ellipse.Styles>
-                                                                    <Ellipse.Theme>
-                                                                        <ControlTheme TargetType="Ellipse" x:DataType="m:BatchStory">
-                                                                            <Setter Property="Fill" Value="{StaticResource TextFaintBrush}"/>
-                                                                        </ControlTheme>
-                                                                    </Ellipse.Theme>
-                                                                </Ellipse>
-                                                                <StackPanel Grid.Column="1">
-                                                                    <TextBlock Text="{Binding Title}"
-                                                                               FontSize="11"
-                                                                               FontWeight="SemiBold"
-                                                                               Foreground="{StaticResource TextPrimaryBrush}"
-                                                                               TextTrimming="CharacterEllipsis"/>
-                                                                    <TextBlock Text="{Binding StatusText}"
-                                                                               FontSize="10"
-                                                                               TextWrapping="Wrap"
-                                                                               Classes="s28"
-                                                                               Classes.s28_0="{Binding IsProcessing}"
-                                                                               Classes.s28_1="{Binding IsDone}"
-                                                                               Classes.s28_2="{Binding IsFailed}">
-                                                                        <TextBlock.Styles>
-                                                                            <Style Selector="TextBlock.s28.s28_0" x:DataType="m:BatchStory">
-                                                                                <Setter Property="Foreground" Value="{DynamicResource TabAccentBrush}"/>
-                                                                            </Style>
-                                                                            <Style Selector="TextBlock.s28.s28_1" x:DataType="m:BatchStory">
-                                                                                <Setter Property="Foreground" Value="{StaticResource SuccessTextBrush}"/>
-                                                                            </Style>
-                                                                            <Style Selector="TextBlock.s28.s28_2" x:DataType="m:BatchStory">
-                                                                                <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
-                                                                            </Style>
-                                                                        </TextBlock.Styles>
-                                                                        <TextBlock.Theme>
-                                                                            <ControlTheme TargetType="TextBlock" x:DataType="m:BatchStory">
-                                                                                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-                                                                            </ControlTheme>
-                                                                        </TextBlock.Theme>
-                                                                    </TextBlock>
-                                                                </StackPanel>
-                                                                <!-- 📚 n: this story's clip prompts are saved, so it skips the writer. -->
-                                                                <Button Grid.Column="2"
-                                                                        Height="22"
-                                                                        Padding="5,0"
-                                                                        FontSize="9"
-                                                                        Margin="6,0,0,0"
-                                                                        VerticalAlignment="Top"
-                                                                        Theme="{StaticResource AccentOutlineButtonStyle}"
-                                                                        Command="{Binding $parent[ItemsControl].((vmv:H3ExpressViewModel)DataContext).OpenStoryPromptsCommand}"
-                                                                        CommandParameter="{Binding}"
-                                                                        IsVisible="{Binding HasSavedPrompts}"
-                                                                        ToolTip.Tip="{Binding SavedPromptsTip}">
-                                                                    <TextBlock Text="{Binding SavedClipCount, StringFormat={}📚 {0}}" FontSize="9"/>
-                                                                </Button>
-                                                                <Button Grid.Column="3"
-                                                                        Content="▶"
-                                                                        Width="26"
-                                                                        Height="22"
-                                                                        Padding="0"
-                                                                        FontSize="9"
-                                                                        Margin="6,0,2,0"
-                                                                        VerticalAlignment="Top"
-                                                                        Theme="{StaticResource AccentOutlineButtonStyle}"
-                                                                        Command="{Binding $parent[ItemsControl].((vmv:H3ExpressViewModel)DataContext).PlayStoryCommand}"
-                                                                        CommandParameter="{Binding}"
-                                                                        IsVisible="{Binding HasOutput}"
-                                                                        ToolTip.Tip="Play this story's joined film."/>
-                                                                <Button Grid.Column="4"
-                                                                        Content="✕"
-                                                                        Width="20"
-                                                                        Height="22"
-                                                                        FontSize="10"
-                                                                        VerticalAlignment="Top"
-                                                                        Background="Transparent"
-                                                                        BorderThickness="0"
-                                                                        Foreground="{StaticResource TextMutedBrush}"
-                                                                        Command="{Binding $parent[ItemsControl].((vmv:H3ExpressViewModel)DataContext).RemoveStoryCommand}"
-                                                                        CommandParameter="{Binding}"
-                                                                        ToolTip.Tip="Take this story out of the list. The file is not touched."/>
-                                                            </Grid>
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
-                                            </ScrollViewer>
-                                        </Border>
-                                        <!-- The saved clip prompts, per story: read, edit, forget. -->
-                                        <Button Content="{Binding StoryPromptsButtonText}"
-                                                Command="{Binding OpenStoryPromptsCommand}"
-                                                Height="32"
-                                                Margin="0,10,0,0"
-                                                FontSize="12"
-                                                Theme="{StaticResource AccentOutlineButtonStyle}"
-                                                ToolTip.Tip="Every story's written clip prompts, saved under the story they came from. Read them, edit any clip, or forget a story so its next render writes them again."/>
-                                    </StackPanel>
-                                </Border>
-                                <!-- ─── Cast: the run's own people ──────────────────────── -->
-                                <Border Theme="{StaticResource SectionCardStyle}">
-                                    <StackPanel IsEnabled="{Binding CanEditCast}">
-                                        <ctrl:SectionHeader Title="CAST" Note="  · optional · your people in every story" Margin="0,0,0,8"/>
-                                        <Grid Margin="0,0,0,10">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="10"/>
-                                                <ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
-                                            <ContentControl Grid.Column="0"
-                                                            Content="{Binding CastMember1}"
-                                                            ContentTemplate="{StaticResource ExpressCastMemberTemplate}"/>
-                                            <ContentControl Grid.Column="2"
-                                                            Content="{Binding CastMember2}"
-                                                            ContentTemplate="{StaticResource ExpressCastMemberTemplate}"/>
-                                        </Grid>
-                                        <TextBlock Text="What they wear"
-                                                   FontSize="10"
-                                                   Margin="0,0,0,4"
-                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
-                                        <RadioButton Content="👗 The story's saved wardrobe"
-                                                     GroupName="ExpressCastClothes"
-                                                     IsChecked="{Binding CastStoryWardrobe, Mode=TwoWay}"
-                                                     FontSize="11"
-                                                     Margin="0,0,0,3"
-                                                     Foreground="{StaticResource TextPrimaryBrush}"
-                                                     ToolTip.Tip="Your people in each story's own outfits. The character sheets re-dress them; saved clips are used word for word. No extra LLM calls."/>
-                                        <RadioButton Content="👕 Their own clothes"
-                                                     GroupName="ExpressCastClothes"
-                                                     IsChecked="{Binding CastOwnClothes, Mode=TwoWay}"
-                                                     FontSize="11"
-                                                     Foreground="{StaticResource TextPrimaryBrush}"
-                                                     ToolTip.Tip="Your people in what they wear in their photos. A saved story's clips get a clothing-only rewrite (one short LLM call per clip), kept for next time."/>
-                                        <StackPanel IsVisible="{Binding CastOwnClothes}">
-                                            <ContentControl Content="{Binding CastMember1}"
-                                                            ContentTemplate="{StaticResource ExpressCastOutfitTemplate}"
-                                                            IsVisible="{Binding CastMember1.HasPhoto}"/>
-                                            <ContentControl Content="{Binding CastMember2}"
-                                                            ContentTemplate="{StaticResource ExpressCastOutfitTemplate}"
-                                                            IsVisible="{Binding CastMember2.HasPhoto}"/>
-                                        </StackPanel>
-                                        <TextBlock Text="{Binding ExpressCastSummary}"
-                                                   FontSize="10"
-                                                   TextWrapping="Wrap"
-                                                   Margin="0,8,0,0"
-                                                   Foreground="{StaticResource TextMutedBrush}"/>
-                                    </StackPanel>
-                                </Border>
-                                <!-- ─── Render settings ─────────────────────────────────── -->
-                                <Border Theme="{StaticResource SectionCardStyle}">
-                                    <StackPanel>
-                                        <ctrl:SectionHeader Title="RENDER" Note="  · applies to every story" Margin="0,0,0,10"/>
-                                        <TextBlock Text="Sampling stack"
-                                                   FontSize="10"
-                                                   FontWeight="SemiBold"
-                                                   Margin="0,0,0,4"
-                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
-                                        <RadioButton Content="✴️ Singularity"
-                                                     GroupName="ExpressStack"
-                                                     IsChecked="{Binding StackIsSingularity, Mode=TwoWay}"
-                                                     IsEnabled="{Binding CanChangeWorkflow}"
-                                                     FontSize="11"
-                                                     Margin="0,0,0,2"
-                                                     Foreground="{StaticResource TextPrimaryBrush}"
-                                                     ToolTip.Tip="Sample every clip on h3-singularity.json (the Singularity ref2va checkpoint, euler/simple at 10 steps), composed at the draft canvas and lifted to the quality one by the 3D latent upscaler. Locked while anything is rendering, so a folder cannot come out half on one stack and half on another."/>
-                                        <CheckBox Content="er__sde/beta sampler (keep the sigma shift)"
-                                                  IsChecked="{Binding SingularityErSde}"
-                                                  IsEnabled="{Binding CanChangeWorkflow}"
-                                                  IsVisible="{Binding StackIsSingularity}"
-                                                  FontSize="11"
-                                                  Margin="20,2,0,2"
-                                                  Foreground="{StaticResource TextPrimaryBrush}"
-                                                  ToolTip.Tip="Keep the Singularity graph — checkpoint, patches and the 12/3 sigma shift — but sample it the H3 Eros way: er_sde/beta at 12 steps, and er_sde on the upscale pass. Euler/simple at 10 is the author's setting and tends to come out softer; this is untested on that checkpoint. Locked while anything is rendering."/>
-                                        <RadioButton Content="🍥 TaoMate relay"
-                                                     GroupName="ExpressStack"
-                                                     IsChecked="{Binding StackIsTaoMate, Mode=TwoWay}"
-                                                     IsEnabled="{Binding CanChangeWorkflow}"
-                                                     FontSize="11"
-                                                     Margin="0,2,0,2"
-                                                     Foreground="{StaticResource TextPrimaryBrush}"
-                                                     ToolTip.Tip="Sample every clip on h3-taomate.json — the author's TaoMate render. One ten-step linear/euler/beta57 schedule is split across two samplers: six steps on the fl2va checkpoint with comfy-kitchen attention and the 12/6 sigma shift, then the rest resampled on the TaoMate 3-step LoRA at 0.65. There is no draft canvas: the clip is painted at the Quality size and the finished frames are upscaled ×2 by RTX Video Super Resolution instead of the latent being lifted, so the file is twice the Quality canvas in each direction and the render costs more per clip. The cast, the sheets, the clip prompts and the join are unchanged. Locked while anything is rendering."/>
-                                        <RadioButton Content="🐰 BUNNY (action)"
-                                                     GroupName="ExpressStack"
-                                                     IsChecked="{Binding StackIsBunny, Mode=TwoWay}"
-                                                     IsEnabled="{Binding CanChangeWorkflow}"
-                                                     FontSize="11"
-                                                     Margin="0,2,0,2"
-                                                     Foreground="{StaticResource TextPrimaryBrush}"
-                                                     ToolTip.Tip="Sample every clip on h3-bunny.json — the author's MiniMax H3 12GB Universal render, built around the H3 Combat LoRA. One 8-step res_multistep/simple schedule is extended with three more steps between sigma 0.65 and 0.28 (where the motion is decided) and then cut at 75%: the first three quarters are sampled with the clip's own seed and the Combat LoRA at full strength — that pass is the choreography — and the last quarter is run out by a second sampler that does not re-noise, on the same LoRA at 0.65, which takes the noise, ghosting and texture smear off the tail. One seed per clip either way. Composed at the draft canvas and lifted to the Quality one by the 3D latent upscaler, like H3 Eros and Singularity. Pick it for stories that are mostly physical action: the Combat LoRA is on the wire at full strength through the pass that decides the motion. Locked while anything is rendering."/>
-                                        <RadioButton Content="🦠 Parasyte (sparse)"
-                                                     GroupName="ExpressStack"
-                                                     IsChecked="{Binding StackIsParasyte, Mode=TwoWay}"
-                                                     IsEnabled="{Binding CanChangeWorkflow}"
-                                                     FontSize="11"
-                                                     Margin="0,2,0,2"
-                                                     Foreground="{StaticResource TextPrimaryBrush}"
-                                                     ToolTip.Tip="Sample every clip on h3-parasyte.json — PlagueKind's sparse-attention render. The fl2va/ref2va hybrid on the H3-PK-Parasyte-Turbo LoRA at 1.00, res_multistep/simple at 13 steps, with H3SLAAttention (block-sparse attention) last on the model wire.&#10;&#10;The finish is one node rather than three: MMH3UltimateUpscale does the latent upscale AND the second pass together and hands back a single AV latent, so there is no separate upscale sampler. The fps checkbox doubles frames with FILM instead of RIFE.&#10;&#10;Sparse attention is a SPEED patch, not a memory one — expect roughly 1.4× on a full-length clip, and nothing at all on a short clip at a small draft canvas, where the kernel falls back to dense. It will not fix an out-of-memory, and if Triton is missing on the server it silently passes the model through unpatched. Locked while anything is rendering."/>
-                                        <RadioButton Content="🌊 HyperFlow (8-step)"
-                                                     GroupName="ExpressStack"
-                                                     IsChecked="{Binding StackIsHyperFlow, Mode=TwoWay}"
-                                                     IsEnabled="{Binding CanChangeWorkflow}"
-                                                     FontSize="11"
-                                                     Margin="0,2,0,2"
-                                                     Foreground="{StaticResource TextPrimaryBrush}"
-                                                     ToolTip.Tip="Sample every clip on h3-hyperflow.json — the action recipe: Video Rebirth's HyperFlow 8-step adapter on the Singularity ref2va pruned checkpoint (bypass, curve refit on), euler on the adapter's own trained sigma grid, H3SLAAttention at 0.90 last on the wire. The upscale pass swaps HyperFlow for the TaoMate 3-step LoRA and runs exactly two steps.&#10;&#10;The schedule IS the adapter, so neither the steps dial nor the upscale-steps dial does anything on this stack. Leave the LoRA stack empty: it only reaches the drafts, and above the adapter it would switch the curve refit off.&#10;&#10;For fights: 720p is draft 0.21 MP / Quality 0.9 MP (608×352 → 1280×720); 1080p costs ~2.75× the time. Needs the ComfyUI-HyperFlow-H3 pack and custom_node_hyperflow_8step_v1.0_comfyui_pruned.safetensors in models/hyperflow. Locked while anything is rendering."/>
-                                        <RadioButton Content="🌹 H3 Eros"
-                                                     GroupName="ExpressStack"
-                                                     IsChecked="{Binding StackIsEros, Mode=TwoWay}"
-                                                     IsEnabled="{Binding CanChangeWorkflow}"
-                                                     FontSize="11"
-                                                     Margin="0,2,0,2"
-                                                     Foreground="{StaticResource TextPrimaryBrush}"
-                                                     ToolTip.Tip="Sample every clip on h3-eros.json — the 10Eros hybrid checkpoint, er_sde/beta at 12 steps — composed at the draft canvas and lifted to the quality one by the 3D latent upscaler. Locked while anything is rendering."/>
-                                        <TextBlock Text="{Binding StackSummary}"
-                                                   FontSize="10"
-                                                   TextWrapping="Wrap"
-                                                   Foreground="{StaticResource TextMutedBrush}"
-                                                   Margin="20,0,0,6"/>
-                                        <!-- Chained clips: the story's clips rendered as one continuous shot, each
-                                                     continuing from the last second of the one before it (H3 Motion Context). -->
-                                        <CheckBox Content="🔗 Chain clips into one continuous shot"
-                                                  IsChecked="{Binding ChainClips}"
-                                                  IsEnabled="{Binding CanChangeWorkflow}"
-                                                  FontSize="11"
-                                                  Margin="0,2,0,2"
-                                                  Foreground="{StaticResource TextPrimaryBrush}"
-                                                  ToolTip.Tip="Render a story's clips as ONE shot instead of separate clips glued together. Clip 2 onward is generated continuing from the last second of the clip before it — the picture and the sound both, carried across as latents by the H3 Motion Context node pack — and the pinned head is trimmed off, so five 5-second clips play as one seamless 25 seconds.&#10;&#10;Needs ComfyUI-H3-Motion-Context (github.com/NikoDemon80/ComfyUI-H3-Motion-Context) installed on the ComfyUI server; without it the run says so and renders every clip on its own.&#10;&#10;Clips have to render in order. Regenerating one clip in the middle re-does it from the clip before, but the clips after it still continue from the old take.&#10;&#10;New clip prompts are written to open on the previous clip's last moment. Prompts saved before this was on are not — untick Reuse saved prompts to have them rewritten."/>
-                                        <CheckBox Content="also pin the upscale pass"
-                                                  IsChecked="{Binding ChainPinFinish}"
-                                                  IsEnabled="{Binding CanChangeWorkflow}"
-                                                  IsVisible="{Binding ChainClips}"
-                                                  FontSize="11"
-                                                  Margin="20,2,0,2"
-                                                  Foreground="{StaticResource TextPrimaryBrush}"
-                                                  ToolTip.Tip="The finish re-samples the draft from a high noise level, so a join that is only pinned on the draft can be undone by it. With this on, the upscale pass is pinned to the previous clip's FINISHED tail as well (a second latent is saved per clip). Untick it if the finish misbehaves — the draft pass stays chained. 🍥 TaoMate has no upscale pass; both its legs are pinned regardless."/>
-                                        <TextBlock Text="{Binding ChainSummary}"
-                                                   FontSize="10"
-                                                   TextWrapping="Wrap"
-                                                   Foreground="{StaticResource TextMutedBrush}"
-                                                   Margin="20,0,0,10"/>
-                                        <!-- Sampling steps. Per checkpoint and remembered, so each
-                                                     stack keeps its own count; frozen with the stack above,
-                                                     since the render reads it as each clip's graph is built. -->
-                                        <!-- 🌊 HyperFlow samples its own grid: no step count to set. -->
-                                        <StackPanel IsVisible="{Binding UsesStepDials}">
-                                            <Grid Margin="0,0,0,2">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Text="Sampling steps"
-                                                           FontSize="10"
-                                                           VerticalAlignment="Center"
-                                                           Foreground="{StaticResource TextSecondaryBrush}"/>
-                                                <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="8,1">
-                                                    <TextBlock Text="{Binding FirstPassStepCount}"
-                                                               FontFamily="Consolas, DejaVu Sans Mono, Liberation Mono, monospace"
-                                                               FontSize="12"
-                                                               FontWeight="Bold"
-                                                               Foreground="{DynamicResource TabAccentBrush}"/>
-                                                </Border>
-                                                <Button Grid.Column="2"
-                                                        Content="↺"
-                                                        Width="22"
-                                                        Height="20"
-                                                        FontSize="11"
-                                                        Margin="6,0,0,0"
-                                                        Padding="0"
-                                                        Command="{Binding ResetStepsCommand}"
-                                                        IsVisible="{Binding HasStepsOverride}"
-                                                        Background="{StaticResource SurfaceAltBrush}"
-                                                        Foreground="{DynamicResource TabAccentBrush}"
-                                                        BorderBrush="{StaticResource BorderBrush}"
-                                                        BorderThickness="1"
-                                                        ToolTip.Tip="Back to the count this stack is authored at, and forget the one saved for this checkpoint."/>
-                                            </Grid>
-                                            <!-- Minimum and Maximum before Value on purpose: a Slider still
-                                                     holding its 0-10 defaults would coerce a 12-step count down to
-                                                     10 and write that back through the two-way binding. -->
-                                            <Slider Minimum="{Binding MinStepsForStack}"
-                                                    Maximum="30"
-                                                    Value="{Binding FirstPassStepCount}"
-                                                    TickFrequency="1"
-                                                    IsSnapToTickEnabled="True"
-                                                    SmallChange="1"
-                                                    LargeChange="2"
-                                                    IsEnabled="{Binding CanChangeWorkflow}"
-                                                    Foreground="{DynamicResource TabAccentBrush}"
-                                                    Margin="0,0,0,2"
-                                                    ToolTip.Tip="Steps on the pass that paints the clip. Saved against the checkpoint in More options ▸ Model, so each one keeps its own — the Singularity build is authored at 10, the 10Eros hybrid at 12, and the TaoMate relay splits a 10-step schedule — and the setting is still there after a restart. Locked while anything is rendering: the count is read as each clip's graph is built, so a folder rendered half at one count is a folder of films that do not match."/>
-                                            <TextBlock Text="{Binding StepsSummary}"
-                                                       FontSize="10"
-                                                       TextWrapping="Wrap"
-                                                       Foreground="{StaticResource TextMutedBrush}"
-                                                       Margin="20,0,0,10"/>
-                                        </StackPanel>
-                                        <CheckBox Content="📚 Researched prompts"
-                                                  IsChecked="{Binding ResearchPrompts}"
-                                                  FontSize="11"
-                                                  FontWeight="SemiBold"
-                                                  Margin="0,0,0,2"
-                                                  Foreground="{StaticResource TextPrimaryBrush}"
-                                                  ToolTip.Tip="Write the clips with the build taken from the MiniMax-H3 guides: 3-5 shots per clip on explicit cut times, medium-or-closer framing, silence mandates, isolated speakers, screen sides, a lighting lock and voices kept out of the soundscape. Untick for the shipped writer."/>
-                                        <TextBlock Text="{Binding PromptBuildSummary}"
-                                                   FontSize="10"
-                                                   TextWrapping="Wrap"
-                                                   Foreground="{StaticResource TextMutedBrush}"
-                                                   Margin="20,0,0,10"/>
-                                        <CheckBox Content="📐 Singularity spec prompts"
-                                                  IsChecked="{Binding SingularitySpecPrompts}"
-                                                  FontSize="11"
-                                                  FontWeight="SemiBold"
-                                                  Margin="0,0,0,2"
-                                                  Foreground="{StaticResource TextPrimaryBrush}"
-                                                  ToolTip.Tip="Write every story's clip prompts to the MiniMax H3 Singularity prompt-writing spec (prompts/MiniMax_H3_Singularity_Prompt_Writing_Specification_Enhanced_EN.md): the six-section full-reference format — subject_definitions, summary, retention_analysis, detailed_description, overall_soundscape, non_diegetic_music — with the cast bound to the reference photographs by code and written as &lt;Subject N&gt; in the shots, continuous action and camera chains, physical feedback, concrete lighting and synced sound. Replaces the 📚 build. A story saved by another build is written again."/>
-                                        <TextBlock Text="{Binding SpecPromptsSummary}"
-                                                   FontSize="10"
-                                                   TextWrapping="Wrap"
-                                                   Foreground="{StaticResource TextMutedBrush}"
-                                                   Margin="20,0,0,10"/>
-                                        <CheckBox Content="♻️ Reuse saved prompts"
-                                                  IsChecked="{Binding ReuseSavedPrompts}"
-                                                  FontSize="11"
-                                                  FontWeight="SemiBold"
-                                                  Margin="0,0,0,2"
-                                                  Foreground="{StaticResource TextPrimaryBrush}"
-                                                  ToolTip.Tip="A story whose clip prompts were written on an earlier run renders from them — no clip writer — at the clip length they were written for, in the wardrobe they describe. Untick to write every story's clips again; the new set replaces the saved one, which is kept in history."/>
-                                        <TextBlock Text="{Binding ReuseSavedPromptsSummary}"
-                                                   FontSize="10"
-                                                   TextWrapping="Wrap"
-                                                   Foreground="{StaticResource TextMutedBrush}"
-                                                   Margin="20,0,0,12"/>
-                                        <TextBlock Text="Aspect ratio" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                                        <ComboBox ItemsSource="{Binding AspectRatioOptions}"
-                                                  SelectedItem="{Binding SelectedAspectRatio}"
-                                                  Height="30"
-                                                  FontSize="11"
-                                                  Margin="0,0,0,10"/>
-                                        <TextBlock Text="Quality" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                                        <ComboBox ItemsSource="{Binding MegapixelOptions}"
-                                                  DisplayMemberBinding="{ReflectionBinding Label}"
-                                                  SelectedValueBinding="{ReflectionBinding Value}"
-                                                  SelectedValue="{Binding Megapixels}"
-                                                  Height="30"
-                                                  FontSize="11"
-                                                  Margin="0,0,0,12"
-                                                  ToolTip.Tip="On the Singularity and H3 Eros stacks, the finished canvas every clip is upscaled to. On 🍥 TaoMate there is no draft, so this is the canvas the model paints and the file lands at twice it in each direction — see the line under the stack."/>
-                                        <Grid Margin="0,0,0,2">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Text="Film length"
-                                                       FontSize="10"
-                                                       VerticalAlignment="Center"
-                                                       Foreground="{StaticResource TextSecondaryBrush}"/>
-                                            <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="8,1">
-                                                <TextBlock Text="{Binding StoryDurationSeconds, StringFormat={}{0:0} s}"
-                                                           FontFamily="Consolas, DejaVu Sans Mono, Liberation Mono, monospace"
-                                                           FontSize="12"
-                                                           FontWeight="Bold"
-                                                           Foreground="{DynamicResource TabAccentBrush}"/>
-                                            </Border>
-                                        </Grid>
-                                        <Slider Value="{Binding StoryDurationSeconds}"
-                                                Minimum="5"
-                                                Maximum="{Binding MaxStoryDurationSeconds}"
-                                                TickFrequency="5"
-                                                IsSnapToTickEnabled="True"
-                                                SmallChange="5"
-                                                LargeChange="15"
-                                                Foreground="{DynamicResource TabAccentBrush}"
-                                                Margin="0,0,0,8"
-                                                ToolTip.Tip="How long each story's finished film should be. Anything longer than one clip is written as a chain of clips and joined."/>
-                                        <Grid Margin="0,0,0,2">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Text="Clip length"
-                                                       FontSize="10"
-                                                       VerticalAlignment="Center"
-                                                       Foreground="{StaticResource TextSecondaryBrush}"/>
-                                            <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="8,1">
-                                                <TextBlock Text="{Binding LengthSeconds, StringFormat={}{0:0} s}"
-                                                           FontFamily="Consolas, DejaVu Sans Mono, Liberation Mono, monospace"
-                                                           FontSize="12"
-                                                           FontWeight="Bold"
-                                                           Foreground="{DynamicResource TabAccentBrush}"/>
-                                            </Border>
-                                        </Grid>
-                                        <Slider Value="{Binding LengthSeconds}"
-                                                Minimum="4"
-                                                Maximum="15"
-                                                TickFrequency="1"
-                                                IsSnapToTickEnabled="True"
-                                                Foreground="{DynamicResource TabAccentBrush}"
-                                                Margin="0,0,0,4"
-                                                ToolTip.Tip="How long a single H3 render is — the model's own limit is about 15 s."/>
-                                        <TextBlock Text="{Binding ClipPlanSummary}"
-                                                   FontSize="10"
-                                                   TextWrapping="Wrap"
-                                                   Foreground="{StaticResource TextMutedBrush}"
-                                                   Margin="0,0,0,10"/>
-                                        <!-- The dials you set once and leave. Shut by default. -->
-                                        <Expander Header="More options" IsExpanded="False" FontSize="11" Margin="0,0,0,8">
-                                            <StackPanel Margin="0,8,0,0">
-                                                <TextBlock Text="Model" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                                                <Grid Margin="0,0,0,10">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <ComboBox ItemsSource="{Binding DiffusionModelOptions}"
-                                                              DisplayMemberBinding="{ReflectionBinding Label}"
-                                                              SelectedValueBinding="{ReflectionBinding Value}"
-                                                              SelectedValue="{Binding SelectedDiffusionModel}"
-                                                              Height="30"
-                                                              FontSize="11"
-                                                              Margin="0,0,6,0"
-                                                              ToolTip.Tip="The H3 checkpoint, from diffusion_models/h3-minimax on the server. Picking a stack above moves this to that stack's own checkpoint; change it afterwards and the choice sticks."/>
-                                                    <Button Grid.Column="1"
-                                                            Content="⟳"
-                                                            Width="30"
-                                                            Height="30"
-                                                            FontSize="13"
-                                                            Command="{Binding RefreshDiffusionModelsCommand}"
-                                                            Background="{StaticResource SurfaceAltBrush}"
-                                                            Foreground="{DynamicResource TabAccentBrush}"
-                                                            BorderBrush="{StaticResource BorderBrush}"
-                                                            BorderThickness="1"
-                                                            ToolTip.Tip="Re-read the model list from ComfyUI."/>
-                                                </Grid>
-                                                <Grid Margin="0,0,0,4">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="LoRA stack"
-                                                               FontSize="10"
-                                                               VerticalAlignment="Center"
-                                                               Foreground="{StaticResource TextSecondaryBrush}"/>
-                                                    <Button Grid.Column="1"
-                                                            Content="＋ Add"
-                                                            Height="22"
-                                                            Padding="8,0"
-                                                            FontSize="10"
-                                                            Command="{Binding AddLoraCommand}"
-                                                            Theme="{StaticResource AccentOutlineButtonStyle}"
-                                                            ToolTip.Tip="Add a LoRA row. Up to five stack on the checkpoint, loading in the order they are listed. Locked while anything is rendering, so a story cannot come out half on a different stack."/>
-                                                    <Button Grid.Column="2"
-                                                            Content="⟳"
-                                                            Width="24"
-                                                            Height="22"
-                                                            FontSize="11"
-                                                            Margin="4,0,0,0"
-                                                            Padding="0"
-                                                            Command="{Binding RefreshLorasCommand}"
-                                                            Background="{StaticResource SurfaceAltBrush}"
-                                                            Foreground="{DynamicResource TabAccentBrush}"
-                                                            BorderBrush="{StaticResource BorderBrush}"
-                                                            BorderThickness="1"
-                                                            ToolTip.Tip="Re-read loras/H3 from ComfyUI."/>
-                                                </Grid>
-                                                <ItemsControl ItemsSource="{Binding Loras}"
-                                                              ItemTemplate="{StaticResource ExpressLoraRowTemplate}"
-                                                              IsEnabled="{Binding CanChangeWorkflow}"
-                                                              Margin="0,2,0,0"/>
-                                                <TextBlock Text="{Binding LoraSummary}"
-                                                           FontSize="10"
-                                                           TextWrapping="Wrap"
-                                                           Foreground="{StaticResource TextMutedBrush}"
-                                                           Margin="0,2,0,10"/>
-                                                <TextBlock Text="Cast photos"
-                                                           FontSize="10"
-                                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                                           Margin="0,0,0,4"/>
-                                                <ComboBox ItemsSource="{Binding CastPhotoEngineOptions}"
-                                                          DisplayMemberBinding="{ReflectionBinding Label}"
-                                                          SelectedValueBinding="{ReflectionBinding Value}"
-                                                          SelectedValue="{Binding CastPhotoEngine}"
-                                                          IsEnabled="{Binding CanEditCast}"
-                                                          Height="30"
-                                                          FontSize="11"
-                                                          Margin="0,0,0,4"
-                                                          ToolTip.Tip="The text-to-image workflow that photographs each story's characters when the CAST card has no photo of yours for them. The character sheet is then built from that photo as always. Locked while anything is rendering."/>
-                                                <TextBlock Text="{Binding CastPhotoEngineSummary}"
-                                                           FontSize="10"
-                                                           TextWrapping="Wrap"
-                                                           Foreground="{StaticResource TextMutedBrush}"
-                                                           Margin="0,0,0,10"/>
-                                                <TextBlock Text="Visual style"
-                                                           FontSize="10"
-                                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                                           Margin="0,0,0,4"/>
-                                                <ComboBox ItemsSource="{Binding VisualStyleOptions}"
-                                                          DisplayMemberBinding="{ReflectionBinding Name}"
-                                                          SelectedItem="{Binding VisualStyle, Mode=TwoWay}"
-                                                          Height="30"
-                                                          FontSize="11"
-                                                          Margin="0,0,0,10"
-                                                          ToolTip.Tip="The medium every clip is written in. Auto lets the writer choose from the story."/>
-                                                <!-- Both of these belong to a latent-upscale finish. 🍥 TaoMate paints at the
-                                                             Quality canvas and upscales the frames, so it has neither a draft to size
-                                                             nor a sigma schedule to pick — they are hidden rather than left to lie. -->
-                                                <StackPanel IsVisible="{Binding UsesDraftCanvas}">
-                                                    <TextBlock Text="Composition canvas"
-                                                               FontSize="10"
-                                                               Foreground="{StaticResource TextSecondaryBrush}"
-                                                               Margin="0,0,0,4"/>
-                                                    <ComboBox ItemsSource="{Binding PreviewMegapixelOptions}"
-                                                              DisplayMemberBinding="{ReflectionBinding Label}"
-                                                              SelectedValueBinding="{ReflectionBinding Value}"
-                                                              SelectedValue="{Binding PreviewMegapixels}"
-                                                              Height="30"
-                                                              FontSize="11"
-                                                              Margin="0,0,0,10"
-                                                              ToolTip.Tip="The small canvas each clip is first sampled at, before it is upscaled to the Quality above in the same render."/>
-                                                    <StackPanel IsVisible="{Binding UsesStepDials}">
-                                                        <TextBlock Text="Upscale steps"
-                                                                   FontSize="10"
-                                                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                                                   Margin="0,0,0,4"/>
-                                                        <ComboBox ItemsSource="{Binding UpscaleStepOptions}"
-                                                                  SelectedItem="{Binding UpscaleSteps}"
-                                                                  Height="30"
-                                                                  FontSize="11"
-                                                                  Margin="0,0,0,10"
-                                                                  ToolTip.Tip="Fixed sigmas on the finishing pass. 4 is the default; 3 is quicker, 5 adds detail."/>
-                                                    </StackPanel>
-                                                </StackPanel>
-                                                <CheckBox Content="RIFE interpolation (24 → 48 fps)"
-                                                          IsChecked="{Binding UseRife}"
-                                                          FontSize="11"
-                                                          Foreground="{StaticResource TextPrimaryBrush}"/>
-                                            </StackPanel>
-                                        </Expander>
-                                        <TextBlock Text="{Binding HuntSummary}"
-                                                   FontSize="10"
-                                                   TextWrapping="Wrap"
-                                                   Foreground="{StaticResource TextMutedBrush}"
-                                                   Margin="0,0,0,4"/>
-                                        <TextBlock Text="{Binding LoadSummary}"
-                                                   FontSize="10"
-                                                   TextWrapping="Wrap"
-                                                   Classes="s29"
-                                                   Classes.s29_0="{Binding HasLoadWarning}">
-                                            <TextBlock.Styles>
-                                                <Style Selector="TextBlock.s29.s29_0" x:DataType="vmv:H3ExpressViewModel">
-                                                    <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
-                                                    <Setter Property="FontWeight" Value="SemiBold"/>
-                                                </Style>
-                                            </TextBlock.Styles>
-                                            <TextBlock.Theme>
-                                                <ControlTheme TargetType="TextBlock" x:DataType="vmv:H3ExpressViewModel">
-                                                    <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-                                                </ControlTheme>
-                                            </TextBlock.Theme>
-                                        </TextBlock>
-                                    </StackPanel>
-                                </Border>
-                            </StackPanel>
-                        </ScrollViewer>
-                    </Border>
-                    <!-- ═══ RIGHT: the run ═══════════════════════════════════════════ -->
-                    <Grid Grid.Column="1">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-                        <!-- ─── Status and the one button ───────────────────────────── -->
-                        <Border Grid.Row="0" Theme="{StaticResource ToolStripStyle}" Padding="16,12">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
-                                    <TextBlock FontSize="14"
-                                               FontWeight="SemiBold"
-                                               TextTrimming="CharacterEllipsis"
-                                               Foreground="{StaticResource TextPrimaryBrush}"
-                                               Classes="s30"
-                                               Classes.s30_0="{Binding BatchStatus, Converter={x:Static StringConverters.IsNullOrEmpty}}">
-                                        <TextBlock.Styles>
-                                            <Style Selector="TextBlock.s30.s30_0" x:DataType="vmv:H3ExpressViewModel">
-                                                <Setter Property="Text" Value="Ready when you are"/>
-                                            </Style>
-                                        </TextBlock.Styles>
-                                        <TextBlock.Theme>
-                                            <ControlTheme TargetType="TextBlock" x:DataType="vmv:H3ExpressViewModel">
-                                                <Setter Property="Text" Value="{Binding BatchStatus}"/>
-                                            </ControlTheme>
-                                        </TextBlock.Theme>
-                                    </TextBlock>
-                                    <TextBlock FontSize="11"
-                                               TextTrimming="CharacterEllipsis"
-                                               Margin="0,3,0,0"
-                                               Classes="s31"
-                                               Classes.s31_0="{Binding LuckyPhase, Converter={x:Static StringConverters.IsNullOrEmpty}}">
-                                        <TextBlock.Styles>
-                                            <Style Selector="TextBlock.s31.s31_0" x:DataType="vmv:H3ExpressViewModel">
-                                                <Setter Property="Text" Value="Choose a folder of story .txt files, then press Render."/>
-                                                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-                                            </Style>
-                                        </TextBlock.Styles>
-                                        <TextBlock.Theme>
-                                            <ControlTheme TargetType="TextBlock" x:DataType="vmv:H3ExpressViewModel">
-                                                <Setter Property="Text" Value="{Binding LuckyPhase}"/>
-                                                <Setter Property="Foreground" Value="{DynamicResource TabAccentBrush}"/>
-                                            </ControlTheme>
-                                        </TextBlock.Theme>
-                                    </TextBlock>
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Button Content="{Binding RunButtonText}"
-                                            Command="{Binding StartBatchCommand}"
-                                            Height="38"
-                                            Padding="20,0"
-                                            FontSize="13"
-                                            Margin="0,0,8,0"
-                                            Theme="{StaticResource AccentButtonStyle}"
-                                            ToolTip.Tip="Render every waiting story in the list, in order: its cast, portraits and sheets, its clips written and queued, then each clip rendered once and the film joined. One story failing does not stop the run."/>
-                                    <Button Content="✕ Stop"
-                                            Command="{Binding StopBatchCommand}"
-                                            Height="38"
-                                            Padding="14,0"
-                                            FontSize="12"
-                                            Margin="0,0,8,0"
-                                            Theme="{StaticResource DangerButtonStyle}"
-                                            ToolTip.Tip="Cut the current story short and stop. Finished films are kept."/>
-                                    <Button Content="↻"
-                                            Command="{Binding ResetBatchCommand}"
-                                            Width="38"
-                                            Height="38"
-                                            Padding="0"
-                                            FontSize="14"
-                                            Theme="{StaticResource SecondaryButtonStyle}"
-                                            ToolTip.Tip="Put every story back to waiting, so the folder can be run again."/>
-                                </StackPanel>
-                            </Grid>
-                        </Border>
-                        <!-- ─── The player, and the open clip's prompt beside it ─────── -->
-                        <!-- Side by side on purpose: stacked under the player, the editor took the player's
-                                     height and was drawn over it. -->
-                        <Grid Grid.Row="1" Margin="16,14,16,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" MinWidth="260"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <Border Grid.Column="0"
-                                    Background="{StaticResource SurfaceBrush}"
-                                    BorderBrush="{StaticResource BorderBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="8">
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="*"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <!-- Render progress, flush to the top edge of the card. -->
-                                    <ProgressBar Grid.Row="0"
-                                                 Height="3"
-                                                 Margin="8,0"
-                                                 Value="{Binding ProcessingProgress, Mode=OneWay}"
-                                                 Foreground="{DynamicResource TabAccentBrush}"
-                                                 Background="Transparent"
-                                                 IsVisible="{Binding IsProcessing}"/>
-                                    <Border Grid.Row="1"
-                                            Background="{StaticResource PlayerSurfaceBrush}"
-                                            Margin="8,8,8,0"
-                                            CornerRadius="6"
-                                            MinHeight="200">
-                                        <Grid>
-                                            <StackPanel HorizontalAlignment="Center"
-                                                        VerticalAlignment="Center"
-                                                        Classes="s32"
-                                                        Classes.s32_0="{Binding !HasActivePreview}">
-                                                <StackPanel.Styles>
-                                                    <Style Selector="StackPanel.s32.s32_0" x:DataType="vmv:H3ExpressViewModel">
-                                                        <Setter Property="IsVisible" Value="True"/>
-                                                    </Style>
-                                                </StackPanel.Styles>
-                                                <StackPanel.Theme>
-                                                    <ControlTheme TargetType="StackPanel" x:DataType="vmv:H3ExpressViewModel">
-                                                        <Setter Property="IsVisible" Value="False"/>
-                                                    </ControlTheme>
-                                                </StackPanel.Theme>
-                                                <TextBlock Text="⚡"
-                                                           FontSize="34"
-                                                           HorizontalAlignment="Center"
-                                                           Foreground="{StaticResource PlayerTextBrush}"/>
-                                                <TextBlock Text="Finished clips play here as they land"
-                                                           FontSize="12"
-                                                           HorizontalAlignment="Center"
-                                                           Margin="0,6,0,0"
-                                                           Foreground="{StaticResource PlayerTextBrush}"/>
-                                            </StackPanel>
-                                            <!-- Source is set from code-behind (ApplyH3ExpressSource) as an ABSOLUTE
-                                                     Uri, and this element is never collapsed: a string {Binding} silently
-                                                     fails on Z:\ output paths, and a collapsed MediaElement opens nothing. -->
-                                            <ctrl:VideoPreview x:Name="H3ExpressVideoPlayer"
-                                                               Stretch="Uniform"
-                                                               IsMuted="{Binding IsPreviewMuted}"
-                                                               MediaOpened="H3ExpressPlayer_MediaOpened"
-                                                               MediaEnded="H3ExpressPlayer_MediaEnded"
-                                                               MediaFailed="H3ExpressPlayer_MediaFailed"/>
-                                        </Grid>
-                                    </Border>
-                                    <Grid Grid.Row="2" Margin="14,10,10,10">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                            <TextBlock FontSize="12"
-                                                       FontWeight="SemiBold"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       Classes="s33"
-                                                       Classes.s33_0="{Binding ActivePreviewLabel, Converter={x:Static StringConverters.IsNullOrEmpty}}">
-                                                <TextBlock.Styles>
-                                                    <Style Selector="TextBlock.s33.s33_0" x:DataType="vmv:H3ExpressViewModel">
-                                                        <Setter Property="Text" Value="Nothing playing yet"/>
-                                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-                                                    </Style>
-                                                </TextBlock.Styles>
-                                                <TextBlock.Theme>
-                                                    <ControlTheme TargetType="TextBlock" x:DataType="vmv:H3ExpressViewModel">
-                                                        <Setter Property="Text" Value="{Binding ActivePreviewLabel}"/>
-                                                        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-                                                    </ControlTheme>
-                                                </TextBlock.Theme>
-                                            </TextBlock>
-                                            <TextBlock Text="{Binding ProcessingStatus}"
-                                                       FontSize="10"
-                                                       Margin="0,2,0,0"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       Foreground="{StaticResource TextMutedBrush}"/>
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Button Content="📁 Output"
-                                                    Command="{Binding OpenResultFolderCommand}"
-                                                    IsEnabled="{Binding HasResult}"
-                                                    Height="30"
-                                                    Padding="12,0"
-                                                    FontSize="11"
-                                                    Margin="0,0,6,0"
-                                                    Theme="{StaticResource SecondaryButtonStyle}"
-                                                    ToolTip.Tip="Open the folder the films are written to."/>
-                                            <Button Content="{Binding MuteGlyph}"
-                                                    Command="{Binding ToggleMuteCommand}"
-                                                    ToolTip.Tip="{Binding MuteTip}"
-                                                    Width="34"
-                                                    Height="30"
-                                                    Padding="0"
-                                                    FontSize="13"
-                                                    Theme="{StaticResource SecondaryButtonStyle}"/>
-                                        </StackPanel>
-                                    </Grid>
-                                </Grid>
-                            </Border>
-                            <!-- ─── The selected clip's prompt, editable, and its regenerate ─── -->
-                            <Border Grid.Column="1"
-                                    Width="420"
-                                    Margin="12,0,0,0"
-                                    Padding="12"
-                                    CornerRadius="8"
-                                    Background="{StaticResource SurfaceBrush}"
-                                    BorderBrush="{DynamicResource TabAccentBrush}"
-                                    BorderThickness="1"
-                                    IsVisible="{Binding HasSelectedClip}">
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="*"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <Grid Grid.Row="0" Margin="0,0,0,8">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Grid.Column="0">
-                                            <TextBlock Text="{Binding SelectedClipHeader}"
-                                                       FontSize="12"
-                                                       FontWeight="SemiBold"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       Foreground="{StaticResource TextPrimaryBrush}"/>
-                                            <TextBlock Text="{Binding SelectedClipStatus}"
-                                                       FontSize="10"
-                                                       Margin="0,2,0,0"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       Foreground="{StaticResource TextMutedBrush}"/>
-                                        </StackPanel>
-                                        <Button Grid.Column="1"
-                                                Content="✕"
-                                                Command="{Binding CloseClipEditorCommand}"
-                                                Width="24"
-                                                Height="24"
-                                                FontSize="11"
-                                                VerticalAlignment="Top"
-                                                Background="Transparent"
-                                                BorderThickness="0"
-                                                Foreground="{StaticResource TextMutedBrush}"
-                                                ToolTip.Tip="Close the prompt. An edit that was not regenerated or saved is dropped."/>
-                                    </Grid>
-                                    <TextBox Grid.Row="1"
-                                             Text="{Binding ClipPromptDraft}"
-                                             IsReadOnly="{Binding SelectedClip.IsBusy}"
-                                             AcceptsReturn="True"
-                                             TextWrapping="Wrap"
-                                             ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                             VerticalContentAlignment="Top"
-                                             MinHeight="120"
-                                             FontFamily="Consolas, DejaVu Sans Mono, Liberation Mono, monospace"
-                                             FontSize="11"
-                                             Padding="6,4"
-                                             Background="{StaticResource SurfaceAltBrush}"
-                                             Foreground="{StaticResource TextPrimaryBrush}"
-                                             BorderBrush="{StaticResource BorderBrush}"
-                                             ToolTip.Tip="The full prompt this clip was rendered from. Edit it, then Regenerate or Save to story."/>
-                                    <TextBlock Grid.Row="2"
-                                               FontSize="10"
-                                               TextWrapping="Wrap"
-                                               Margin="0,6,0,8"
-                                               Foreground="{StaticResource TextMutedBrush}"
-                                               Text="Exactly what the clip was rendered from. @char tags become &lt;Picture N&gt; references when it renders. Regenerating an edited clip also saves it to the story's prompts."/>
-                                    <StackPanel Grid.Row="3">
-                                        <WrapPanel Margin="0,0,0,6">
-                                            <CheckBox Content="🎲 New seed"
-                                                      IsChecked="{Binding RegenerateWithNewSeed}"
-                                                      VerticalAlignment="Center"
-                                                      FontSize="11"
-                                                      Margin="0,0,10,6"
-                                                      Foreground="{StaticResource TextPrimaryBrush}"
-                                                      ToolTip.Tip="Off: the clip keeps its seed, so the new render changes only where the prompt does. On: a new seed — a different take of the same prompt."/>
-                                            <Button Content="💾 Save to story"
-                                                    Command="{Binding SaveClipToStoryCommand}"
-                                                    Height="28"
-                                                    Padding="10,0"
-                                                    FontSize="11"
-                                                    Margin="0,0,6,6"
-                                                    Theme="{StaticResource AccentOutlineButtonStyle}"
-                                                    ToolTip.Tip="{Binding SaveClipToStoryTip}"
-                                                    ToolTip.ShowOnDisabled="True"/>
-                                            <Button Content="↺ Revert"
-                                                    Command="{Binding RevertClipPromptCommand}"
-                                                    Height="28"
-                                                    Padding="10,0"
-                                                    FontSize="11"
-                                                    Margin="0,0,6,6"
-                                                    Theme="{StaticResource SecondaryButtonStyle}"
-                                                    ToolTip.Tip="Put the box back to the prompt the clip was rendered from."/>
-                                            <Button Content="Unqueue"
-                                                    Command="{Binding UnqueueClipCommand}"
-                                                    Height="28"
-                                                    Padding="10,0"
-                                                    FontSize="11"
-                                                    Margin="0,0,6,6"
-                                                    ToolTip.Tip="Take this clip's waiting regenerate back out of the queue."
-                                                    Classes="s34"
-                                                    Classes.s34_0="{Binding SelectedClip.IsRerollQueued}">
-                                                <Button.Styles>
-                                                    <Style Selector="Button.s34.s34_0" x:DataType="vmv:H3ExpressViewModel">
-                                                        <Setter Property="IsVisible" Value="True"/>
-                                                    </Style>
-                                                </Button.Styles>
-                                                <Button.Theme>
-                                                    <ControlTheme TargetType="Button"
-                                                                  BasedOn="{StaticResource SecondaryButtonStyle}"
-                                                                  x:DataType="vmv:H3ExpressViewModel">
-                                                        <Setter Property="IsVisible" Value="False"/>
-                                                    </ControlTheme>
-                                                </Button.Theme>
-                                            </Button>
-                                            <!-- Stops a regenerate run on its own. During a batch the Stop at the
-                                                     top is the one to use: this would cut the story, not the run. -->
-                                            <Button Content="✕ Stop"
-                                                    Command="{Binding CancelCommand}"
-                                                    Height="28"
-                                                    Padding="10,0"
-                                                    FontSize="11"
-                                                    Margin="0,0,6,6"
-                                                    ToolTip.Tip="Stop the regenerate. The clip is left as it was."
-                                                    Classes="s35"
-                                                    Classes.s35_0="{Binding SelectedClip.IsBusy}"
-                                                    Classes.s35_1="{Binding !IsBatchRunning}">
-                                                <Button.Styles>
-                                                    <Style Selector="Button.s35.s35_0.s35_1" x:DataType="vmv:H3ExpressViewModel">
-                                                        <Setter Property="IsVisible" Value="True"/>
-                                                    </Style>
-                                                </Button.Styles>
-                                                <Button.Theme>
-                                                    <ControlTheme TargetType="Button"
-                                                                  BasedOn="{StaticResource DangerButtonStyle}"
-                                                                  x:DataType="vmv:H3ExpressViewModel">
-                                                        <Setter Property="IsVisible" Value="False"/>
-                                                    </ControlTheme>
-                                                </Button.Theme>
-                                            </Button>
-                                        </WrapPanel>
-                                        <Button Content="{Binding RegenerateButtonText}"
-                                                Command="{Binding RegenerateClipCommand}"
-                                                ToolTip.Tip="{Binding RegenerateTip}"
-                                                ToolTip.ShowOnDisabled="True"
-                                                Height="32"
-                                                FontSize="12"
-                                                HorizontalAlignment="Stretch"
-                                                Theme="{StaticResource AccentButtonStyle}"/>
-                                    </StackPanel>
-                                </Grid>
-                            </Border>
-                        </Grid>
-                        <!-- ─── Clip chips for the story in flight ─────────────────── -->
-                        <Border Grid.Row="2"
-                                Theme="{StaticResource SectionCardStyle}"
-                                Margin="16,0,16,10"
-                                Padding="12,10"
-                                IsVisible="{Binding HasBoard}">
-                            <StackPanel>
-                                <Grid Margin="0,0,0,8">
-                                    <ctrl:SectionHeader Title="CLIPS"
-                                                        Note="  · click a clip to play it · 📝 under it opens its prompt"
-                                                        HorizontalAlignment="Left"/>
-                                    <TextBlock Text="{Binding ClipProgressText}"
-                                               HorizontalAlignment="Right"
-                                               VerticalAlignment="Center"
-                                               FontSize="11"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TabAccentBrush}"/>
-                                </Grid>
-                                <ScrollViewer MaxHeight="170" VerticalScrollBarVisibility="Auto">
-                                    <ItemsControl ItemsSource="{Binding HuntBoard}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <WrapPanel/>
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate x:DataType="m:ErosHuntClip">
-                                                <!-- Reaches the tab through the ItemsControl's DataContext;
-                                                             ElementName does not resolve from inside a DataTemplate. -->
-                                                <StackPanel Margin="0,0,6,6">
-                                                    <Button Command="{Binding $parent[ItemsControl].((vmv:H3ExpressViewModel)DataContext).PlayClipCommand}"
-                                                            CommandParameter="{Binding}"
-                                                            ToolTip.Tip="{Binding Summary}"
-                                                            Classes="s36">
-                                                        <Button.Styles>
-                                                            <Style Selector="Button.s36:disabled" x:DataType="m:ErosHuntClip">
-                                                                <Setter Property="Cursor" Value="Arrow"/>
-                                                            </Style>
-                                                        </Button.Styles>
-                                                        <Button.Theme>
-                                                            <ControlTheme TargetType="Button"
-                                                                          BasedOn="{StaticResource {x:Type Button}}"
-                                                                          x:DataType="m:ErosHuntClip">
-                                                                <Setter Property="Cursor" Value="Hand"/>
-                                                                <Setter Property="Template">
-                                                                    <Setter.Value>
-                                                                        <ControlTemplate TargetType="Button">
-                                                                            <ContentPresenter Content="{TemplateBinding Content}"
-                                                                                              ContentTemplate="{TemplateBinding ContentTemplate}"
-                                                                                              Name="PART_ContentPresenter"/>
-                                                                        </ControlTemplate>
-                                                                    </Setter.Value>
-                                                                </Setter>
-                                                            </ControlTheme>
-                                                        </Button.Theme>
-                                                        <Border Width="58"
-                                                                Height="46"
-                                                                CornerRadius="6"
-                                                                Classes="s37"
-                                                                Classes.s37_0="{Binding IsFinished}"
-                                                                Classes.s37_1="{Binding Item.ItemStatus, Converter={x:Static conv:WpfConverters.Equal}, ConverterParameter=Failed}"
-                                                                Classes.s37_2="{Binding IsBusy}">
-                                                            <Border.Styles>
-                                                                <Style Selector="Border.s37.s37_0" x:DataType="m:ErosHuntClip">
-                                                                    <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-                                                                    <Setter Property="BorderBrush" Value="{StaticResource SuccessBrush}"/>
-                                                                </Style>
-                                                                <Style Selector="Border.s37.s37_1" x:DataType="m:ErosHuntClip">
-                                                                    <Setter Property="BorderBrush" Value="{StaticResource DangerBrush}"/>
-                                                                </Style>
-                                                                <Style Selector="Border.s37.s37_2" x:DataType="m:ErosHuntClip">
-                                                                    <Setter Property="Background" Value="{DynamicResource TabAccentBrush}"/>
-                                                                    <Setter Property="BorderBrush" Value="{DynamicResource TabAccentBrush}"/>
-                                                                </Style>
-                                                            </Border.Styles>
-                                                            <Border.Theme>
-                                                                <ControlTheme TargetType="Border" x:DataType="m:ErosHuntClip">
-                                                                    <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
-                                                                    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
-                                                                    <Setter Property="BorderThickness" Value="1"/>
-                                                                </ControlTheme>
-                                                            </Border.Theme>
-                                                            <StackPanel VerticalAlignment="Center">
-                                                                <TextBlock Text="{Binding Item.ClipIndex, StringFormat={}{0:00}}"
-                                                                           FontFamily="Consolas, DejaVu Sans Mono, Liberation Mono, monospace"
-                                                                           FontSize="14"
-                                                                           FontWeight="Bold"
-                                                                           HorizontalAlignment="Center"
-                                                                           Classes="s38"
-                                                                           Classes.s38_0="{Binding IsFinished}"
-                                                                           Classes.s38_1="{Binding Item.ItemStatus, Converter={x:Static conv:WpfConverters.Equal}, ConverterParameter=Failed}"
-                                                                           Classes.s38_2="{Binding IsBusy}">
-                                                                    <TextBlock.Styles>
-                                                                        <Style Selector="TextBlock.s38.s38_0" x:DataType="m:ErosHuntClip">
-                                                                            <Setter Property="Foreground" Value="{StaticResource SuccessTextBrush}"/>
-                                                                        </Style>
-                                                                        <Style Selector="TextBlock.s38.s38_1" x:DataType="m:ErosHuntClip">
-                                                                            <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
-                                                                        </Style>
-                                                                        <Style Selector="TextBlock.s38.s38_2" x:DataType="m:ErosHuntClip">
-                                                                            <Setter Property="Foreground" Value="White"/>
-                                                                        </Style>
-                                                                    </TextBlock.Styles>
-                                                                    <TextBlock.Theme>
-                                                                        <ControlTheme TargetType="TextBlock" x:DataType="m:ErosHuntClip">
-                                                                            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-                                                                        </ControlTheme>
-                                                                    </TextBlock.Theme>
-                                                                </TextBlock>
-                                                                <TextBlock FontSize="9"
-                                                                           HorizontalAlignment="Center"
-                                                                           Margin="0,1,0,0"
-                                                                           Classes="s39"
-                                                                           Classes.s39_0="{Binding IsFinished}"
-                                                                           Classes.s39_1="{Binding Item.ItemStatus, Converter={x:Static conv:WpfConverters.Equal}, ConverterParameter=Failed}"
-                                                                           Classes.s39_2="{Binding IsRerollQueued}"
-                                                                           Classes.s39_3="{Binding IsBusy}">
-                                                                    <TextBlock.Styles>
-                                                                        <Style Selector="TextBlock.s39.s39_0" x:DataType="m:ErosHuntClip">
-                                                                            <Setter Property="Text" Value="▶ play"/>
-                                                                            <Setter Property="Foreground" Value="{StaticResource SuccessTextBrush}"/>
-                                                                        </Style>
-                                                                        <Style Selector="TextBlock.s39.s39_1" x:DataType="m:ErosHuntClip">
-                                                                            <Setter Property="Text" Value="failed"/>
-                                                                            <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
-                                                                        </Style>
-                                                                        <Style Selector="TextBlock.s39.s39_2" x:DataType="m:ErosHuntClip">
-                                                                            <Setter Property="Text" Value="⏳ queued"/>
-                                                                            <Setter Property="Foreground" Value="{DynamicResource TabAccentBrush}"/>
-                                                                        </Style>
-                                                                        <Style Selector="TextBlock.s39.s39_3" x:DataType="m:ErosHuntClip">
-                                                                            <Setter Property="Text" Value="rendering"/>
-                                                                            <Setter Property="Foreground" Value="White"/>
-                                                                        </Style>
-                                                                    </TextBlock.Styles>
-                                                                    <TextBlock.Theme>
-                                                                        <ControlTheme TargetType="TextBlock" x:DataType="m:ErosHuntClip">
-                                                                            <Setter Property="Text" Value="waiting"/>
-                                                                            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-                                                                        </ControlTheme>
-                                                                    </TextBlock.Theme>
-                                                                </TextBlock>
-                                                            </StackPanel>
-                                                        </Border>
-                                                    </Button>
-                                                    <!-- The prompt, beside the player. Filled while it is the one open. -->
-                                                    <Button Command="{Binding $parent[ItemsControl].((vmv:H3ExpressViewModel)DataContext).SelectClipCommand}"
-                                                            CommandParameter="{Binding}"
-                                                            Width="58"
-                                                            Height="20"
-                                                            Margin="0,3,0,0"
-                                                            ToolTip.Tip="Open this clip's prompt beside the player — read it, edit it, regenerate the clip."
-                                                            Classes="s40"
-                                                            Classes.s40_0="{Binding IsSelected}">
-                                                        <Button.Styles>
-                                                            <Style Selector="Button.s40.s40_0" x:DataType="m:ErosHuntClip">
-                                                                <Setter Property="Background" Value="{DynamicResource TabAccentBrush}"/>
-                                                                <Setter Property="Foreground" Value="White"/>
-                                                            </Style>
-                                                        </Button.Styles>
-                                                        <Button.Theme>
-                                                            <ControlTheme TargetType="Button"
-                                                                          BasedOn="{StaticResource {x:Type Button}}"
-                                                                          x:DataType="m:ErosHuntClip">
-                                                                <Setter Property="Cursor" Value="Hand"/>
-                                                                <Setter Property="Foreground" Value="{DynamicResource TabAccentBrush}"/>
-                                                                <Setter Property="Background" Value="Transparent"/>
-                                                                <Setter Property="Template">
-                                                                    <Setter.Value>
-                                                                        <ControlTemplate TargetType="Button">
-                                                                            <Border Background="{TemplateBinding Background}"
-                                                                                    CornerRadius="4"
-                                                                                    BorderBrush="{DynamicResource TabAccentBrush}"
-                                                                                    BorderThickness="1">
-                                                                                <TextBlock Text="📝 prompt"
-                                                                                           FontSize="9"
-                                                                                           FontWeight="SemiBold"
-                                                                                           HorizontalAlignment="Center"
-                                                                                           VerticalAlignment="Center"
-                                                                                           Foreground="{TemplateBinding Foreground}"/>
-                                                                            </Border>
-                                                                        </ControlTemplate>
-                                                                    </Setter.Value>
-                                                                </Setter>
-                                                            </ControlTheme>
-                                                        </Button.Theme>
-                                                    </Button>
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </ScrollViewer>
-                            </StackPanel>
-                        </Border>
-                        <!-- ─── Log ───────────────────────────────────────────────── -->
-                        <ctrl:ProcessingLogPanel Grid.Row="3" LogText="{Binding LogOutput}" MaxLogHeight="120"/>
-                    </Grid>
-                </Grid>
-            </TabItem>
-            <!-- ═══════════════════════════════════════════════════════════════════════
                          Tab: Seed Upscale
 
                          Where the upscale that 🌀4️⃣ H3 4-Step deliberately does not do gets done.
@@ -8716,6 +6963,246 @@
                             </Border>
                         </Grid>
                     </Border>
+                </Grid>
+            </TabItem>
+            <!-- ═══════════════════════════════════════════════════════════════════════
+                 Tab: ⛓ FFLF (H3FflfViewModel) — story beats, first frame to last frame.
+                 ═══════════════════════════════════════════════════════════════════════ -->
+            <TabItem Header="⛓ FFLF">
+                <Grid x:DataType="vmv:H3FflfViewModel"
+                      x:Name="FflfRoot"
+                      DataContext="{Binding H3FflfVM}"
+                      Theme="{StaticResource TabPageStyle}"
+                      ColumnDefinitions="380,*">
+                    <Grid.Resources>
+                        <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource AccentIndigoColor}"/>
+                    </Grid.Resources>
+                    <Grid.Styles>
+                        <Style Selector="TextBlock.flabel">
+                            <Setter Property="FontSize" Value="10"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                            <Setter Property="Margin" Value="0,8,0,3"/>
+                        </Style>
+                        <Style Selector="TextBlock.frow">
+                            <Setter Property="FontSize" Value="11"/>
+                            <Setter Property="VerticalAlignment" Value="Center"/>
+                            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                        </Style>
+                    </Grid.Styles>
+
+                    <!-- ═══ Left: setup ═════════════════════════════════════════════ -->
+                    <Grid Grid.Column="0" RowDefinitions="*,Auto">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10,8,10,0">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,10" ColumnDefinitions="*,Auto,Auto">
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="STORY" FontSize="9" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}"/>
+                                        <TextBlock Text="{Binding StoryName}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"
+                                                   TextTrimming="CharacterEllipsis" ToolTip.Tip="Saved automatically as you go — reopen it any time from 📚 Stories."/>
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Content="{Binding StoriesLabel}" Command="{Binding OpenStoriesCommand}" Theme="{StaticResource SecondaryButtonStyle}"
+                                            Height="26" Padding="10,0" FontSize="11" Margin="6,0,0,0"/>
+                                    <Button Grid.Column="2" Content="＋ New" Command="{Binding NewStoryCommand}" Theme="{StaticResource SecondaryButtonStyle}"
+                                            Height="26" Padding="10,0" FontSize="11" Margin="5,0,0,0"/>
+                                </Grid>
+
+                                <Border Theme="{StaticResource SectionCardStyle}" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <ctrl:SectionHeader Title="① OPENING IMAGE" Note="  · beat 1 starts on it"/>
+                                        <Border x:Name="FflfDropZone" DragDrop.AllowDrop="True" Height="170" Margin="0,8,0,0" CornerRadius="6" Cursor="Hand"
+                                                Background="{StaticResource PlayerSurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                ctrl:Click.Command="{Binding BrowseImageCommand}"
+                                                ToolTip.Tip="Drop an image here, or click to choose one.">
+                                            <Grid>
+                                                <TextBlock Text="＋ Pick or drop the image the story opens on" Foreground="{StaticResource PlayerTextBrush}" FontSize="11"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" Margin="12"/>
+                                                <Image Source="{Binding InitialImagePath, Converter={StaticResource PathToBitmapConverter}}" Stretch="Uniform"/>
+                                                <Button Content="✕" Width="20" Height="20" Margin="4" Padding="0" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                        Command="{Binding ClearImageCommand}" IsVisible="{Binding HasInitialImage}"
+                                                        Theme="{StaticResource SecondaryButtonStyle}"/>
+                                            </Grid>
+                                        </Border>
+                                        <TextBlock Text="{Binding InitialImageName}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Theme="{StaticResource SectionCardStyle}" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <ctrl:SectionHeader Title="② STORY BEATS" Note="  · one per paragraph or numbered line"/>
+                                        <TextBox Text="{Binding BeatsText}" Margin="0,8,0,0" Height="220" FontSize="11" TextWrapping="Wrap" AcceptsReturn="True"
+                                                 VerticalContentAlignment="Top"
+                                                 Watermark="Paste the beats. A blank line, a numbered line (1. 2) Beat 3:) or a bullet starts the next beat."/>
+                                        <TextBlock Text="{Binding BeatSummary}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                        <TextBlock Classes="flabel" Text="STYLE / SETTING (optional — written in front of every beat)"/>
+                                        <TextBox Text="{Binding StyleText}" Height="54" FontSize="11" TextWrapping="Wrap" AcceptsReturn="True" VerticalContentAlignment="Top"
+                                                 Watermark="Cinematic live action, a judo dojo in warm afternoon light; Kira wears the white gi, Toru the blue."/>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Theme="{StaticResource SectionCardStyle}" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <ctrl:SectionHeader Title="③ SHOT" Note="  · every beat the same"/>
+                                        <Grid Margin="0,8,0,0" ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto,Auto">
+                                            <TextBlock Classes="frow" Text="Seconds / beat"/>
+                                            <Grid Grid.Column="1" Margin="0,0,0,6" ColumnDefinitions="*,40">
+                                                <Slider Value="{Binding BeatSeconds}" Minimum="2" Maximum="15" TickFrequency="0.5" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding BeatSeconds, StringFormat={}{0:0.#} s}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            </Grid>
+                                            <TextBlock Grid.Row="1" Classes="frow" Text="Aspect"/>
+                                            <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding AspectRatioOptions}" SelectedItem="{Binding SelectedAspectRatio}"
+                                                      HorizontalAlignment="Stretch" Height="26" FontSize="11" Margin="0,0,0,6"/>
+                                            <TextBlock Grid.Row="2" Classes="frow" Text="First pass"/>
+                                            <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding FirstPassSizes}"
+                                                      DisplayMemberBinding="{ReflectionBinding Label}" SelectedValueBinding="{ReflectionBinding Value}"
+                                                      SelectedValue="{Binding FirstPassMegapixels, Mode=TwoWay}" HorizontalAlignment="Stretch" Height="26" FontSize="11" Margin="0,0,0,6"/>
+                                            <TextBlock Grid.Row="3" Classes="frow" Text="Refined"/>
+                                            <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{Binding FinalSizes}"
+                                                      DisplayMemberBinding="{ReflectionBinding Label}" SelectedValueBinding="{ReflectionBinding Value}"
+                                                      SelectedValue="{Binding FinalMegapixels, Mode=TwoWay}" HorizontalAlignment="Stretch" Height="26" FontSize="11"
+                                                      IsEnabled="{Binding !PreviewOnly}"/>
+                                        </Grid>
+                                        <TextBlock Text="{Binding CanvasSummary}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,5,0,0"/>
+                                        <CheckBox IsChecked="{Binding PreviewOnly}" Margin="0,8,0,0" FontSize="11" Content="⚡ Draft — first pass only"
+                                                  ToolTip.Tip="Skip the refine, RTX and grain: a quick run of the whole story to check the action."/>
+                                        <CheckBox IsChecked="{Binding LockFirstFrame}" Margin="0,5,0,0" FontSize="11" Content="📌 Anchor each beat's first frame"
+                                                  ToolTip.Tip="On: the frame a beat starts on is pinned at frame 0 as well as sent as Picture 1. Off: it is a reference only."/>
+                                        <CheckBox IsChecked="{Binding KeepInitialReference}" Margin="0,5,0,0" FontSize="11" Content="🧍 Keep the opening image as the character reference"/>
+                                        <CheckBox IsChecked="{Binding JoinWhenDone}" Margin="0,5,0,0" FontSize="11" Content="🎞 Join the beats when the last one lands"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <Expander Header="⚙ Model, LoRA &amp; seed" IsExpanded="False" Margin="0,0,0,10" HorizontalAlignment="Stretch">
+                                    <StackPanel Margin="0,6,0,0">
+                                        <TextBlock Classes="flabel" Text="DIFFUSION MODEL" Margin="0,0,0,3"/>
+                                        <ComboBox ItemsSource="{Binding ModelOptions}" SelectedItem="{Binding DiffusionModel}" HorizontalAlignment="Stretch" Height="26" FontSize="10.5"/>
+                                        <TextBlock Classes="flabel" Text="LORA"/>
+                                        <ComboBox ItemsSource="{Binding LoraOptions}" SelectedItem="{Binding Lora}" HorizontalAlignment="Stretch" Height="26" FontSize="10.5"/>
+                                        <Grid Margin="0,6,0,0" ColumnDefinitions="110,*,40">
+                                            <TextBlock Classes="frow" Text="LoRA strength"/>
+                                            <Slider Grid.Column="1" Value="{Binding LoraStrength}" Minimum="0" Maximum="1.5" TickFrequency="0.05" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding LoraStrength, StringFormat={}{0:0.00}}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                        </Grid>
+                                        <Grid Margin="0,6,0,0" ColumnDefinitions="110,*,40">
+                                            <TextBlock Classes="frow" Text="First-pass steps"/>
+                                            <Slider Grid.Column="1" Value="{Binding FirstPassSteps}" Minimum="2" Maximum="16" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding FirstPassSteps}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                        </Grid>
+                                        <Grid Margin="0,6,0,0" ColumnDefinitions="110,*,Auto">
+                                            <TextBlock Classes="frow" Text="Beat 1 seed"/>
+                                            <TextBox Grid.Column="1" Text="{Binding BaseSeed}" Height="26" FontSize="11" VerticalContentAlignment="Center"/>
+                                            <Button Grid.Column="2" Content="🎲" Command="{Binding NewSeedCommand}" Theme="{StaticResource SecondaryButtonStyle}" Width="30" Height="26" Padding="0" Margin="4,0,0,0"/>
+                                        </Grid>
+                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                            <Button Content="↺ Defaults" Command="{Binding ResetModelCommand}" Theme="{StaticResource SecondaryButtonStyle}" Height="24" Padding="10,0" FontSize="10.5" Margin="0,0,5,0"
+                                                    ToolTip.Tip="10Eros Max Singularity V2 PRISM2 PikaFlex + DMAD 4-step LoRA at 0.25"/>
+                                            <Button Content="⟳ Server lists" Command="{Binding RefreshModelsCommand}" Theme="{StaticResource SecondaryButtonStyle}" Height="24" Padding="10,0" FontSize="10.5"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Expander>
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <Border Grid.Row="1" Padding="10,8" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+                            <StackPanel>
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <Button Command="{Binding GenerateCommand}" Theme="{StaticResource AccentButtonStyle}" Height="40" FontSize="13" FontWeight="SemiBold"
+                                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="{Binding GenerateLabel}"/>
+                                    <Button Grid.Column="1" Content="⏹" Command="{Binding StopCommand}" Theme="{StaticResource SecondaryButtonStyle}"
+                                            Width="40" Height="40" Padding="0" FontSize="13" Margin="6,0,0,0" ToolTip.Tip="Stop"/>
+                                </Grid>
+                                <ProgressBar Value="{Binding ProcessingProgress}" Maximum="100" Height="4" MinHeight="4" Margin="0,6,0,0" IsVisible="{Binding IsProcessing}"/>
+                                <TextBlock Text="{Binding ReadyHint}" FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"
+                                           HorizontalAlignment="Center" TextAlignment="Center" Margin="0,6,0,0"/>
+                                <Button Content="↺ Start over" Command="{Binding StartOverCommand}" Theme="{StaticResource SecondaryButtonStyle}"
+                                        Height="22" Padding="10,0" FontSize="10" Margin="0,6,0,0" HorizontalAlignment="Center"
+                                        ToolTip.Tip="Forget every take and render the story again from beat 1 with new seeds."/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- ═══ Right: player and beats ═════════════════════════════════ -->
+                    <Grid Grid.Column="1" Margin="0,8,10,8" RowDefinitions="*,Auto,Auto,Auto">
+                        <Border Grid.Row="0" CornerRadius="12" Background="{StaticResource PlayerSurfaceBrush}" ClipToBounds="True" MinHeight="220">
+                            <Grid>
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding ActivePreview, Converter={x:Static StringConverters.IsNullOrEmpty}}">
+                                    <TextBlock Text="⛓" FontSize="40" HorizontalAlignment="Center" Opacity="0.6"/>
+                                    <TextBlock Text="Each beat plays here as it lands, then the joined film."
+                                               FontSize="12" Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                </StackPanel>
+                                <ctrl:VideoPreview x:Name="FflfPlayer"
+                                                   IsVisible="{Binding ActivePreview, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                                   Stretch="Uniform"
+                                                   MediaOpened="FflfPlayer_MediaOpened"
+                                                   MediaEnded="FflfPlayer_MediaEnded"/>
+                                <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="10" CornerRadius="6" Padding="8,3" Background="#CC000000"
+                                        IsVisible="{Binding LivePreviewCaption, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                    <TextBlock Text="{Binding LivePreviewCaption}" FontSize="10" FontFamily="Consolas,DejaVu Sans Mono,monospace" Foreground="#f0c060"/>
+                                </Border>
+                                <Grid Background="{StaticResource PlayerSurfaceBrush}" IsVisible="{Binding HasPreviewImage}">
+                                    <Image Source="{Binding PreviewImagePath, Converter={StaticResource PathToBitmapConverter}}" Stretch="Uniform"/>
+                                    <Button Content="✕  Back to video" Command="{Binding ClosePreviewImageCommand}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                            Margin="10" Height="26" Padding="10,0" FontSize="10.5" Theme="{StaticResource SecondaryButtonStyle}" Opacity="0.92"/>
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Margin="0,10,0,0">
+                            <ItemsControl ItemsSource="{Binding Beats}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="m:FflfBeat">
+                                        <Border Width="190" Margin="0,0,8,6" CornerRadius="8" Padding="6" Background="{StaticResource SurfaceBrush}"
+                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" ToolTip.Tip="{Binding Text}">
+                                            <StackPanel>
+                                                <Border Height="96" CornerRadius="5" Background="{StaticResource PlayerSurfaceBrush}" ClipToBounds="True" Cursor="Hand"
+                                                        ctrl:Click.Command="{Binding $parent[ItemsControl].((vmv:H3FflfViewModel)DataContext).ShowFrameCommand}"
+                                                        ctrl:Click.CommandParameter="{Binding}">
+                                                    <Grid>
+                                                        <TextBlock Text="{Binding StateIcon}" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.7"/>
+                                                        <Image Source="{Binding LastFramePath, Converter={StaticResource PathToBitmapConverter}}" Stretch="UniformToFill"/>
+                                                    </Grid>
+                                                </Border>
+                                                <TextBlock Margin="0,5,0,0" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis"
+                                                           Text="{Binding Label}"/>
+                                                <TextBlock Text="{Binding Text}" FontSize="9.5" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Height="38" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                                                <TextBlock Text="{Binding Status}" FontSize="9" Foreground="{StaticResource TextFaintBrush}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                                                <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                                                    <Button Content="▶ Play" Command="{Binding $parent[ItemsControl].((vmv:H3FflfViewModel)DataContext).PlayBeatCommand}" CommandParameter="{Binding}"
+                                                            Theme="{StaticResource SecondaryButtonStyle}" Height="22" Padding="8,0" FontSize="10" Margin="0,0,4,0" IsEnabled="{Binding HasVideo}"/>
+                                                    <Button Content="↻ Redo" Command="{Binding $parent[ItemsControl].((vmv:H3FflfViewModel)DataContext).RedoBeatCommand}" CommandParameter="{Binding}"
+                                                            Theme="{StaticResource SecondaryButtonStyle}" Height="22" Padding="8,0" FontSize="10"
+                                                            ToolTip.Tip="A new take of this beat (new seed) — every beat after it renders again from its new last frame."/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <WrapPanel Grid.Row="2" Margin="0,4,0,0">
+                            <Button Content="▶ Joined film" Command="{Binding PlayJoinedCommand}" Theme="{StaticResource AccentButtonStyle}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,6,4"/>
+                            <Button Content="🎞 Join now" Command="{Binding JoinCommand}" Theme="{StaticResource SecondaryButtonStyle}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,6,4"/>
+                            <Button Content="📁 Open folder" Command="{Binding OpenFolderCommand}" Theme="{StaticResource SecondaryButtonStyle}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,10,4"/>
+                            <TextBlock Text="{Binding ResultVideoInfo}" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis" Margin="0,0,0,4"/>
+                        </WrapPanel>
+
+                        <Expander Grid.Row="3" Header="📝 Log" IsExpanded="False" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0" HorizontalAlignment="Stretch">
+                            <Grid>
+                                <TextBox Text="{Binding LogOutput, Mode=OneWay}" IsReadOnly="True" FontFamily="Consolas,DejaVu Sans Mono,monospace" FontSize="10"
+                                         Height="130" TextWrapping="Wrap"
+                                         Background="#1a1a1a" Foreground="#999" BorderThickness="0"
+                                         TextChanged="FflfLog_TextChanged"/>
+                                <Button Content="Clear" Command="{Binding ClearLogCommand}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                        Height="18" Padding="6,0" FontSize="8" Theme="{StaticResource SecondaryButtonStyle}" Margin="0,2,18,0"/>
+                            </Grid>
+                        </Expander>
+                    </Grid>
                 </Grid>
             </TabItem>
             <!-- ════════════════════════════════════════════════════════════════ -->

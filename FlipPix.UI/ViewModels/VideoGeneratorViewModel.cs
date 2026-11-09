@@ -61,12 +61,6 @@ namespace FlipPix.UI.ViewModels
         public H3VrViewModel H3VrVM { get; }
 
         /// <summary>
-        /// H3 Express ViewModel — H3 Batch without the seed hunt: a folder of stories, each one's clips
-        /// rendered straight through one at a time and joined. Singularity and researched prompts by default.
-        /// </summary>
-        public H3ExpressViewModel H3ExpressVM { get; }
-
-        /// <summary>
         /// Seed Upscale ViewModel — scans a folder of drafts and their recipes, and re-renders only the
         /// ticked ones: the recorded seed is sampled back through the same stack to reproduce its latent,
         /// and that latent is what MinimaxH3LatentUpscaler3D lifts to the finished canvas.
@@ -96,6 +90,12 @@ namespace FlipPix.UI.ViewModels
         /// with its motion, camera, timing and sound kept and the people or the place changed.
         /// </summary>
         public RemakeViewModel RemakeVM { get; }
+
+        /// <summary>
+        /// FFLF ViewModel — story beats rendered one after another through the ErosMax 2-Pass graph, each beat
+        /// starting on the last frame of the one before, then joined.
+        /// </summary>
+        public H3FflfViewModel H3FflfVM { get; }
 
         // Bound to the main TabControl so code can switch tabs programmatically.
         // 0 = Scail 2 tab.
@@ -168,15 +168,6 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
-            H3ExpressVM = new H3ExpressViewModel(
-                comfyUIService,
-                lmStudioService,
-                logger,
-                settingsService,
-                serviceProvider,
-                _workflowCoordinator,
-                _fileDialogService);
-
             SeedUpscaleVM = new SeedUpscaleViewModel(
                 comfyUIService,
                 lmStudioService,
@@ -221,12 +212,19 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
+            H3FflfVM = new H3FflfViewModel(
+                comfyUIService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
             // Forward PlayRequested events from sub-VMs
             MainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             Scail2VM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             MiniMaxI2VVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             H3VrVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
-            H3ExpressVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             SeedUpscaleVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
 
             // Forward PropertyChanged events from all sub-VMs for backward compatibility
@@ -234,7 +232,6 @@ namespace FlipPix.UI.ViewModels
             Scail2VM.PropertyChanged += ForwardPropertyChanged;
             MiniMaxI2VVM.PropertyChanged += ForwardPropertyChanged;
             H3VrVM.PropertyChanged += ForwardPropertyChanged;
-            H3ExpressVM.PropertyChanged += ForwardPropertyChanged;
             SeedUpscaleVM.PropertyChanged += ForwardPropertyChanged;
             H3VideoEditorVM.PropertyChanged += ForwardPropertyChanged;
             H3BatchUpscaleVM.PropertyChanged += ForwardPropertyChanged;
@@ -474,7 +471,6 @@ namespace FlipPix.UI.ViewModels
                 MainVM.PropertyChanged -= ForwardPropertyChanged;
                 MiniMaxI2VVM.PropertyChanged -= ForwardPropertyChanged;
                 H3VrVM.PropertyChanged -= ForwardPropertyChanged;
-                H3ExpressVM.PropertyChanged -= ForwardPropertyChanged;
                 SeedUpscaleVM.PropertyChanged -= ForwardPropertyChanged;
                 H3VideoEditorVM.PropertyChanged -= ForwardPropertyChanged;
                 H3BatchUpscaleVM.PropertyChanged -= ForwardPropertyChanged;
@@ -484,10 +480,10 @@ namespace FlipPix.UI.ViewModels
                 (MainVM as IDisposable)?.Dispose();
                 (MiniMaxI2VVM as IDisposable)?.Dispose();
                 (H3VrVM as IDisposable)?.Dispose();
-                (H3ExpressVM as IDisposable)?.Dispose();
                 (SeedUpscaleVM as IDisposable)?.Dispose();
                 (H3VideoEditorVM as IDisposable)?.Dispose();
                 (H3BatchUpscaleVM as IDisposable)?.Dispose();
+                H3FflfVM.Dispose();
 
                 _disposed = true;
             }

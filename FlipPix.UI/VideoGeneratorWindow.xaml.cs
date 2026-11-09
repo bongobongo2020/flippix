@@ -50,11 +50,11 @@ namespace FlipPix.UI
             // MediaElement.Source silently fails to load the Z:\ output paths (black frame, no
             // MediaOpened/MediaFailed). Set an absolute Uri explicitly instead.
             _viewModel.H3VrVM.PropertyChanged += H3VrVM_PropertyChanged;
-            _viewModel.H3ExpressVM.PropertyChanged += H3ExpressVM_PropertyChanged;
             _viewModel.SeedUpscaleVM.PropertyChanged += SeedUpscaleVM_PropertyChanged;
             _viewModel.H3VideoEditorVM.PropertyChanged += H3VideoEditorVM_PropertyChanged;
             _viewModel.CharacterSwapVM.PropertyChanged += CharacterSwapVM_PropertyChanged;
             _viewModel.RemakeVM.PropertyChanged += RemakeVM_PropertyChanged;
+            _viewModel.H3FflfVM.PropertyChanged += H3FflfVM_PropertyChanged;
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
@@ -63,11 +63,11 @@ namespace FlipPix.UI
             // Pick up a video that was already loaded before this window's handlers wired up.
             ApplyScail2RefSource();
             ApplyH3VrSource();
-            ApplyH3ExpressSource();
             ApplySeedUpscaleSource();
             ApplyH3EditorSource();
             ApplyCharacterSwapSource();
             ApplyRemakeSource();
+            ApplyFflfSource();
         }
 
         private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -94,12 +94,6 @@ namespace FlipPix.UI
             {
                 H3VrVideoPlayer.Position = System.TimeSpan.Zero;
                 H3VrVideoPlayer.Play();
-            }
-
-            if (H3ExpressVideoPlayer != null && H3ExpressVideoPlayer.Source != null)
-            {
-                H3ExpressVideoPlayer.Position = System.TimeSpan.Zero;
-                H3ExpressVideoPlayer.Play();
             }
 
         }
@@ -133,7 +127,7 @@ namespace FlipPix.UI
 
 
         // ────────────────────────────────────────────────────────────────────
-        // Shared seed-board players — H3 VR, H3 Express and Seed Upscale each follow
+        // Shared seed-board players — H3 VR and Seed Upscale each follow
         // their view model's ActivePreviewUri, which changes on every tile click, so
         // the player has to start playing on its own each time.
         //
@@ -223,29 +217,46 @@ namespace FlipPix.UI
             if (DroppedVideo(e) is { } path) _ = _viewModel.RemakeVM.SetVideoAsync(path);
         }
 
+        // ── FFLF tab ────────────────────────────────────────────────────────────────────────────
+
+        private void H3FflfVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(ViewModels.Video.H3FflfViewModel.ActivePreview)) return;
+            if (Dispatcher.CheckAccess()) ApplyFflfSource();
+            else Dispatcher.Invoke(ApplyFflfSource);
+        }
+
+        private void ApplyFflfSource() => ApplySharedPlayerSource(FflfPlayer, _viewModel.H3FflfVM.ActivePreview);
+
+        private void FflfPlayer_MediaOpened(object sender, RoutedEventArgs e) => FflfPlayer.Play();
+
+        private void FflfPlayer_MediaEnded(object sender, RoutedEventArgs e)
+        {
+            FflfPlayer.Position = System.TimeSpan.FromMilliseconds(1);
+            FflfPlayer.Play();
+        }
+
+        private void FflfLog_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) =>
+            (sender as System.Windows.Controls.TextBox)?.ScrollToEnd();
+
+        private static string? DroppedImage(System.Windows.DragEventArgs e) =>
+            e.Data.GetData(System.Windows.DataFormats.FileDrop) is string[] { Length: > 0 } files
+            && new[] { ".png", ".jpg", ".jpeg", ".webp", ".bmp" }.Contains(System.IO.Path.GetExtension(files[0]).ToLowerInvariant())
+                ? files[0] : null;
+
+        private void FflfDropZone_DragOver(object sender, System.Windows.DragEventArgs e)
+        {
+            e.Effects = DroppedImage(e) != null ? System.Windows.DragDropEffects.Copy : System.Windows.DragDropEffects.None;
+            e.Handled = true;
+        }
+
+        private void FflfDropZone_Drop(object sender, System.Windows.DragEventArgs e)
+        {
+            if (DroppedImage(e) is { } path) _viewModel.H3FflfVM.SetInitialImage(path);
+        }
+
         private void H3VrPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e) =>
             _viewModel.H3VrVM.ReportPreviewFailed(e.ErrorException?.Message ?? "unknown media error");
-
-        private void H3ExpressVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName != nameof(ViewModels.Video.H3ExpressViewModel.ActivePreviewUri)) return;
-            if (Dispatcher.CheckAccess()) ApplyH3ExpressSource();
-            else Dispatcher.Invoke(ApplyH3ExpressSource);
-        }
-
-        private void ApplyH3ExpressSource() =>
-            ApplySharedPlayerSource(H3ExpressVideoPlayer, _viewModel.H3ExpressVM.ActivePreviewUri);
-
-        private void H3ExpressPlayer_MediaOpened(object sender, RoutedEventArgs e) => H3ExpressVideoPlayer.Play();
-
-        private void H3ExpressPlayer_MediaEnded(object sender, RoutedEventArgs e)
-        {
-            H3ExpressVideoPlayer.Position = System.TimeSpan.FromMilliseconds(1);
-            H3ExpressVideoPlayer.Play();
-        }
-
-        private void H3ExpressPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e) =>
-            _viewModel.H3ExpressVM.ReportPreviewFailed(e.ErrorException?.Message ?? "unknown media error");
 
         private void SeedUpscaleVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
@@ -836,11 +847,11 @@ namespace FlipPix.UI
             Scail2VideoPlayer?.Stop();
             MiniMaxI2VVideoPlayer?.Stop();
             H3VrVideoPlayer?.Stop();
-            H3ExpressVideoPlayer?.Stop();
             SeedUpscaleVideoPlayer?.Stop();
             H3EditorVideoPlayer?.Stop();
             CharacterSwapPlayer?.Stop();
             RemakePlayer?.Stop();
+            FflfPlayer?.Stop();
         }
 
         protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
@@ -868,6 +879,7 @@ namespace FlipPix.UI
             _viewModel.H3VideoEditorVM.PropertyChanged -= H3VideoEditorVM_PropertyChanged;
             _viewModel.CharacterSwapVM.PropertyChanged -= CharacterSwapVM_PropertyChanged;
             _viewModel.RemakeVM.PropertyChanged -= RemakeVM_PropertyChanged;
+            _viewModel.H3FflfVM.PropertyChanged -= H3FflfVM_PropertyChanged;
             _viewModel.PlayRequested -= OnPlayRequested;
 
             if (_viewModel is IDisposable disposable)

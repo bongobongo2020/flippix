@@ -358,6 +358,9 @@ public class ComfyUISettings
     // Remake tab (Viggle Remake on MiniMax H3): the last choices on the page.
     public RemakeSettings Remake { get; set; } = new RemakeSettings();
 
+    // FFLF tab (story beats chained first-frame/last-frame through the ErosMax 2-Pass graph): the last choices on the page.
+    public H3FflfSettings H3Fflf { get; set; } = new H3FflfSettings();
+
     // Painter (WAN 2.2 LightX2V) workflow model names — adjust to match your ComfyUI server
     public string PainterHighNoiseModel { get; set; } = @"wan\wan2.2_i2v_high_noise_14B_Q8_0.gguf";
     public string PainterLowNoiseModel { get; set; } = @"wan\wan2.2_i2v_low_noise_14B_Q8_0.gguf";
@@ -643,4 +646,34 @@ public class RemakeSettings
     public string Model { get; set; } = string.Empty;
     public string LastVideoFolder { get; set; } = string.Empty;
     public string LastPhotoFolder { get; set; } = string.Empty;
+}
+
+/// <summary>The ⛓ FFLF tab: story beats rendered one after another through h3-erosmax-2pass.json, each beat
+/// starting on the previous beat's last frame.</summary>
+public class H3FflfSettings
+{
+    public const string DefaultModel = "h3-minimax/10Eros_Max_SingularityV2_PRISM2_PikaFlex_0.85_int8HQ.safetensors";
+    public const string DefaultLora = "H3/minimax_h3_DMAD_4step_full_lora_avg_rank_39_bf16.safetensors";
+
+    public string InitialImagePath { get; set; } = string.Empty;
+    public string BeatsText { get; set; } = string.Empty;
+    /// <summary>Written in front of every beat (style, place, who is who). Optional.</summary>
+    public string StyleText { get; set; } = string.Empty;
+    public double BeatSeconds { get; set; } = 5;
+    public string AspectRatio { get; set; } = "16:9 (Widescreen)";
+    public double FirstPassMegapixels { get; set; } = 0.3;
+    public double FinalMegapixels { get; set; } = 1.0;
+    public bool PreviewOnly { get; set; }
+    public string DiffusionModel { get; set; } = DefaultModel;
+    public string Lora { get; set; } = DefaultLora;
+    public double LoraStrength { get; set; } = 0.25;
+    public int FirstPassSteps { get; set; } = 8;
+    /// <summary>Anchor each beat's first frame on the image it starts from (MiniMaxH3AddGuide at frame 0).</summary>
+    public bool LockFirstFrame { get; set; } = true;
+    /// <summary>Send the initial image with every beat as the character reference, not only the last frame.</summary>
+    public bool KeepInitialReference { get; set; } = true;
+    public bool JoinWhenDone { get; set; } = true;
+    public string LastPhotoFolder { get; set; } = string.Empty;
+    /// <summary>The story in the FFLF story library the tab had open, put back on the next launch.</summary>
+    public string ActiveStoryId { get; set; } = string.Empty;
 }

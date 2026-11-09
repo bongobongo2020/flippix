@@ -67,11 +67,13 @@ public partial class VideoGeneratorWindow : AppWindow
         _viewModel.Scail2VM.SeekRequested += OnScail2SeekRequested;
         _viewModel.Scail2VM.PropertyChanged += Scail2VM_PropertyChanged;
         _viewModel.H3VrVM.PropertyChanged += H3VrVM_PropertyChanged;
-        _viewModel.H3ExpressVM.PropertyChanged += H3ExpressVM_PropertyChanged;
         _viewModel.SeedUpscaleVM.PropertyChanged += SeedUpscaleVM_PropertyChanged;
         _viewModel.H3VideoEditorVM.PropertyChanged += H3VideoEditorVM_PropertyChanged;
         _viewModel.CharacterSwapVM.PropertyChanged += CharacterSwapVM_PropertyChanged;
         _viewModel.RemakeVM.PropertyChanged += RemakeVM_PropertyChanged;
+        _viewModel.H3FflfVM.PropertyChanged += H3FflfVM_PropertyChanged;
+        FflfDropZone.AddHandler(DragDrop.DragOverEvent, FflfDropZone_DragOver);
+        FflfDropZone.AddHandler(DragDrop.DropEvent, FflfDropZone_Drop);
         RemakeDropZone.AddHandler(DragDrop.DragOverEvent, RemakeDropZone_DragOver);
         RemakeDropZone.AddHandler(DragDrop.DropEvent, RemakeDropZone_Drop);
 
@@ -85,11 +87,11 @@ public partial class VideoGeneratorWindow : AppWindow
         EnsureOnScreen();
         ApplyScail2RefSource();
         ApplyH3VrSource();
-        ApplyH3ExpressSource();
         ApplySeedUpscaleSource();
         ApplyH3EditorSource();
         ApplyCharacterSwapSource();
         ApplyRemakeSource();
+        ApplyFflfSource();
     }
 
     private void Header_MouseLeftButtonDown(object? sender, PointerPressedEventArgs e) => Header_PointerPressed(sender, e);
@@ -102,7 +104,7 @@ public partial class VideoGeneratorWindow : AppWindow
 
     private void OnPlayRequested(object? sender, EventArgs e)
     {
-        foreach (var p in new[] { Scail2VideoPlayer, MiniMaxI2VVideoPlayer, H3VrVideoPlayer, H3ExpressVideoPlayer })
+        foreach (var p in new[] { Scail2VideoPlayer, MiniMaxI2VVideoPlayer, H3VrVideoPlayer })
         {
             if (p?.Source == null) continue;
             p.Position = TimeSpan.Zero;
@@ -126,7 +128,7 @@ public partial class VideoGeneratorWindow : AppWindow
     private const double ScailTrimThumbWidth = 14.0;
     private const int ScailChunkFrames = 81;
 
-    // ── Shared seed-board players (H3 VR, H3 Express, Seed Upscale, H3 Video Editor) ──
+    // ── Shared seed-board players (H3 VR, Seed Upscale, H3 Video Editor) ──
 
     private void H3VrVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
@@ -138,17 +140,6 @@ public partial class VideoGeneratorWindow : AppWindow
     private void H3VrPlayer_MediaEnded(object? sender, RoutedEventArgs e) => Loop(H3VrVideoPlayer);
     private void H3VrPlayer_MediaFailed(object? sender, MediaFailedEventArgs e) =>
         _viewModel.H3VrVM.ReportPreviewFailed(e.ErrorException?.Message ?? "unknown media error");
-
-    private void H3ExpressVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(H3ExpressViewModel.ActivePreviewUri)) OnUi(ApplyH3ExpressSource);
-    }
-
-    private void ApplyH3ExpressSource() => ApplySharedPlayerSource(H3ExpressVideoPlayer, _viewModel.H3ExpressVM.ActivePreviewUri);
-    private void H3ExpressPlayer_MediaOpened(object? sender, RoutedEventArgs e) => H3ExpressVideoPlayer.Play();
-    private void H3ExpressPlayer_MediaEnded(object? sender, RoutedEventArgs e) => Loop(H3ExpressVideoPlayer);
-    private void H3ExpressPlayer_MediaFailed(object? sender, MediaFailedEventArgs e) =>
-        _viewModel.H3ExpressVM.ReportPreviewFailed(e.ErrorException?.Message ?? "unknown media error");
 
     private void SeedUpscaleVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
@@ -207,6 +198,39 @@ public partial class VideoGeneratorWindow : AppWindow
     private void RemakeDropZone_Drop(object? sender, DragEventArgs e)
     {
         if (DroppedVideo(e) is { } path) _ = _viewModel.RemakeVM.SetVideoAsync(path);
+    }
+
+    // ── FFLF tab ────────────────────────────────────────────────────────────────────────────
+    private void H3FflfVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(H3FflfViewModel.ActivePreview)) OnUi(ApplyFflfSource);
+    }
+
+    private void ApplyFflfSource() => ApplySharedPlayerSource(FflfPlayer, _viewModel.H3FflfVM.ActivePreview);
+    private void FflfPlayer_MediaOpened(object? sender, RoutedEventArgs e) => FflfPlayer.Play();
+    private void FflfPlayer_MediaEnded(object? sender, RoutedEventArgs e) => Loop(FflfPlayer);
+
+    private void FflfLog_TextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (sender is TextBox log) log.CaretIndex = log.Text?.Length ?? 0;
+    }
+
+    private static string? DroppedImage(DragEventArgs e)
+    {
+        var path = e.Data.GetFiles()?.Select(f => f.TryGetLocalPath()).FirstOrDefault(p => p != null);
+        return path != null && new[] { ".png", ".jpg", ".jpeg", ".webp", ".bmp" }
+            .Contains(System.IO.Path.GetExtension(path).ToLowerInvariant()) ? path : null;
+    }
+
+    private void FflfDropZone_DragOver(object? sender, DragEventArgs e)
+    {
+        e.DragEffects = DroppedImage(e) != null ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void FflfDropZone_Drop(object? sender, DragEventArgs e)
+    {
+        if (DroppedImage(e) is { } path) _viewModel.H3FflfVM.SetInitialImage(path);
     }
 
     private void H3VideoEditorVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -647,11 +671,11 @@ public partial class VideoGeneratorWindow : AppWindow
         Scail2VideoPlayer?.Stop();
         MiniMaxI2VVideoPlayer?.Stop();
         H3VrVideoPlayer?.Stop();
-        H3ExpressVideoPlayer?.Stop();
         SeedUpscaleVideoPlayer?.Stop();
         H3EditorVideoPlayer?.Stop();
         CharacterSwapPlayer?.Stop();
         RemakePlayer?.Stop();
+        FflfPlayer?.Stop();
     }
 
     protected override void OnClosing(WindowClosingEventArgs e)
@@ -675,6 +699,7 @@ public partial class VideoGeneratorWindow : AppWindow
         _viewModel.H3VideoEditorVM.PropertyChanged -= H3VideoEditorVM_PropertyChanged;
         _viewModel.CharacterSwapVM.PropertyChanged -= CharacterSwapVM_PropertyChanged;
         _viewModel.RemakeVM.PropertyChanged -= RemakeVM_PropertyChanged;
+        _viewModel.H3FflfVM.PropertyChanged -= H3FflfVM_PropertyChanged;
         _viewModel.PlayRequested -= OnPlayRequested;
         if (_viewModel is IDisposable disposable) disposable.Dispose();
         DataContext = null;
