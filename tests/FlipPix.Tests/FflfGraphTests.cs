@@ -47,6 +47,16 @@ public class FflfGraphTests
         Assert.Equal("He walks in. The room is dark.", beats[0].Text);
     }
 
+    [Fact]
+    public void ParseBeats_ReadsBackTheTextACardEditWrites()
+    {
+        // Editing a card writes the beats back as "Title: text" paragraphs; they must parse to the same beats.
+        var beats = FflfGraph.ParseBeats(Story);
+        var written = string.Join("\n\n", beats.Select(b => b.Title.Length > 0 ? $"{b.Title}: {b.Text}" : b.Text));
+
+        Assert.Equal(beats, FflfGraph.ParseBeats(written));
+    }
+
     private static FflfBeatRender Request(bool preview = false, bool identity = true) => new()
     {
         StartImage = "last_frame.png",

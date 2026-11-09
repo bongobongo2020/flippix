@@ -43,6 +43,11 @@ namespace FlipPix.UI.ViewModels.Video
         private string _liveBeatLabel = string.Empty;
         private volatile bool _holdingLease;
 
+        // A Redo clicked while the story renders: the beat the run goes back to once the current one stops.
+        private int _redoFrom = -1;
+        private int _currentBeat = -1;
+        private CancellationTokenSource? _beatCts;
+
         /// <summary>Where each take's last frame is kept — beside the story library, so a story reopened after a
         /// restart (or a temp clean-up) can still carry on from it.</summary>
         private static readonly string WorkRoot = Path.Combine(ScenePromptLibrary.FolderFor("fflf-stories"), "frames");
@@ -66,7 +71,7 @@ namespace FlipPix.UI.ViewModels.Video
             ClearImageCommand = new RelayCommand(() => InitialImagePath = string.Empty, () => !IsProcessing && HasInitialImage);
             GenerateCommand = new RelayCommand(() => _ = RunAsync(FirstUnfinished()), CanGenerate);
             StopCommand = new RelayCommand(Stop, () => IsProcessing);
-            RedoBeatCommand = new RelayCommand<FflfBeat>(b => { if (b != null) _ = RedoAsync(b); }, b => b != null && !IsProcessing && CanStartAt(Beats.IndexOf(b)));
+            RedoBeatCommand = new RelayCommand<FflfBeat>(b => { if (b != null) _ = RedoAsync(b); }, CanRedo);
             PlayBeatCommand = new RelayCommand<FflfBeat>(b => { if (b?.HasVideo == true) Show(b.VideoPath); });
             ShowFrameCommand = new RelayCommand<FflfBeat>(b => { if (b?.HasLastFrame == true) PreviewImagePath = b.LastFramePath; });
             ClosePreviewImageCommand = new RelayCommand(() => PreviewImagePath = string.Empty);
@@ -106,7 +111,12 @@ namespace FlipPix.UI.ViewModels.Video
             OnInitialImagePathChanged(_initialImagePath);
             _loading = false;
 
-            Beats.CollectionChanged += (_, _) => { OnPropertyChanged(nameof(HasBeats)); OnPropertyChanged(nameof(BeatSummary)); RefreshCommands(); };
+            Beats.CollectionChanged += (_, e) =>
+            {
+                if (e.OldItems != null) foreach (FflfBeat b in e.OldItems) b.PropertyChanged -= Beat_PropertyChanged;
+                if (e.NewItems != null) foreach (FflfBeat b in e.NewItems) b.PropertyChanged += Beat_PropertyChanged;
+                OnPropertyChanged(nameof(HasBeats)); OnPropertyChanged(nameof(BeatSummary)); RefreshCommands();
+            };
             ReparseBeats();
 
             _comfyUIService.LivePreviewReceived += OnLivePreviewReceived;
@@ -236,13 +246,56 @@ namespace FlipPix.UI.ViewModels.Video
 
         partial void OnBeatsTextChanged(string value)
         {
-            if (_loading) return;
+            if (_loading || _syncingBeatText) return;
             // The running story keeps the beats it started with; the edit is read when it stops.
             if (IsProcessing) { _reparsePending = true; return; }
             ReparseBeats();
         }
 
         private bool _reparsePending;
+        private bool _syncingBeatText;
+
+        /// <summary>A beat's text edited on its card: written back into the beats box, and a take rendered from
+        /// the old text is dropped — that beat and every one after it render again (queued, during a run).</summary>
+        private void Beat_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(FflfBeat.Text) || _loading || _syncingBeatText || sender is not FflfBeat beat) return;
+            var index = Beats.IndexOf(beat);
+            if (index < 0) return;
+
+            _syncingBeatText = true;
+            try
+            {
+                var clean = System.Text.RegularExpressions.Regex.Replace(beat.Text ?? string.Empty, @"\s+", " ").Trim();
+                if (clean.Length == 0)
+                {
+                    // An emptied card keeps its beat — delete beats in the box above.
+                    var parsed = FflfGraph.ParseBeats(BeatsText);
+                    beat.Text = index < parsed.Count ? parsed[index].Text : beat.RenderedText;
+                    return;
+                }
+                if (clean != beat.Text) beat.Text = clean;
+                BeatsText = string.Join("\n\n", Beats.Select(b => b.Title.Length > 0 ? $"{b.Title}: {b.Text}" : b.Text));
+            }
+            finally { _syncingBeatText = false; }
+
+            if (beat.State == FflfBeatState.Done || beat.HasVideo)
+            {
+                if (beat.RenderedText == beat.Text) return;
+                if (IsProcessing)
+                {
+                    if (CanStartAt(index)) QueueRedo(beat, index);
+                }
+                else
+                {
+                    ResetFrom(index);
+                    AddLog($"{beat.Label} edited — it and every beat after it will render again.");
+                }
+            }
+            OnPropertyChanged(nameof(BeatSummary));
+            OnPropertyChanged(nameof(GenerateLabel));
+            ScheduleStorySave();
+        }
 
         /// <summary>Reads the beats from the text box. Beats whose text is unchanged keep their takes — up to the
         /// first beat that changed: everything from there on started on a frame that is no longer right.</summary>
@@ -557,14 +610,51 @@ namespace FlipPix.UI.ViewModels.Video
             _ = _comfyUIService.HttpClient.InterruptAsync();
         }
 
+        /// <summary>Idle: any beat that can start. While the story renders: a finished beat — it is queued.</summary>
+        private bool CanRedo(FflfBeat? beat)
+        {
+            if (beat == null) return false;
+            var index = Beats.IndexOf(beat);
+            return CanStartAt(index) && (!IsProcessing || beat.IsDone);
+        }
+
         private async Task RedoAsync(FflfBeat beat)
         {
             var index = Beats.IndexOf(beat);
             if (index < 0 || !CanStartAt(index)) return;
+            if (IsProcessing) { QueueRedo(beat, index); return; }
             ResetFrom(index);
             beat.Seed = NewSeed();
             AddLog($"↻ {beat.Label}: a new take (seed {beat.Seed}), and every beat after it again.");
             await RunAsync(index);
+        }
+
+        /// <summary>A Redo during a run. Every beat after the redone one starts on its last frame, so the beat
+        /// rendering now (always a later one) is stopped and the run goes back to the redone beat, then on through
+        /// the rest of the story.</summary>
+        private void QueueRedo(FflfBeat beat, int index)
+        {
+            var current = _currentBeat;
+            ResetFrom(index);
+            beat.Seed = NewSeed();
+            beat.Status = "↻ queued — renders next";
+            if (current >= 0 && index > current)
+            {
+                AddLog($"↻ {beat.Label}: a new take (seed {beat.Seed}) — the run reaches it after beat {current + 1}.");
+                return;
+            }
+
+            _redoFrom = _redoFrom < 0 ? index : Math.Min(_redoFrom, index);
+            if (current < 0)
+            {
+                AddLog($"↻ {beat.Label}: a new take (seed {beat.Seed}) — renders next.");
+                return;
+            }
+
+            AddLog($"↻ {beat.Label}: a new take (seed {beat.Seed}). Beat {current + 1} started on the old take's last frame, " +
+                   $"so it stops now and renders again after {beat.Label}.");
+            _beatCts?.Cancel();
+            if (_holdingLease) _ = _comfyUIService.HttpClient.InterruptAsync();
         }
 
         private async Task RunAsync(int start)
@@ -595,12 +685,40 @@ namespace FlipPix.UI.ViewModels.Video
                        $"Model {Path.GetFileName(DiffusionModel)}" +
                        (Lora.Length > 0 && LoraStrength > 0 ? $" + {Path.GetFileName(Lora)} @ {LoraStrength:0.##}" : string.Empty) + ".");
 
-                for (var i = start; i < beats.Count; i++)
+                var i = start;
+                while (true)
                 {
                     ct.ThrowIfCancellationRequested();
+                    if (_redoFrom >= 0)
+                    {
+                        i = Math.Min(i, _redoFrom);
+                        start = Math.Min(start, i);
+                        _redoFrom = -1;
+                    }
+                    if (i >= beats.Count) break;
+
                     var beat = beats[i];
-                    var startImage = i == 0 ? initial : await LastFrameOfAsync(beats[i - 1], ct);
-                    await RenderBeatAsync(template, beat, i, beats.Count, start, startImage, i > 0 && KeepInitialReference ? initial : null, aspect, ct);
+                    var beatCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    _beatCts = beatCts;
+                    _currentBeat = i;
+                    try
+                    {
+                        var startImage = i == 0 ? initial : await LastFrameOfAsync(beats[i - 1], beatCts.Token);
+                        await RenderBeatAsync(template, beat, i, beats.Count, start, startImage, i > 0 && KeepInitialReference ? initial : null, aspect, beatCts.Token);
+                        i++;
+                    }
+                    catch (Exception) when (beatCts.IsCancellationRequested && !ct.IsCancellationRequested)
+                    {
+                        // A Redo of an earlier beat stopped this one: it renders again from that beat's new last frame.
+                        beat.Reset();
+                        beat.Seed = 0;
+                    }
+                    finally
+                    {
+                        _currentBeat = -1;
+                        _beatCts = null;
+                        beatCts.Dispose();
+                    }
                 }
 
                 ProcessingProgress = 100;
@@ -627,6 +745,7 @@ namespace FlipPix.UI.ViewModels.Video
                     b.Status = string.Empty;
                 }
                 _holdingLease = false;
+                _redoFrom = -1;
                 SetLiveBeat(null);
                 IsProcessing = false;
                 _runCts?.Dispose();
@@ -746,6 +865,7 @@ namespace FlipPix.UI.ViewModels.Video
             HasResult = true;
             Show(video);
             OnPropertyChanged(nameof(BeatSummary));
+            RefreshCommands();   // its Redo can be queued while the next beat renders
             ScheduleStorySave();
             AddLog($"{label} done in {(DateTime.Now - renderStart):m\\:ss}: {video}");
         }

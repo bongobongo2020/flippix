@@ -6192,7 +6192,7 @@
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
                                                 <Border Width="190" Margin="0,0,8,6" CornerRadius="8" Padding="6" Background="{StaticResource SurfaceBrush}"
-                                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" ToolTip="{Binding Text}">
+                                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
                                                     <StackPanel>
                                                         <Border Height="96" CornerRadius="5" Background="{StaticResource PlayerSurfaceBrush}" ClipToBounds="True" Cursor="Hand">
                                                             <Grid>
@@ -6207,7 +6207,10 @@
                                                             <Run Text="{Binding StateIcon, Mode=OneWay}"/>
                                                             <Run Text="{Binding Label, Mode=OneWay}"/>
                                                         </TextBlock>
-                                                        <TextBlock Text="{Binding Text}" FontSize="9.5" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Height="38" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                                                        <TextBox Text="{Binding Text, UpdateSourceTrigger=LostFocus}" IsReadOnly="{Binding IsRendering, Mode=OneWay}"
+                                                                 FontSize="9.5" Foreground="{StaticResource TextPrimaryBrush}" Background="Transparent" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                 TextWrapping="Wrap" Height="52" VerticalScrollBarVisibility="Auto" Padding="2,1" Margin="0,3,0,0"
+                                                                 ToolTip="Edit this beat — click away to apply. A finished beat renders again, with every beat after it."/>
                                                         <TextBlock Text="{Binding Status}" FontSize="9" Foreground="{StaticResource TextFaintBrush}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
                                                         <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
                                                             <Button Content="▶ Play" Command="{Binding DataContext.PlayBeatCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
@@ -6215,7 +6218,7 @@
                                                                     IsEnabled="{Binding HasVideo}"/>
                                                             <Button Content="↻ Redo" Command="{Binding DataContext.RedoBeatCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
                                                                     Style="{StaticResource SecondaryButtonStyle}" Height="22" Padding="8,0" FontSize="10"
-                                                                    ToolTip="A new take of this beat (new seed) — every beat after it renders again from its new last frame."/>
+                                                                    ToolTip="A new take of this beat (new seed) — every beat after it renders again from its new last frame. While the story renders, it is queued: the beat in progress stops and the run goes back to this one."/>
                                                         </StackPanel>
                                                     </StackPanel>
                                                 </Border>
