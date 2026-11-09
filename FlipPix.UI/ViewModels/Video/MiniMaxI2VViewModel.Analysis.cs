@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -321,15 +321,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// </summary>
         private async Task<AnalysisResult> RunAnalysisAsync(AnalysisJob job, CancellationToken token)
         {
-            var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://alien:8080";
-            await _lmStudioService.SetBaseUrlAsync(baseUrl);
-
-            var models = await _lmStudioService.GetAvailableModelsAsync(token);
-            var model = _settingsService.Settings?.LMStudioSettings?.SelectedModel ?? string.Empty;
-            if (string.IsNullOrEmpty(model) && models.Count > 0)
-                model = models[0].Id ?? models[0].Name ?? string.Empty;
-            if (string.IsNullOrEmpty(model))
-                throw new Exception("no LM Studio / llama-server model is available. Make sure the server is running and a model is loaded.");
+            var model = await ResolveWriterModelAsync(token);
 
             var promptFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
                 "prompts", "prompt2json", SystemPromptFile);
@@ -413,6 +405,7 @@ namespace FlipPix.UI.ViewModels.Video
             }
 
             lines.AddRange(job.StereoInstructions);
+            lines.AddRange(WardrobeInstructions(job.Draft));
 
             lines.Add(string.Empty);
             lines.Add("Draft idea from the user:");
@@ -521,6 +514,7 @@ namespace FlipPix.UI.ViewModels.Video
                       + "lighting identical so nothing drifts across the join.");
 
             lines.AddRange(job.StereoInstructions);
+            lines.AddRange(WardrobeInstructions(job.Draft));
 
             lines.Add(string.Empty);
             lines.Add("The segment immediately before yours is below. It is CONTEXT ONLY — your segment starts "

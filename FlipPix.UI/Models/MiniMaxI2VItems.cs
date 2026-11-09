@@ -1,4 +1,5 @@
-﻿using System;
+﻿using System.Collections.Generic;
+using System;
 using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -596,6 +597,53 @@ namespace FlipPix.UI.Models
         public bool IsActive => HasLora && _strength > 0.0;
 
         /// <summary>Raised when the row changes, so the tab can re-summarise and persist.</summary>
+        public event EventHandler? Changed;
+    }
+    /// <summary>
+    /// One person found in &lt;Picture 1&gt; on the 🌀 MiniMax I2V tab: who they are (man or woman), where
+    /// they stand, and what they wear. Both the sex and the clothing are editable — the clothing is what
+    /// <c>Apply to idea</c> writes into the idea box, so every draft built on the same picture describes the
+    /// same outfits instead of the writer re-imagining them each time.
+    /// </summary>
+    public partial class MiniMaxI2VSubject : ObservableObject
+    {
+        public static readonly string[] SexOptions = { "man", "woman", "boy", "girl", "person" };
+
+        private string _sex = "person";
+        private string _clothing = string.Empty;
+        private int _number;
+
+        public MiniMaxI2VSubject(int number) => _number = number;
+
+        /// <summary>1-based, in the order the detector listed them (left to right).</summary>
+        public int Number
+        {
+            get => _number;
+            set { if (_number == value) return; _number = value; OnPropertyChanged(); OnPropertyChanged(nameof(Title)); }
+        }
+
+        public string Title => $"Subject {Number}";
+
+        public IReadOnlyList<string> Sexes => SexOptions;
+
+        public string Sex
+        {
+            get => _sex;
+            set { value = (value ?? string.Empty).Trim(); if (_sex == value) return; _sex = value; OnPropertyChanged(); Changed?.Invoke(this, EventArgs.Empty); }
+        }
+
+        /// <summary>Where they are in the frame ("left", "right", "centre"); helps tell two people apart.</summary>
+        public string Position { get; set; } = string.Empty;
+
+        public bool HasPosition => Position.Length > 0;
+
+        public string Clothing
+        {
+            get => _clothing;
+            set { value ??= string.Empty; if (_clothing == value) return; _clothing = value; OnPropertyChanged(); Changed?.Invoke(this, EventArgs.Empty); }
+        }
+
+        /// <summary>Raised when the user edits the row, so the tab can remember the edit for this picture.</summary>
         public event EventHandler? Changed;
     }
 }
