@@ -45,6 +45,8 @@ public partial class ScenePromptLibraryWindow : Window
         _library = library;
         _entries = entries;
         _chrome = chrome ?? new ScenePromptLibraryChrome();
+        // Closing the window while typing in the pane gives the box no LostFocus: keep the edit anyway.
+        Closing += (_, _) => PromptBox_LostFocus(PromptBox, new RoutedEventArgs());
         _facade = facade;
 
         ApplyChrome();
@@ -164,6 +166,7 @@ public partial class ScenePromptLibraryWindow : Window
         row.Entry.Prompt = text;
         row.Entry.Shots = CountShots(text);
         row.Entry.LastUsed = DateTime.Now;
+        _chrome.PromptEdited?.Invoke(row.Entry);
         row.Refresh();
         _ = _library.SaveAsync(_entries);
     }

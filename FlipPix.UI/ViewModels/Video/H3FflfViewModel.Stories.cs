@@ -330,6 +330,19 @@ namespace FlipPix.UI.ViewModels.Video
             AddLog("New story — the last one is in 📚 Stories.");
         }
 
+        /// <summary>The beats edited in the Stories list: the story's own copy follows, so opening it (or the
+        /// page, if it is the open story) shows the edit. Takes stay with beats whose text is unchanged.</summary>
+        private static void StoryEditedInList(ScenePrompt entry)
+        {
+            entry.StoryText = entry.Prompt;
+            if (entry.Fflf is not { } story) return;
+            story.BeatsText = entry.Prompt;
+            var beats = FflfGraph.ParseBeats(entry.Prompt);
+            entry.Shots = beats.Count;
+            entry.StoryDurationSeconds = beats.Count * story.BeatSeconds;
+            story.JoinedVideoPath = string.Empty;
+        }
+
         private async Task OpenStoriesAsync()
         {
             if (IsProcessing) return;
@@ -345,8 +358,10 @@ namespace FlipPix.UI.ViewModels.Video
                     Heading = "Stories",
                     Subtitle = "Every story on the FFLF page is saved here as you go — the beats, the opening image, the settings "
                              + "and each beat's take — and survives a restart. Pick one to carry on with it.",
-                    PromptNote = "Finished beats come back finished as long as their videos and last frames are still on disk; "
-                               + "Generate carries on from the first beat without a take.",
+                    PromptNote = "Edit the beats right here — saved as soon as you click away. Finished beats come back finished "
+                               + "as long as their text, videos and last frames are unchanged; Generate carries on from the first beat without a take.",
+                    PromptEditable = true,
+                    PromptEdited = StoryEditedInList,
                     EmptyText = "No stories yet.\nPaste beats on the FFLF page and they land here.",
                     NoMatchText = "No story matches that search.",
                     UseButtonText = "✓ Open This Story",
@@ -375,6 +390,12 @@ namespace FlipPix.UI.ViewModels.Video
                 {
                     // The open story was deleted in the list: the page stays, as an unsaved story.
                     SetActiveStory(null);
+                }
+                else if (_activeStory?.Fflf is { } open && open.BeatsText != BeatsText)
+                {
+                    // The open story was edited in the list: show the edit, or the next autosave would undo it.
+                    ApplyStory(_activeStory);
+                    AddLog($"\"{_activeStory.Name}\" was edited in Stories — the page now shows the new beats.");
                 }
             }
             catch (Exception ex)
