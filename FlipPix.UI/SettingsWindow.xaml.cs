@@ -579,6 +579,18 @@ namespace FlipPix.UI
             }
         }
 
+        private void CheckServerSetup_Click(object sender, RoutedEventArgs e)
+        {
+            var url = ServerUrlTextBox.Text?.Trim();
+            if (string.IsNullOrEmpty(url) || !Uri.TryCreate(url, UriKind.Absolute, out _))
+            {
+                MessageBox.Show("Enter the ComfyUI server URL first, e.g. http://192.168.1.20:8188.", "Server Setup",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            ServerSetupWindow.Open(this, _settingsService, url);
+        }
+
         private async void TestWebSocket_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not Button button) return;
@@ -1104,6 +1116,7 @@ namespace FlipPix.UI
                 // from a blank instance silently reset everything it doesn't know about (last
                 // browse folders, Scail2 batch size / interpolate, Story generator folders, ...).
                 var newSettings = _settingsService.Settings;
+                var previousServerUrl = newSettings.BaseUrl;
                 newSettings.BaseUrl = ServerUrlTextBox.Text?.Trim() ?? "http://localhost:8188";
                 newSettings.ConnectionTimeout = int.TryParse(TimeoutTextBox.Text, out var timeout) ? timeout : 10000;
                 newSettings.MaxRetries = int.TryParse(MaxRetriesTextBox.Text, out var retries) ? retries : 3;
@@ -1123,8 +1136,26 @@ namespace FlipPix.UI
 
                 _settingsService.SaveSettings(newSettings);
 
-                MessageBox.Show("Settings saved successfully!\n\nPlease restart the application for all changes to take effect.",
-                    "Settings Saved", MessageBoxButton.OK, MessageBoxImage.Information);
+                // A different ComfyUI server usually lacks some of the node packs and models FlipPix's
+                // workflows use (a fresh install has almost none of them). Offer to check it and set it up
+                // now, instead of the user meeting the gaps one failed render at a time.
+                bool serverChanged = !string.Equals(previousServerUrl?.Trim().TrimEnd('/'),
+                    newSettings.BaseUrl.Trim().TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
+                if (serverChanged)
+                {
+                    var check = MessageBox.Show(
+                        $"Settings saved. The ComfyUI server changed to:\n\n{newSettings.BaseUrl}\n\n" +
+                        "Check it now? FlipPix scans the server for the custom nodes and models its workflows need, " +
+                        "and installs what's missing.\n\nRestart FlipPix afterwards so every tab uses the new server.",
+                        "New ComfyUI Server", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                    if (check == MessageBoxResult.Yes)
+                        ServerSetupWindow.Open(Owner, _settingsService, newSettings.BaseUrl);
+                }
+                else
+                {
+                    MessageBox.Show("Settings saved successfully!\n\nPlease restart the application for all changes to take effect.",
+                        "Settings Saved", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
 
                 DialogResult = true;
                 Close();

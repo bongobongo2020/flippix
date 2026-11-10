@@ -445,6 +445,11 @@ public class ComfyUIHttpClient : IDisposable
             var hostSep = await GetHostPathSeparatorAsync(cancellationToken);
             workflow = NormalizeModelPathSeparators(workflow, hostSep);
 
+            // A server set up by hand often keeps a model in another subfolder than the workflow names
+            // ("LTX-23/x.safetensors" for "ltx2/x.safetensors"). Point the input at the server's copy
+            // instead of reporting it missing and offering a multi-GB download of a file it already has.
+            workflow = await RemapModelsToServerCopiesAsync(workflow, cancellationToken);
+
             // The Nvidia RTX pack renamed this node's widgets (scale/deblur -> resize_type). Write both
             // sets so a workflow exported against either version runs here; a re-export from an older
             // ComfyUI can otherwise silently break a tab. See RtxSuperResolutionCompat.
@@ -1940,6 +1945,28 @@ public class ComfyUIHttpClient : IDisposable
             _objectInfoFetch = null;
             _objectInfoSlowUntilUtc = default;
             _objectInfoGeneration++;
+        }
+    }
+
+    private async Task<object> RemapModelsToServerCopiesAsync(object workflow, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var oiJson = await GetObjectInfoJsonAsync(cancellationToken);
+            if (oiJson == null) return workflow;
+            var json = workflow is JsonElement je ? je.GetRawText() : JsonSerializer.Serialize(workflow);
+            if (JsonNode.Parse(json) is not JsonObject nodes) return workflow;
+            using var oiDoc = JsonDocument.Parse(oiJson);
+            var changes = FlipPix.ComfyUI.Setup.WorkflowRequirementScanner.RemapModelsToServerCopies(nodes, oiDoc.RootElement);
+            if (changes.Count == 0) return workflow;
+            foreach (var c in changes) _logger.LogInfo("Model remap: " + c);
+            return nodes;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogWarning($"Model remap skipped: {ex.Message}");
+            return workflow;
         }
     }
 

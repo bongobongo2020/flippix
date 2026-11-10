@@ -44,6 +44,16 @@
     </Content>
   </ItemGroup>
 
+  <!-- Model manifests: ModelCatalog reads them from scripts\ next to the exe for download URLs and
+       sizes (the missing-model resolver and the server setup check). -->
+  <ItemGroup>
+    <Content Include="..\scripts\flippix-models*.txt">
+      <Link>scripts\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
   <ItemGroup>
     <Content Include="..\prompts\**\*">
       <Link>prompts\%(RecursiveDir)%(Filename)%(Extension)</Link>
