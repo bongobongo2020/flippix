@@ -67,6 +67,17 @@ namespace FlipPix.UI.Models
         /// <summary>The same frame as uploaded to ComfyUI's input folder.</summary>
         public string UploadedLastFrame { get; set; } = string.Empty;
 
+        /// <summary>A local copy of the last frame with the opening image's face put back — what the next beat
+        /// starts on when face repair is on. Empty until the next beat needs it.</summary>
+        public string RepairedFramePath { get; set; } = string.Empty;
+
+        /// <summary>The repaired frame as uploaded to ComfyUI's input folder.</summary>
+        public string UploadedRepairedFrame { get; set; } = string.Empty;
+
+        /// <summary>The opening image (as uploaded) and strength the repaired frame was made with — a change to
+        /// either makes it stale.</summary>
+        public string RepairedFor { get; set; } = string.Empty;
+
         /// <summary>The text the take was rendered from — an edit after that makes the take stale.</summary>
         public string RenderedText { get; set; } = string.Empty;
 
@@ -75,6 +86,9 @@ namespace FlipPix.UI.Models
 
         partial void OnLastFramePathChanged(string value)
         {
+            RepairedFramePath = string.Empty;
+            UploadedRepairedFrame = string.Empty;
+            RepairedFor = string.Empty;
             _thumbnail = null;
             OnPropertyChanged(nameof(Thumbnail));
             FlipPix.UI.Services.AsyncThumbnail.Load(value, 220, 0, bitmap =>

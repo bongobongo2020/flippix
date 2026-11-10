@@ -124,6 +124,48 @@ public class FflfGraphTests
     }
 
     [Fact]
+    public void Build_SendsFullSizeReferencesByDefault()
+    {
+        Assert.Equal("max", FflfGraph.Build(TwoPassJson(), Request(), out _)["151:11"]!["inputs"]!["ref_image_size"]!.GetValue<string>());
+        var off = new FflfBeatRender { StartImage = "a.png", Prompt = "p", MaxFidelityReferences = false };
+        Assert.Equal("match", FflfGraph.Build(TwoPassJson(), off, out _)["151:11"]!["inputs"]!["ref_image_size"]!.GetValue<string>());
+    }
+
+    private static string QwenJson() =>
+        File.ReadAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, FflfGraph.FaceRepairWorkflowFileName));
+
+    [Fact]
+    public void BuildFaceRepair_RedrawsTheFaceCropAndStitchesItBack()
+    {
+        var root = FflfGraph.BuildFaceRepair(QwenJson(), "last_frame.png", "opening.png", 77, 1.0, "video/fflf/run/beat_02_last_face");
+
+        Assert.Equal("last_frame.png", root["78"]!["inputs"]!["image"]!.GetValue<string>());
+        // Qwen Edit sees the handoff face crop as Picture 1 and the opening face crop as Picture 2.
+        var crop = Link(root, "115:93", "image")[0];
+        Assert.Equal("H3FaceTrackCrop", root[crop]!["class_type"]!.GetValue<string>());
+        Assert.Equal(new[] { "78", "0" }, Link(root, crop, "images"));
+        var refCrop = Link(root, "115:111", "image2")[0];
+        Assert.Equal(refCrop, Link(root, "115:110", "image2")[0]);
+        var refLoad = Link(root, refCrop, "images")[0];
+        Assert.Equal("opening.png", root[refLoad]!["inputs"]!["image"]!.GetValue<string>());
+        // The handoff crop follows the opening image's person.
+        Assert.Equal(refLoad, Link(root, crop, "identity_reference")[0]);
+
+        Assert.Equal(FflfGraph.FaceRepairPrompt, root["115:111"]!["inputs"]!["prompt"]!.GetValue<string>());
+        Assert.Equal(77, root["115:3"]!["inputs"]!["seed"]!.GetValue<long>());
+        Assert.Equal(1.0, root["115:3"]!["inputs"]!["denoise"]!.GetValue<double>());
+
+        // Only the face goes back, onto the original frame; no RTX upscale of the crop.
+        var stitch = Link(root, FflfGraph.FaceRepairSaveNode, "images")[0];
+        Assert.Equal("H3FaceStitch", root[stitch]!["class_type"]!.GetValue<string>());
+        Assert.Equal(new[] { "78", "0" }, Link(root, stitch, "base_images"));
+        Assert.Equal("face_only", root[stitch]!["inputs"]!["paste_region"]!.GetValue<string>());
+        Assert.False(root.ContainsKey("115:124"));
+        Assert.Equal("video/fflf/run/beat_02_last_face", root[FflfGraph.FaceRepairSaveNode]!["inputs"]!["filename_prefix"]!.GetValue<string>());
+        AssertLinksResolve(root);
+    }
+
+    [Fact]
     public void Build_SavesTheLastFrameTheEncoderReceives()
     {
         var root = FflfGraph.Build(TwoPassJson(), Request(), out _);

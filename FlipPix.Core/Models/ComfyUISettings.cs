@@ -672,6 +672,12 @@ public class H3FflfSettings
     public bool LockFirstFrame { get; set; } = true;
     /// <summary>Send the initial image with every beat as the character reference, not only the last frame.</summary>
     public bool KeepInitialReference { get; set; } = true;
+    /// <summary>Send the references at full size (<c>ref_image_size: max</c>) instead of scaled to the first-pass canvas.</summary>
+    public bool MaxFidelityReferences { get; set; } = true;
+    /// <summary>Put the opening image's face back on each beat's last frame before the next beat starts on it.</summary>
+    public bool RepairHandoffFace { get; set; } = true;
+    /// <summary>Denoise of that repair (Qwen Edit 2511 on the face crop): 1.0, or 0.89 to keep the expression closer.</summary>
+    public double FaceRepairStrength { get; set; } = 1.0;
     public bool JoinWhenDone { get; set; } = true;
     public string LastPhotoFolder { get; set; } = string.Empty;
     /// <summary>The story in the FFLF story library the tab had open, put back on the next launch.</summary>

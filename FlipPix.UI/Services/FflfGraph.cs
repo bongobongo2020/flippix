@@ -32,6 +32,9 @@ namespace FlipPix.UI.Services
         public string Lora { get; init; } = H3FflfSettings.DefaultLora;
         public double LoraStrength { get; init; } = 0.25;
         public bool LockFirstFrame { get; init; } = true;
+        /// <summary><c>ref_image_size: max</c> — the references at full size instead of scaled to the (small)
+        /// first-pass canvas. The H3 likeness bake-off's largest single effect (median ArcFace 0.68 vs 0.50).</summary>
+        public bool MaxFidelityReferences { get; init; } = true;
         /// <summary>SaveVideo prefix; the last frame is saved beside it as &lt;prefix&gt;_last.</summary>
         public string OutputPrefix { get; init; } = "video/fflf/beat";
     }
@@ -139,6 +142,7 @@ namespace FlipPix.UI.Services
                 PreviewOnly = r.PreviewOnly,
                 FrameGenMultiplier = 1,   // one frame rate for the join
                 AspectRatio = r.AspectRatio,
+                MaxFidelityReferences = r.MaxFidelityReferences,
             };
             if (!string.IsNullOrWhiteSpace(r.Lora) && r.LoraStrength > 0)
                 o.Loras = new List<MiniMaxI2VLora> { new() { Name = r.Lora.Trim().Replace('\\', '/'), Strength = r.LoraStrength } };
@@ -234,6 +238,166 @@ namespace FlipPix.UI.Services
                     ["filename_prefix"] = prefix,
                 },
             };
+        }
+
+        // ── Face repair on the handoff frame ────────────────────────────────────────────────────────
+
+        public const string FaceRepairWorkflowFileName = "workflow/image/qwen-edit/Qwen_Edit_2511_INT8_Convrot_WF.json";
+        public const double DefaultFaceRepairStrength = 1.0;
+        /// <summary>The two strengths that differ: with 8 steps ComfyUI samples int(8 / denoise) steps, so 0.9–1.0 all run
+        /// the same schedule. 8/9 is the next one down.</summary>
+        public const double GentleFaceRepairStrength = 0.89;
+
+        // Qwen_Edit_2511_INT8_Convrot_WF.json
+        private const string QwLoad = "78";           // LoadImage — the handoff frame
+        private const string QwScale = "115:93";      // ImageScaleToTotalPixels → encoder + latent
+        private const string QwPositive = "115:111";  // TextEncodeQwenImageEditPlus
+        private const string QwNegative = "115:110";  // TextEncodeQwenImageEditPlus (empty prompt)
+        private const string QwSampler = "115:3";     // KSampler
+        private const string QwDecode = "115:8";      // VAEDecode
+        private const string QwRtx = "115:124";       // RTXVideoSuperResolution — not wanted on a crop
+        private const string QwPreview = "115:116";   // PreviewImage
+        public const string FaceRepairSaveNode = "60"; // SaveImage
+
+        private const string FxReference = "fflf_fx_ref";
+        private const string FxReferenceCrop = "fflf_fx_refcrop";
+        private const string FxCrop = "fflf_fx_crop";
+        private const string FxCropSize = "fflf_fx_size";
+        private const string FxResize = "fflf_fx_resize";
+        private const string FxSam = "fflf_fx_sam";
+        private const string FxMask = "fflf_fx_mask";
+        private const string FxStitch = "fflf_fx_stitch";
+
+        /// <summary>What Qwen Edit is asked to do to the face crop. Expression and camera are kept; identity
+        /// is taken from the opening image's face.</summary>
+        public const string FaceRepairPrompt =
+            "Picture 1 is a close-up crop of a face from a video frame. Picture 2 is a close-up of the same person's real face. " +
+            "Redraw the face in Picture 1 so it is unmistakably the person in Picture 2: the same face shape, jawline, cheeks, " +
+            "eyes, eyebrows, nose, lips, skin and age. Keep Picture 1's expression, open or closed mouth, gaze, head angle, " +
+            "lighting, colour, sharpness and camera distortion. Change nothing else: hair, framing and background stay as they are.";
+
+        /// <summary>
+        /// The graph that puts the opening image's face back on a handoff frame before the next beat starts on it.
+        ///
+        /// <para>Why: each beat is pinned at frame 0 to the last frame of the beat before, so whatever the face
+        /// lost in one beat is the starting point of the next. The error compounds — the chain is a Markov chain
+        /// with no memory of beat 1 except <c>&lt;Picture 2&gt;</c>, and the pinned frame outweighs a reference.
+        /// Repairing the handoff frame re-anchors every beat to the original face instead of to the drifted one.</para>
+        ///
+        /// <para>How: H3FaceTrackCrop crops the face that best matches the opening image (ArcFace via insightface;
+        /// the largest face if none clears the threshold), and the opening image's largest face, so the reference is a
+        /// close-up too; Qwen Edit 2511 redraws the crop against it; H3FaceStitch pastes back only the face
+        /// through a SAM mask, colour-matched — hair, body, background and blur stay the original pixels. A frame
+        /// with no detectable face (turned away) comes back unchanged.</para>
+        ///
+        /// <para>Measured on a 10-beat run (ArcFace similarity to the opening image): the plain chain fell
+        /// 0.49 → 0.41 → 0.27 → 0.16 → 0.10 by beat 10; repairing beat 8's and 9's frames lifted them from 0.16 and
+        /// 0.30 to 0.27 and 0.49.</para>
+        ///
+        /// <para>Strength is the KSampler denoise. With 8 steps only 1.0 and 8/9 differ (int(steps / denoise));
+        /// below ~0.85 the Lightning LoRA leaves blotchy skin. 1.0 moves the face furthest but may change the
+        /// expression.</para>
+        /// </summary>
+        public static JsonObject BuildFaceRepair(string qwenJson, string handoffImage, string identityImage,
+                                                 long seed, double strength, string outputPrefix)
+        {
+            var root = JsonNode.Parse(qwenJson)?.AsObject() ?? throw new InvalidOperationException("The Qwen Edit graph could not be parsed.");
+            foreach (var (id, cls) in new[]
+                     {
+                         (QwLoad, "LoadImage"), (QwScale, "ImageScaleToTotalPixels"), (QwPositive, "TextEncodeQwenImageEditPlus"),
+                         (QwNegative, "TextEncodeQwenImageEditPlus"), (QwSampler, "KSampler"), (QwDecode, "VAEDecode"),
+                         (FaceRepairSaveNode, "SaveImage"),
+                     })
+            {
+                if (root[id]?["class_type"]?.GetValue<string>() != cls)
+                    throw new InvalidOperationException($"Workflow node '{id}' is not {cls} — {FaceRepairWorkflowFileName} no longer matches the FFLF tab.");
+            }
+
+            static JsonObject Node(string cls, string title, JsonObject inputs) => new()
+            {
+                ["class_type"] = cls,
+                ["_meta"] = new JsonObject { ["title"] = title },
+                ["inputs"] = inputs,
+            };
+            static JsonArray L(string id, int slot = 0) => new() { id, slot };
+            static JsonObject Crop(JsonArray images, JsonArray? identity = null)
+            {
+                var c = CropInputs(images);
+                if (identity == null) return c;
+                c["identity_track"] = true;
+                c["identity_reference"] = identity;
+                c["identity_model"] = "insightface";
+                c["identity_threshold"] = 0.28;
+                return c;
+            }
+            static JsonObject CropInputs(JsonArray images) => new()
+            {
+                ["images"] = images,
+                ["detector"] = "bbox/face_yolov8m.pt",
+                ["confidence"] = 0.15,
+                ["crop_factor"] = 2.2,
+                ["canvas_width"] = 1024,
+                ["canvas_height"] = 1024,
+                ["canvas_mode"] = "manual",
+                ["smooth_window"] = 1,
+                ["size_smooth_window"] = 1,
+                ["smooth_method"] = "gaussian",
+                ["size_mode"] = "per_frame",
+                ["identity_track"] = false,
+                ["select"] = "largest_face",
+                ["fallback_detector"] = "none",
+                ["fallback_head_frac"] = 0.5,
+            };
+
+            root[QwLoad]!["inputs"]!["image"] = handoffImage;
+            root[FxReference] = Node("LoadImage", "FFLF: opening image", new JsonObject { ["image"] = identityImage });
+            root[FxReferenceCrop] = Node("H3FaceTrackCrop", "FFLF: opening face", Crop(L(FxReference)));
+            root[FxCrop] = Node("H3FaceTrackCrop", "FFLF: handoff face", Crop(L(QwLoad), L(FxReference)));
+
+            root[QwScale]!["inputs"]!["image"] = L(FxCrop);
+            foreach (var enc in new[] { QwPositive, QwNegative })
+                root[enc]!["inputs"]!["image2"] = L(FxReferenceCrop);
+            root[QwPositive]!["inputs"]!["prompt"] = FaceRepairPrompt;
+            root[QwSampler]!["inputs"]!["seed"] = seed;
+            root[QwSampler]!["inputs"]!["denoise"] = Math.Clamp(strength, 0.5, 1.0);
+
+            root.Remove(QwRtx);
+            root.Remove(QwPreview);
+            root[FxCropSize] = Node("GetImageSize", "FFLF: crop size", new JsonObject { ["image"] = L(FxCrop) });
+            root[FxResize] = Node("ImageScale", "FFLF: back to crop size", new JsonObject
+            {
+                ["image"] = L(QwDecode),
+                ["upscale_method"] = "lanczos",
+                ["width"] = L(FxCropSize, 0),
+                ["height"] = L(FxCropSize, 1),
+                ["crop"] = "disabled",
+            });
+            root[FxSam] = Node("SAMLoader", "FFLF: SAM", new JsonObject { ["model_name"] = "sam_vit_b_01ec64.pth", ["device_mode"] = "AUTO" });
+            root[FxMask] = Node("H3FaceMaskSAM", "FFLF: face mask", new JsonObject
+            {
+                ["crops"] = L(FxCrop),
+                ["sam_model"] = L(FxSam),
+                ["transform"] = L(FxCrop, 1),
+                ["threshold"] = 0.93,
+                ["dilation"] = 0,
+                ["temporal_smooth"] = 1,
+            });
+            root[FxStitch] = Node("H3FaceStitch", "FFLF: face back into the frame", new JsonObject
+            {
+                ["base_images"] = L(QwLoad),
+                ["refined_crops"] = L(FxResize),
+                ["transform"] = L(FxCrop, 1),
+                ["paste_region"] = "face_only",
+                ["mask_dilation"] = 24,
+                ["feather"] = 8,
+                ["colour_match"] = 1.0,
+                ["blend"] = 1.0,
+                ["undetected_frames"] = "skip",
+                ["masks"] = L(FxMask),
+            });
+            root[FaceRepairSaveNode]!["inputs"]!["images"] = L(FxStitch);
+            root[FaceRepairSaveNode]!["inputs"]!["filename_prefix"] = outputPrefix;
+            return root;
         }
 
         // ── The join ────────────────────────────────────────────────────────────────────────────────

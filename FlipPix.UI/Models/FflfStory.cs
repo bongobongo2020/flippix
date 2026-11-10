@@ -24,6 +24,9 @@ namespace FlipPix.UI.Models
         public int FirstPassSteps { get; set; } = 8;
         public bool LockFirstFrame { get; set; } = true;
         public bool KeepInitialReference { get; set; } = true;
+        public bool MaxFidelityReferences { get; set; } = true;
+        public bool RepairHandoffFace { get; set; } = true;
+        public double FaceRepairStrength { get; set; } = 1.0;
         public bool JoinWhenDone { get; set; } = true;
         public long BaseSeed { get; set; }
 

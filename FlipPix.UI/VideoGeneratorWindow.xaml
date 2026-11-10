@@ -6068,6 +6068,14 @@
                                                           ToolTip="On: the frame a beat starts on is pinned at frame 0 (MiniMaxH3AddGuide) as well as sent as &lt;Picture 1&gt;, so the beats join without a jump. Off: it is a reference only."/>
                                                 <CheckBox IsChecked="{Binding KeepInitialReference}" Margin="0,5,0,0" FontSize="11" Content="🧍 Keep the opening image as the character reference"
                                                           ToolTip="From beat 2 on the opening image is also sent, as &lt;Picture 2&gt;, so faces and clothes do not drift beat after beat."/>
+                                                <CheckBox IsChecked="{Binding MaxFidelityReferences}" Margin="0,5,0,0" FontSize="11" Content="🔍 Full-size references (ref_image_size: max)"
+                                                          ToolTip="Send the pictures at full size instead of scaled to the small first-pass canvas. The biggest single likeness gain in the H3 bake-off (median ArcFace 0.68 vs 0.50)."/>
+                                                <CheckBox IsChecked="{Binding RepairHandoffFace}" Margin="0,5,0,0" FontSize="11" Content="🪞 Restore the opening face on each handoff frame"
+                                                          ToolTip="Before a beat starts on the last frame of the one before, that frame's face is cropped, redrawn against the opening image's face (Qwen Edit 2511) and pasted back through a SAM mask — nothing else in the frame changes. Without it each beat inherits the last beat's drift, and by beat 10 it is a different person. About 15 s per beat."/>
+                                                <ComboBox ItemsSource="{Binding FaceRepairStrengths}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                          SelectedValue="{Binding FaceRepairStrength}" IsEnabled="{Binding RepairHandoffFace}"
+                                                          Height="24" FontSize="10.5" Margin="22,4,0,0"
+                                                          ToolTip="Full: the strongest likeness (ArcFace 0.49 on a beat that had drifted to 0.30). Gentle: a little less likeness (0.42), the expression changes less."/>
                                                 <CheckBox IsChecked="{Binding JoinWhenDone}" Margin="0,5,0,0" FontSize="11" Content="🎞 Join the beats when the last one lands"/>
                                             </StackPanel>
                                         </Border>

@@ -104,6 +104,9 @@ namespace FlipPix.UI.ViewModels.Video
             _firstPassSteps = Math.Clamp(s.FirstPassSteps, 1, 60);
             _lockFirstFrame = s.LockFirstFrame;
             _keepInitialReference = s.KeepInitialReference;
+            _maxFidelityReferences = s.MaxFidelityReferences;
+            _repairHandoffFace = s.RepairHandoffFace;
+            _faceRepairStrength = ClampRepairStrength(s.FaceRepairStrength);
             _joinWhenDone = s.JoinWhenDone;
             _baseSeed = NewSeed();
             OfferModel(_diffusionModel);
@@ -373,6 +376,25 @@ namespace FlipPix.UI.ViewModels.Video
 
         [ObservableProperty] private bool _lockFirstFrame = true;
         [ObservableProperty] private bool _keepInitialReference = true;
+
+        /// <summary><c>ref_image_size: max</c> on every beat — see <see cref="FflfBeatRender.MaxFidelityReferences"/>.</summary>
+        [ObservableProperty] private bool _maxFidelityReferences = true;
+
+        /// <summary>Before a beat starts on the last frame of the one before, the opening image's face is put back
+        /// on that frame — see <see cref="FflfGraph.BuildFaceRepair"/>. Applies to beats rendered from now on.</summary>
+        [ObservableProperty] private bool _repairHandoffFace = true;
+
+        [ObservableProperty] private double _faceRepairStrength = FflfGraph.DefaultFaceRepairStrength;
+
+        public IReadOnlyList<MegapixelOption> FaceRepairStrengths { get; } = new[]
+        {
+            new MegapixelOption(FflfGraph.DefaultFaceRepairStrength, "Full — most likeness"),
+            new MegapixelOption(FflfGraph.GentleFaceRepairStrength, "Gentle — keeps the expression closer"),
+        };
+
+        private static double ClampRepairStrength(double v) =>
+            v > 0 && v < 0.95 ? FflfGraph.GentleFaceRepairStrength : FflfGraph.DefaultFaceRepairStrength;
+
         [ObservableProperty] private bool _joinWhenDone = true;
 
         [ObservableProperty] private long _baseSeed;
@@ -461,6 +483,7 @@ namespace FlipPix.UI.ViewModels.Video
             nameof(InitialImagePath), nameof(BeatsText), nameof(StyleText), nameof(BeatSeconds), nameof(SelectedAspectRatio),
             nameof(FirstPassMegapixels), nameof(FinalMegapixels), nameof(PreviewOnly), nameof(DiffusionModel), nameof(Lora),
             nameof(LoraStrength), nameof(FirstPassSteps), nameof(LockFirstFrame), nameof(KeepInitialReference), nameof(JoinWhenDone),
+            nameof(MaxFidelityReferences), nameof(RepairHandoffFace), nameof(FaceRepairStrength),
         };
 
         protected override void OnPropertyChanged(PropertyChangedEventArgs e)
@@ -490,6 +513,9 @@ namespace FlipPix.UI.ViewModels.Video
             s.FirstPassSteps = FirstPassSteps;
             s.LockFirstFrame = LockFirstFrame;
             s.KeepInitialReference = KeepInitialReference;
+            s.MaxFidelityReferences = MaxFidelityReferences;
+            s.RepairHandoffFace = RepairHandoffFace;
+            s.FaceRepairStrength = FaceRepairStrength;
             s.JoinWhenDone = JoinWhenDone;
             try { _settingsService.SaveSettings(settings); }
             catch (Exception ex) { _logger.LogWarning($"FFLF: could not save settings: {ex.Message}"); }
@@ -733,7 +759,7 @@ namespace FlipPix.UI.ViewModels.Video
                     _currentBeat = i;
                     try
                     {
-                        var startImage = i == 0 ? initial : await LastFrameOfAsync(beats[i - 1], beatCts.Token);
+                        var startImage = i == 0 ? initial : await StartFrameAfterAsync(beats[i - 1], initial, beatCts.Token);
                         await RenderBeatAsync(template, beat, i, beats.Count, start, startImage, i > 0 && KeepInitialReference ? initial : null, aspect, beatCts.Token);
                         i++;
                     }
@@ -809,6 +835,60 @@ namespace FlipPix.UI.ViewModels.Video
             return previous.UploadedLastFrame;
         }
 
+        /// <summary>
+        /// The frame the beat after <paramref name="previous"/> starts on: its last frame, with the opening image's
+        /// face put back when <see cref="RepairHandoffFace"/> is on. Without the repair every beat inherits the face
+        /// the one before ended on, and the small changes of each beat add up — by beat 10 it is someone else.
+        /// A repair that fails falls back to the plain last frame rather than stopping the story.
+        /// </summary>
+        private async Task<string> StartFrameAfterAsync(FflfBeat previous, string initial, CancellationToken ct)
+        {
+            var raw = await LastFrameOfAsync(previous, ct);
+            if (!RepairHandoffFace) return raw;
+
+            var key = $"{initial}|{FaceRepairStrength:0.00}";
+            if (previous.RepairedFor == key && previous.UploadedRepairedFrame.Length > 0) return previous.UploadedRepairedFrame;
+            if (previous.RepairedFor == key && File.Exists(previous.RepairedFramePath))
+            {
+                previous.UploadedRepairedFrame = await _comfyUIService.UploadImageAsync(previous.RepairedFramePath, ct);
+                return previous.UploadedRepairedFrame;
+            }
+
+            var index = Beats.IndexOf(previous);
+            var label = $"Beat {index + 2}";
+            var started = DateTime.Now;
+            try
+            {
+                ProcessingStatus = $"{label}: restoring the face on {previous.Label}'s last frame…";
+                OnPropertyChanged(nameof(ReadyHint));
+                var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, FflfGraph.FaceRepairWorkflowFileName);
+                if (!File.Exists(path)) throw new FileNotFoundException($"Workflow file not found: {FflfGraph.FaceRepairWorkflowFileName}");
+                var template = await File.ReadAllTextAsync(path, ct);
+                var prefix = $"video/fflf/{_runFolder}/beat_{index + 1:D2}_last_face";
+                var graph = FflfGraph.BuildFaceRepair(template, raw, initial, previous.Seed > 0 ? previous.Seed : NewSeed(), FaceRepairStrength, prefix);
+
+                var promptId = await _comfyUIService.ExecuteWorkflowAsync(graph, null, ct, TimeSpan.FromMinutes(10));
+                if (string.IsNullOrEmpty(promptId)) throw new InvalidOperationException("ComfyUI returned no prompt id.");
+                var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, ct);
+                var file = byNode.TryGetValue(FflfGraph.FaceRepairSaveNode, out var outs) ? outs.FirstOrDefault() : null;
+                var local = file == null ? null : await FetchOutputFileAsync(file, ct);
+                if (local == null) throw new InvalidOperationException("the repaired frame was not saved.");
+
+                previous.RepairedFramePath = Keep(local, $"{_runFolder}_beat{index + 1:D2}_last_face");
+                previous.UploadedRepairedFrame = await _comfyUIService.UploadImageAsync(previous.RepairedFramePath, ct);
+                previous.RepairedFor = key;
+                AddLog($"{label} starts on {previous.Label}'s last frame with the opening face restored " +
+                       $"(strength {FaceRepairStrength:0.00}, {(DateTime.Now - started):m\\:ss}).");
+                return previous.UploadedRepairedFrame;
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested)
+            {
+                AddLog($"⚠ {label}: the face repair failed ({ex.Message}) — starting on the plain last frame.");
+                _logger.LogWarning($"FFLF face repair failed: {ex}");
+                return raw;
+            }
+        }
+
         private async Task RenderBeatAsync(string template, FflfBeat beat, int index, int total, int start,
                                            string startImage, string? identityImage, string aspect, CancellationToken ct)
         {
@@ -836,6 +916,7 @@ namespace FlipPix.UI.ViewModels.Video
                 Lora = Lora,
                 LoraStrength = LoraStrength,
                 LockFirstFrame = LockFirstFrame,
+                MaxFidelityReferences = MaxFidelityReferences,
                 OutputPrefix = $"video/fflf/{_runFolder}/beat_{index + 1:D2}{(PreviewOnly ? "_draft" : string.Empty)}",
             };
             var graph = FflfGraph.Build(template, request, out var pruned);

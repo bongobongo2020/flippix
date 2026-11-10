@@ -171,6 +171,9 @@ namespace FlipPix.UI.ViewModels.Video
             FirstPassSteps = FirstPassSteps,
             LockFirstFrame = LockFirstFrame,
             KeepInitialReference = KeepInitialReference,
+            MaxFidelityReferences = MaxFidelityReferences,
+            RepairHandoffFace = RepairHandoffFace,
+            FaceRepairStrength = FaceRepairStrength,
             JoinWhenDone = JoinWhenDone,
             BaseSeed = BaseSeed,
             RunFolder = _runFolder,
@@ -254,6 +257,9 @@ namespace FlipPix.UI.ViewModels.Video
                 FirstPassSteps = Math.Clamp(s.FirstPassSteps, 1, 60);
                 LockFirstFrame = s.LockFirstFrame;
                 KeepInitialReference = s.KeepInitialReference;
+                MaxFidelityReferences = s.MaxFidelityReferences;
+                RepairHandoffFace = s.RepairHandoffFace;
+                FaceRepairStrength = ClampRepairStrength(s.FaceRepairStrength);
                 JoinWhenDone = s.JoinWhenDone;
                 BaseSeed = s.BaseSeed > 0 ? s.BaseSeed : NewSeed();
                 _runFolder = s.RunFolder ?? string.Empty;

@@ -7068,6 +7068,15 @@
                                         <CheckBox IsChecked="{Binding LockFirstFrame}" Margin="0,5,0,0" FontSize="11" Content="📌 Anchor each beat's first frame"
                                                   ToolTip.Tip="On: the frame a beat starts on is pinned at frame 0 as well as sent as Picture 1. Off: it is a reference only."/>
                                         <CheckBox IsChecked="{Binding KeepInitialReference}" Margin="0,5,0,0" FontSize="11" Content="🧍 Keep the opening image as the character reference"/>
+                                        <CheckBox IsChecked="{Binding MaxFidelityReferences}" Margin="0,5,0,0" FontSize="11" Content="🔍 Full-size references (ref_image_size: max)"
+                                                  ToolTip.Tip="Send the pictures at full size instead of scaled to the small first-pass canvas."/>
+                                        <CheckBox IsChecked="{Binding RepairHandoffFace}" Margin="0,5,0,0" FontSize="11" Content="🪞 Restore the opening face on each handoff frame"
+                                                  ToolTip.Tip="Before a beat starts on the last frame of the one before, that frame's face is redrawn against the opening image's face and pasted back. Stops the face drifting beat after beat."/>
+                                        <ComboBox ItemsSource="{Binding FaceRepairStrengths}"
+                                                  DisplayMemberBinding="{ReflectionBinding Label}"
+                                                  SelectedValueBinding="{ReflectionBinding Value}"
+                                                  SelectedValue="{Binding FaceRepairStrength, Mode=TwoWay}" IsEnabled="{Binding RepairHandoffFace}"
+                                                  FontSize="10.5" Margin="22,4,0,0" HorizontalAlignment="Stretch"/>
                                         <CheckBox IsChecked="{Binding JoinWhenDone}" Margin="0,5,0,0" FontSize="11" Content="🎞 Join the beats when the last one lands"/>
                                     </StackPanel>
                                 </Border>
