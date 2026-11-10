@@ -6165,11 +6165,11 @@
                                         </StackPanel>
                                         <MediaElement x:Name="FflfPlayer" LoadedBehavior="Manual" UnloadedBehavior="Stop" Stretch="Uniform"
                                                       MediaOpened="FflfPlayer_MediaOpened" MediaEnded="FflfPlayer_MediaEnded"/>
-                                        <Grid Background="Black" Visibility="{Binding HasLivePreview, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <Grid Background="Black" Visibility="{Binding ShowLivePreview, Converter={StaticResource BooleanToVisibilityConverter}}">
                                             <ctrl:LivePreviewPlayer Source="{Binding LivePreviewPath}"/>
                                         </Grid>
                                         <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="10" CornerRadius="6" Padding="8,3" Background="#CC000000"
-                                                Visibility="{Binding LivePreviewCaption, Converter={StaticResource StringToVisibilityConverter}}">
+                                                Visibility="{Binding ShowLiveCaption, Converter={StaticResource BooleanToVisibilityConverter}}">
                                             <TextBlock Text="{Binding LivePreviewCaption}" FontSize="10" FontFamily="Consolas" Foreground="#f0c060"/>
                                         </Border>
                                         <Grid Background="{StaticResource PlayerSurfaceBrush}"

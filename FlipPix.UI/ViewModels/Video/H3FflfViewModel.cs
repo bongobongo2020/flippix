@@ -72,10 +72,10 @@ namespace FlipPix.UI.ViewModels.Video
             GenerateCommand = new RelayCommand(() => _ = RunAsync(FirstUnfinished()), CanGenerate);
             StopCommand = new RelayCommand(Stop, () => IsProcessing);
             RedoBeatCommand = new RelayCommand<FflfBeat>(b => { if (b != null) _ = RedoAsync(b); }, CanRedo);
-            PlayBeatCommand = new RelayCommand<FflfBeat>(b => { if (b?.HasVideo == true) Show(b.VideoPath); });
-            ShowFrameCommand = new RelayCommand<FflfBeat>(b => { if (b?.HasLastFrame == true) PreviewImagePath = b.LastFramePath; });
-            ClosePreviewImageCommand = new RelayCommand(() => PreviewImagePath = string.Empty);
-            PlayJoinedCommand = new RelayCommand(() => Show(JoinedVideoPath), () => HasJoined);
+            PlayBeatCommand = new RelayCommand<FflfBeat>(b => { if (b?.HasVideo == true) { WatchingLive = false; Show(b.VideoPath); } });
+            ShowFrameCommand = new RelayCommand<FflfBeat>(ShowBeat);
+            ClosePreviewImageCommand = new RelayCommand(() => { PreviewImagePath = string.Empty; if (IsProcessing) WatchingLive = true; });
+            PlayJoinedCommand = new RelayCommand(() => { WatchingLive = false; Show(JoinedVideoPath); }, () => HasJoined);
             JoinCommand = new RelayCommand(() => _ = JoinNowAsync(), () => !IsProcessing && Beats.Count(b => b.HasVideo) >= 2);
             StartOverCommand = new RelayCommand(StartOver, () => !IsProcessing && Beats.Any(b => b.State != FflfBeatState.Pending));
             OpenFolderCommand = new RelayCommand(OpenFolder, () => Beats.Any(b => b.HasVideo) || HasJoined);
@@ -508,6 +508,23 @@ namespace FlipPix.UI.ViewModels.Video
         public bool HasPreviewImage => !string.IsNullOrEmpty(PreviewImagePath) && File.Exists(PreviewImagePath);
         public System.Windows.Media.Imaging.BitmapImage? PreviewImage => HasPreviewImage ? AsyncThumbnail.Decode(PreviewImagePath, 1280) : null;
 
+        /// <summary>A card's picture clicked: the rendering beat brings its live preview back to the front;
+        /// a finished beat shows its last frame.</summary>
+        private void ShowBeat(FflfBeat? beat)
+        {
+            if (beat == null) return;
+            if (beat.IsRendering)
+            {
+                PreviewImagePath = string.Empty;
+                WatchingLive = true;
+            }
+            else if (beat.HasLastFrame)
+            {
+                WatchingLive = false;
+                PreviewImagePath = beat.LastFramePath;
+            }
+        }
+
         private void Show(string video)
         {
             if (string.IsNullOrEmpty(video)) return;
@@ -533,12 +550,23 @@ namespace FlipPix.UI.ViewModels.Video
         // ── Live sampler preview (the graph's ModelPreviewOverrideKJ) ───────────────────────────
 
         [ObservableProperty]
-        [NotifyPropertyChangedFor(nameof(HasLivePreview))]
+        [NotifyPropertyChangedFor(nameof(HasLivePreview), nameof(ShowLivePreview))]
         private string _livePreviewPath = string.Empty;
 
         public bool HasLivePreview => !string.IsNullOrEmpty(LivePreviewPath);
 
-        [ObservableProperty] private string _livePreviewCaption = string.Empty;
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(ShowLivePreview), nameof(ShowLiveCaption))]
+        private string _livePreviewCaption = string.Empty;
+
+        /// <summary>False while a finished beat (or the joined film) is being looked at during a run, so the live
+        /// preview does not cover it; clicking the rendering beat's card, or a new run, brings it back.</summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(ShowLivePreview), nameof(ShowLiveCaption))]
+        private bool _watchingLive = true;
+
+        public bool ShowLivePreview => WatchingLive && HasLivePreview;
+        public bool ShowLiveCaption => WatchingLive && LivePreviewCaption.Length > 0;
 
         private void SetLiveBeat(string? label) => OnUi(() =>
         {
@@ -662,6 +690,8 @@ namespace FlipPix.UI.ViewModels.Video
             if (IsProcessing || start < 0 || start >= Beats.Count || !CanStartAt(start)) return;
 
             IsProcessing = true;
+            WatchingLive = true;
+            PreviewImagePath = string.Empty;
             ProcessingProgress = 0;
             _runCts = new CancellationTokenSource();
             var ct = _runCts.Token;

@@ -7136,7 +7136,7 @@
                                                    MediaOpened="FflfPlayer_MediaOpened"
                                                    MediaEnded="FflfPlayer_MediaEnded"/>
                                 <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="10" CornerRadius="6" Padding="8,3" Background="#CC000000"
-                                        IsVisible="{Binding LivePreviewCaption, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                        IsVisible="{Binding ShowLiveCaption}">
                                     <TextBlock Text="{Binding LivePreviewCaption}" FontSize="10" FontFamily="Consolas,DejaVu Sans Mono,monospace" Foreground="#f0c060"/>
                                 </Border>
                                 <Grid Background="{StaticResource PlayerSurfaceBrush}" IsVisible="{Binding HasPreviewImage}">
