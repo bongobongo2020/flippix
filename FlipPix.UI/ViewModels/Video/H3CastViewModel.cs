@@ -2076,11 +2076,16 @@ namespace FlipPix.UI.ViewModels.Video
                 var source = fromImage
                     ? HasStoryText ? "the scene image + the story text" : "the scene image"
                     : "the story text";
+                // A lone clip written from the scene image is one picture request, which stays local;
+                // everything else has text that goes to DeepSeek when Settings says so.
+                var target = fromImage && clipCount <= 1
+                    ? _lmStudioService.DescribeTarget(model)
+                    : _lmStudioService.DescribeTextTarget(model, withImages: fromImage);
                 AddLog(clipCount > 1
                     ? $"Writing a {clipCount}-clip chain ({clipCount} × {len:0.#}s = {clipCount * len:0.#}s) " +
-                      $"from {source} — sending to {_lmStudioService.DescribeTarget(model)}"
+                      $"from {source} — sending to {target}"
                     : $"Writing a {len:0.#}s multi-shot H3 prompt from {source} " +
-                      $"— sending to {_lmStudioService.DescribeTarget(model)}");
+                      $"— sending to {target}");
                 if (!VisualStyle.IsAuto)
                     AddLog($"Visual style locked: {VisualStyle.Name}");
 
@@ -2406,7 +2411,8 @@ namespace FlipPix.UI.ViewModels.Video
                 // which files have been browsed for is a separate question, and asking it at this point is what
                 // used to leave a two-hander with one outfit.
                 var dress = WardrobeCast;
-                AddLog($"Writing outfits for {dress.Count} characters — sending to {_lmStudioService.DescribeTarget(model)}");
+                AddLog($"Writing outfits for {dress.Count} characters — sending to " +
+                       (HasSceneImage ? _lmStudioService.DescribeTarget(model) : _lmStudioService.DescribeTextTarget(model)));
                 var derived = await DeriveWardrobeAsync(model, dress, token);
                 if (string.IsNullOrWhiteSpace(derived))
                 {

@@ -121,7 +121,7 @@ namespace FlipPix.UI.ViewModels.Video
                 var model = await ResolveLlmModelAsync(token, quiet);
                 if (model == null) return;
 
-                AddLog($"Reading the cast out of the story — sending to {_lmStudioService.DescribeTarget(model)}…");
+                AddLog($"Reading the cast out of the story — sending to {_lmStudioService.DescribeTextTarget(model)}…");
                 var reply = await CastPhotoWorkflows.AskCastAsync(
                     _lmStudioService, model, StoryText, CastSlots, personKindsOnly: true, token);
                 token.ThrowIfCancellationRequested();

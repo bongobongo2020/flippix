@@ -332,6 +332,15 @@
                             <TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" x:Name="DeepSeekBaseUrlTextBox" Margin="0,0,0,10"/>
                         </Grid>
 
+                        <!-- Which model the key is used with -->
+                        <Border Background="{StaticResource SurfaceBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="Key in use with" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,4"/>
+                                <TextBlock x:Name="DeepSeekTargetText" FontSize="12" TextWrapping="Wrap"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Text="No API key set."/>
+                            </StackPanel>
+                        </Border>
+
                         <TextBlock Text="Only text calls go to DeepSeek. Steps that send pictures (image analysis, story steps with reference images) and the H3 rewriter LoRA pass still use the local llama server."
                                    FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
                     </StackPanel>

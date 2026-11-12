@@ -43,11 +43,16 @@ namespace FlipPix.UI.ViewModels.Video
                 var source = fromImage
                     ? HasStoryText ? "the location image + the story text" : "the location image"
                     : "the story text";
+                // A lone clip written from the location image is one picture request, which stays local;
+                // everything else has text that goes to DeepSeek when Settings says so.
+                var target = fromImage && clipCount <= 1
+                    ? _lmStudioService.DescribeTarget(model)
+                    : _lmStudioService.DescribeTextTarget(model, withImages: fromImage);
                 AddLog(clipCount > 1
                     ? $"Writing a {clipCount}-clip ensemble chain ({clipCount} × {len:0.#}s = {clipCount * len:0.#}s) " +
-                      $"for {LoadedCharacterCount} character(s) from {source} — sending to {_lmStudioService.DescribeTarget(model)}"
+                      $"for {LoadedCharacterCount} character(s) from {source} — sending to {target}"
                     : $"Writing a {len:0.#}s ensemble H3 prompt for {LoadedCharacterCount} character(s) from " +
-                      $"{source} — sending to {_lmStudioService.DescribeTarget(model)}");
+                      $"{source} — sending to {target}");
 
                 if (HasStoryText && StoryText.Length > 20000)
                     AddLog($"WARNING: the story is {StoryText.Length:N0} characters — a local model will very " +
@@ -152,7 +157,7 @@ namespace FlipPix.UI.ViewModels.Video
                     }
 
                     const int maxTokens = 5000;
-                    AnalyzePhase = $"Writing the prompt — {_lmStudioService.DescribeTarget(model)}…";
+                    AnalyzePhase = $"Writing the prompt — {target}…";
                     var reply = fromImage
                         ? await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
                             model, EnvironmentPath, userMessage, systemPrompt,
@@ -503,7 +508,8 @@ namespace FlipPix.UI.ViewModels.Video
                 AnalyzePhase = "Writing the wardrobe…";
                 AddLog($"Writing the look of {dress.Count} character(s) — " +
                        string.Join(", ", dress.Select(c => $"<Subject {c.Index}> {c.Descriptor}")) +
-                       $" — sending to {_lmStudioService.DescribeTarget(model)}");
+                       " — sending to " +
+                       (HasEnvironment ? _lmStudioService.DescribeTarget(model) : _lmStudioService.DescribeTextTarget(model)));
 
                 var vague = dress.Where(c => !c.IsPerson && !c.HasRole).Select(c => c.Index).ToList();
                 if (vague.Count > 0)

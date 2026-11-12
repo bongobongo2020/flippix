@@ -2486,11 +2486,16 @@ namespace FlipPix.UI.ViewModels.Video
                 var source = fromImage
                     ? HasStoryText ? "the scene image + the story text" : "the scene image"
                     : "the story text";
+                // A lone clip written from the scene image is one picture request, which stays local;
+                // everything else has text that goes to DeepSeek when Settings says so.
+                var target = fromImage && clipCount <= 1
+                    ? _lmStudioService.DescribeTarget(model)
+                    : _lmStudioService.DescribeTextTarget(model, withImages: fromImage);
                 AddLog(clipCount > 1
                     ? $"Writing a {clipCount}-clip hybrid chain ({clipCount} × {len:0.#}s = {clipCount * len:0.#}s) " +
-                      $"from {source} — sending to {_lmStudioService.DescribeTarget(model)}"
+                      $"from {source} — sending to {target}"
                     : $"Writing a {len:0.#}s hybrid H3 prompt from {source} " +
-                      $"— sending to {_lmStudioService.DescribeTarget(model)}");
+                      $"— sending to {target}");
 
                 if (HasStoryText && StoryText.Length > 20000)
                     AddLog($"WARNING: the story is {StoryText.Length:N0} characters — a local model will very " +
@@ -2581,7 +2586,7 @@ namespace FlipPix.UI.ViewModels.Video
                     }
 
                     const int maxTokens = 5000;
-                    AnalyzePhase = $"Writing the prompt — {_lmStudioService.DescribeTarget(model)}…";
+                    AnalyzePhase = $"Writing the prompt — {target}…";
                     var reply = fromImage
                         ? await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
                             model, SceneImagePath, userMessage, systemPrompt,
@@ -2820,7 +2825,8 @@ namespace FlipPix.UI.ViewModels.Video
 
                 var dress = WardrobeCast;
                 AnalyzePhase = "Writing the wardrobe…";
-                AddLog($"Writing outfits for {dress.Count} characters — sending to {_lmStudioService.DescribeTarget(model)}");
+                AddLog($"Writing outfits for {dress.Count} characters — sending to " +
+                       (HasSceneImage ? _lmStudioService.DescribeTarget(model) : _lmStudioService.DescribeTextTarget(model)));
                 var derived = await DeriveWardrobeAsync(model, dress, token);
                 if (string.IsNullOrWhiteSpace(derived))
                 {

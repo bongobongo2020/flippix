@@ -93,7 +93,7 @@ namespace FlipPix.UI.ViewModels.Video
                     if (model == null) return;
 
                     AnalyzePhase = "Reading the cast out of the story…";
-                    AddLog($"Reading the cast out of the story — sending to {_lmStudioService.DescribeTarget(model)}…");
+                    AddLog($"Reading the cast out of the story — sending to {_lmStudioService.DescribeTextTarget(model)}…");
                     var reply = await AskCastAsync(model, token);
                     token.ThrowIfCancellationRequested();
 

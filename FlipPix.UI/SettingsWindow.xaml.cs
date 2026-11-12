@@ -101,6 +101,16 @@ namespace FlipPix.UI
             DeepSeekModelComboBox.Text = string.IsNullOrWhiteSpace(lm?.DeepSeekModel) ? "deepseek-chat" : lm!.DeepSeekModel;
             DeepSeekBaseUrlTextBox.Text = string.IsNullOrWhiteSpace(lm?.DeepSeekBaseUrl) ? "https://api.deepseek.com" : lm!.DeepSeekBaseUrl;
 
+            // Keep the "Key in use with" line current as any DeepSeek field changes. The model box is
+            // editable, so its typed text is caught through the inner text box's TextChanged.
+            UseDeepSeekCheckBox.Checked += (_, __) => UpdateDeepSeekTargetText();
+            UseDeepSeekCheckBox.Unchecked += (_, __) => UpdateDeepSeekTargetText();
+            DeepSeekApiKeyBox.PasswordChanged += (_, __) => UpdateDeepSeekTargetText();
+            DeepSeekBaseUrlTextBox.TextChanged += (_, __) => UpdateDeepSeekTargetText();
+            DeepSeekModelComboBox.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent,
+                new TextChangedEventHandler((_, __) => UpdateDeepSeekTargetText()));
+            UpdateDeepSeekTargetText();
+
             RewriterModelComboBox.Text = lm?.RewriterSwitchModel ?? string.Empty;
             // Not from the constructor: the Server box's binding has not filled it yet, so the list would
             // find no host and stay empty. Once shown, and again whenever the list is opened empty.
@@ -989,6 +999,36 @@ namespace FlipPix.UI
             lm.DeepSeekBaseUrl = string.IsNullOrEmpty(url) ? "https://api.deepseek.com" : url;
         }
 
+        /// <summary>
+        /// Says which model the DeepSeek key is used with, and whether story text is actually going there,
+        /// from the fields as they stand (before Save). The key itself is shown by its last four characters.
+        /// </summary>
+        private void UpdateDeepSeekTargetText()
+        {
+            if (DeepSeekTargetText is null || UseDeepSeekCheckBox is null || DeepSeekApiKeyBox is null
+                || DeepSeekModelComboBox is null || DeepSeekBaseUrlTextBox is null)
+            {
+                return;
+            }
+
+            var probe = new LMStudioSettings();
+            ApplyDeepSeekFields(probe);
+
+            if (string.IsNullOrWhiteSpace(probe.DeepSeekApiKey))
+            {
+                DeepSeekTargetText.Text = probe.UseDeepSeekForStories
+                    ? $"No API key set — stories keep using the local llama server until a key is entered for {probe.DeepSeekModelId}."
+                    : "No API key set — stories use the local llama server.";
+                return;
+            }
+
+            var key = probe.DeepSeekApiKey;
+            var masked = key.Length > 8 ? $"key ending …{key[^4..]}" : "the key";
+            DeepSeekTargetText.Text = probe.UseDeepSeekForStories
+                ? $"Story text is sent to {probe.DescribeDeepSeekTarget()} with {masked}."
+                : $"Switched off — stories use the local llama server. When switched on, {masked} is used with {probe.DescribeDeepSeekTarget()}.";
+        }
+
         private async void TestDeepSeek_Click(object sender, RoutedEventArgs e)
         {
             var probe = new LMStudioSettings { DeepSeekMaxTokens = _originalSettings.LMStudioSettings?.DeepSeekMaxTokens ?? 8192 };
@@ -1011,10 +1051,13 @@ namespace FlipPix.UI
             if (button != null) button.IsEnabled = false;
             try
             {
-                var error = await lm.TestDeepSeekAsync(probe);
+                var (error, answered) = await lm.TestDeepSeekAsync(probe);
                 if (error == null)
-                    MessageBox.Show($"DeepSeek answered using {probe.DeepSeekModel}.", "DeepSeek",
-                        MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show(
+                        string.Equals(answered, probe.DeepSeekModelId, StringComparison.OrdinalIgnoreCase)
+                            ? $"The key works. DeepSeek answered using {answered}."
+                            : $"The key works. Asked for {probe.DeepSeekModelId}; DeepSeek answered using {answered}.",
+                        "DeepSeek", MessageBoxButton.OK, MessageBoxImage.Information);
                 else
                     MessageBox.Show($"DeepSeek test failed:\n\n{error}", "DeepSeek",
                         MessageBoxButton.OK, MessageBoxImage.Error);

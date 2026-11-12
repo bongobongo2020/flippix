@@ -64,7 +64,7 @@ namespace FlipPix.UI.ViewModels.Video
 
             AddLog($"📚 Rewriting clip {request.Index + 1} of \"{request.Title}\" to your direction " +
                    $"({(spec ? "Singularity spec" : researched ? "researched" : "shipped")} build, {seconds:0.#}s, " +
-                   $"{shots} shots) — via {_lmStudioService.DescribeTarget(model)}");
+                   $"{shots} shots) — via {_lmStudioService.DescribeTextTarget(model)}");
 
             var best = string.Empty;
             var rejection = string.Empty;

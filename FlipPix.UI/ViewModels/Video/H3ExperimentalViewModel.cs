@@ -267,7 +267,7 @@ namespace FlipPix.UI.ViewModels.Video
 
                 AddLog($"H3 Prompt Writer: writing a {clipCount}-clip chain ({clipCount} × {len:0.#}s = " +
                        $"{clipCount * len:0.#}s continuous) one clip at a time — via " +
-                       $"{_lmStudioService.DescribeTarget(model)}");
+                       $"{_lmStudioService.DescribeTextTarget(model)}");
                 if (!VisualStyle.IsAuto)
                     AddLog($"Visual style locked: {VisualStyle.Name}");
                 // Always said out loud, both ways: a chain is filed to the library the moment it lands and

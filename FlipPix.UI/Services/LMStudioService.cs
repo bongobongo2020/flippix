@@ -89,6 +89,16 @@ namespace FlipPix.UI.Services
             return string.IsNullOrWhiteSpace(modelName) ? url : $"{url} · {modelName}";
         }
 
+        /// <summary>
+        /// <see cref="DescribeTarget"/> for a story step: names the DeepSeek model when the step's text goes
+        /// there (Settings has it on, a key is set, and this is not a <see cref="LocalOnly"/> pass). With
+        /// <paramref name="withImages"/> it names both, since the pictures still go to the local server.
+        /// </summary>
+        public string DescribeTextTarget(string? modelName = null, bool withImages = false) =>
+            DeepSeekTarget() is { } deepSeek
+                ? deepSeek.DescribeTextTarget(modelName, withImages)
+                : DescribeTarget(modelName);
+
         public async Task<bool> IsRunningAsync(CancellationToken cancellationToken = default)
         {
             try
@@ -1478,18 +1488,21 @@ namespace FlipPix.UI.Services
         }
 
         /// <summary>Sends a tiny chat to DeepSeek with <paramref name="settings"/> to check the key and
-        /// model. Null on success, else the error.</summary>
-        public async Task<string?> TestDeepSeekAsync(FlipPix.Core.Models.LMStudioSettings settings, CancellationToken cancellationToken = default)
+        /// model. On success Error is null and Model is the model the API says answered (the requested id
+        /// when the reply does not name one); on failure Error says why.</summary>
+        public async Task<(string? Error, string Model)> TestDeepSeekAsync(FlipPix.Core.Models.LMStudioSettings settings, CancellationToken cancellationToken = default)
         {
             try
             {
                 var body = BuildDeepSeekBody(settings, new object[] { new { role = "user", content = "Reply with: ok" } }, 8, LlmSampling.Default);
                 var result = await PostDeepSeekAsync(settings, body, cancellationToken);
-                return result?.Choices?.Count > 0 ? null : "No choices in the reply.";
+                if (!(result?.Choices?.Count > 0)) return ("No choices in the reply.", settings.DeepSeekModelId);
+                var answered = string.IsNullOrWhiteSpace(result.Model) ? settings.DeepSeekModelId : result.Model.Trim();
+                return (null, answered);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                return ex.Message;
+                return (ex.Message, settings.DeepSeekModelId);
             }
         }
 

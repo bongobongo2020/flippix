@@ -99,6 +99,31 @@ public class LMStudioSettings
     [JsonIgnore]
     public bool DeepSeekActive => UseDeepSeekForStories && !string.IsNullOrWhiteSpace(DeepSeekApiKey);
 
+    /// <summary>The model id the DeepSeek key is used with (the default when none is set).</summary>
+    [JsonIgnore]
+    public string DeepSeekModelId =>
+        string.IsNullOrWhiteSpace(DeepSeekModel) ? "deepseek-chat" : DeepSeekModel.Trim();
+
+    /// <summary>Where the DeepSeek key sends text and which model it asks for, e.g.
+    /// "DeepSeek (api.deepseek.com) · deepseek-chat".</summary>
+    public string DescribeDeepSeekTarget()
+    {
+        var url = string.IsNullOrWhiteSpace(DeepSeekBaseUrl) ? "https://api.deepseek.com" : DeepSeekBaseUrl.Trim();
+        return $"DeepSeek ({ParseBaseUrl(url).Host}) · {DeepSeekModelId}";
+    }
+
+    /// <summary>
+    /// Like <see cref="DescribeTarget"/>, for a story step: its text goes to DeepSeek when that is switched
+    /// on, while any pictures it sends (<paramref name="withImages"/>) still go to the local server.
+    /// </summary>
+    public string DescribeTextTarget(string? model = null, bool withImages = false)
+    {
+        if (!DeepSeekActive) return DescribeTarget(model);
+        return withImages
+            ? $"{DescribeDeepSeekTarget()} for the text, {DescribeTarget(model)} for the pictures"
+            : DescribeDeepSeekTarget();
+    }
+
     /// <summary>
     /// Recently used LM Studio / llama-server base URLs, most-recent first. Lets the user
     /// keep a list of remote computers and switch between them without retyping the address.
