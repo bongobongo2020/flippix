@@ -258,6 +258,9 @@ namespace FlipPix.UI.ViewModels.Video
             // Analyze & Queue — see MiniMaxI2VViewModel.Analysis.cs.
             InitAnalysis();
 
+            // The SUBJECTS box — see MiniMaxI2VViewModel.Wardrobe.cs.
+            InitWardrobe();
+
             // Only once every command exists: restoring a queue notifies all of them.
             _queue.CollectionChanged += (_, _) => UpdateQueueStatus();
             LoadQueueFromFile();
@@ -324,6 +327,7 @@ namespace FlipPix.UI.ViewModels.Video
             OnPropertyChanged(nameof(PrimaryStereo));
             OnPropertyChanged(nameof(IsPrimaryStereo));
             OnPropertyChanged(nameof(StereoSummary));
+            OnPrimaryPictureChanged();
             RaiseReferenceScale();
             ApplyStereoPrompt();
             // Slots 1–4 are Ultra's first four pictures too, and picture 1 is what its Auto aspect reads.

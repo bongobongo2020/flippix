@@ -50,6 +50,9 @@ public static class ModelCatalog
         ["LTX-2.3-22B-distilled-1.1-Q3_K_S.gguf"] = "https://huggingface.co/QuantStack/LTX-2.3-GGUF/resolve/main/LTX-2.3-distilled-1.1/LTX-2.3-22B-distilled-1.1-Q3_K_S.gguf",
     };
 
+    // leaf filename -> approximate size as the manifest writes it ("~8.7 GB"), for display only.
+    private static readonly Dictionary<string, string> _sizes = new(StringComparer.OrdinalIgnoreCase);
+
     private static bool _mergedFromDisk;
     private static readonly object _lock = new();
 
@@ -63,6 +66,15 @@ public static class ModelCatalog
         EnsureMergedFromDisk();
         var leaf = Path.GetFileName(modelNameOrPath.Replace('\\', '/'));
         return _urls.TryGetValue(leaf, out var url) ? url : null;
+    }
+
+    /// <summary>The approximate download size from the shipped manifests ("~8.7 GB"), or null.</summary>
+    public static string? GetSizeHint(string modelNameOrPath)
+    {
+        if (string.IsNullOrWhiteSpace(modelNameOrPath)) return null;
+        EnsureMergedFromDisk();
+        var leaf = Path.GetFileName(modelNameOrPath.Replace('\\', '/'));
+        return _sizes.TryGetValue(leaf, out var size) ? size : null;
     }
 
     /// <summary>True if a download URL is known for this model.</summary>
@@ -113,6 +125,8 @@ public static class ModelCatalog
                 if (leaf.Length == 0) continue;
                 // Don't overwrite a curated built-in entry with a manifest one.
                 if (!_urls.ContainsKey(leaf)) _urls[leaf] = url;
+                var size = parts[1].Trim();
+                if (size.Length > 0 && !_sizes.ContainsKey(leaf)) _sizes[leaf] = size;
             }
         }
         catch

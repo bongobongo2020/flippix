@@ -58,6 +58,10 @@ namespace FlipPix.UI
         /// again, so those stay read-only however this is set.
         /// </summary>
         public bool PromptEditable { get; init; }
+
+        /// <summary>Called after an edit in the prompt pane is written to the entry and before it is saved, so a
+        /// tab that keeps its own copy of the text on the entry can bring that copy up to date.</summary>
+        public Action<ScenePrompt>? PromptEdited { get; init; }
     }
 
     /// <summary>
@@ -86,6 +90,8 @@ namespace FlipPix.UI
             _library = library;
             _entries = entries;
             _chrome = chrome ?? new ScenePromptLibraryChrome();
+            // Closing the window while typing in the pane gives the box no LostFocus: keep the edit anyway.
+            Closing += (_, _) => PromptBox_LostFocus(PromptBox, new RoutedEventArgs());
 
             ApplyChrome();
 
@@ -235,6 +241,7 @@ namespace FlipPix.UI
             row.Entry.Prompt = text;
             row.Entry.Shots = CountShots(text);
             row.Entry.LastUsed = DateTime.Now;
+            _chrome.PromptEdited?.Invoke(row.Entry);
             row.Refresh();
             _ = _library.SaveAsync(_entries);
         }

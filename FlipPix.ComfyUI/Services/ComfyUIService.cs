@@ -31,6 +31,9 @@ public class ComfyUIService : IComfyUIService
 
     public ComfyUIHttpClient HttpClient => _httpClient;
 
+    /// <summary>The id the websocket is registered under now (it changes when the socket reconnects).</summary>
+    private string SocketClientId => _webSocketClient.ClientId ?? _clientId;
+
     public ComfyUIService(ComfyUIHttpClient httpClient, ComfyUIWebSocketClient webSocketClient,
         IAppLogger logger, ComfyUISettings settings)
     {
@@ -276,7 +279,7 @@ public class ComfyUIService : IComfyUIService
             }
 
             var promptId = await RetryAsync(
-                () => _httpClient.SubmitPromptAsync(workflow, _clientId, cancellationToken),
+                () => _httpClient.SubmitPromptAsync(workflow, SocketClientId, cancellationToken),
                 _settings.MaxRetries,
                 TimeSpan.FromMilliseconds(_settings.RetryDelayMilliseconds),
                 cancellationToken);
@@ -412,7 +415,7 @@ public class ComfyUIService : IComfyUIService
 
             // Submit workflow
             var promptId = await RetryAsync(
-                () => _httpClient.SubmitPromptAsync(workflow, _clientId, cancellationToken),
+                () => _httpClient.SubmitPromptAsync(workflow, SocketClientId, cancellationToken),
                 _settings.MaxRetries,
                 TimeSpan.FromMilliseconds(_settings.RetryDelayMilliseconds),
                 cancellationToken);

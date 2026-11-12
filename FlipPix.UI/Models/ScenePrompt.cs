@@ -92,6 +92,10 @@ namespace FlipPix.UI.Models
         /// </summary>
         public string Wardrobe { get; set; } = string.Empty;
 
+        /// <summary>The ⛓ FFLF tab's whole story — beats, dials and each beat's take. Null on every other tab.</summary>
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public FflfStory? Fflf { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public DateTime LastUsed { get; set; } = DateTime.Now;
         public int UseCount { get; set; }

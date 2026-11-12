@@ -359,6 +359,8 @@
         <!-- Buttons -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
             <Button Content="Test Connection" Click="TestConnection_Click" Margin="0,0,10,0" Padding="20,10" Background="{StaticResource SuccessBrush}" Foreground="White" BorderThickness="0"/>
+            <Button Content="Check server setup…" Click="CheckServerSetup_Click" Margin="0,0,10,0" Padding="20,10" Background="{StaticResource AccentIndigoBrush}" Foreground="White" BorderThickness="0"
+                    ToolTip="Scan the ComfyUI server for the custom nodes and models FlipPix's workflows need, and install what's missing."/>
             <Button Content="Test WebSocket" Click="TestWebSocket_Click" Margin="0,0,10,0" Padding="20,10" Background="{StaticResource AccentCyanBrush}" Foreground="White" BorderThickness="0"/>
             <Button Content="Cancel" Click="Cancel_Click" Margin="0,0,10,0" Padding="20,10"/>
             <Button Content="Save" Click="Save_Click" Padding="20,10" Background="{StaticResource BrandBrush}" Foreground="White" BorderThickness="0" FontWeight="Bold"/>

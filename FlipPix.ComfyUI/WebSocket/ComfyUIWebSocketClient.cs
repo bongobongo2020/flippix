@@ -26,6 +26,10 @@ public class ComfyUIWebSocketClient : IDisposable
 
     public bool IsConnected => _webSocket?.State == WebSocketState.Open;
 
+    /// <summary>The id this socket is registered under on the server. Prompts must be submitted with it, or
+    /// their progress, "executed" events and live previews go nowhere. It changes on every reconnect.</summary>
+    public string? ClientId => _clientId;
+
     public ComfyUIWebSocketClient(IAppLogger logger, string baseUrl)
     {
         _logger = logger;
@@ -118,6 +122,11 @@ public class ComfyUIWebSocketClient : IDisposable
                     _cancellationTokenSource?.Dispose();
                     _cancellationTokenSource = null;
                     _webSocket?.Dispose();
+
+                    // A fresh id: ComfyUI's handler for the old socket pops its id from the server's socket
+                    // table when it finally closes — which can be after this socket registered under the same
+                    // id, silently unregistering it (one "status" message, then nothing for the rest of the run).
+                    _clientId = Guid.NewGuid().ToString();
 
                     // Create new connection
                     _cancellationTokenSource = new CancellationTokenSource();

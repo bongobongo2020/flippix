@@ -35,6 +35,10 @@ namespace FlipPix.UI
         public string LibraryNoun { get; init; } = "scene library";
         public string? AccentColorKey { get; init; }
         public bool PromptEditable { get; init; }
+
+        /// <summary>Called after an edit in the prompt pane is written to the entry and before it is saved, so a
+        /// tab that keeps its own copy of the text on the entry can bring that copy up to date.</summary>
+        public Action<ScenePrompt>? PromptEdited { get; init; }
     }
 
     public sealed class ScenePromptLibraryWindow : System.Windows.Window
