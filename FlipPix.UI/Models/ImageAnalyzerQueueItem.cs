@@ -90,6 +90,7 @@ namespace FlipPix.UI.Models
             TextGeneratorWorkflow.Qwen21Enhancer => "Q21",
             TextGeneratorWorkflow.Moss => "M",
             TextGeneratorWorkflow.MossReal => "MR",
+            TextGeneratorWorkflow.AnimaXReal => "AXR",
             _ => "?"
         };
 
@@ -104,6 +105,7 @@ namespace FlipPix.UI.Models
             TextGeneratorWorkflow.Qwen21Enhancer => "#0EA5E9",
             TextGeneratorWorkflow.Moss => "#14B8A6",
             TextGeneratorWorkflow.MossReal => "#0F766E",
+            TextGeneratorWorkflow.AnimaXReal => "#BE185D",
             _ => "#6C757D"
         };
 

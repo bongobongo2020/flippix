@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -546,7 +547,8 @@ namespace FlipPix.UI.ViewModels
         public bool ShowSamplerSettings => SelectedWorkflow != TextGeneratorWorkflow.Anima
                                            && SelectedWorkflow != TextGeneratorWorkflow.Krea2
                                            && SelectedWorkflow != TextGeneratorWorkflow.Moss
-                                           && SelectedWorkflow != TextGeneratorWorkflow.MossReal;
+                                           && SelectedWorkflow != TextGeneratorWorkflow.MossReal
+                                           && SelectedWorkflow != TextGeneratorWorkflow.AnimaXReal;
 
         // Only qwen21-prompt-enhancer.json carries the local rewriter, so only it shows the toggle.
         public bool ShowPromptEnhancerOption => SelectedWorkflow == TextGeneratorWorkflow.Qwen21Enhancer;
@@ -1661,7 +1663,8 @@ namespace FlipPix.UI.ViewModels
 
                 // Use LM Studio for image analysis
                 string analysisResult;
-                if (SelectedWorkflow == TextGeneratorWorkflow.Anima)
+                // Anima X real starts from an Anima render, so it wants the same Danbooru-tag prompt.
+                if (SelectedWorkflow == TextGeneratorWorkflow.Anima || SelectedWorkflow == TextGeneratorWorkflow.AnimaXReal)
                 {
                     var systemPromptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "anima", "anima-system-prompt.md");
                     var systemPrompt = File.Exists(systemPromptPath)
@@ -2229,6 +2232,11 @@ namespace FlipPix.UI.ViewModels
                         _logger.LogInfo($"Using Anima workflow");
                         break;
 
+                    case TextGeneratorWorkflow.AnimaXReal:
+                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "anima", "Anima-X-Real.json");
+                        _logger.LogInfo($"Using Anima X real workflow (Anima → FIBO 2 photo edit → MOSS Real polish)");
+                        break;
+
                     case TextGeneratorWorkflow.Krea2:
                         workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "krea", "krea2RealismV1_krea2RealismV1WF.json");
                         _logger.LogInfo($"Using Krea2 workflow");
@@ -2472,6 +2480,7 @@ namespace FlipPix.UI.ViewModels
                         TextGeneratorWorkflow.Qwen21Enhancer => "qwen21",
                         TextGeneratorWorkflow.Moss => "moss",
                         TextGeneratorWorkflow.MossReal => "moss-real",
+                        TextGeneratorWorkflow.AnimaXReal => "anima-x-real",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");
@@ -2957,6 +2966,8 @@ namespace FlipPix.UI.ViewModels
                     TextGeneratorWorkflow.Qwen21Enhancer => "468",
                     TextGeneratorWorkflow.Moss => "7",
                     TextGeneratorWorkflow.MossReal => "7",
+                    // The Anima stage's positive prompt; the MOSS refine prompt (7) is set below.
+                    TextGeneratorWorkflow.AnimaXReal => "60:11",
                     _ => ""  // Empty for Zimage (will use generic search)
                 };
 
@@ -3207,6 +3218,33 @@ namespace FlipPix.UI.ViewModels
                             UpdateNodeInputs(workflow, "12", nodeInputs => nodeInputs["filename_prefix"] = "MossReal");
                             _logger.LogInfo($"✓ MOSS Real: {mrWidth}x{mrHeight} (steps/cfg as authored)");
                         }
+                        else if (selectedWorkflow == TextGeneratorWorkflow.AnimaXReal)
+                        {
+                            // anima/Anima-X-Real.json:
+                            //   60:28 = EmptyLatentImage (Anima canvas) → width / height       [set here]
+                            //   24    = FIBO 2 edit (anime → photo) on the Anima render → prompt [set here]
+                            //   70    = ImageScale of the FIBO 2 photo to the MOSS canvas       [set here]
+                            //   7     = MOSS refine positive prompt → text                      [set here]
+                            //   12    = SaveImage → filename_prefix                             [set here]
+                            //   14    = BasicScheduler, 25 steps, denoise 0.8 (polish strength) [as authored]
+                            //           FIBO 2 sets the photo's layout; MOSS at 0.8 finishes it (real skin, light, and any
+                            //           background FIBO 2 left painted) without moving the pose. 0.85+ starts a new scene.
+                            var (animaW, animaH, refineW, refineH) = AnimaXRealResolution(AspectRatioIndex);
+                            UpdateNodeInputs(workflow, "60:28", nodeInputs =>
+                            {
+                                nodeInputs["width"] = animaW;
+                                nodeInputs["height"] = animaH;
+                            });
+                            UpdateNodeInputs(workflow, "70", nodeInputs =>
+                            {
+                                nodeInputs["width"] = refineW;
+                                nodeInputs["height"] = refineH;
+                            });
+                            UpdateNodeInputs(workflow, "24", nodeInputs => nodeInputs["prompt"] = BuildAnimaXRealFiboPrompt(promptText));
+                            UpdateNodeInputs(workflow, "7", nodeInputs => nodeInputs["text"] = BuildAnimaXRealRefinePrompt(promptText));
+                            UpdateNodeInputs(workflow, "12", nodeInputs => nodeInputs["filename_prefix"] = "AnimaXReal");
+                            _logger.LogInfo($"✓ Anima X real: Anima {animaW}x{animaH} → FIBO 2 → MOSS Real polish {refineW}x{refineH}");
+                        }
                     }
 
                     // Randomize seed for non-Zimage workflows
@@ -3337,6 +3375,15 @@ namespace FlipPix.UI.ViewModels
                         // moss-real-API.json: node 10 = SamplerCustom, whose seed input is noise_seed.
                         UpdateNodeInputs(workflow, "10", nodeInputs => nodeInputs["noise_seed"] = randomSeed);
                         _logger.LogInfo($"✓ Updated MOSS Real sampler node 10 with seed: {randomSeed}");
+                    }
+                    else if (selectedWorkflow == TextGeneratorWorkflow.AnimaXReal)
+                    {
+                        // Anima-X-Real.json: 60:19 = Anima KSampler, 25 = FIBO 2 KSampler (seed);
+                        // 10 = MOSS SamplerCustom (noise_seed).
+                        UpdateNodeInputs(workflow, "60:19", nodeInputs => nodeInputs["seed"] = randomSeed);
+                        UpdateNodeInputs(workflow, "25", nodeInputs => nodeInputs["seed"] = randomSeed);
+                        UpdateNodeInputs(workflow, "10", nodeInputs => nodeInputs["noise_seed"] = randomSeed);
+                        _logger.LogInfo($"✓ Updated Anima X real samplers 60:19 / 25 / 10 with seed: {randomSeed}");
                     }
 
                     return workflow;
@@ -3860,6 +3907,92 @@ namespace FlipPix.UI.ViewModels
         /// Reads node <paramref name="nodeId"/>'s inputs into a mutable dictionary, hands it to
         /// <paramref name="mutate"/>, and writes the node back. No-op if the node is absent.
         /// </summary>
+        /// <summary>
+        /// Anima X real canvases: the Anima pass at Anima's native size, then the refine pass at
+        /// ~1.4-1.5x that (multiples of 16, same aspect, so ImageScale never stretches).
+        /// </summary>
+        public static (int AnimaWidth, int AnimaHeight, int RefineWidth, int RefineHeight) AnimaXRealResolution(int aspectRatioIndex)
+        {
+            var resolutions = new[]
+            {
+                (1024, 768, 1536, 1152),  // Landscape
+                (768, 1024, 1152, 1536),  // Portrait
+                (1024, 1024, 1408, 1408), // Square
+            };
+            return resolutions[Math.Min(Math.Max(aspectRatioIndex, 0), resolutions.Length - 1)];
+        }
+
+        // Anima-only tags that mean nothing (or "make it a drawing") to MOSS: quality / score /
+        // safety meta tags, years, resolution tags, @artist tags and anime art-style words.
+        private static readonly Regex AnimaOnlyTag = new(
+            @"^(masterpiece|best quality|high quality|amazing quality|very aesthetic|absurdres|highres|newest|recent|"
+            + @"safe|sensitive|nsfw|explicit|score_\d+(_up)?|year \d{4}|@.*|anime.*|.*anime coloring|lineart|"
+            + @"cel shading|manga|illustration|official art|painterly|watercolor.*|sketch|chibi)$",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        // Danbooru subject-count tags read as anime to MOSS; say them as plain words instead.
+        private static readonly Dictionary<string, string> AnimaSubjectTag = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["1girl"] = "a woman", ["1boy"] = "a man",
+            ["2girls"] = "two women", ["2boys"] = "two men",
+            ["3girls"] = "three women", ["3boys"] = "three men",
+            ["multiple girls"] = "several women", ["multiple boys"] = "several men",
+            ["1other"] = "a person", ["solo"] = "",
+        };
+
+        /// <summary>
+        /// Turns the Anima Danbooru-tag prompt into the MOSS Real refine prompt: drops the
+        /// Anima-only tags, spells out subject-count tags, and frames what is left as a
+        /// photograph of real people.
+        /// </summary>
+        public static string BuildAnimaXRealRefinePrompt(string? animaPrompt)
+        {
+            var tags = (animaPrompt ?? string.Empty)
+                .Split(new[] { ',', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(t => t.Trim())
+                .Where(t => t.Length > 0 && !AnimaOnlyTag.IsMatch(t))
+                .Select(t => AnimaSubjectTag.TryGetValue(t, out var words) ? words : t)
+                .Where(t => t.Length > 0);
+
+            return "A high quality photorealistic photograph of real people, shot on a full-frame DSLR "
+                + "with an 85mm lens, natural skin texture with visible pores, realistic hair, real fabric, "
+                + "natural lighting, sharp focus, true-to-life colors. The scene: "
+                + string.Join(", ", tags) + ".";
+        }
+
+        // Subject-count tags as FIBO 2 should hear them: "real" on every subject.
+        private static readonly Dictionary<string, string> AnimaRealSubject = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["1girl"] = "a real woman", ["1boy"] = "a real man",
+            ["2girls"] = "two real women", ["2boys"] = "two real men",
+            ["3girls"] = "three real women", ["3boys"] = "three real men",
+            ["multiple girls"] = "several real women", ["multiple boys"] = "several real men",
+            ["1other"] = "a real person",
+        };
+
+        /// <summary>
+        /// The FIBO 2 edit instruction that turns the Anima render into a photo. Naming the subject
+        /// ("a real woman") and insisting the background is a photo too is what made the 4-step
+        /// turbo edit convert reliably; a generic "make it photorealistic" often left a painting.
+        /// </summary>
+        public static string BuildAnimaXRealFiboPrompt(string? animaPrompt)
+        {
+            var subjects = (animaPrompt ?? string.Empty)
+                .Split(new[] { ',', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(t => AnimaRealSubject.TryGetValue(t.Trim(), out var words) ? words : null)
+                .OfType<string>()
+                .Distinct()
+                .ToList();
+            var subject = subjects.Count > 0 ? string.Join(" and ", subjects) : "real people";
+
+            return $"Recreate <image_1> as a real, unedited camera photograph of {subject}. The whole image, background "
+                + "included, must look like a photo taken with a DSLR: real surroundings, real buildings, rooms, plants, sky "
+                + "and objects. Not a drawing, not a painting, not an illustration, not anime, not a 3D render. Replace every "
+                + "drawn face with a real human face: normal-sized human eyes, realistic nose and lips, real skin with pores "
+                + "and subtle imperfections, real hair strands. Real fabric, real wood, glass and metal, real photographic "
+                + "lighting and depth of field. Keep the exact same pose, framing, clothing, colors and background layout.";
+        }
+
         private static void UpdateNodeInputs(Dictionary<string, object> workflow, string nodeId, Action<Dictionary<string, object>> mutate)
         {
             if (!workflow.ContainsKey(nodeId)) return;
@@ -4081,6 +4214,7 @@ namespace FlipPix.UI.ViewModels
                     TextGeneratorWorkflow.Qwen21Enhancer => "Qwen21_",
                     TextGeneratorWorkflow.Moss => "Moss_",
                     TextGeneratorWorkflow.MossReal => "MossReal_",
+                    TextGeneratorWorkflow.AnimaXReal => "AnimaXReal_",
                     _ => ""  // Empty for Zimage (will use ZI/z-image pattern)
                 };
 

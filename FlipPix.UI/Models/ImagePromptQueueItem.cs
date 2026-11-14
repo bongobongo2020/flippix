@@ -64,6 +64,7 @@ namespace FlipPix.UI.Models
             TextGeneratorWorkflow.Qwen21Enhancer => "Q21",
             TextGeneratorWorkflow.Moss => "M",
             TextGeneratorWorkflow.MossReal => "MR",
+            TextGeneratorWorkflow.AnimaXReal => "AXR",
             _ => "?"
         };
 
@@ -78,6 +79,7 @@ namespace FlipPix.UI.Models
             TextGeneratorWorkflow.Qwen21Enhancer => "#0EA5E9", // Sky
             TextGeneratorWorkflow.Moss => "#14B8A6",           // Teal
             TextGeneratorWorkflow.MossReal => "#0F766E",       // Dark teal
+            TextGeneratorWorkflow.AnimaXReal => "#BE185D",     // Deep pink
             _ => "#6C757D"
         };
 

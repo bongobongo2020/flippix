@@ -1,0 +1,402 @@
+{
+  "60:15": {
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE (Anima)"
+    }
+  },
+  "60:28": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image (Anima)"
+    }
+  },
+  "60:44": {
+    "inputs": {
+      "unet_name": "anima/anima-base-v1.0.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model (Anima)"
+    }
+  },
+  "60:45": {
+    "inputs": {
+      "clip_name": "qwen_3_06b_base.safetensors",
+      "type": "stable_diffusion",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP (Anima)"
+    }
+  },
+  "60:12": {
+    "inputs": {
+      "text": "worst quality, low quality, score_1, score_2, score_3, blurry, jpeg artifacts, sepia",
+      "clip": [
+        "60:45",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Anima Negative Prompt"
+    }
+  },
+  "60:11": {
+    "inputs": {
+      "text": "masterpiece, best quality, score_7, safe, 1girl, long brown hair, green sports bra, black shorts, fighting stance, outdoors, park, sunlight",
+      "clip": [
+        "60:45",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Anima Positive Prompt"
+    }
+  },
+  "60:19": {
+    "inputs": {
+      "seed": 389414718129258,
+      "steps": 30,
+      "cfg": 4,
+      "sampler_name": "res_2m",
+      "scheduler": "bong_tangent",
+      "denoise": 1,
+      "model": [
+        "60:44",
+        0
+      ],
+      "positive": [
+        "60:11",
+        0
+      ],
+      "negative": [
+        "60:12",
+        0
+      ],
+      "latent_image": [
+        "60:28",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler (Anima stage 1)"
+    }
+  },
+  "60:8": {
+    "inputs": {
+      "samples": [
+        "60:19",
+        0
+      ],
+      "vae": [
+        "60:15",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode (Anima)"
+    }
+  },
+  "20": {
+    "inputs": {
+      "unet_name": "fibo2_edit_turbo_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model (FIBO 2 edit turbo)"
+    }
+  },
+  "21": {
+    "inputs": {
+      "clip_name": "qwen3vl_4b_bf16.safetensors",
+      "type": "fibo2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP (Qwen3-VL 4B, FIBO 2)"
+    }
+  },
+  "24": {
+    "inputs": {
+      "prompt": "Recreate <image_1> as a real, unedited camera photograph of real people. The whole image, background included, must look like a photo taken with a DSLR: real surroundings, real buildings, rooms, plants, sky and objects. Not a drawing, not a painting, not an illustration, not anime, not a 3D render. Replace every drawn face with a real human face: normal-sized human eyes, realistic nose and lips, real skin with pores and subtle imperfections, real hair strands. Real fabric, real wood, glass and metal, real photographic lighting and depth of field. Keep the exact same pose, framing, clothing, colors and background layout.",
+      "negative_prompt": "",
+      "width": 0,
+      "height": 0,
+      "batch_size": 1,
+      "clip": [
+        "21",
+        0
+      ],
+      "images.image_1": [
+        "60:8",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "TextEncodeFibo2",
+    "_meta": {
+      "title": "FIBO 2 edit: anime → photo"
+    }
+  },
+  "25": {
+    "inputs": {
+      "seed": 1080705714229444,
+      "steps": 4,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "20",
+        0
+      ],
+      "positive": [
+        "24",
+        0
+      ],
+      "negative": [
+        "24",
+        1
+      ],
+      "latent_image": [
+        "24",
+        2
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler (FIBO 2 edit, turbo 4 steps)"
+    }
+  },
+  "26": {
+    "inputs": {
+      "samples": [
+        "25",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode (FIBO 2 photo)"
+    }
+  },
+  "70": {
+    "inputs": {
+      "upscale_method": "lanczos",
+      "width": 1408,
+      "height": 1408,
+      "crop": "center",
+      "image": [
+        "26",
+        0
+      ]
+    },
+    "class_type": "ImageScale",
+    "_meta": {
+      "title": "Upscale FIBO 2 photo to MOSS canvas"
+    }
+  },
+  "71": {
+    "inputs": {
+      "pixels": [
+        "70",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode (FLUX.2) for MOSS polish"
+    }
+  },
+  "1": {
+    "inputs": {
+      "unet_name": "moss_image_base_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model (MOSS Image base)"
+    }
+  },
+  "2": {
+    "inputs": {
+      "clip_name": "qwen3.5_9b_bf16.safetensors",
+      "type": "moss_image",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP (Qwen3.5 9B)"
+    }
+  },
+  "3": {
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE (FLUX.2)"
+    }
+  },
+  "6": {
+    "inputs": {
+      "double_layers": "",
+      "single_layers": "22, 24",
+      "start_percent": 0,
+      "end_percent": 1,
+      "model": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "SkipLayerGuidanceDiTSimple",
+    "_meta": {
+      "title": "Skip Layer Guidance (uncond skips blocks 22, 24)"
+    }
+  },
+  "7": {
+    "inputs": {
+      "text": "A high quality photorealistic photograph of a real person, natural skin texture, realistic lighting, sharp focus.",
+      "clip": [
+        "2",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "MOSS Polish Positive Prompt"
+    }
+  },
+  "8": {
+    "inputs": {
+      "text": "anime, cartoon, illustration, drawing, painting, manga, cel shading, lineart, 3d render, cgi, doll, big eyes, plastic skin, airbrushed, oversaturated",
+      "clip": [
+        "2",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "MOSS Polish Negative Prompt"
+    }
+  },
+  "10": {
+    "inputs": {
+      "add_noise": true,
+      "noise_seed": 855373723910865,
+      "cfg": 3,
+      "model": [
+        "6",
+        0
+      ],
+      "positive": [
+        "7",
+        0
+      ],
+      "negative": [
+        "8",
+        0
+      ],
+      "sampler": [
+        "13",
+        0
+      ],
+      "sigmas": [
+        "14",
+        0
+      ],
+      "latent_image": [
+        "71",
+        0
+      ]
+    },
+    "class_type": "SamplerCustom",
+    "_meta": {
+      "title": "SamplerCustom (MOSS Real polish)"
+    }
+  },
+  "11": {
+    "inputs": {
+      "samples": [
+        "10",
+        1
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode (denoised output)"
+    }
+  },
+  "12": {
+    "inputs": {
+      "filename_prefix": "AnimaXReal",
+      "images": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "13": {
+    "inputs": {
+      "solver_type": "ER-SDE",
+      "max_stage": 3,
+      "eta": 1,
+      "s_noise": 1.1
+    },
+    "class_type": "SamplerER_SDE",
+    "_meta": {
+      "title": "SamplerER_SDE"
+    }
+  },
+  "14": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 25,
+      "denoise": 0.8,
+      "model": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "BasicScheduler (polish strength = denoise)"
+    }
+  }
+}

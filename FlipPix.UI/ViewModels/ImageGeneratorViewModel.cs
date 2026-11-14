@@ -43,7 +43,11 @@ namespace FlipPix.UI.ViewModels
         // MOSS-Image base model, no distill LoRA (moss-real-API.json): SamplerCustom with the
         // ER-SDE sampler, 25 steps / cfg 3, skip-layer guidance on blocks 22+24. As with Moss,
         // only prompt, seed and canvas size are injected.
-        MossReal
+        MossReal,
+        // "Anima X real" (anima/Anima-X-Real.json): Anima draws the image from the Danbooru-tag
+        // prompt, FIBO 2 edit turbo converts it into a photo (keeping pose and composition), and
+        // MOSS Real (base) polishes that at denoise 0.8 for real skin, fabric and light.
+        AnimaXReal
     }
 
     public class ImageGeneratorViewModel : BasePromptViewModel, IDisposable
@@ -547,7 +551,8 @@ namespace FlipPix.UI.ViewModels
         public bool ShowSamplerSettings => SelectedWorkflow != TextGeneratorWorkflow.Anima
                                            && SelectedWorkflow != TextGeneratorWorkflow.Krea2
                                            && SelectedWorkflow != TextGeneratorWorkflow.Moss
-                                           && SelectedWorkflow != TextGeneratorWorkflow.MossReal;
+                                           && SelectedWorkflow != TextGeneratorWorkflow.MossReal
+                                           && SelectedWorkflow != TextGeneratorWorkflow.AnimaXReal;
 
         // Only qwen21-prompt-enhancer.json carries the local rewriter, so only it shows the toggle.
         public bool ShowPromptEnhancerOption => SelectedWorkflow == TextGeneratorWorkflow.Qwen21Enhancer;
@@ -866,6 +871,11 @@ namespace FlipPix.UI.ViewModels
                         AddLog("Using MOSS Real workflow");
                         break;
 
+                    case TextGeneratorWorkflow.AnimaXReal:
+                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "anima", "Anima-X-Real.json");
+                        AddLog("Using Anima X real workflow (Anima → FIBO 2 photo edit → MOSS Real polish)");
+                        break;
+
                     case TextGeneratorWorkflow.Zimage:
                     default:
                         if (SelectedStyle != null)
@@ -981,6 +991,7 @@ namespace FlipPix.UI.ViewModels
                         TextGeneratorWorkflow.Qwen21Enhancer => "qwen21",
                         TextGeneratorWorkflow.Moss => "moss",
                         TextGeneratorWorkflow.MossReal => "moss-real",
+                        TextGeneratorWorkflow.AnimaXReal => "anima-x-real",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");
@@ -1531,6 +1542,8 @@ namespace FlipPix.UI.ViewModels
                     return UpdateMossWorkflow(workflowDict, ImagePrompt, AspectRatioIndex, Seed, AddLog);
                 case TextGeneratorWorkflow.MossReal:
                     return UpdateMossRealWorkflow(workflowDict, ImagePrompt, AspectRatioIndex, Seed, AddLog);
+                case TextGeneratorWorkflow.AnimaXReal:
+                    return UpdateAnimaXRealWorkflow(workflowDict, ImagePrompt, AspectRatioIndex, Seed, AddLog);
                 default:
                     return workflow;
             }
@@ -2811,6 +2824,45 @@ namespace FlipPix.UI.ViewModels
             return JsonSerializer.SerializeToElement(workflowDict);
         }
 
+        /// <summary>
+        /// Fills anima/Anima-X-Real.json: Anima renders the prompt, FIBO 2 converts it into a photo,
+        /// MOSS Real (base) polishes it. Node map:
+        ///   60:11 = Anima positive prompt → text          60:28 = Anima canvas → width / height
+        ///   60:19 = Anima KSampler → seed                 25    = FIBO 2 KSampler → seed
+        ///   24    = FIBO 2 edit instruction → prompt
+        ///   70    = ImageScale to MOSS canvas → w / h     7     = MOSS polish prompt → text
+        ///   10    = MOSS SamplerCustom → noise_seed       12    = SaveImage → filename_prefix
+        ///   14    = 25 steps, denoise 0.8 (polish)        [as authored]
+        /// </summary>
+        internal static JsonElement UpdateAnimaXRealWorkflow(Dictionary<string, JsonElement> workflowDict, string prompt,
+            int aspectRatioIndex, long seed, Action<string> log)
+        {
+            var (animaW, animaH, refineW, refineH) = ImageAnalyzerViewModel.AnimaXRealResolution(aspectRatioIndex);
+            var actualSeed = seed == 0 ? Random.Shared.NextInt64(0, 999999999999999) : seed;
+
+            UpdateNodeInputs(workflowDict, "60:11", inputs => inputs["text"] = prompt ?? string.Empty);
+            UpdateNodeInputs(workflowDict, "60:28", inputs =>
+            {
+                inputs["width"] = animaW;
+                inputs["height"] = animaH;
+            });
+            UpdateNodeInputs(workflowDict, "60:19", inputs => inputs["seed"] = actualSeed);
+            UpdateNodeInputs(workflowDict, "25", inputs => inputs["seed"] = actualSeed);
+            UpdateNodeInputs(workflowDict, "70", inputs =>
+            {
+                inputs["width"] = refineW;
+                inputs["height"] = refineH;
+            });
+            UpdateNodeInputs(workflowDict, "24", inputs => inputs["prompt"] = ImageAnalyzerViewModel.BuildAnimaXRealFiboPrompt(prompt));
+            UpdateNodeInputs(workflowDict, "7", inputs => inputs["text"] = ImageAnalyzerViewModel.BuildAnimaXRealRefinePrompt(prompt));
+            UpdateNodeInputs(workflowDict, "10", inputs => inputs["noise_seed"] = actualSeed);
+            UpdateNodeInputs(workflowDict, "12", inputs => inputs["filename_prefix"] = "AnimaXReal");
+
+            log($"Anima X real: Anima {animaW}x{animaH} → FIBO 2 → MOSS Real polish {refineW}x{refineH}, seed={actualSeed}");
+
+            return JsonSerializer.SerializeToElement(workflowDict);
+        }
+
         private JsonElement UpdateZimageBaseWorkflow(Dictionary<string, JsonElement> workflowDict)
         {
             // z-image-base.json is run AS AUTHORED. Only the prompt and the seed are injected;
@@ -3299,6 +3351,7 @@ namespace FlipPix.UI.ViewModels
                             TextGeneratorWorkflow.Qwen21Enhancer => "Qwen21_",
                             TextGeneratorWorkflow.Moss => "Moss_",
                             TextGeneratorWorkflow.MossReal => "MossReal_",
+                            TextGeneratorWorkflow.AnimaXReal => "AnimaXReal_",
                             _ => "z-image_"
                         };
                         imageFiles = Directory.GetFiles(searchDirectory, $"{prefix}*.png")
@@ -3436,6 +3489,7 @@ namespace FlipPix.UI.ViewModels
                 TextGeneratorWorkflow.Qwen21Enhancer => new[] { @"Qwen21_(\d+)_", @"Qwen21_(\d+)$" },
                 TextGeneratorWorkflow.Moss => new[] { @"Moss_(\d+)_", @"Moss_(\d+)$" },
                 TextGeneratorWorkflow.MossReal => new[] { @"MossReal_(\d+)_", @"MossReal_(\d+)$" },
+                TextGeneratorWorkflow.AnimaXReal => new[] { @"AnimaXReal_(\d+)_", @"AnimaXReal_(\d+)$" },
                 _ => new[] { @"z-image_(\d+)_", @"z-image_(\d+)$" }
             };
 
@@ -4373,6 +4427,11 @@ namespace FlipPix.UI.ViewModels
                         AddLog("Using MOSS Real workflow");
                         break;
 
+                    case TextGeneratorWorkflow.AnimaXReal:
+                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "anima", "Anima-X-Real.json");
+                        AddLog("Using Anima X real workflow (Anima → FIBO 2 photo edit → MOSS Real polish)");
+                        break;
+
                     case TextGeneratorWorkflow.Zimage:
                     default:
                         // Use ZStyle workflow file if a style was selected
@@ -4539,6 +4598,7 @@ namespace FlipPix.UI.ViewModels
                         TextGeneratorWorkflow.Qwen21Enhancer => "qwen21",
                         TextGeneratorWorkflow.Moss => "moss",
                         TextGeneratorWorkflow.MossReal => "moss-real",
+                        TextGeneratorWorkflow.AnimaXReal => "anima-x-real",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");

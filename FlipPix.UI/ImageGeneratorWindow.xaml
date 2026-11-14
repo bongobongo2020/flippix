@@ -471,6 +471,7 @@
                                                         <ComboBoxItem Content="Qwen 2.1 (prompt enhancer)"/>
                                                         <ComboBoxItem Content="MOSS (Serenity)"/>
                                                         <ComboBoxItem Content="MOSS Real (base)"/>
+                                                        <ComboBoxItem Content="Anima X real"/>
                                                     </ComboBox>
                                                 </StackPanel>
 
