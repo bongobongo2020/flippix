@@ -2907,8 +2907,9 @@ namespace FlipPix.UI.ViewModels
                 inputs["width"] = refineW;
                 inputs["height"] = refineH;
             });
-            UpdateNodeInputs(workflowDict, "24", inputs => inputs["prompt"] = ImageAnalyzerViewModel.BuildAnimaXRealFiboPrompt(prompt));
-            UpdateNodeInputs(workflowDict, "7", inputs => inputs["text"] = ImageAnalyzerViewModel.BuildAnimaXRealRefinePrompt(prompt));
+            // The prompt goes to every stage unaltered (no FIBO/MOSS prompt rewriting).
+            UpdateNodeInputs(workflowDict, "24", inputs => inputs["prompt"] = prompt ?? string.Empty);
+            UpdateNodeInputs(workflowDict, "7", inputs => inputs["text"] = prompt ?? string.Empty);
             UpdateNodeInputs(workflowDict, "10", inputs => inputs["noise_seed"] = actualSeed);
             UpdateNodeInputs(workflowDict, "12", inputs => inputs["filename_prefix"] = "AnimaXReal");
 

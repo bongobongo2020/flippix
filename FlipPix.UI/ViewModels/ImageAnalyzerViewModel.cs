@@ -1664,8 +1664,8 @@ namespace FlipPix.UI.ViewModels
 
                 // Use LM Studio for image analysis
                 string analysisResult;
-                // Anima X real starts from an Anima render, so it wants the same Danbooru-tag prompt.
-                if (SelectedWorkflow == TextGeneratorWorkflow.Anima || SelectedWorkflow == TextGeneratorWorkflow.AnimaXReal)
+                // Anima X real uses the standard analysis prompt (like the other workflows), not Anima's tags.
+                if (SelectedWorkflow == TextGeneratorWorkflow.Anima)
                 {
                     var systemPromptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "anima", "anima-system-prompt.md");
                     var systemPrompt = File.Exists(systemPromptPath)
@@ -3279,8 +3279,9 @@ namespace FlipPix.UI.ViewModels
                                 nodeInputs["width"] = refineW;
                                 nodeInputs["height"] = refineH;
                             });
-                            UpdateNodeInputs(workflow, "24", nodeInputs => nodeInputs["prompt"] = BuildAnimaXRealFiboPrompt(promptText));
-                            UpdateNodeInputs(workflow, "7", nodeInputs => nodeInputs["text"] = BuildAnimaXRealRefinePrompt(promptText));
+                            // The analysis text goes to every stage unaltered (no FIBO/MOSS prompt rewriting).
+                            UpdateNodeInputs(workflow, "24", nodeInputs => nodeInputs["prompt"] = promptText);
+                            UpdateNodeInputs(workflow, "7", nodeInputs => nodeInputs["text"] = promptText);
                             UpdateNodeInputs(workflow, "12", nodeInputs => nodeInputs["filename_prefix"] = "AnimaXReal");
                             _logger.LogInfo($"✓ Anima X real: Anima {animaW}x{animaH} → FIBO 2 → MOSS Real polish {refineW}x{refineH}");
                         }
