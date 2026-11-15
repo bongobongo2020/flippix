@@ -555,7 +555,8 @@ namespace FlipPix.UI.ViewModels
                                            && SelectedWorkflow != TextGeneratorWorkflow.Krea2
                                            && SelectedWorkflow != TextGeneratorWorkflow.Moss
                                            && SelectedWorkflow != TextGeneratorWorkflow.MossReal
-                                           && SelectedWorkflow != TextGeneratorWorkflow.AnimaXReal;
+                                           && SelectedWorkflow != TextGeneratorWorkflow.AnimaXReal
+                                           && SelectedWorkflow != TextGeneratorWorkflow.MiniMaxH3;
 
         // Only qwen21-prompt-enhancer.json carries the local rewriter, so only it shows the toggle.
         public bool ShowPromptEnhancerOption => SelectedWorkflow == TextGeneratorWorkflow.Qwen21Enhancer;
@@ -879,6 +880,11 @@ namespace FlipPix.UI.ViewModels
                         AddLog("Using Anima X real workflow (Anima → FIBO 2 photo edit → MOSS Real polish)");
                         break;
 
+                    case TextGeneratorWorkflow.MiniMaxH3:
+                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "Minimax-H3-Image-20MP.json");
+                        AddLog("Using MiniMax H3 Image workflow (20 MP)");
+                        break;
+
                     case TextGeneratorWorkflow.Zimage:
                     default:
                         if (SelectedStyle != null)
@@ -995,6 +1001,7 @@ namespace FlipPix.UI.ViewModels
                         TextGeneratorWorkflow.Moss => "moss",
                         TextGeneratorWorkflow.MossReal => "moss-real",
                         TextGeneratorWorkflow.AnimaXReal => "anima-x-real",
+                        TextGeneratorWorkflow.MiniMaxH3 => "minimax-h3",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");
@@ -1547,6 +1554,8 @@ namespace FlipPix.UI.ViewModels
                     return UpdateMossRealWorkflow(workflowDict, ImagePrompt, AspectRatioIndex, Seed, AddLog);
                 case TextGeneratorWorkflow.AnimaXReal:
                     return UpdateAnimaXRealWorkflow(workflowDict, ImagePrompt, AspectRatioIndex, Seed, AddLog);
+                case TextGeneratorWorkflow.MiniMaxH3:
+                    return UpdateMiniMaxH3Workflow(workflowDict, ImagePrompt, AspectRatioIndex, Seed, AddLog);
                 default:
                     return workflow;
             }
@@ -2806,6 +2815,48 @@ namespace FlipPix.UI.ViewModels
         ///   10 = cfg 3, 13 = ER-SDE sampler, 14 = simple / 25 steps             [as authored]
         ///   6  = skip-layer guidance (blocks 22, 24); VAE decodes 10's denoised output
         /// </summary>
+        /// <summary>
+        /// Fills Minimax-H3-Image-20MP.json. Node map:
+        ///   13 = PrimitiveStringMultiline (user prompt) → value; switch 121 (off) feeds it to 61   [set here]
+        ///   28 = RandomNoise → noise_seed                                                        [set here]
+        ///   105:102 / 105:104 = Width / Height math: a:b = aspect, c (105:103) = 20 MP            [a/b set here]
+        ///   86 = SaveImageAdvanced (AVIF) → replaced with a PNG SaveImage                         [set here]
+        ///   31/32 = sigma visualizer + PreviewImage                                              [removed]
+        ///   22 = PreviewAny on the expander: an output node, so it would run the 9B prompt LLM
+        ///        every time → removed; switch 121 on_true rewired to 21                          [removed]
+        ///   30 = 6 steps, 59 = SamplerLCM                                                         [as authored]
+        /// </summary>
+        internal static JsonElement UpdateMiniMaxH3Workflow(Dictionary<string, JsonElement> workflowDict, string prompt,
+            int aspectRatioIndex, long seed, Action<string> log, string filenamePrefix = "MiniMaxH3")
+        {
+            var (aw, ah) = aspectRatioIndex switch { 0 => (3, 2), 1 => (2, 3), _ => (1, 1) };
+            var actualSeed = seed == 0 ? Random.Shared.NextInt64(0, 999999999999999) : seed;
+
+            UpdateNodeInputs(workflowDict, "13", inputs => inputs["value"] = prompt);
+            UpdateNodeInputs(workflowDict, "28", inputs => inputs["noise_seed"] = actualSeed);
+            foreach (var id in new[] { "105:102", "105:104" })
+                UpdateNodeInputs(workflowDict, id, inputs => { inputs["a"] = aw; inputs["b"] = ah; });
+
+            workflowDict.Remove("31");
+            workflowDict.Remove("32");
+            workflowDict.Remove("22");
+            UpdateNodeInputs(workflowDict, "121", inputs => inputs["on_true"] = new object[] { "21", 0 });
+            workflowDict["86"] = JsonSerializer.SerializeToElement(new Dictionary<string, object>
+            {
+                ["inputs"] = new Dictionary<string, object>
+                {
+                    ["filename_prefix"] = filenamePrefix,
+                    ["images"] = new object[] { "8", 0 }
+                },
+                ["class_type"] = "SaveImage",
+                ["_meta"] = new Dictionary<string, object> { ["title"] = "Save Image (FlipPix)" }
+            });
+
+            log($"MiniMax H3: aspect {aw}:{ah} @ 20 MP, seed={actualSeed} (steps/sampler as authored)");
+
+            return JsonSerializer.SerializeToElement(workflowDict);
+        }
+
         internal static JsonElement UpdateMossRealWorkflow(Dictionary<string, JsonElement> workflowDict, string prompt,
             int aspectRatioIndex, long seed, Action<string> log, (int Width, int Height)? canvas = null,
             string filenamePrefix = "MossReal")
@@ -3355,6 +3406,7 @@ namespace FlipPix.UI.ViewModels
                             TextGeneratorWorkflow.Moss => "Moss_",
                             TextGeneratorWorkflow.MossReal => "MossReal_",
                             TextGeneratorWorkflow.AnimaXReal => "AnimaXReal_",
+                            TextGeneratorWorkflow.MiniMaxH3 => "MiniMaxH3_",
                             _ => "z-image_"
                         };
                         imageFiles = Directory.GetFiles(searchDirectory, $"{prefix}*.png")
@@ -3493,6 +3545,7 @@ namespace FlipPix.UI.ViewModels
                 TextGeneratorWorkflow.Moss => new[] { @"Moss_(\d+)_", @"Moss_(\d+)$" },
                 TextGeneratorWorkflow.MossReal => new[] { @"MossReal_(\d+)_", @"MossReal_(\d+)$" },
                 TextGeneratorWorkflow.AnimaXReal => new[] { @"AnimaXReal_(\d+)_", @"AnimaXReal_(\d+)$" },
+                TextGeneratorWorkflow.MiniMaxH3 => new[] { @"MiniMaxH3_(\d+)_", @"MiniMaxH3_(\d+)$" },
                 _ => new[] { @"z-image_(\d+)_", @"z-image_(\d+)$" }
             };
 
@@ -4435,6 +4488,11 @@ namespace FlipPix.UI.ViewModels
                         AddLog("Using Anima X real workflow (Anima → FIBO 2 photo edit → MOSS Real polish)");
                         break;
 
+                    case TextGeneratorWorkflow.MiniMaxH3:
+                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "Minimax-H3-Image-20MP.json");
+                        AddLog("Using MiniMax H3 Image workflow (20 MP)");
+                        break;
+
                     case TextGeneratorWorkflow.Zimage:
                     default:
                         // Use ZStyle workflow file if a style was selected
@@ -4602,6 +4660,7 @@ namespace FlipPix.UI.ViewModels
                         TextGeneratorWorkflow.Moss => "moss",
                         TextGeneratorWorkflow.MossReal => "moss-real",
                         TextGeneratorWorkflow.AnimaXReal => "anima-x-real",
+                        TextGeneratorWorkflow.MiniMaxH3 => "minimax-h3",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");

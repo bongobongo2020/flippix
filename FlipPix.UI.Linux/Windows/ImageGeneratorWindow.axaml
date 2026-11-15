@@ -531,6 +531,7 @@
                                                         <ComboBoxItem Content="MOSS (Serenity)"/>
                                                         <ComboBoxItem Content="MOSS Real (base)"/>
                                                         <ComboBoxItem Content="Anima X real"/>
+                                                        <ComboBoxItem Content="MiniMax H3 Image (20 MP)"/>
                                                     </ComboBox>
                                                 </StackPanel>
                                                 <!-- Prompt enhancer (Qwen 2.1 only) -->
