@@ -91,6 +91,7 @@ namespace FlipPix.UI.Models
             TextGeneratorWorkflow.Moss => "M",
             TextGeneratorWorkflow.MossReal => "MR",
             TextGeneratorWorkflow.AnimaXReal => "AXR",
+            TextGeneratorWorkflow.MiniMaxH3 => "H3",
             _ => "?"
         };
 
@@ -106,6 +107,7 @@ namespace FlipPix.UI.Models
             TextGeneratorWorkflow.Moss => "#14B8A6",
             TextGeneratorWorkflow.MossReal => "#0F766E",
             TextGeneratorWorkflow.AnimaXReal => "#BE185D",
+            TextGeneratorWorkflow.MiniMaxH3 => "#B45309",
             _ => "#6C757D"
         };
 

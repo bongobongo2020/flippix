@@ -55,7 +55,10 @@ namespace FlipPix.UI.ViewModels
         /// <summary>FIBO 2 edit turbo mode (workflow/image/fibo2API.json).</summary>
         public const string Fibo2Mode = "FIBO 2";
 
-        public static readonly IReadOnlyList<string> WorkflowModes = new[] { "Qwen", Qwen21Mode, Fibo2Mode, "Klein", "FireRed", "StoryImageZ", "Krea2" };
+        /// <summary>MiniMax H3 Image text-to-image at ~20 MP (workflow/image/Minimax-H3-Image-20MP.json).</summary>
+        public const string MiniMaxH3Mode = "MiniMax H3 20MP";
+
+        public static readonly IReadOnlyList<string> WorkflowModes = new[] { "Qwen", Qwen21Mode, Fibo2Mode, "Klein", "FireRed", "StoryImageZ", "Krea2", MiniMaxH3Mode };
 
         private string _selectedWorkflowMode = "Qwen";
         public string SelectedWorkflowMode
@@ -83,6 +86,8 @@ namespace FlipPix.UI.ViewModels
                         Steps = 8; // Krea2 Turbo
                     else if (value == Fibo2Mode)
                         Steps = 4; // FIBO 2 edit turbo, as authored
+                    else if (value == MiniMaxH3Mode)
+                        Steps = 6; // MiniMax H3 Image (LCM), as authored
                     else
                         Steps = DefaultSteps;
 
@@ -140,7 +145,8 @@ namespace FlipPix.UI.ViewModels
 
         public bool ShowZOptions => SelectedWorkflowMode == "StoryImageZ";
 
-        public bool ShowKrea2Orientation => SelectedWorkflowMode == "Krea2";
+        // Shared orientation picker: Krea2 renders at the listed size; MiniMax H3 takes its aspect ratio at 20 MP.
+        public bool ShowKrea2Orientation => SelectedWorkflowMode == "Krea2" || SelectedWorkflowMode == MiniMaxH3Mode;
 
         // --- Krea2 canvas size ---
         // Only the text-to-image Krea2 mode needs this.
@@ -305,8 +311,8 @@ namespace FlipPix.UI.ViewModels
         protected override int DefaultSteps => 8;
         protected override double DefaultCfg => 1.0;
         protected override double DefaultDenoise => 0.98;
-        // StoryImageZ and Krea2 are text-to-image (no reference image needed); the rest are image edits.
-        protected override bool RequiresInputImage => SelectedWorkflowMode != "StoryImageZ" && SelectedWorkflowMode != "Krea2";
+        // StoryImageZ, Krea2 and MiniMax H3 are text-to-image (no reference image needed); the rest are image edits.
+        protected override bool RequiresInputImage => SelectedWorkflowMode != "StoryImageZ" && SelectedWorkflowMode != "Krea2" && SelectedWorkflowMode != MiniMaxH3Mode;
 
         /// <summary>
         /// Local folder where this session's generated keyframes are saved
@@ -941,6 +947,89 @@ namespace FlipPix.UI.ViewModels
             return outputPath;
         }
 
+        /// <summary>
+        /// MiniMax H3 mode: text-to-image with Minimax-H3-Image-20MP.json (no reference image).
+        /// The prompt goes straight to the conditioning (prompt expander switch left off).
+        /// </summary>
+        private async Task<string> ProcessMiniMaxH3QueueItemAsync(StoryPromptItem item, string jsonFileName, CancellationToken cancellationToken)
+        {
+            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "Minimax-H3-Image-20MP.json");
+            AddLog("Using MiniMax H3 Image workflow (20 MP, text-to-image)");
+
+            if (!File.Exists(workflowPath))
+                throw new FileNotFoundException($"Workflow file not found: {workflowPath}");
+
+            var workflowJson = await File.ReadAllTextAsync(workflowPath, cancellationToken);
+
+            // Node 13 - PrimitiveStringMultiline (user prompt; node 121 switch=false routes it directly to node 61)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "13", "value", item.Prompt);
+            // Node 28 - RandomNoise
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "28", "noise_seed", Random.Shared.NextInt64(0, long.MaxValue));
+            // Node 30 - BasicScheduler
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "30", "steps", Steps);
+
+            var (aspectW, aspectH) = Krea2Canvas();
+            var root = JsonNode.Parse(workflowJson)?.AsObject();
+            if (root != null)
+            {
+                // Width/Height math nodes (105:102 / 105:104) take a/b from the ResolutionSelector;
+                // feed the chosen orientation's aspect directly instead. c (node 105:103) stays 20 MP.
+                foreach (var id in new[] { "105:102", "105:104" })
+                {
+                    if (root[id]?["inputs"] is JsonObject inputs)
+                    {
+                        inputs["a"] = aspectW;
+                        inputs["b"] = aspectH;
+                    }
+                }
+
+                // Drop the sigma visualizer + its PreviewImage (temp PNG would land in /history).
+                root.Remove("31");
+                root.Remove("32");
+
+                // PreviewAny (22) on the expander output is an output node, so it would run the
+                // 9B prompt LLM on every image even with switch 121 off. Drop it and point the
+                // switch's unused branch at the extracted text (21) so the graph stays valid.
+                root.Remove("22");
+                if (root["121"]?["inputs"] is JsonObject switchInputs)
+                    switchInputs["on_true"] = new JsonArray("21", 0);
+
+                // Replace SaveImageAdvanced (AVIF) with a PNG SaveImage so retrieval finds it.
+                root["86"] = new JsonObject
+                {
+                    ["inputs"] = new JsonObject
+                    {
+                        ["filename_prefix"] = $"{jsonFileName}/{jsonFileName}-{item.Index}",
+                        ["images"] = new JsonArray("8", 0)
+                    },
+                    ["class_type"] = "SaveImage",
+                    ["_meta"] = new JsonObject { ["title"] = "Save Image (FlipPix)" }
+                };
+                workflowJson = root.ToJsonString();
+            }
+            AddLog($"MiniMax H3 aspect: {Krea2SelectedOrientation} -> {aspectW}:{aspectH} @ 20 MP");
+
+            var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var progress = CreateProgressReporter(item);
+            var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progress, cancellationToken);
+
+            var outputImages = await GetOutputImagesFromComfyUI(promptId, jsonFileName, item.Index);
+            if (!outputImages.Any())
+                throw new InvalidOperationException("No output images were generated");
+
+            var baseOutputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", OutputFolderName, jsonFileName);
+            Directory.CreateDirectory(baseOutputDir);
+            var outputPath = Path.Combine(baseOutputDir, $"{jsonFileName}-{item.Index}.png");
+
+            await File.WriteAllBytesAsync(outputPath, outputImages.First());
+            await LocalCopyService.CopyImageAsync(outputPath);
+            AddLog($"Story Q (MiniMax H3) image #{item.Index} saved: {outputPath}");
+            return outputPath;
+        }
+
         private JsonElement UpdateZWorkflowParameters(JsonElement workflow, StoryPromptItem item)
         {
             // Detect workflow variant by checking for characteristic node IDs
@@ -1401,6 +1490,9 @@ namespace FlipPix.UI.ViewModels
 
             if (SelectedWorkflowMode == "Krea2")
                 return await ProcessKrea2QueueItemAsync(item, jsonFileName, cancellationToken);
+
+            if (SelectedWorkflowMode == MiniMaxH3Mode)
+                return await ProcessMiniMaxH3QueueItemAsync(item, jsonFileName, cancellationToken);
 
             string workflowPath;
             if (SelectedWorkflowMode == "Klein")

@@ -32,6 +32,7 @@ namespace FlipPix.UI.Services
             TextGeneratorWorkflow.Moss => "Moss",
             TextGeneratorWorkflow.MossReal => "MossReal",
             TextGeneratorWorkflow.AnimaXReal => "AnimaXReal",
+            TextGeneratorWorkflow.MiniMaxH3 => "MiniMaxH3",
             _ => null,
         };
 

@@ -47,7 +47,10 @@ namespace FlipPix.UI.ViewModels
         // "Anima X real" (anima/Anima-X-Real.json): Anima draws the image from the Danbooru-tag
         // prompt, FIBO 2 edit turbo converts it into a photo (keeping pose and composition), and
         // MOSS Real (base) polishes that at denoise 0.8 for real skin, fabric and light.
-        AnimaXReal
+        AnimaXReal,
+        // MiniMax H3 Image at ~20 MP (Minimax-H3-Image-20MP.json): 6-step LCM, prompt expander off.
+        // Used by the Image Analyzer; only prompt, seed and aspect ratio are injected.
+        MiniMaxH3
     }
 
     public class ImageGeneratorViewModel : BasePromptViewModel, IDisposable

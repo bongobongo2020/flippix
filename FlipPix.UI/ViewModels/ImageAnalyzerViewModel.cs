@@ -548,7 +548,8 @@ namespace FlipPix.UI.ViewModels
                                            && SelectedWorkflow != TextGeneratorWorkflow.Krea2
                                            && SelectedWorkflow != TextGeneratorWorkflow.Moss
                                            && SelectedWorkflow != TextGeneratorWorkflow.MossReal
-                                           && SelectedWorkflow != TextGeneratorWorkflow.AnimaXReal;
+                                           && SelectedWorkflow != TextGeneratorWorkflow.AnimaXReal
+                                           && SelectedWorkflow != TextGeneratorWorkflow.MiniMaxH3;
 
         // Only qwen21-prompt-enhancer.json carries the local rewriter, so only it shows the toggle.
         public bool ShowPromptEnhancerOption => SelectedWorkflow == TextGeneratorWorkflow.Qwen21Enhancer;
@@ -2257,6 +2258,11 @@ namespace FlipPix.UI.ViewModels
                         _logger.LogInfo($"Using MOSS Real workflow");
                         break;
 
+                    case TextGeneratorWorkflow.MiniMaxH3:
+                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "Minimax-H3-Image-20MP.json");
+                        _logger.LogInfo($"Using MiniMax H3 Image workflow (20 MP)");
+                        break;
+
                     case TextGeneratorWorkflow.ZimageBase:
                         workflowPath = WorkflowLocator.Resolve("workflow", "image", "zimage", "base", "z-image-base.json");
                         _logger.LogInfo($"Using Zimage Base workflow");
@@ -2481,6 +2487,7 @@ namespace FlipPix.UI.ViewModels
                         TextGeneratorWorkflow.Moss => "moss",
                         TextGeneratorWorkflow.MossReal => "moss-real",
                         TextGeneratorWorkflow.AnimaXReal => "anima-x-real",
+                        TextGeneratorWorkflow.MiniMaxH3 => "minimax-h3",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");
@@ -2968,11 +2975,14 @@ namespace FlipPix.UI.ViewModels
                     TextGeneratorWorkflow.MossReal => "7",
                     // The Anima stage's positive prompt; the MOSS refine prompt (7) is set below.
                     TextGeneratorWorkflow.AnimaXReal => "60:11",
+                    // "User short prompt" primitive; switch 121 (off) routes it straight to the conditioning.
+                    TextGeneratorWorkflow.MiniMaxH3 => "13",
                     _ => ""  // Empty for Zimage (will use generic search)
                 };
 
                 // Determine the input key for the prompt (text vs value)
                 string promptInputKey = selectedWorkflow == TextGeneratorWorkflow.Qwen21Enhancer
+                                        || selectedWorkflow == TextGeneratorWorkflow.MiniMaxH3
                     ? "value"   // PrimitiveStringMultiline
                     : "text";   // CLIPTextEncode and friends
 
@@ -3218,6 +3228,35 @@ namespace FlipPix.UI.ViewModels
                             UpdateNodeInputs(workflow, "12", nodeInputs => nodeInputs["filename_prefix"] = "MossReal");
                             _logger.LogInfo($"✓ MOSS Real: {mrWidth}x{mrHeight} (steps/cfg as authored)");
                         }
+                        else if (selectedWorkflow == TextGeneratorWorkflow.MiniMaxH3)
+                        {
+                            // Minimax-H3-Image-20MP.json:
+                            //   105:102 / 105:104 = Width / Height math, a:b = aspect, c = 20 MP  [a/b set here]
+                            //   86  = SaveImageAdvanced (AVIF) → replaced with a PNG SaveImage    [set here]
+                            //   31/32 = sigma visualizer + PreviewImage                           [removed]
+                            //   22  = PreviewAny on the expander output: an output node, so it
+                            //         would run the 9B prompt LLM every time → removed, switch 121
+                            //         on_true rewired to 21 so the graph stays valid       [removed]
+                            //   30  = BasicScheduler 6 steps, 59 = SamplerLCM              [as authored]
+                            var (aw, ah) = AspectRatioIndex switch { 0 => (3, 2), 1 => (2, 3), _ => (1, 1) };
+                            foreach (var id in new[] { "105:102", "105:104" })
+                                UpdateNodeInputs(workflow, id, nodeInputs => { nodeInputs["a"] = aw; nodeInputs["b"] = ah; });
+                            workflow.Remove("31");
+                            workflow.Remove("32");
+                            workflow.Remove("22");
+                            UpdateNodeInputs(workflow, "121", nodeInputs => nodeInputs["on_true"] = new object[] { "21", 0 });
+                            workflow["86"] = new Dictionary<string, object>
+                            {
+                                ["inputs"] = new Dictionary<string, object>
+                                {
+                                    ["filename_prefix"] = "MiniMaxH3",
+                                    ["images"] = new object[] { "8", 0 }
+                                },
+                                ["class_type"] = "SaveImage",
+                                ["_meta"] = new Dictionary<string, object> { ["title"] = "Save Image (FlipPix)" }
+                            };
+                            _logger.LogInfo($"✓ MiniMax H3: aspect {aw}:{ah} @ 20 MP (steps/sampler as authored)");
+                        }
                         else if (selectedWorkflow == TextGeneratorWorkflow.AnimaXReal)
                         {
                             // anima/Anima-X-Real.json:
@@ -3375,6 +3414,12 @@ namespace FlipPix.UI.ViewModels
                         // moss-real-API.json: node 10 = SamplerCustom, whose seed input is noise_seed.
                         UpdateNodeInputs(workflow, "10", nodeInputs => nodeInputs["noise_seed"] = randomSeed);
                         _logger.LogInfo($"✓ Updated MOSS Real sampler node 10 with seed: {randomSeed}");
+                    }
+                    else if (selectedWorkflow == TextGeneratorWorkflow.MiniMaxH3)
+                    {
+                        // Minimax-H3-Image-20MP.json: node 28 = RandomNoise.
+                        UpdateNodeInputs(workflow, "28", nodeInputs => nodeInputs["noise_seed"] = randomSeed);
+                        _logger.LogInfo($"✓ Updated MiniMax H3 RandomNoise node 28 with seed: {randomSeed}");
                     }
                     else if (selectedWorkflow == TextGeneratorWorkflow.AnimaXReal)
                     {
@@ -4215,6 +4260,7 @@ namespace FlipPix.UI.ViewModels
                     TextGeneratorWorkflow.Moss => "Moss_",
                     TextGeneratorWorkflow.MossReal => "MossReal_",
                     TextGeneratorWorkflow.AnimaXReal => "AnimaXReal_",
+                    TextGeneratorWorkflow.MiniMaxH3 => "MiniMaxH3_",
                     _ => ""  // Empty for Zimage (will use ZI/z-image pattern)
                 };
 

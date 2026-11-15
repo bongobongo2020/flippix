@@ -1947,8 +1947,8 @@
                                 </ControlTheme>
                             </Border.Theme>
                             <StackPanel>
-                                <TextBlock Text="📐 Orientation (Krea2)" FontWeight="SemiBold" FontSize="13" Foreground="#6D28D9" Margin="0,0,0,2"/>
-                                <TextBlock Text="Canvas every image in the story is rendered at. All sizes sit near 1 MP so the fast few-step passes stay fast."
+                                <TextBlock Text="📐 Orientation (Krea2 / MiniMax H3)" FontWeight="SemiBold" FontSize="13" Foreground="#6D28D9" Margin="0,0,0,2"/>
+                                <TextBlock Text="Canvas every image in the story is rendered at. Krea2 renders at the listed ~1 MP size; MiniMax H3 uses the aspect ratio at 20 MP."
                                            FontSize="11"
                                            Opacity="0.6"
                                            TextWrapping="Wrap"
