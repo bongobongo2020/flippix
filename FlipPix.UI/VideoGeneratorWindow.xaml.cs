@@ -55,6 +55,7 @@ namespace FlipPix.UI
             _viewModel.CharacterSwapVM.PropertyChanged += CharacterSwapVM_PropertyChanged;
             _viewModel.RemakeVM.PropertyChanged += RemakeVM_PropertyChanged;
             _viewModel.H3FflfVM.PropertyChanged += H3FflfVM_PropertyChanged;
+            _viewModel.H3ActionVM.PropertyChanged += H3ActionVM_PropertyChanged;
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
@@ -68,6 +69,7 @@ namespace FlipPix.UI
             ApplyCharacterSwapSource();
             ApplyRemakeSource();
             ApplyFflfSource();
+            ApplyActionSource();
         }
 
         private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -253,6 +255,75 @@ namespace FlipPix.UI
         private void FflfDropZone_Drop(object sender, System.Windows.DragEventArgs e)
         {
             if (DroppedImage(e) is { } path) _viewModel.H3FflfVM.SetInitialImage(path);
+        }
+
+        // ── Action tab ──────────────────────────────────────────────────────────────────────────
+
+        private void H3ActionVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(ViewModels.Video.H3FflfViewModel.ActivePreview)) return;
+            if (Dispatcher.CheckAccess()) ApplyActionSource();
+            else Dispatcher.Invoke(ApplyActionSource);
+        }
+
+        private void ApplyActionSource() => ApplySharedPlayerSource(ActionPlayer, _viewModel.H3ActionVM.ActivePreview);
+
+        private void ActionPlayer_MediaOpened(object sender, RoutedEventArgs e) => ActionPlayer.Play();
+
+        private void ActionPlayer_MediaEnded(object sender, RoutedEventArgs e)
+        {
+            ActionPlayer.Position = System.TimeSpan.FromMilliseconds(1);
+            ActionPlayer.Play();
+        }
+
+        private void ActionDropZone_Drop(object sender, System.Windows.DragEventArgs e)
+        {
+            if (DroppedImage(e) is { } path) _viewModel.H3ActionVM.SetInitialImage(path);
+        }
+
+        private void ActionFighterA_Drop(object sender, System.Windows.DragEventArgs e)
+        {
+            if (DroppedImage(e) is { } path) _viewModel.H3ActionVM.SetCastImage(0, path);
+        }
+
+        private void ActionFighterB_Drop(object sender, System.Windows.DragEventArgs e)
+        {
+            if (DroppedImage(e) is { } path) _viewModel.H3ActionVM.SetCastImage(1, path);
+        }
+
+        /// <summary>📋 Paste: an image on the clipboard (a screenshot, "Copy image" in a browser or chat), or an
+        /// image file copied in Explorer, becomes the opening image. A bitmap is written out as a PNG first —
+        /// the tab works from files.</summary>
+        private void ActionPasteImage_Click(object sender, RoutedEventArgs e)
+        {
+            var vm = _viewModel.H3ActionVM;
+            try
+            {
+                if (System.Windows.Clipboard.ContainsFileDropList())
+                {
+                    var file = System.Windows.Clipboard.GetFileDropList().Cast<string>().FirstOrDefault(f =>
+                        new[] { ".png", ".jpg", ".jpeg", ".webp", ".bmp" }.Contains(System.IO.Path.GetExtension(f).ToLowerInvariant()));
+                    if (file != null) { vm.SetInitialImage(file); return; }
+                }
+                if (System.Windows.Clipboard.ContainsImage() && System.Windows.Clipboard.GetImage() is { } bitmap)
+                {
+                    var folder = System.IO.Path.Combine(FlipPix.UI.Services.ScenePromptLibrary.FolderFor("action-stories"), "pasted");
+                    System.IO.Directory.CreateDirectory(folder);
+                    var path = System.IO.Path.Combine(folder, $"pasted_{System.DateTime.Now:yyyyMMdd_HHmmss}.png");
+                    var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                    encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+                    using (var stream = System.IO.File.Create(path)) encoder.Save(stream);
+                    vm.SetInitialImage(path);
+                    return;
+                }
+                System.Windows.MessageBox.Show(this, "The clipboard holds no image — copy a picture (or an image file) first.", "Paste image",
+                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+            }
+            catch (System.Exception ex)
+            {
+                System.Windows.MessageBox.Show(this, $"Could not paste the image: {ex.Message}", "Paste image",
+                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+            }
         }
 
         private void H3VrPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e) =>
@@ -868,6 +939,7 @@ namespace FlipPix.UI
             CharacterSwapPlayer?.Stop();
             RemakePlayer?.Stop();
             FflfPlayer?.Stop();
+            ActionPlayer?.Stop();
         }
 
         protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
@@ -896,6 +968,7 @@ namespace FlipPix.UI
             _viewModel.CharacterSwapVM.PropertyChanged -= CharacterSwapVM_PropertyChanged;
             _viewModel.RemakeVM.PropertyChanged -= RemakeVM_PropertyChanged;
             _viewModel.H3FflfVM.PropertyChanged -= H3FflfVM_PropertyChanged;
+            _viewModel.H3ActionVM.PropertyChanged -= H3ActionVM_PropertyChanged;
             _viewModel.PlayRequested -= OnPlayRequested;
 
             if (_viewModel is IDisposable disposable)

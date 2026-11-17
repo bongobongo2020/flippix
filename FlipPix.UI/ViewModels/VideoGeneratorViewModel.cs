@@ -97,6 +97,12 @@ namespace FlipPix.UI.ViewModels
         /// </summary>
         public H3FflfViewModel H3FflfVM { get; }
 
+        /// <summary>
+        /// Action ViewModel — the FFLF chain with the Action Director workflow's nine combat LoRA presets and a
+        /// fight director that turns an image and a story into the beats.
+        /// </summary>
+        public H3ActionViewModel H3ActionVM { get; }
+
         // Bound to the main TabControl so code can switch tabs programmatically.
         // 0 = Scail 2 tab.
         private int _selectedTabIndex = 0;
@@ -219,6 +225,15 @@ namespace FlipPix.UI.ViewModels
                 serviceProvider,
                 _workflowCoordinator,
                 _fileDialogService);
+
+            H3ActionVM = new H3ActionViewModel(
+                comfyUIService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService,
+                _lmStudioService);
 
             // Forward PlayRequested events from sub-VMs
             MainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
@@ -484,6 +499,7 @@ namespace FlipPix.UI.ViewModels
                 (H3VideoEditorVM as IDisposable)?.Dispose();
                 (H3BatchUpscaleVM as IDisposable)?.Dispose();
                 H3FflfVM.Dispose();
+                H3ActionVM.Dispose();
 
                 _disposed = true;
             }

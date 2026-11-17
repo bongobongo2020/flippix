@@ -6130,6 +6130,483 @@
                         </Grid>
                     </TabItem>
 
+                    <!-- ═══════════════════════════════════════════════════════════════════════
+                         Tab: 🥋 Action (H3ActionViewModel : H3FflfViewModel)
+
+                         An image and a story in, one coherent action scene out. The ⛓ FFLF chain — beats
+                         rendered through the ErosMax 2-Pass graph, each starting on the last frame of the one
+                         before, then joined — with the MiniMax H3 Action Director workflow on top: its nine
+                         combat LoRA presets, and a director that writes the beats from the image and the story.
+                         The beat cards, player and log are the FFLF tab's; keep the two in step.
+                         ═══════════════════════════════════════════════════════════════════════ -->
+                    <TabItem Header="🥋 Action">
+                        <Grid x:Name="ActionRoot" DataContext="{Binding H3ActionVM}" Style="{StaticResource TabPageStyle}">
+                            <Grid.Resources>
+                                <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource AccentRoseColor}"/>
+                                <Style x:Key="FflfLabel" TargetType="TextBlock">
+                                    <Setter Property="FontSize" Value="10"/>
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                    <Setter Property="Margin" Value="0,8,0,3"/>
+                                </Style>
+                                <Style x:Key="FflfRowLabel" TargetType="TextBlock">
+                                    <Setter Property="FontSize" Value="11"/>
+                                    <Setter Property="VerticalAlignment" Value="Center"/>
+                                    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                </Style>
+                            </Grid.Resources>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="400"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- ═══ Left: setup ═════════════════════════════════════════════ -->
+                            <Grid Grid.Column="0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10,8,10,0">
+                                    <StackPanel>
+                                        <!-- Scene: the page autosaves into 📚 Stories (H3FflfViewModel.Stories.cs, the action-stories library) -->
+                                        <Grid Margin="0,0,0,10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="SCENE" FontSize="9" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}"/>
+                                                <TextBlock Text="{Binding StoryName}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"
+                                                           TextTrimming="CharacterEllipsis" ToolTip="Saved automatically as you go — reopen it any time from 📚 Stories."/>
+                                            </StackPanel>
+                                            <Button Grid.Column="1" Content="{Binding StoriesLabel}" Command="{Binding OpenStoriesCommand}" Style="{StaticResource SecondaryButtonStyle}"
+                                                    Height="26" Padding="10,0" FontSize="11" Margin="6,0,0,0"
+                                                    ToolTip="Every story is saved here as you go — beats, opening image, settings and each beat's take — and survives a restart."/>
+                                            <Button Grid.Column="2" Content="＋ New" Command="{Binding NewStoryCommand}" Style="{StaticResource SecondaryButtonStyle}"
+                                                    Height="26" Padding="10,0" FontSize="11" Margin="5,0,0,0"
+                                                    ToolTip="Start a blank story. The one on the page stays in 📚 Stories."/>
+                                        </Grid>
+
+                                        <!-- ① Opening image -->
+                                        <Border Style="{StaticResource SectionCardStyle}" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <Grid>
+                                                    <ctrl:SectionHeader Title="① OPENING IMAGE" Note="  · the scene starts on it"/>
+                                                    <Button Content="📋 Paste" Click="ActionPasteImage_Click" Style="{StaticResource SecondaryButtonStyle}"
+                                                            Height="22" Padding="8,0" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                            ToolTip="Use the image on the clipboard — a screenshot, 'Copy image' from a browser or chat, or an image file copied in Explorer."/>
+                                                </Grid>
+                                                <Border x:Name="ActionDropZone" Height="170" Margin="0,8,0,0" CornerRadius="6" Cursor="Hand" AllowDrop="True"
+                                                        Background="{StaticResource PlayerSurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                        DragOver="FflfDropZone_DragOver" Drop="ActionDropZone_Drop">
+                                                    <Grid>
+                                                        <TextBlock Text="＋ Pick, drop or paste the image the scene opens on" Foreground="{StaticResource PlayerTextBrush}" FontSize="11"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" Margin="12"/>
+                                                        <Image Source="{Binding InitialThumbnail}" Stretch="Uniform"/>
+                                                        <Button Content="✕" Width="20" Height="20" Margin="4" Padding="0" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                                Background="{StaticResource ScrimBrush}" Foreground="White" BorderThickness="0" Cursor="Hand"
+                                                                Command="{Binding ClearImageCommand}"
+                                                                Visibility="{Binding HasInitialImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                    </Grid>
+                                                    <Border.InputBindings>
+                                                        <MouseBinding MouseAction="LeftClick" Command="{Binding BrowseImageCommand}"/>
+                                                    </Border.InputBindings>
+                                                </Border>
+                                                <TextBlock Text="{Binding InitialImageName}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- ② Story → the director -->
+                                        <Border Style="{StaticResource SectionCardStyle}" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="② STORY" Note="  · paste it; the director writes the fight"/>
+                                                <TextBox Text="{Binding StoryIdea, UpdateSourceTrigger=PropertyChanged, Delay=400}" Margin="0,8,0,0"
+                                                         Height="96" FontSize="11" Padding="5,4" TextWrapping="Wrap" AcceptsReturn="True" AcceptsTab="False"
+                                                         VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"
+                                                         ToolTip="What happens, in your own words — a line or a whole page. e.g. 'Mara is cornered in the parking garage by the debt collector. She tries to talk, he grabs her arm, she breaks free and they fight between the cars until she leaves him on the ground.' Leave it empty and the director builds a fight from the picture alone."/>
+                                                <Grid Margin="0,8,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="110"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="30"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Beats" Style="{StaticResource FflfRowLabel}"/>
+                                                    <Slider Grid.Column="1" Value="{Binding BeatCount}" Minimum="1" Maximum="12" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                                                            ToolTip="How many beats the director writes. Each is one clip of 'Seconds / beat' (④), chained to the next."/>
+                                                    <TextBlock Grid.Column="2" Text="{Binding BeatCount}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                </Grid>
+                                                <TextBlock Text="{Binding DirectPlan}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,3,0,0"/>
+                                                <Grid Margin="0,8,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Button Command="{Binding DirectCommand}" Style="{StaticResource AccentButtonStyle}" Height="30" FontSize="12" FontWeight="SemiBold"
+                                                            ToolTip="Sends the opening image, the cast photos and the story to the writer model (Settings → LM Studio). It returns the setting and the beats — each beat a run of timecoded exchanges that ends in a pose the next beat starts on — and fills the two boxes below. Edit them freely before you Generate.">
+                                                        <TextBlock Text="{Binding DirectLabel}"/>
+                                                    </Button>
+                                                    <Button Grid.Column="1" Content="✕" Command="{Binding CancelDirectCommand}" Style="{StaticResource SecondaryButtonStyle}"
+                                                            Width="30" Height="30" Padding="0" FontSize="11" Margin="6,0,0,0" ToolTip="Cancel"
+                                                            Visibility="{Binding IsDirecting, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                </Grid>
+                                                <ProgressBar IsIndeterminate="True" Height="3" Margin="0,5,0,0"
+                                                             Visibility="{Binding IsDirecting, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                <TextBlock Text="{Binding DirectStatus}" FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"
+                                                           Visibility="{Binding DirectStatus, Converter={StaticResource StringToVisibilityConverter}}"/>
+
+                                                <TextBlock Text="CAST PHOTOS (optional)" Style="{StaticResource FflfLabel}" Margin="0,10,0,3"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="8"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Height="92" CornerRadius="6" Cursor="Hand" AllowDrop="True"
+                                                            Background="{StaticResource PlayerSurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            DragOver="FflfDropZone_DragOver" Drop="ActionFighterA_Drop"
+                                                            ToolTip="A photo of fighter A — the one the setting calls A. Sent with every beat as an extra reference, and shown to the director.">
+                                                        <Grid>
+                                                            <TextBlock Text="＋ Fighter A" Foreground="{StaticResource PlayerTextBrush}" FontSize="10.5" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            <Image Source="{Binding FighterAThumbnail}" Stretch="Uniform"/>
+                                                            <Button Content="✕" Width="18" Height="18" Margin="3" Padding="0" FontSize="9" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                                    Background="{StaticResource ScrimBrush}" Foreground="White" BorderThickness="0" Cursor="Hand"
+                                                                    Command="{Binding ClearFighterACommand}"
+                                                                    Visibility="{Binding HasFighterA, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                        </Grid>
+                                                        <Border.InputBindings>
+                                                            <MouseBinding MouseAction="LeftClick" Command="{Binding BrowseFighterACommand}"/>
+                                                        </Border.InputBindings>
+                                                    </Border>
+                                                    <Border Grid.Column="2" Height="92" CornerRadius="6" Cursor="Hand" AllowDrop="True"
+                                                            Background="{StaticResource PlayerSurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            DragOver="FflfDropZone_DragOver" Drop="ActionFighterB_Drop"
+                                                            ToolTip="A photo of fighter B. Sent with every beat as an extra reference, and shown to the director.">
+                                                        <Grid>
+                                                            <TextBlock Text="＋ Fighter B" Foreground="{StaticResource PlayerTextBrush}" FontSize="10.5" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            <Image Source="{Binding FighterBThumbnail}" Stretch="Uniform"/>
+                                                            <Button Content="✕" Width="18" Height="18" Margin="3" Padding="0" FontSize="9" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                                    Background="{StaticResource ScrimBrush}" Foreground="White" BorderThickness="0" Cursor="Hand"
+                                                                    Command="{Binding ClearFighterBCommand}"
+                                                                    Visibility="{Binding HasFighterB, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                        </Grid>
+                                                        <Border.InputBindings>
+                                                            <MouseBinding MouseAction="LeftClick" Command="{Binding BrowseFighterBCommand}"/>
+                                                        </Border.InputBindings>
+                                                    </Border>
+                                                </Grid>
+                                                <TextBlock Text="{Binding CastSummary}" FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- ③ Beats -->
+                                        <Border Style="{StaticResource SectionCardStyle}" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="③ BEATS" Note="  · written by the director, or by you"/>
+                                                <TextBox Text="{Binding BeatsText, UpdateSourceTrigger=PropertyChanged, Delay=600}" Margin="0,8,0,0"
+                                                         Height="200" FontSize="11" Padding="5,4" TextWrapping="Wrap" AcceptsReturn="True" AcceptsTab="False"
+                                                         VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"
+                                                         ToolTip="The fight, beat by beat — 🎬 Direct fills this in, or paste your own. A blank line, a numbered line (1. 2) Beat 3:) or a bullet starts the next beat; a short 'Title:' in front of a beat becomes its name. Timecodes like [0.0-1.2s] inside a beat pace it. Each beat starts on the last frame of the one before, so end every beat in a pose the next can pick up."/>
+                                                <TextBlock Text="{Binding BeatSummary}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                                <TextBlock Text="SETTING · who is who, the place, the camera" Style="{StaticResource FflfLabel}"/>
+                                                <TextBox Text="{Binding StyleText, UpdateSourceTrigger=PropertyChanged, Delay=600}" Height="84" FontSize="11" Padding="5,4"
+                                                         TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"
+                                                         ToolTip="The model sees one beat at a time and remembers nothing, so everything that must not change goes here: 'A, the man in the charcoal coat, camera-left; B, the woman in the red jacket, camera-right; a wet parking garage under sodium light; one handheld medium-wide shot.' 🎬 Direct writes it from the picture."/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- ④ Combat preset: the Action Director workflow's nine LoRA mixes (H3CombatPreset) -->
+                                        <Border Style="{StaticResource SectionCardStyle}" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="④ COMBAT PRESET" Note="  · the action LoRA mix"/>
+                                                <ComboBox ItemsSource="{Binding Presets}" SelectedItem="{Binding SelectedPreset}" DisplayMemberPath="Label"
+                                                          Height="28" FontSize="11.5" Margin="0,8,0,0"
+                                                          ToolTip="The nine presets of the MiniMax H3 Action Director workflow. Each is a mix of five LoRAs — Combat, Weapon, GunFu, Motion Repair, Fight Flow — stacked after the LoRA in ⚙ below. Start with A2 or A3."/>
+                                                <TextBlock Text="{Binding PresetSummary}" FontSize="10.5" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,5,0,0"/>
+                                                <TextBlock Text="{Binding MixSummary}" FontSize="10" FontFamily="Consolas" TextWrapping="Wrap" Foreground="{DynamicResource TabAccentBrush}" Margin="0,5,0,0"/>
+                                                <TextBox Text="{Binding MissingLoraNote, Mode=OneWay}" IsReadOnly="True" FontSize="10" TextWrapping="Wrap" BorderThickness="0" Background="Transparent"
+                                                         Foreground="{StaticResource AccentAmberBrush}" Margin="0,5,0,0" Padding="0"
+                                                         Visibility="{Binding HasMissingLoras, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                <CheckBox IsChecked="{Binding SoftenRefine}" Margin="0,8,0,0" FontSize="11" Content="🌗 Softer mix on the refine pass (as authored)"
+                                                          ToolTip="The workflow runs its second pass on a weaker copy of the mix — at full strength on a low-denoise pass the motion LoRAs redraw limbs the first pass already placed. On: the refine reads its own LoRA stack with the preset's second-pass strengths. Off: both passes use the first-pass mix."/>
+                                                <CheckBox IsChecked="{Binding ManualMix}" Margin="0,5,0,0" FontSize="11" Content="🎚 Set the five strengths by hand"
+                                                          ToolTip="Off: the preset sets them. On: the sliders do, starting from the preset; the refine pass then uses each strength scaled down and capped, as the workflow does."/>
+                                                <ItemsControl Margin="0,6,0,0" IsEnabled="{Binding ManualMix}">
+                                                    <ItemsControl.Resources>
+                                                        <Style TargetType="Slider" BasedOn="{StaticResource {x:Type Slider}}">
+                                                            <Setter Property="Minimum" Value="0"/>
+                                                            <Setter Property="Maximum" Value="1.5"/>
+                                                            <Setter Property="TickFrequency" Value="0.05"/>
+                                                            <Setter Property="IsSnapToTickEnabled" Value="True"/>
+                                                            <Setter Property="VerticalAlignment" Value="Center"/>
+                                                        </Style>
+                                                    </ItemsControl.Resources>
+                                                    <Grid Margin="0,0,0,3">
+                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="110"/><ColumnDefinition Width="*"/><ColumnDefinition Width="40"/></Grid.ColumnDefinitions>
+                                                        <TextBlock Text="Combat" Style="{StaticResource FflfRowLabel}" ToolTip="H3_Combat_V2 — unarmed strikes, blocks and body contact."/>
+                                                        <Slider Grid.Column="1" Value="{Binding CombatStrength}"/>
+                                                        <TextBlock Grid.Column="2" Text="{Binding CombatStrength, StringFormat={}{0:0.00}}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                    <Grid Margin="0,0,0,3">
+                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="110"/><ColumnDefinition Width="*"/><ColumnDefinition Width="40"/></Grid.ColumnDefinitions>
+                                                        <TextBlock Text="Weapon" Style="{StaticResource FflfRowLabel}" ToolTip="Bunny_weapon_combatV1 — swords, staffs and other hand weapons."/>
+                                                        <Slider Grid.Column="1" Value="{Binding WeaponStrength}"/>
+                                                        <TextBlock Grid.Column="2" Text="{Binding WeaponStrength, StringFormat={}{0:0.00}}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                    <Grid Margin="0,0,0,3">
+                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="110"/><ColumnDefinition Width="*"/><ColumnDefinition Width="40"/></Grid.ColumnDefinitions>
+                                                        <TextBlock Text="GunFu" Style="{StaticResource FflfRowLabel}" ToolTip="GunFu — firearms handled at speed and at close range."/>
+                                                        <Slider Grid.Column="1" Value="{Binding GunFuStrength}"/>
+                                                        <TextBlock Grid.Column="2" Text="{Binding GunFuStrength, StringFormat={}{0:0.00}}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                    <Grid Margin="0,0,0,3">
+                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="110"/><ColumnDefinition Width="*"/><ColumnDefinition Width="40"/></Grid.ColumnDefinitions>
+                                                        <TextBlock Text="Motion Repair" Style="{StaticResource FflfRowLabel}" ToolTip="Motion_Repair_V2 — keeps fast limbs whole and motion continuous."/>
+                                                        <Slider Grid.Column="1" Value="{Binding MotionStrength}"/>
+                                                        <TextBlock Grid.Column="2" Text="{Binding MotionStrength, StringFormat={}{0:0.00}}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="110"/><ColumnDefinition Width="*"/><ColumnDefinition Width="40"/></Grid.ColumnDefinitions>
+                                                        <TextBlock Text="Fight Flow" Style="{StaticResource FflfRowLabel}" ToolTip="H3_Fight_Flow_V1 — two fighters reacting to each other, exchange after exchange."/>
+                                                        <Slider Grid.Column="1" Value="{Binding FightFlowStrength}"/>
+                                                        <TextBlock Grid.Column="2" Text="{Binding FightFlowStrength, StringFormat={}{0:0.00}}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- ⑤ Shot -->
+                                        <Border Style="{StaticResource SectionCardStyle}" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="⑤ SHOT" Note="  · every beat the same"/>
+                                                <Grid Margin="0,8,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="110"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                    </Grid.RowDefinitions>
+                                                    <TextBlock Text="Seconds / beat" Style="{StaticResource FflfRowLabel}"/>
+                                                    <Grid Grid.Column="1" Margin="0,0,0,6">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="40"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Slider Value="{Binding BeatSeconds}" Minimum="2" Maximum="15" TickFrequency="0.5" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                                                        <TextBlock Grid.Column="1" Text="{Binding BeatSeconds, StringFormat={}{0:0.#} s}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                    <TextBlock Grid.Row="1" Text="Aspect" Style="{StaticResource FflfRowLabel}"/>
+                                                    <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding AspectRatioOptions}" SelectedItem="{Binding SelectedAspectRatio}" Height="26" FontSize="11" Margin="0,0,0,6"/>
+                                                    <TextBlock Grid.Row="2" Text="First pass" Style="{StaticResource FflfRowLabel}"/>
+                                                    <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding FirstPassSizes}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                              SelectedValue="{Binding FirstPassMegapixels}" Height="26" FontSize="11" Margin="0,0,0,6"/>
+                                                    <TextBlock Grid.Row="3" Text="Refined" Style="{StaticResource FflfRowLabel}"/>
+                                                    <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{Binding FinalSizes}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                              SelectedValue="{Binding FinalMegapixels}" Height="26" FontSize="11"/>
+                                                </Grid>
+                                                <TextBlock Text="{Binding CanvasSummary}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,5,0,0"/>
+                                                <CheckBox IsChecked="{Binding PreviewOnly}" Margin="0,8,0,0" FontSize="11" Content="⚡ Draft — first pass only"
+                                                          ToolTip="Skip the refine, RTX and grain: a quick run of the whole scene to check the choreography. Untick and Start over for the final."/>
+                                                <CheckBox IsChecked="{Binding LockFirstFrame}" Margin="0,5,0,0" FontSize="11" Content="📌 Anchor each beat's first frame"
+                                                          ToolTip="On: the frame a beat starts on is pinned at frame 0 (MiniMaxH3AddGuide) as well as sent as &lt;Picture 1&gt;, so the beats join without a jump. Off: it is a reference only."/>
+                                                <CheckBox IsChecked="{Binding KeepInitialReference}" Margin="0,5,0,0" FontSize="11" Content="🧍 Keep the opening image as the character reference"
+                                                          ToolTip="From beat 2 on the opening image is also sent, as &lt;Picture 2&gt;, so faces and clothes do not drift beat after beat."/>
+                                                <CheckBox IsChecked="{Binding MaxFidelityReferences}" Margin="0,5,0,0" FontSize="11" Content="🔍 Full-size references (ref_image_size: max)"
+                                                          ToolTip="Send the pictures at full size instead of scaled to the small first-pass canvas. The biggest single likeness gain in the H3 bake-off (median ArcFace 0.68 vs 0.50)."/>
+                                                <CheckBox IsChecked="{Binding RepairHandoffFace}" Margin="0,5,0,0" FontSize="11" Content="🪞 Restore the opening face on each handoff frame"
+                                                          ToolTip="Before a beat starts on the last frame of the one before, that frame's face is cropped, redrawn against the opening image's face (Qwen Edit 2511) and pasted back through a SAM mask — nothing else in the frame changes. Without it each beat inherits the last beat's drift, and by beat 10 it is a different person. It restores one face: the most prominent one in the opening image. About 15 s per beat."/>
+                                                <ComboBox ItemsSource="{Binding FaceRepairStrengths}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                          SelectedValue="{Binding FaceRepairStrength}" IsEnabled="{Binding RepairHandoffFace}"
+                                                          Height="24" FontSize="10.5" Margin="22,4,0,0"
+                                                          ToolTip="Full: the strongest likeness (ArcFace 0.49 on a beat that had drifted to 0.30). Gentle: a little less likeness (0.42), the expression changes less."/>
+                                                <CheckBox IsChecked="{Binding JoinWhenDone}" Margin="0,5,0,0" FontSize="11" Content="🎞 Join the beats when the last one lands"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- ⚙ Model -->
+                                        <Expander IsExpanded="False" Margin="0,0,0,10">
+                                            <Expander.Header>
+                                                <TextBlock Text="⚙ Model, LoRA, sampling &amp; seed" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            </Expander.Header>
+                                            <StackPanel Margin="0,6,0,0">
+                                                <TextBlock Text="DIFFUSION MODEL" Style="{StaticResource FflfLabel}" Margin="0,0,0,3"/>
+                                                <ComboBox ItemsSource="{Binding ModelOptions}" Text="{Binding DiffusionModel, UpdateSourceTrigger=LostFocus}" IsEditable="True" Height="26" FontSize="10.5"/>
+                                                <TextBlock Text="LORA (the action mix of ④ is stacked after it)" Style="{StaticResource FflfLabel}"/>
+                                                <ComboBox ItemsSource="{Binding LoraOptions}" Text="{Binding Lora, UpdateSourceTrigger=LostFocus}" IsEditable="True" Height="26" FontSize="10.5"/>
+                                                <Grid Margin="0,6,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="110"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="40"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="LoRA strength" Style="{StaticResource FflfRowLabel}"/>
+                                                    <Slider Grid.Column="1" Value="{Binding LoraStrength}" Minimum="0" Maximum="1.5" TickFrequency="0.05" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="2" Text="{Binding LoraStrength, StringFormat={}{0:0.00}}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                </Grid>
+                                                <TextBlock Text="SAMPLING" Style="{StaticResource FflfLabel}"/>
+                                                <ComboBox ItemsSource="{Binding SamplingOptions}" SelectedItem="{Binding SelectedSampling}" DisplayMemberPath="Label" Height="26" FontSize="10.5"
+                                                          ToolTip="Turbo: the pairing the ⛓ FFLF tab renders with, for the turbo models (Eros Max, anything with a 4/8-step LoRA). As authored: the Action Director workflow's own res_multistep · simple at 20 steps, for a non-turbo base model such as minimax_h3_fl2va — several times slower. Picking one sets the first-pass steps to match."/>
+                                                <Grid Margin="0,6,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="110"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="40"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="First-pass steps" Style="{StaticResource FflfRowLabel}"/>
+                                                    <Slider Grid.Column="1" Value="{Binding FirstPassSteps}" Minimum="2" Maximum="30" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="2" Text="{Binding FirstPassSteps}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                </Grid>
+                                                <Grid Margin="0,6,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="110"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Beat 1 seed" Style="{StaticResource FflfRowLabel}"/>
+                                                    <TextBox Grid.Column="1" Text="{Binding BaseSeed, UpdateSourceTrigger=LostFocus}" Height="26" FontSize="11" VerticalContentAlignment="Center"/>
+                                                    <Button Grid.Column="2" Content="🎲" Command="{Binding NewSeedCommand}" Style="{StaticResource SecondaryButtonStyle}" Width="30" Height="26" Padding="0" Margin="4,0,0,0"/>
+                                                </Grid>
+                                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                                    <Button Content="↺ Defaults" Command="{Binding ResetModelCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="24" Padding="10,0" FontSize="10.5" Margin="0,0,5,0"
+                                                            ToolTip="10Eros Max Singularity V2 PRISM2 PikaFlex + DMAD 4-step LoRA at 0.25"/>
+                                                    <Button Content="⟳ Server lists" Command="{Binding RefreshModelsCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="24" Padding="10,0" FontSize="10.5"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Expander>
+                                    </StackPanel>
+                                </ScrollViewer>
+
+                                <!-- Action bar -->
+                                <Border Grid.Row="1" Padding="10,8" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+                                    <StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Button Command="{Binding GenerateCommand}" Style="{StaticResource AccentButtonStyle}" Height="40" FontSize="13" FontWeight="SemiBold">
+                                                <TextBlock Text="{Binding GenerateLabel}"/>
+                                            </Button>
+                                            <Button Grid.Column="1" Content="⏹" Command="{Binding StopCommand}" Style="{StaticResource SecondaryButtonStyle}"
+                                                    Width="40" Height="40" Padding="0" FontSize="13" Margin="6,0,0,0" ToolTip="Stop"/>
+                                        </Grid>
+                                        <ProgressBar Value="{Binding ProcessingProgress, Mode=OneWay}" Maximum="100" Height="4" Margin="0,6,0,0"
+                                                     Visibility="{Binding IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        <TextBlock Text="{Binding ReadyHint}" FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"
+                                                   HorizontalAlignment="Center" TextAlignment="Center" Margin="0,6,0,0"/>
+                                        <Button Content="↺ Start over" Command="{Binding StartOverCommand}" Style="{StaticResource SecondaryButtonStyle}"
+                                                Height="22" Padding="10,0" FontSize="10" Margin="0,6,0,0" HorizontalAlignment="Center"
+                                                ToolTip="Forget every take and render the scene again from beat 1 with new seeds."/>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+
+                            <!-- ═══ Right: player and beats ═════════════════════════════════ -->
+                            <Grid Grid.Column="1" Margin="0,8,10,8">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <Border Grid.Row="0" CornerRadius="12" Background="{StaticResource PlayerSurfaceBrush}" ClipToBounds="True" MinHeight="220">
+                                    <Grid>
+                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <TextBlock Text="🥋" FontSize="40" HorizontalAlignment="Center" Opacity="0.6"/>
+                                            <TextBlock Text="Each beat plays here as it lands, then the joined scene."
+                                                       FontSize="12" Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                        </StackPanel>
+                                        <MediaElement x:Name="ActionPlayer" LoadedBehavior="Manual" UnloadedBehavior="Stop" Stretch="Uniform"
+                                                      MediaOpened="ActionPlayer_MediaOpened" MediaEnded="ActionPlayer_MediaEnded"/>
+                                        <Grid Background="Black" Visibility="{Binding ShowLivePreview, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <ctrl:LivePreviewPlayer Source="{Binding LivePreviewPath}"/>
+                                        </Grid>
+                                        <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="10" CornerRadius="6" Padding="8,3" Background="#CC000000"
+                                                Visibility="{Binding ShowLiveCaption, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <TextBlock Text="{Binding LivePreviewCaption}" FontSize="10" FontFamily="Consolas" Foreground="#f0c060"/>
+                                        </Border>
+                                        <Grid Background="{StaticResource PlayerSurfaceBrush}"
+                                              Visibility="{Binding HasPreviewImage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <Image Source="{Binding PreviewImage}" Stretch="Uniform"/>
+                                            <Button Content="✕  Back to video" Command="{Binding ClosePreviewImageCommand}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                    Margin="10" Height="26" Padding="10,0" FontSize="10.5" Style="{StaticResource SecondaryButtonStyle}" Opacity="0.92"/>
+                                        </Grid>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Beats, in order: last frame, state, play, redo -->
+                                <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Margin="0,10,0,0">
+                                    <ItemsControl ItemsSource="{Binding Beats}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Horizontal"/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Width="190" Margin="0,0,8,6" CornerRadius="8" Padding="6" Background="{StaticResource SurfaceBrush}"
+                                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                                    <StackPanel>
+                                                        <Border Height="96" CornerRadius="5" Background="{StaticResource PlayerSurfaceBrush}" ClipToBounds="True" Cursor="Hand">
+                                                            <Grid>
+                                                                <TextBlock Text="{Binding StateIcon}" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.7"/>
+                                                                <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"/>
+                                                            </Grid>
+                                                            <Border.InputBindings>
+                                                                <MouseBinding MouseAction="LeftClick" Command="{Binding DataContext.ShowFrameCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/>
+                                                            </Border.InputBindings>
+                                                        </Border>
+                                                        <TextBlock Margin="0,5,0,0" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis">
+                                                            <Run Text="{Binding StateIcon, Mode=OneWay}"/>
+                                                            <Run Text="{Binding Label, Mode=OneWay}"/>
+                                                        </TextBlock>
+                                                        <TextBox Text="{Binding Text, UpdateSourceTrigger=LostFocus}" IsReadOnly="{Binding IsRendering, Mode=OneWay}"
+                                                                 FontSize="9.5" Foreground="{StaticResource TextPrimaryBrush}" Background="Transparent" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                 TextWrapping="Wrap" Height="52" VerticalScrollBarVisibility="Auto" Padding="2,1" Margin="0,3,0,0"
+                                                                 ToolTip="Edit this beat — click away to apply. A finished beat renders again, with every beat after it."/>
+                                                        <TextBlock Text="{Binding Status}" FontSize="9" Foreground="{StaticResource TextFaintBrush}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                                                        <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                                                            <Button Content="▶ Play" Command="{Binding DataContext.PlayBeatCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                    Style="{StaticResource SecondaryButtonStyle}" Height="22" Padding="8,0" FontSize="10" Margin="0,0,4,0"
+                                                                    IsEnabled="{Binding HasVideo}"/>
+                                                            <Button Content="↻ Redo" Command="{Binding DataContext.RedoBeatCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                    Style="{StaticResource SecondaryButtonStyle}" Height="22" Padding="8,0" FontSize="10"
+                                                                    ToolTip="A new take of this beat (new seed) — every beat after it renders again from its new last frame. While the story renders, it is queued: the beat in progress stops and the run goes back to this one."/>
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+
+                                <WrapPanel Grid.Row="2" Margin="0,4,0,0">
+                                    <Button Content="▶ Joined film" Command="{Binding PlayJoinedCommand}" Style="{StaticResource AccentButtonStyle}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,6,4"/>
+                                    <Button Content="🎞 Join now" Command="{Binding JoinCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,6,4"
+                                            ToolTip="Joins every rendered beat in a row from beat 1."/>
+                                    <Button Content="📁 Open folder" Command="{Binding OpenFolderCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,10,4"/>
+                                    <TextBlock Text="{Binding ResultVideoInfo}" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis" Margin="0,0,0,4"/>
+                                </WrapPanel>
+
+                                <Expander Grid.Row="3" Header="📝 Log" IsExpanded="False" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0">
+                                    <Grid>
+                                        <TextBox Text="{Binding LogOutput, Mode=OneWay}" IsReadOnly="True" FontFamily="Consolas" FontSize="10"
+                                                 Height="130" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                                 Background="#1a1a1a" Foreground="#999" BorderThickness="0"
+                                                 TextChanged="FflfLog_TextChanged"/>
+                                        <Button Content="Clear" Command="{Binding ClearLogCommand}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                Height="18" Padding="6,0" FontSize="8" Style="{StaticResource SecondaryButtonStyle}" Margin="0,2,18,0"/>
+                                    </Grid>
+                                </Expander>
+                            </Grid>
+                        </Grid>
+                    </TabItem>
+
                     <!-- ════════════════════════════════════════════════════════════════ -->
                     <!-- Tab: H3 Batch Upscale (batch upscale preview videos)             -->
                     <!-- ════════════════════════════════════════════════════════════════ -->

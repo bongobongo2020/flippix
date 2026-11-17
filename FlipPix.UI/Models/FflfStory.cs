@@ -34,6 +34,27 @@ namespace FlipPix.UI.Models
         public string RunFolder { get; set; } = string.Empty;
         public string JoinedVideoPath { get; set; } = string.Empty;
         public List<FflfStoryBeat> Beats { get; set; } = new();
+
+        /// <summary>Set on stories of the 🥋 Action tab: its preset, LoRA mix, cast and story idea.</summary>
+        public FflfActionStory? Action { get; set; }
+    }
+
+    /// <summary>What a 🥋 Action story keeps on top of an FFLF one.</summary>
+    public sealed class FflfActionStory
+    {
+        public int Preset { get; set; } = 2;
+        public bool ManualMix { get; set; }
+        public double CombatStrength { get; set; }
+        public double WeaponStrength { get; set; }
+        public double GunFuStrength { get; set; }
+        public double MotionStrength { get; set; }
+        public double FightFlowStrength { get; set; }
+        public bool SoftenRefine { get; set; } = true;
+        public string FighterAPath { get; set; } = string.Empty;
+        public string FighterBPath { get; set; } = string.Empty;
+        public string StoryIdea { get; set; } = string.Empty;
+        public int BeatCount { get; set; } = 4;
+        public string Sampling { get; set; } = string.Empty;
     }
 
     /// <summary>One beat's take, by position.</summary>

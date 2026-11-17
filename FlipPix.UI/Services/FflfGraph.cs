@@ -14,7 +14,7 @@ namespace FlipPix.UI.Services
     public sealed record FflfBeatText(string Title, string Text);
 
     /// <summary>Everything one FFLF beat render needs, already uploaded to the server.</summary>
-    public sealed class FflfBeatRender
+    public sealed record FflfBeatRender
     {
         /// <summary>The image the beat starts on: the initial image for beat 1, the previous beat's last frame after.</summary>
         public string StartImage { get; init; } = string.Empty;
@@ -37,6 +37,19 @@ namespace FlipPix.UI.Services
         public bool MaxFidelityReferences { get; init; } = true;
         /// <summary>SaveVideo prefix; the last frame is saved beside it as &lt;prefix&gt;_last.</summary>
         public string OutputPrefix { get; init; } = "video/fflf/beat";
+
+        // ── 🥋 Action tab ────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>LoRAs stacked after <see cref="Lora"/> — the Action tab's combat mix.</summary>
+        public IReadOnlyList<MiniMaxI2VLora> ExtraLoras { get; init; } = Array.Empty<MiniMaxI2VLora>();
+        /// <summary>What <see cref="ExtraLoras"/> become on the refine pass (a LoRA left out is dropped there);
+        /// null runs the refine on the first-pass mix. See <see cref="FflfGraph.AddRefineLoraMix"/>.</summary>
+        public IReadOnlyList<MiniMaxI2VLora>? RefineLoras { get; init; }
+        /// <summary>Photos of the cast, sent as the pictures after the start frame and the opening image.</summary>
+        public IReadOnlyList<string> CastImages { get; init; } = Array.Empty<string>();
+        /// <summary>Sampler and first-pass scheduler; empty keeps the graph's own (er_sde · sgm_uniform).</summary>
+        public string Sampler { get; init; } = string.Empty;
+        public string FirstPassScheduler { get; init; } = string.Empty;
     }
 
     /// <summary>
@@ -146,6 +159,10 @@ namespace FlipPix.UI.Services
             };
             if (!string.IsNullOrWhiteSpace(r.Lora) && r.LoraStrength > 0)
                 o.Loras = new List<MiniMaxI2VLora> { new() { Name = r.Lora.Trim().Replace('\\', '/'), Strength = r.LoraStrength } };
+            foreach (var extra in r.ExtraLoras.Where(l => !string.IsNullOrWhiteSpace(l.Name) && l.Strength > 0))
+                o.Loras.Add(new MiniMaxI2VLora { Name = extra.Name.Trim().Replace('\\', '/'), Strength = extra.Strength });
+            if (!string.IsNullOrWhiteSpace(r.Sampler)) o.Sampler = r.Sampler.Trim();
+            if (!string.IsNullOrWhiteSpace(r.FirstPassScheduler)) o.FirstPassScheduler = r.FirstPassScheduler.Trim();
             if (r.PreviewOnly)
             {
                 // A draft is for judging the action: RTX and grain only add time.
@@ -169,6 +186,8 @@ namespace FlipPix.UI.Services
             };
             var pictures = new List<string> { r.StartImage };
             if (!string.IsNullOrEmpty(r.IdentityImage)) pictures.Add(r.IdentityImage!);
+            foreach (var cast in r.CastImages.Where(c => !string.IsNullOrEmpty(c)))
+                if (pictures.Count < MiniMaxI2VViewModel.MaxTwoPassPictures) pictures.Add(cast);
 
             var built = MiniMaxI2VViewModel.BuildTwoPassGraph(
                 twoPassJson, item, pictures, Array.Empty<string>(), Array.Empty<string>(), Array.Empty<bool>(),
@@ -177,7 +196,84 @@ namespace FlipPix.UI.Services
 
             if (r.LockFirstFrame) AddFirstFrameGuide(root, r.StartImage);
             AddLastFrameSave(root, r.OutputPrefix + "_last");
+            if (r.RefineLoras != null) AddRefineLoraMix(root, r.ExtraLoras, r.RefineLoras);
             return root;
+        }
+
+        public const string RefineNodePrefix = "fflf_refine_";
+
+        /// <summary>
+        /// Gives the refine pass its own LoRA mix. The authored 2-Pass graph runs both passes on one model wire
+        /// (loader → H3PowerLoraStack → shift → sparse attention → backend); the Action Director workflow runs
+        /// its second pass on a separate, weaker stack, because motion LoRAs at full strength on a low-denoise
+        /// pass redraw limbs the first pass already placed. So the wire from the stack down to the pass-2 guider
+        /// is copied, the copy's stack carries <paramref name="refine"/> in place of <paramref name="firstPass"/>
+        /// (every other row — the tab's own LoRA — unchanged), and the pass-2 guider and scheduler read the copy.
+        /// A draft has no second pass and is left alone. Returns whether the graph was changed.
+        /// </summary>
+        public static bool AddRefineLoraMix(JsonObject root, IReadOnlyList<MiniMaxI2VLora> firstPass, IReadOnlyList<MiniMaxI2VLora> refine)
+        {
+            static string Norm(string name) => name.Trim().Replace('\\', '/');
+            static string? ModelSource(JsonObject root, string id) =>
+                root[id]?["inputs"]?["model"] is JsonArray link && link.Count == 2 ? link[0]?.ToString() : null;
+
+            var swapped = firstPass.Where(l => !string.IsNullOrWhiteSpace(l.Name) && l.Strength > 0).Select(l => Norm(l.Name)).ToList();
+            var wanted = refine.Where(l => !string.IsNullOrWhiteSpace(l.Name) && l.Strength > 0).ToList();
+            var same = swapped.Count == wanted.Count && wanted.All(w =>
+                firstPass.Any(f => Norm(f.Name).Equals(Norm(w.Name), StringComparison.OrdinalIgnoreCase) && Math.Abs(f.Strength - w.Strength) < 1e-6));
+            if (same || !root.ContainsKey(Pass2Guider)) return false;
+
+            // The wire, from the pass-2 guider up to the stack.
+            var path = new List<string>();
+            for (var id = ModelSource(root, Pass2Guider); id != null && path.Count < 12; id = ModelSource(root, id))
+            {
+                path.Add(id);
+                if (id == MiniMaxI2VViewModel.TpLoraStack) break;
+            }
+            if (path.Count == 0 || path[^1] != MiniMaxI2VViewModel.TpLoraStack) return false;
+
+            // The stack's copy: the rows that are not the first-pass mix, then the refine mix.
+            var stack = root[MiniMaxI2VViewModel.TpLoraStack]!.DeepClone().AsObject();
+            var inputs = stack["inputs"]!.AsObject();
+            var kept = inputs.Where(kv => kv.Key.StartsWith("lora_", StringComparison.Ordinal))
+                             .Select(kv => kv.Value!.DeepClone().AsObject())
+                             .Where(row => !swapped.Contains(Norm(row["lora"]?.GetValue<string>() ?? string.Empty), StringComparer.OrdinalIgnoreCase))
+                             .ToList();
+            foreach (var key in inputs.Select(kv => kv.Key).Where(k => k.StartsWith("lora_", StringComparison.Ordinal)).ToList())
+                inputs.Remove(key);
+            foreach (var l in wanted)
+                kept.Add(new JsonObject { ["on"] = true, ["lora"] = Norm(l.Name), ["strength"] = l.Strength });
+            for (var i = 0; i < kept.Count; i++) inputs[$"lora_{i + 1}"] = kept[i];
+            stack["_meta"] = new JsonObject { ["title"] = "H3 Power LoRA Stack (refine pass)" };
+
+            // With no row left the refine reads the wire above the stack.
+            JsonNode upstream = kept.Count > 0
+                ? new JsonArray { RefineNodePrefix + MiniMaxI2VViewModel.TpLoraStack, 0 }
+                : inputs["model"]!.DeepClone();
+            if (kept.Count > 0) root[RefineNodePrefix + MiniMaxI2VViewModel.TpLoraStack] = stack;
+
+            // Every node between the stack and the guider, copied bottom-up. The pass-2 live preview node
+            // already belongs to pass 2 alone, so it is rewired rather than copied.
+            var copies = new Dictionary<string, string>();
+            for (var i = path.Count - 2; i >= 0; i--)
+            {
+                var id = path[i];
+                var own = id == MiniMaxI2VViewModel.TpPreviewPass2;
+                var copyId = own ? id : RefineNodePrefix + id.Replace(':', '_');
+                if (!own) root[copyId] = root[id]!.DeepClone();
+                root[copyId]!["inputs"]!["model"] = upstream.DeepClone();
+                upstream = new JsonArray { copyId, 0 };
+                copies[id] = copyId;
+            }
+            root[Pass2Guider]!["inputs"]!["model"] = upstream.DeepClone();
+
+            // The pass-2 scheduler builds its sigmas from the model it is given.
+            if (ModelSource(root, MiniMaxI2VViewModel.TpScheduler2) is { } scheduled)
+            {
+                if (copies.TryGetValue(scheduled, out var copy)) root[MiniMaxI2VViewModel.TpScheduler2]!["inputs"]!["model"] = new JsonArray { copy, 0 };
+                else if (scheduled == MiniMaxI2VViewModel.TpLoraStack) root[MiniMaxI2VViewModel.TpScheduler2]!["inputs"]!["model"] = upstream.DeepClone();
+            }
+            return true;
         }
 
         /// <summary>Anchors <paramref name="image"/> (an uploaded input file) at frame 0 of each pass the graph runs.</summary>

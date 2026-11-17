@@ -32,12 +32,26 @@ namespace FlipPix.UI.ViewModels.Video
     /// because they started on its last frame. Editing a beat's text does the same to it and the beats after it.
     /// When the last beat lands the takes are joined, the repeated join frame dropped.</para>
     /// </summary>
+    public sealed record FflfTabProfile(
+        string Name, string Key, string LibraryKey, string AccentColorKey, Func<ComfyUISettings, H3FflfSettings> Settings)
+    {
+        public static FflfTabProfile Fflf { get; } =
+            new("FFLF", "fflf", "fflf-stories", "AccentIndigoColor", s => s.H3Fflf ??= new H3FflfSettings());
+    }
+
     public partial class H3FflfViewModel : VideoProcessingBaseViewModel
     {
-        private readonly IFileDialogService _fileDialogService;
-        private readonly LivePreviewFeed _livePreview = new("live_preview_fflf");
+        protected readonly IFileDialogService _fileDialogService;
+        private readonly LivePreviewFeed _livePreview;
         private CancellationTokenSource? _runCts;
         private bool _loading = true;
+
+        /// <summary>What tells this tab apart from one built on it (🥋 Action): its name, where its stories and
+        /// settings live, and the key its queue lease, run folders and outputs are named with.</summary>
+        protected FflfTabProfile Profile { get; }
+
+        /// <summary>True while the page is being filled from settings or a story — nothing is saved back.</summary>
+        protected bool IsLoading => _loading;
         private string _runFolder = string.Empty;
         private string? _uploadedInitial, _uploadedInitialFor;
         private string _liveBeatLabel = string.Empty;
@@ -50,7 +64,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>Where each take's last frame is kept — beside the story library, so a story reopened after a
         /// restart (or a temp clean-up) can still carry on from it.</summary>
-        private static readonly string WorkRoot = Path.Combine(ScenePromptLibrary.FolderFor("fflf-stories"), "frames");
+        private string WorkRoot => Path.Combine(ScenePromptLibrary.FolderFor(Profile.LibraryKey), "frames");
 
         internal const string WorkflowFileName = MiniMaxI2VViewModel.TwoPassWorkflowFileName;
 
@@ -61,10 +75,24 @@ namespace FlipPix.UI.ViewModels.Video
             IServiceProvider? serviceProvider,
             WorkflowQueueCoordinator workflowCoordinator,
             IFileDialogService fileDialogService)
+            : this(comfyUIService, logger, settingsService, serviceProvider, workflowCoordinator, fileDialogService, FflfTabProfile.Fflf)
+        {
+        }
+
+        protected H3FflfViewModel(
+            ComfyUIService comfyUIService,
+            IAppLogger logger,
+            FlipPix.Core.Services.SettingsService settingsService,
+            IServiceProvider? serviceProvider,
+            WorkflowQueueCoordinator workflowCoordinator,
+            IFileDialogService fileDialogService,
+            FflfTabProfile profile)
             : base(comfyUIService, logger, settingsService, serviceProvider, workflowCoordinator)
         {
+            Profile = profile;
+            _livePreview = new LivePreviewFeed($"live_preview_{profile.Key}");
             _fileDialogService = fileDialogService;
-            _storyLibrary = new ScenePromptLibrary(AddLog, ScenePromptLibrary.FolderFor("fflf-stories"));
+            _storyLibrary = new ScenePromptLibrary(AddLog, ScenePromptLibrary.FolderFor(profile.LibraryKey));
             _storiesLoad = _storyLibrary.LoadAsync();
 
             BrowseImageCommand = new RelayCommand(() => _ = BrowseImageAsync(), () => !IsProcessing);
@@ -89,7 +117,7 @@ namespace FlipPix.UI.ViewModels.Video
                 LoraStrength = 0.25;
             });
 
-            var s = settingsService.Settings?.H3Fflf ?? new H3FflfSettings();
+            var s = settingsService.Settings is { } all ? profile.Settings(all) : new H3FflfSettings();
             _initialImagePath = File.Exists(s.InitialImagePath) ? s.InitialImagePath : string.Empty;
             _beatsText = s.BeatsText ?? string.Empty;
             _styleText = s.StyleText ?? string.Empty;
@@ -112,6 +140,7 @@ namespace FlipPix.UI.ViewModels.Video
             OfferModel(_diffusionModel);
             OfferLora(_lora);
             OnInitialImagePathChanged(_initialImagePath);
+            LoadTabSettings(s);
             _loading = false;
 
             Beats.CollectionChanged += (_, e) =>
@@ -125,8 +154,7 @@ namespace FlipPix.UI.ViewModels.Video
             _comfyUIService.LivePreviewReceived += OnLivePreviewReceived;
             InitStories();
 
-            AddLog("FFLF ready — pick the opening image, paste the story beats (one per paragraph or numbered line), and Generate. " +
-                   "Each beat starts on the last frame of the one before.");
+            AddLog(ReadyMessage);
             _ = LoadModelListsAsync();
         }
 
@@ -155,7 +183,44 @@ namespace FlipPix.UI.ViewModels.Video
             RefreshCommands();
         }
 
-        private void RefreshCommands() => OnUi(() =>
+        // ── What a tab built on this one changes ─────────────────────────────────────────────────
+
+        protected virtual string ReadyMessage =>
+            "FFLF ready — pick the opening image, paste the story beats (one per paragraph or numbered line), and Generate. " +
+            "Each beat starts on the last frame of the one before.";
+
+        /// <summary>Reads the tab's own settings; runs in the constructor, before anything is saved back.</summary>
+        protected virtual void LoadTabSettings(H3FflfSettings settings) { }
+
+        /// <summary>Writes the tab's own settings beside the shared ones.</summary>
+        protected virtual void SaveTabSettings(H3FflfSettings settings) { }
+
+        /// <summary>Whether a change to this property is written to settings and to the open story.</summary>
+        protected virtual bool IsPersistedProperty(string name) => Persisted.Contains(name);
+
+        /// <summary>The text sent for one beat.</summary>
+        protected virtual string ComposeBeatPrompt(FflfBeat beat, int index, int total, bool hasIdentityImage) =>
+            FflfGraph.ComposePrompt(beat.Text, StyleText, hasIdentityImage, index == 0);
+
+        /// <summary>Last word on a beat's render request, after the page's own dials are on it.</summary>
+        protected virtual FflfBeatRender CustomizeRender(FflfBeatRender request, int index) => request;
+
+        /// <summary>Runs once per Generate, holding the queue lease, before the first beat.</summary>
+        protected virtual Task PrepareRunAsync(CancellationToken ct) => Task.CompletedTask;
+
+        /// <summary>The tab's own part of a saved story, written and read back.</summary>
+        protected virtual void SnapshotTabStory(FflfStory story) { }
+        protected virtual void ApplyTabStory(FflfStory story) { }
+
+        /// <summary>＋ New: clears what the tab adds to the page.</summary>
+        protected virtual void ClearTabStory() { }
+
+        /// <summary>The server's lists have been read; <see cref="ServerLoras"/> is every LoRA it has.</summary>
+        protected virtual void OnModelListsLoaded() { }
+
+        protected IReadOnlyList<string> ServerLoras { get; private set; } = Array.Empty<string>();
+
+        protected virtual void RefreshCommands() => OnUi(() =>
         {
             BrowseImageCommand?.NotifyCanExecuteChanged();
             ClearImageCommand?.NotifyCanExecuteChanged();
@@ -206,14 +271,14 @@ namespace FlipPix.UI.ViewModels.Video
 
         private async Task BrowseImageAsync()
         {
-            var start = _settingsService.Settings?.H3Fflf?.LastPhotoFolder;
+            var start = _settingsService.Settings is { } all ? Profile.Settings(all).LastPhotoFolder : null;
             if (string.IsNullOrEmpty(start) || !Directory.Exists(start))
                 start = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
             var path = await _fileDialogService.OpenFileDialogAsync("The image the story opens on",
-                "Image Files|*.png;*.jpg;*.jpeg;*.webp;*.bmp|All Files|*.*", start, persistKey: "fflf.initial");
+                "Image Files|*.png;*.jpg;*.jpeg;*.webp;*.bmp|All Files|*.*", start, persistKey: $"{Profile.Key}.initial");
             if (path == null) return;
             if (_settingsService.Settings is { } settings)
-                (settings.H3Fflf ??= new H3FflfSettings()).LastPhotoFolder = Path.GetDirectoryName(path) ?? string.Empty;
+                Profile.Settings(settings).LastPhotoFolder = Path.GetDirectoryName(path) ?? string.Empty;
             InitialImagePath = path;
             AddLog($"Opening image: {Path.GetFileName(path)}");
         }
@@ -452,8 +517,9 @@ namespace FlipPix.UI.ViewModels.Video
                     .Select(n => n.Replace('\\', '/'))
                     .Where(n => n.StartsWith("h3-minimax/", StringComparison.OrdinalIgnoreCase))
                     .OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
-                var loras = (await http.GetLoraFilenamesAsync())
-                    .Select(n => n.Replace('\\', '/'))
+                var everyLora = (await http.GetLoraFilenamesAsync()).Select(n => n.Replace('\\', '/')).ToList();
+                ServerLoras = everyLora;
+                var loras = everyLora
                     .Where(n => n.StartsWith("H3/", StringComparison.OrdinalIgnoreCase))
                     .OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
                 OnUi(() =>
@@ -469,6 +535,7 @@ namespace FlipPix.UI.ViewModels.Video
                     AddLog($"⚠ {Path.GetFileName(DiffusionModel)} is not in the server's diffusion_models/h3-minimax.");
                 if (loras.Count > 0 && Lora.Length > 0 && !loras.Contains(Lora.Replace('\\', '/'), StringComparer.OrdinalIgnoreCase))
                     AddLog($"⚠ {Path.GetFileName(Lora)} is not in the server's loras/H3.");
+                OnUi(OnModelListsLoaded);
             }
             catch (Exception ex)
             {
@@ -490,7 +557,7 @@ namespace FlipPix.UI.ViewModels.Video
         {
             base.OnPropertyChanged(e);
             if (_loading || e.PropertyName == null) return;
-            if (Persisted.Contains(e.PropertyName)) { Save(); ScheduleStorySave(); }
+            if (IsPersistedProperty(e.PropertyName)) { Save(); ScheduleStorySave(); }
             else if (e.PropertyName == nameof(BaseSeed)) ScheduleStorySave();
         }
 
@@ -498,7 +565,7 @@ namespace FlipPix.UI.ViewModels.Video
         {
             var settings = _settingsService.Settings;
             if (settings == null) return;
-            var s = settings.H3Fflf ??= new H3FflfSettings();
+            var s = Profile.Settings(settings);
             s.InitialImagePath = InitialImagePath;
             s.BeatsText = BeatsText;
             s.StyleText = StyleText;
@@ -517,8 +584,9 @@ namespace FlipPix.UI.ViewModels.Video
             s.RepairHandoffFace = RepairHandoffFace;
             s.FaceRepairStrength = FaceRepairStrength;
             s.JoinWhenDone = JoinWhenDone;
+            SaveTabSettings(s);
             try { _settingsService.SaveSettings(settings); }
-            catch (Exception ex) { _logger.LogWarning($"FFLF: could not save settings: {ex.Message}"); }
+            catch (Exception ex) { _logger.LogWarning($"{Profile.Name}: could not save settings: {ex.Message}"); }
         }
 
         // ── Player ───────────────────────────────────────────────────────────────────────────────
@@ -727,15 +795,16 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 ProcessingStatus = "Waiting for the ComfyUI queue…";
                 RefreshCommands();
-                using var lease = await _workflowCoordinator.AcquireAsync("h3_fflf", ct);
+                using var lease = await _workflowCoordinator.AcquireAsync($"h3_{Profile.Key}", ct);
                 _holdingLease = true;
 
                 var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, WorkflowFileName);
                 if (!File.Exists(workflowPath)) throw new FileNotFoundException($"Workflow file not found: {WorkflowFileName}");
                 var template = await File.ReadAllTextAsync(workflowPath, ct);
 
-                if (start == 0 || _runFolder.Length == 0) _runFolder = $"fflf_{DateTime.Now:yyyyMMdd_HHmmss}";
+                if (start == 0 || _runFolder.Length == 0) _runFolder = $"{Profile.Key}_{DateTime.Now:yyyyMMdd_HHmmss}";
                 var initial = await UploadInitialAsync(ct);
+                await PrepareRunAsync(ct);
                 var aspect = ResolvedAspectRatio;
                 AddLog($"Story: beats {start + 1}–{beats.Count} of {beats.Count}, {BeatSeconds:0.#} s each, {CanvasSummary}. " +
                        $"Model {Path.GetFileName(DiffusionModel)}" +
@@ -791,7 +860,7 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 ProcessingStatus = $"Failed: {ex.Message}";
                 AddLog($"Failed: {ex.Message}");
-                _logger.LogError(ex, "FFLF run failed");
+                _logger.LogError(ex, $"{Profile.Name} run failed");
             }
             finally
             {
@@ -864,7 +933,7 @@ namespace FlipPix.UI.ViewModels.Video
                 var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, FflfGraph.FaceRepairWorkflowFileName);
                 if (!File.Exists(path)) throw new FileNotFoundException($"Workflow file not found: {FflfGraph.FaceRepairWorkflowFileName}");
                 var template = await File.ReadAllTextAsync(path, ct);
-                var prefix = $"video/fflf/{_runFolder}/beat_{index + 1:D2}_last_face";
+                var prefix = $"video/{Profile.Key}/{_runFolder}/beat_{index + 1:D2}_last_face";
                 var graph = FflfGraph.BuildFaceRepair(template, raw, initial, previous.Seed > 0 ? previous.Seed : NewSeed(), FaceRepairStrength, prefix);
 
                 var promptId = await _comfyUIService.ExecuteWorkflowAsync(graph, null, ct, TimeSpan.FromMinutes(10));
@@ -884,7 +953,7 @@ namespace FlipPix.UI.ViewModels.Video
             catch (Exception ex) when (!ct.IsCancellationRequested)
             {
                 AddLog($"⚠ {label}: the face repair failed ({ex.Message}) — starting on the plain last frame.");
-                _logger.LogWarning($"FFLF face repair failed: {ex}");
+                _logger.LogWarning($"{Profile.Name} face repair failed: {ex}");
                 return raw;
             }
         }
@@ -899,8 +968,8 @@ namespace FlipPix.UI.ViewModels.Video
             ProcessingStatus = $"{label}: {Shorten(beat.Text, 70)}";
             OnPropertyChanged(nameof(ReadyHint));
 
-            var prompt = FflfGraph.ComposePrompt(beat.Text, StyleText, identityImage != null, index == 0);
-            var request = new FflfBeatRender
+            var prompt = ComposeBeatPrompt(beat, index, total, identityImage != null);
+            var request = CustomizeRender(new FflfBeatRender
             {
                 StartImage = startImage,
                 IdentityImage = identityImage,
@@ -917,8 +986,8 @@ namespace FlipPix.UI.ViewModels.Video
                 LoraStrength = LoraStrength,
                 LockFirstFrame = LockFirstFrame,
                 MaxFidelityReferences = MaxFidelityReferences,
-                OutputPrefix = $"video/fflf/{_runFolder}/beat_{index + 1:D2}{(PreviewOnly ? "_draft" : string.Empty)}",
-            };
+                OutputPrefix = $"video/{Profile.Key}/{_runFolder}/beat_{index + 1:D2}{(PreviewOnly ? "_draft" : string.Empty)}",
+            }, index);
             var graph = FflfGraph.Build(template, request, out var pruned);
             AddLog($"{label} — seed {beat.Seed}, starts on {(index == 0 ? "the opening image" : $"beat {index}'s last frame")}" +
                    $"{(LockFirstFrame ? " (anchored at frame 0)" : " (reference only)")}, {pruned} node(s) pruned.");
@@ -1001,7 +1070,7 @@ namespace FlipPix.UI.ViewModels.Video
 
             ProcessingStatus = $"Joining {clips.Count} beats…";
             var folder = Path.GetDirectoryName(clips[0]) ?? WorkRoot;
-            var output = Path.Combine(folder, $"{(_runFolder.Length > 0 ? _runFolder : "fflf")}_joined_{DateTime.Now:HHmmss}.mp4");
+            var output = Path.Combine(folder, $"{(_runFolder.Length > 0 ? _runFolder : Profile.Key)}_joined_{DateTime.Now:HHmmss}.mp4");
             var withAudio = clips.All(HasAudioStream);
             var args = FflfGraph.JoinArguments(clips, output, dropFirstFrame: LockFirstFrame, withAudio);
             await Task.Run(() => RunFFmpeg(ffmpeg, args), ct);
@@ -1019,12 +1088,12 @@ namespace FlipPix.UI.ViewModels.Video
 
         // ── Helpers ──────────────────────────────────────────────────────────────────────────────
 
-        private static long NewSeed() => Random.Shared.NextInt64(1, 999_999_999_999_999L);
+        protected static long NewSeed() => Random.Shared.NextInt64(1, 999_999_999_999_999L);
 
         private static string Shorten(string text, int max) => text.Length <= max ? text : text[..(max - 1)] + "…";
 
         /// <summary>Copies a server output into this tab's work folder, so it outlives the download cache.</summary>
-        private static string Keep(string path, string name)
+        private string Keep(string path, string name)
         {
             Directory.CreateDirectory(WorkRoot);
             var target = Path.Combine(WorkRoot, $"{name}{Path.GetExtension(path)}");
@@ -1032,7 +1101,7 @@ namespace FlipPix.UI.ViewModels.Video
             return target;
         }
 
-        private static void OnUi(Action action)
+        protected static void OnUi(Action action)
         {
             var dispatcher = Application.Current?.Dispatcher;
             if (dispatcher == null || dispatcher.CheckAccess()) action();

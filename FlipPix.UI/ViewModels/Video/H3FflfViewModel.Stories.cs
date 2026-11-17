@@ -55,7 +55,7 @@ namespace FlipPix.UI.ViewModels.Video
         // ── Saving ───────────────────────────────────────────────────────────────────────────────
 
         /// <summary>Marks the page changed; it is written a second after the last change.</summary>
-        private void ScheduleStorySave()
+        protected void ScheduleStorySave()
         {
             if (_loading) return;
             _storyDirty = true;
@@ -155,7 +155,14 @@ namespace FlipPix.UI.ViewModels.Video
             return ScenePromptLibrary.SuggestName(string.Empty, seed, others);
         }
 
-        private FflfStory Snapshot() => new()
+        private FflfStory Snapshot()
+        {
+            var story = SnapshotShared();
+            SnapshotTabStory(story);
+            return story;
+        }
+
+        private FflfStory SnapshotShared() => new()
         {
             InitialImagePath = InitialImagePath,
             BeatsText = BeatsText,
@@ -195,10 +202,10 @@ namespace FlipPix.UI.ViewModels.Video
             OnPropertyChanged(nameof(StoryName));
             var settings = _settingsService.Settings;
             var id = story?.Id ?? string.Empty;
-            if (settings == null || (settings.H3Fflf ??= new H3FflfSettings()).ActiveStoryId == id) return;
-            settings.H3Fflf.ActiveStoryId = id;
+            if (settings == null || Profile.Settings(settings).ActiveStoryId == id) return;
+            Profile.Settings(settings).ActiveStoryId = id;
             try { _settingsService.SaveSettings(settings); }
-            catch (Exception ex) { _logger.LogWarning($"FFLF: could not save settings: {ex.Message}"); }
+            catch (Exception ex) { _logger.LogWarning($"{Profile.Name}: could not save settings: {ex.Message}"); }
         }
 
         private void SetStoryCount(int count)
@@ -216,7 +223,7 @@ namespace FlipPix.UI.ViewModels.Video
             OnUi(() =>
             {
                 SetStoryCount(stories.Count);
-                var id = _settingsService.Settings?.H3Fflf?.ActiveStoryId;
+                var id = _settingsService.Settings is { } all ? Profile.Settings(all).ActiveStoryId : null;
                 if (!string.IsNullOrEmpty(id) && stories.FirstOrDefault(s => s.Id == id) is { Fflf: not null } story)
                 {
                     ApplyStory(story);
@@ -264,6 +271,7 @@ namespace FlipPix.UI.ViewModels.Video
                 BaseSeed = s.BaseSeed > 0 ? s.BaseSeed : NewSeed();
                 _runFolder = s.RunFolder ?? string.Empty;
                 _uploadedInitial = null;
+                ApplyTabStory(s);
 
                 // The beats, then each one's take for as long as the chain is unbroken: a beat started on the
                 // last frame of the one before, so one missing take ends what can be carried on from.
@@ -326,6 +334,7 @@ namespace FlipPix.UI.ViewModels.Video
                 _uploadedInitial = null;
                 JoinedVideoPath = string.Empty;
                 BaseSeed = NewSeed();
+                ClearTabStory();
             }
             finally { _loading = false; }
             SetActiveStory(null);
@@ -360,19 +369,19 @@ namespace FlipPix.UI.ViewModels.Video
 
                 var window = new ScenePromptLibraryWindow(_storyLibrary, stories, new ScenePromptLibraryChrome
                 {
-                    WindowTitle = "Stories — FFLF",
+                    WindowTitle = $"Stories — {Profile.Name}",
                     Heading = "Stories",
-                    Subtitle = "Every story on the FFLF page is saved here as you go — the beats, the opening image, the settings "
+                    Subtitle = $"Every story on the {Profile.Name} page is saved here as you go — the beats, the opening image, the settings "
                              + "and each beat's take — and survives a restart. Pick one to carry on with it.",
                     PromptNote = "Edit the beats right here — saved as soon as you click away. Finished beats come back finished "
                                + "as long as their text, videos and last frames are unchanged; Generate carries on from the first beat without a take.",
                     PromptEditable = true,
                     PromptEdited = StoryEditedInList,
-                    EmptyText = "No stories yet.\nPaste beats on the FFLF page and they land here.",
+                    EmptyText = $"No stories yet.\nPaste beats on the {Profile.Name} page and they land here.",
                     NoMatchText = "No story matches that search.",
                     UseButtonText = "✓ Open This Story",
                     LibraryNoun = "stories",
-                    AccentColorKey = "AccentIndigoColor",
+                    AccentColorKey = Profile.AccentColorKey,
                 });
 
                 window.Owner = Application.Current?.Windows

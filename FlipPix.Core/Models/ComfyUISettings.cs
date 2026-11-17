@@ -361,6 +361,9 @@ public class ComfyUISettings
     // FFLF tab (story beats chained first-frame/last-frame through the ErosMax 2-Pass graph): the last choices on the page.
     public H3FflfSettings H3Fflf { get; set; } = new H3FflfSettings();
 
+    // 🥋 Action tab (the FFLF chain with the Action Director workflow's nine combat LoRA presets and a fight director).
+    public H3ActionSettings H3Action { get; set; } = new H3ActionSettings();
+
     // Painter (WAN 2.2 LightX2V) workflow model names — adjust to match your ComfyUI server
     public string PainterHighNoiseModel { get; set; } = @"wan\wan2.2_i2v_high_noise_14B_Q8_0.gguf";
     public string PainterLowNoiseModel { get; set; } = @"wan\wan2.2_i2v_low_noise_14B_Q8_0.gguf";
@@ -682,4 +685,29 @@ public class H3FflfSettings
     public string LastPhotoFolder { get; set; } = string.Empty;
     /// <summary>The story in the FFLF story library the tab had open, put back on the next launch.</summary>
     public string ActiveStoryId { get; set; } = string.Empty;
+}
+
+/// <summary>The 🥋 Action tab: everything the ⛓ FFLF tab keeps, plus the combat preset, the LoRA mix, the cast
+/// photos and the story the fight director was given.</summary>
+public class H3ActionSettings : H3FflfSettings
+{
+    /// <summary>0–8, a row of <see cref="H3CombatPreset.All"/>.</summary>
+    public int Preset { get; set; } = H3CombatPreset.DefaultNumber;
+    /// <summary>Off: the preset sets the five strengths. On: the five below do.</summary>
+    public bool ManualMix { get; set; }
+    public double CombatStrength { get; set; } = 0.65;
+    public double WeaponStrength { get; set; }
+    public double GunFuStrength { get; set; }
+    public double MotionStrength { get; set; }
+    public double FightFlowStrength { get; set; } = 0.65;
+    /// <summary>Run the refine pass on the workflow's weaker second-pass mix instead of the first-pass one.</summary>
+    public bool SoftenRefine { get; set; } = true;
+    /// <summary>Optional photos of the two fighters, sent with every beat as extra references.</summary>
+    public string FighterAPath { get; set; } = string.Empty;
+    public string FighterBPath { get; set; } = string.Empty;
+    /// <summary>The story or idea handed to the fight director.</summary>
+    public string StoryIdea { get; set; } = string.Empty;
+    public int BeatCount { get; set; } = 4;
+    /// <summary>"turbo" (er_sde · sgm_uniform, as FFLF) or "authored" (res_multistep · simple, the workflow's own).</summary>
+    public string Sampling { get; set; } = "turbo";
 }
