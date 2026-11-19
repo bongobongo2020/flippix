@@ -119,6 +119,30 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        /// <summary>The header's 🔊/🔇: when on, every preview player in the window plays silent (an implicit
+        /// MediaElement style turns the volume to 0, on top of any tab's own mute). Kept in settings.</summary>
+        public bool PreviewsMuted
+        {
+            get => _settingsService.Settings?.VideoPreviewsMuted ?? false;
+            set
+            {
+                var settings = _settingsService.Settings;
+                if (settings == null || settings.VideoPreviewsMuted == value) return;
+                settings.VideoPreviewsMuted = value;
+                try { _settingsService.SaveSettings(settings); }
+                catch (Exception ex) { _logger.LogError(ex, "Could not save the preview mute setting"); }
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(MuteGlyph));
+                OnPropertyChanged(nameof(MuteTip));
+            }
+        }
+
+        public string MuteGlyph => PreviewsMuted ? "🔇" : "🔊";
+
+        public string MuteTip => PreviewsMuted
+            ? "Previews are muted — click to hear them again."
+            : "Mute the sound of every video preview in this window.";
+
         public VideoGeneratorViewModel(
             ComfyUIService comfyUIService,
             LMStudioService lmStudioService,

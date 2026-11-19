@@ -61,7 +61,10 @@ namespace FlipPix.UI
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
             _windowPositionService.EnsureWindowVisible(this);
-            // Pick up a video that was already loaded before this window's handlers wired up.
+            // Pick up a video that was already loaded before this window's handlers wired up — the last
+            // take of each tab. It opens paused on its first frame: nothing should start playing (with
+            // sound) just because the app was opened. A video picked after this plays as usual.
+            _restoringPreviews = true;
             ApplyScail2RefSource();
             ApplyH3VrSource();
             ApplySeedUpscaleSource();
@@ -70,6 +73,7 @@ namespace FlipPix.UI
             ApplyRemakeSource();
             ApplyFflfSource();
             ApplyActionSource();
+            _restoringPreviews = false;
         }
 
         private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -152,7 +156,7 @@ namespace FlipPix.UI
         private void ApplyH3VrSource() =>
             ApplySharedPlayerSource(H3VrVideoPlayer, _viewModel.H3VrVM.ActivePreviewUri);
 
-        private void H3VrPlayer_MediaOpened(object sender, RoutedEventArgs e) => H3VrVideoPlayer.Play();
+        private void H3VrPlayer_MediaOpened(object sender, RoutedEventArgs e) => StartPlayer(H3VrVideoPlayer);
 
         private void H3VrPlayer_MediaEnded(object sender, RoutedEventArgs e)
         {
@@ -170,7 +174,7 @@ namespace FlipPix.UI
         private void ApplyCharacterSwapSource() =>
             ApplySharedPlayerSource(CharacterSwapPlayer, _viewModel.CharacterSwapVM.ActivePreview);
 
-        private void CharacterSwapPlayer_MediaOpened(object sender, RoutedEventArgs e) => CharacterSwapPlayer.Play();
+        private void CharacterSwapPlayer_MediaOpened(object sender, RoutedEventArgs e) => StartPlayer(CharacterSwapPlayer);
 
         private void CharacterSwapPlayer_MediaEnded(object sender, RoutedEventArgs e)
         {
@@ -192,7 +196,7 @@ namespace FlipPix.UI
 
         private void ApplyRemakeSource() => ApplySharedPlayerSource(RemakePlayer, _viewModel.RemakeVM.ActivePreview);
 
-        private void RemakePlayer_MediaOpened(object sender, RoutedEventArgs e) => RemakePlayer.Play();
+        private void RemakePlayer_MediaOpened(object sender, RoutedEventArgs e) => StartPlayer(RemakePlayer);
 
         private void RemakePlayer_MediaEnded(object sender, RoutedEventArgs e)
         {
@@ -230,7 +234,7 @@ namespace FlipPix.UI
 
         private void ApplyFflfSource() => ApplySharedPlayerSource(FflfPlayer, _viewModel.H3FflfVM.ActivePreview);
 
-        private void FflfPlayer_MediaOpened(object sender, RoutedEventArgs e) => FflfPlayer.Play();
+        private void FflfPlayer_MediaOpened(object sender, RoutedEventArgs e) => StartPlayer(FflfPlayer);
 
         private void FflfPlayer_MediaEnded(object sender, RoutedEventArgs e)
         {
@@ -268,7 +272,7 @@ namespace FlipPix.UI
 
         private void ApplyActionSource() => ApplySharedPlayerSource(ActionPlayer, _viewModel.H3ActionVM.ActivePreview);
 
-        private void ActionPlayer_MediaOpened(object sender, RoutedEventArgs e) => ActionPlayer.Play();
+        private void ActionPlayer_MediaOpened(object sender, RoutedEventArgs e) => StartPlayer(ActionPlayer);
 
         private void ActionPlayer_MediaEnded(object sender, RoutedEventArgs e)
         {
@@ -339,7 +343,7 @@ namespace FlipPix.UI
         private void ApplySeedUpscaleSource() =>
             ApplySharedPlayerSource(SeedUpscaleVideoPlayer, _viewModel.SeedUpscaleVM.ActivePreviewUri);
 
-        private void SeedUpscalePlayer_MediaOpened(object sender, RoutedEventArgs e) => SeedUpscaleVideoPlayer.Play();
+        private void SeedUpscalePlayer_MediaOpened(object sender, RoutedEventArgs e) => StartPlayer(SeedUpscaleVideoPlayer);
 
         private void SeedUpscalePlayer_MediaEnded(object sender, RoutedEventArgs e)
         {
@@ -453,6 +457,7 @@ namespace FlipPix.UI
 
         private async void ApplyH3EditorSource()
         {
+            var hold = _restoringPreviews; // read before the await: OnLoaded has finished by the time it returns
             var path = _viewModel.H3VideoEditorVM.PreviewVideoPath;
             if (!string.IsNullOrEmpty(path))
             {
@@ -461,8 +466,8 @@ namespace FlipPix.UI
                 if (_viewModel.H3VideoEditorVM.PreviewVideoPath != path) return; // another clip was picked meanwhile
                 path = local;
             }
-            ApplySharedPlayerSource(H3EditorVideoPlayer, path);
-            SetH3EditorPlaying(!string.IsNullOrEmpty(path));
+            ApplySharedPlayerSource(H3EditorVideoPlayer, path, hold);
+            SetH3EditorPlaying(!hold && !string.IsNullOrEmpty(path));
         }
 
         private void H3EditorPlayer_MediaOpened(object sender, RoutedEventArgs e)
@@ -470,8 +475,9 @@ namespace FlipPix.UI
             _viewModel.H3VideoEditorVM.PreviewDurationSeconds = H3EditorVideoPlayer.NaturalDuration.HasTimeSpan
                 ? H3EditorVideoPlayer.NaturalDuration.TimeSpan.TotalSeconds
                 : 0;
-            H3EditorVideoPlayer.Play();
-            SetH3EditorPlaying(true);
+            var held = _holdFirstPlay.Contains(H3EditorVideoPlayer);
+            StartPlayer(H3EditorVideoPlayer);
+            SetH3EditorPlaying(!held);
         }
 
         // ── Scrub bar ────────────────────────────────────────────────────────
@@ -603,9 +609,23 @@ namespace FlipPix.UI
 
         /// <summary>Points a seed-board player at a file, as an absolute Uri. Clicking the
         /// same tile twice replays it rather than doing nothing.</summary>
-        private static void ApplySharedPlayerSource(System.Windows.Controls.MediaElement? player, string? path)
+        // True while OnLoaded restores the tabs' last videos: those open paused (see StartPlayer).
+        private bool _restoringPreviews;
+        private readonly System.Collections.Generic.HashSet<System.Windows.Controls.MediaElement> _holdFirstPlay = new();
+
+        /// <summary>Every shared player's MediaOpened/MediaEnded: plays, unless the video was restored when
+        /// the window opened — then it shows its first frame and waits for a click.</summary>
+        private void StartPlayer(System.Windows.Controls.MediaElement player)
+        {
+            player.Play();
+            if (_holdFirstPlay.Remove(player)) player.Pause();
+        }
+
+        private void ApplySharedPlayerSource(System.Windows.Controls.MediaElement? player, string? path, bool? hold = null)
         {
             if (player == null) return;
+            if ((hold ?? _restoringPreviews) && !string.IsNullOrEmpty(path)) _holdFirstPlay.Add(player);
+            else _holdFirstPlay.Remove(player);
             if (string.IsNullOrEmpty(path))
             {
                 player.Stop();
@@ -620,7 +640,7 @@ namespace FlipPix.UI
             if (string.Equals(player.Source?.OriginalString, target.OriginalString, StringComparison.OrdinalIgnoreCase))
             {
                 player.Position = System.TimeSpan.Zero;
-                player.Play();
+                StartPlayer(player);
                 return;
             }
             player.Stop();

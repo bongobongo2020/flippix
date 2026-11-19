@@ -364,6 +364,9 @@ public class ComfyUISettings
     // 🥋 Action tab (the FFLF chain with the Action Director workflow's nine combat LoRA presets and a fight director).
     public H3ActionSettings H3Action { get; set; } = new H3ActionSettings();
 
+    // Video Generator header 🔊/🔇: silences every preview player in the window.
+    public bool VideoPreviewsMuted { get; set; }
+
     // Painter (WAN 2.2 LightX2V) workflow model names — adjust to match your ComfyUI server
     public string PainterHighNoiseModel { get; set; } = @"wan\wan2.2_i2v_high_noise_14B_Q8_0.gguf";
     public string PainterLowNoiseModel { get; set; } = @"wan\wan2.2_i2v_low_noise_14B_Q8_0.gguf";
