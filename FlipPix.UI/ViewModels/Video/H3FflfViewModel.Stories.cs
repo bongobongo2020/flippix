@@ -423,6 +423,7 @@ namespace FlipPix.UI.ViewModels.Video
         public void Dispose()
         {
             _comfyUIService.LivePreviewReceived -= OnLivePreviewReceived;
+            _listsCts?.Cancel();
             try { FlushStory(); }
             catch (Exception ex) { AddLog($"Could not autosave the story: {ex.Message}"); }
         }

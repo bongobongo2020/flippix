@@ -107,7 +107,7 @@ namespace FlipPix.UI.ViewModels.Video
             JoinCommand = new RelayCommand(() => _ = JoinNowAsync(), () => !IsProcessing && Beats.Count(b => b.HasVideo) >= 2);
             StartOverCommand = new RelayCommand(StartOver, () => !IsProcessing && Beats.Any(b => b.State != FflfBeatState.Pending));
             OpenFolderCommand = new RelayCommand(OpenFolder, () => Beats.Any(b => b.HasVideo) || HasJoined);
-            RefreshModelsCommand = new RelayCommand(() => _ = LoadModelListsAsync());
+            RefreshModelsCommand = new RelayCommand(() => _ = LoadModelListsAsync(userAsked: true));
             NewSeedCommand = new RelayCommand(() => BaseSeed = NewSeed());
             ClearLogCommand = new RelayCommand(() => LogOutput = string.Empty);
             ResetModelCommand = new RelayCommand(() =>
@@ -507,17 +507,46 @@ namespace FlipPix.UI.ViewModels.Video
             if (!string.IsNullOrWhiteSpace(name) && !LoraOptions.Contains(name)) LoraOptions.Add(name);
         }
 
-        /// <summary>The server's h3-minimax checkpoints and loras/H3, for the two dropdowns.</summary>
-        private async Task LoadModelListsAsync()
+        // Waits between tries when the lists come back empty at startup: about two minutes in all.
+        private static readonly TimeSpan[] ListRetryDelays =
+            { TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(60) };
+
+        private CancellationTokenSource? _listsCts;
+
+        /// <summary>The server's h3-minimax checkpoints and loras/H3, for the two dropdowns. The client returns
+        /// empty lists when ComfyUI does not answer (down, or busy with every other tab's startup requests), so
+        /// an empty answer is a failed read: at startup it is tried again a few times, and either way the log
+        /// says so instead of leaving the dropdown with only the saved model in it.</summary>
+        private async Task LoadModelListsAsync(bool userAsked = false)
         {
+            _listsCts?.Cancel();
+            var cts = new CancellationTokenSource();
+            _listsCts = cts;
+            var retries = userAsked ? 0 : ListRetryDelays.Length;
             try
             {
                 var http = _comfyUIService.HttpClient;
-                var models = (await http.GetUnetFilenamesAsync())
-                    .Select(n => n.Replace('\\', '/'))
+                List<string> everyModel, everyLora;
+                for (var attempt = 0; ; attempt++)
+                {
+                    everyModel = (await http.GetUnetFilenamesAsync(cts.Token)).Select(n => n.Replace('\\', '/')).ToList();
+                    everyLora = (await http.GetLoraFilenamesAsync(cts.Token)).Select(n => n.Replace('\\', '/')).ToList();
+                    // The client swallows a cancelled request and answers empty: a newer read has taken over.
+                    if (cts.IsCancellationRequested) return;
+                    if (everyModel.Count > 0 || everyLora.Count > 0) break;
+                    if (attempt >= retries)
+                    {
+                        AddLog("⚠ ComfyUI did not return its model or LoRA lists (unreachable or too busy) — only the saved model is offered. " +
+                               "Press ⟳ Server lists to try again.");
+                        return;
+                    }
+                    if (attempt == 0) AddLog("ComfyUI did not return the model lists yet — trying again…");
+                    await Task.Delay(ListRetryDelays[attempt], cts.Token);
+                }
+
+                var models = everyModel
                     .Where(n => n.StartsWith("h3-minimax/", StringComparison.OrdinalIgnoreCase))
                     .OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
-                var everyLora = (await http.GetLoraFilenamesAsync()).Select(n => n.Replace('\\', '/')).ToList();
                 ServerLoras = everyLora;
                 var loras = everyLora
                     .Where(n => n.StartsWith("H3/", StringComparison.OrdinalIgnoreCase))
@@ -535,7 +564,13 @@ namespace FlipPix.UI.ViewModels.Video
                     AddLog($"⚠ {Path.GetFileName(DiffusionModel)} is not in the server's diffusion_models/h3-minimax.");
                 if (loras.Count > 0 && Lora.Length > 0 && !loras.Contains(Lora.Replace('\\', '/'), StringComparer.OrdinalIgnoreCase))
                     AddLog($"⚠ {Path.GetFileName(Lora)} is not in the server's loras/H3.");
+                if (userAsked)
+                    AddLog($"Server lists: {models.Count} model(s) in diffusion_models/h3-minimax, {loras.Count} LoRA(s) in loras/H3.");
                 OnUi(OnModelListsLoaded);
+            }
+            catch (OperationCanceledException) when (cts.IsCancellationRequested)
+            {
+                // A newer read (⟳ Server lists) or Dispose took over.
             }
             catch (Exception ex)
             {
