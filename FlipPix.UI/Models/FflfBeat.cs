@@ -107,6 +107,33 @@ namespace FlipPix.UI.Models
         /// <summary>The dialogue the take was rendered with — a change after that makes the take stale.</summary>
         public string RenderedDialogue { get; set; } = string.Empty;
 
+        // ── Spoken line, voiced by Yakkinator ────────────────────────────────────────────────────
+
+        /// <summary>The words the character says in this beat; 🗣 Generate turns them into the dialogue audio.</summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(ShowLineHint))]
+        private string _lineText = string.Empty;
+
+        public bool ShowLineHint => string.IsNullOrEmpty(LineText);
+
+        /// <summary>The Yakkinator engine (indextts / echo / indic) and voice the line is spoken with.</summary>
+        [ObservableProperty] private string _ttsEngine = string.Empty;
+        [ObservableProperty] private string _ttsVoice = string.Empty;
+
+        /// <summary>The voices <see cref="TtsEngine"/> offers; filled by the page.</summary>
+        [ObservableProperty] private System.Collections.Generic.IReadOnlyList<string> _ttsVoiceOptions = System.Array.Empty<string>();
+
+        /// <summary>True while Yakkinator is speaking this beat's line.</summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(CanPickVoice))]
+        private bool _isVoicing;
+
+        public bool CanPickVoice => !IsVoicing;
+
+        /// <summary>The line, engine and voice the current dialogue file was generated from — Send all skips a beat
+        /// whose audio still matches.</summary>
+        public string VoicedFor { get; set; } = string.Empty;
+
         private BitmapImage? _thumbnail;
         public BitmapImage? Thumbnail => _thumbnail;
 

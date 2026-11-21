@@ -6150,14 +6150,39 @@
                                                                  FontSize="9.5" Foreground="{StaticResource TextPrimaryBrush}" Background="Transparent" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                                                                  TextWrapping="Wrap" Height="52" VerticalScrollBarVisibility="Auto" Padding="2,1" Margin="0,3,0,0"
                                                                  ToolTip="Edit this beat — click away to apply. A finished beat renders again, with every beat after it."/>
+                                                        <!-- Spoken line, voiced by Yakkinator -->
+                                                        <Grid Margin="0,3,0,0">
+                                                            <TextBox Text="{Binding LineText, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsVoicing, Mode=OneWay}"
+                                                                     FontSize="9.5" Foreground="{StaticResource TextPrimaryBrush}" Background="Transparent" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                     TextWrapping="Wrap" AcceptsReturn="False" Height="34" VerticalScrollBarVisibility="Auto" Padding="2,1"
+                                                                     ToolTip="What the character says in this beat. 🗣 Generate (or 🗣 Send all) has Yakkinator speak it and uses the audio as the beat's dialogue."/>
+                                                            <TextBlock Text="🗣 Spoken line…" FontSize="9.5" Margin="5,2,0,0" IsHitTestVisible="False" Foreground="{StaticResource TextFaintBrush}"
+                                                                       Visibility="{Binding ShowLineHint, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                        </Grid>
+                                                        <Grid Margin="0,3,0,0" IsEnabled="{Binding CanPickVoice}">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="72"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <ComboBox ItemsSource="{Binding DataContext.YakEngines, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                      DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding TtsEngine}"
+                                                                      FontSize="9" Height="20" Padding="3,0" ToolTip="Yakkinator engine for this beat's line"/>
+                                                            <ComboBox Grid.Column="1" ItemsSource="{Binding TtsVoiceOptions}" SelectedItem="{Binding TtsVoice}"
+                                                                      FontSize="9" Height="20" Padding="3,0" Margin="3,0,0,0" ToolTip="Voice for this beat's line"/>
+                                                        </Grid>
                                                         <Grid Margin="0,3,0,0" ToolTip="Optional dialogue for this beat. The character speaks it on camera with lip sync: the soundtrack is locked to this audio and only the picture is generated. The beat is lengthened to fit the line (up to 20 s).">
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="Auto"/>
                                                                 <ColumnDefinition Width="*"/>
                                                                 <ColumnDefinition Width="Auto"/>
                                                             </Grid.ColumnDefinitions>
-                                                            <Button Content="🎙 Browse…" Command="{Binding DataContext.BrowseDialogueCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
-                                                                    Style="{StaticResource SecondaryButtonStyle}" Height="20" Padding="6,0" FontSize="9.5"/>
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <Button Content="🎙 Browse…" Command="{Binding DataContext.BrowseDialogueCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                        Style="{StaticResource SecondaryButtonStyle}" Height="20" Padding="6,0" FontSize="9.5"/>
+                                                                <Button Content="🗣 Generate" Command="{Binding DataContext.GenerateLineCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                        Style="{StaticResource SecondaryButtonStyle}" Height="20" Padding="6,0" FontSize="9.5" Margin="3,0,0,0"
+                                                                        ToolTip="Send the spoken line to Yakkinator with the engine and voice picked above; the audio it makes becomes this beat's dialogue."/>
+                                                            </StackPanel>
                                                             <TextBlock Grid.Column="1" Text="{Binding DialogueName}" FontSize="9" Margin="5,0,2,0" VerticalAlignment="Center"
                                                                        Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis"/>
                                                             <Button Grid.Column="2" Content="✕" Command="{Binding DataContext.ClearDialogueCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
@@ -6181,6 +6206,28 @@
                                 </ScrollViewer>
 
                                 <WrapPanel Grid.Row="2" Margin="0,4,0,0">
+                                    <!-- Yakkinator: the engine and voice every beat's line is spoken with, and Send all -->
+                                    <Border CornerRadius="6" Padding="6,2" Margin="0,0,10,4" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="🗣 Yakkinator" FontSize="10.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                            <StackPanel Orientation="Horizontal" IsEnabled="{Binding CanPickYakVoice}">
+                                                <ComboBox ItemsSource="{Binding YakEngines}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding SelectedYakEngine}"
+                                                          Width="96" Height="22" FontSize="10" Margin="0,0,4,0"
+                                                          ToolTip="Engine for every beat's line — sets it on every beat (each beat can still pick its own)."/>
+                                                <ComboBox ItemsSource="{Binding YakVoices}" SelectedItem="{Binding SelectedYakVoice}"
+                                                          Width="130" Height="22" FontSize="10" Margin="0,0,4,0"
+                                                          ToolTip="Voice for every beat's line — sets it on every beat using this engine."/>
+                                            </StackPanel>
+                                            <Button Content="↻" Command="{Binding RefreshYakVoicesCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="22" Width="22" Padding="0" FontSize="10" Margin="0,0,4,0"
+                                                    ToolTip="Read the voices from Yakkinator again"/>
+                                            <Button Content="{Binding SendAllLabel}" Command="{Binding SendAllLinesCommand}" Style="{StaticResource AccentButtonStyle}" Height="22" Padding="8,0" FontSize="10.5" Margin="0,0,4,0"
+                                                    ToolTip="Voice every beat's spoken line with Yakkinator, one after another, and use each clip as that beat's dialogue. Beats already voiced from the same line and voice are skipped."/>
+                                            <Button Content="■" Command="{Binding StopVoicingCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="22" Width="22" Padding="0" FontSize="10"
+                                                    ToolTip="Stop voicing"/>
+                                            <TextBlock Text="{Binding YakStatus}" FontSize="9.5" VerticalAlignment="Center" Margin="6,0,0,0" MaxWidth="260"
+                                                       Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding YakStatus}"/>
+                                        </StackPanel>
+                                    </Border>
                                     <Button Content="▶ Joined film" Command="{Binding PlayJoinedCommand}" Style="{StaticResource AccentButtonStyle}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,6,4"/>
                                     <Button Content="🎞 Join now" Command="{Binding JoinCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,6,4"
                                             ToolTip="Joins every rendered beat in a row from beat 1."/>
@@ -6641,14 +6688,39 @@
                                                                  FontSize="9.5" Foreground="{StaticResource TextPrimaryBrush}" Background="Transparent" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                                                                  TextWrapping="Wrap" Height="52" VerticalScrollBarVisibility="Auto" Padding="2,1" Margin="0,3,0,0"
                                                                  ToolTip="Edit this beat — click away to apply. A finished beat renders again, with every beat after it."/>
+                                                        <!-- Spoken line, voiced by Yakkinator -->
+                                                        <Grid Margin="0,3,0,0">
+                                                            <TextBox Text="{Binding LineText, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsVoicing, Mode=OneWay}"
+                                                                     FontSize="9.5" Foreground="{StaticResource TextPrimaryBrush}" Background="Transparent" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                     TextWrapping="Wrap" AcceptsReturn="False" Height="34" VerticalScrollBarVisibility="Auto" Padding="2,1"
+                                                                     ToolTip="What the character says in this beat. 🗣 Generate (or 🗣 Send all) has Yakkinator speak it and uses the audio as the beat's dialogue."/>
+                                                            <TextBlock Text="🗣 Spoken line…" FontSize="9.5" Margin="5,2,0,0" IsHitTestVisible="False" Foreground="{StaticResource TextFaintBrush}"
+                                                                       Visibility="{Binding ShowLineHint, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                        </Grid>
+                                                        <Grid Margin="0,3,0,0" IsEnabled="{Binding CanPickVoice}">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="72"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <ComboBox ItemsSource="{Binding DataContext.YakEngines, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                      DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding TtsEngine}"
+                                                                      FontSize="9" Height="20" Padding="3,0" ToolTip="Yakkinator engine for this beat's line"/>
+                                                            <ComboBox Grid.Column="1" ItemsSource="{Binding TtsVoiceOptions}" SelectedItem="{Binding TtsVoice}"
+                                                                      FontSize="9" Height="20" Padding="3,0" Margin="3,0,0,0" ToolTip="Voice for this beat's line"/>
+                                                        </Grid>
                                                         <Grid Margin="0,3,0,0" ToolTip="Optional dialogue for this beat. The character speaks it on camera with lip sync: the soundtrack is locked to this audio and only the picture is generated. The beat is lengthened to fit the line (up to 20 s).">
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="Auto"/>
                                                                 <ColumnDefinition Width="*"/>
                                                                 <ColumnDefinition Width="Auto"/>
                                                             </Grid.ColumnDefinitions>
-                                                            <Button Content="🎙 Browse…" Command="{Binding DataContext.BrowseDialogueCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
-                                                                    Style="{StaticResource SecondaryButtonStyle}" Height="20" Padding="6,0" FontSize="9.5"/>
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <Button Content="🎙 Browse…" Command="{Binding DataContext.BrowseDialogueCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                        Style="{StaticResource SecondaryButtonStyle}" Height="20" Padding="6,0" FontSize="9.5"/>
+                                                                <Button Content="🗣 Generate" Command="{Binding DataContext.GenerateLineCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                        Style="{StaticResource SecondaryButtonStyle}" Height="20" Padding="6,0" FontSize="9.5" Margin="3,0,0,0"
+                                                                        ToolTip="Send the spoken line to Yakkinator with the engine and voice picked above; the audio it makes becomes this beat's dialogue."/>
+                                                            </StackPanel>
                                                             <TextBlock Grid.Column="1" Text="{Binding DialogueName}" FontSize="9" Margin="5,0,2,0" VerticalAlignment="Center"
                                                                        Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis"/>
                                                             <Button Grid.Column="2" Content="✕" Command="{Binding DataContext.ClearDialogueCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
@@ -6672,6 +6744,28 @@
                                 </ScrollViewer>
 
                                 <WrapPanel Grid.Row="2" Margin="0,4,0,0">
+                                    <!-- Yakkinator: the engine and voice every beat's line is spoken with, and Send all -->
+                                    <Border CornerRadius="6" Padding="6,2" Margin="0,0,10,4" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="🗣 Yakkinator" FontSize="10.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                            <StackPanel Orientation="Horizontal" IsEnabled="{Binding CanPickYakVoice}">
+                                                <ComboBox ItemsSource="{Binding YakEngines}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding SelectedYakEngine}"
+                                                          Width="96" Height="22" FontSize="10" Margin="0,0,4,0"
+                                                          ToolTip="Engine for every beat's line — sets it on every beat (each beat can still pick its own)."/>
+                                                <ComboBox ItemsSource="{Binding YakVoices}" SelectedItem="{Binding SelectedYakVoice}"
+                                                          Width="130" Height="22" FontSize="10" Margin="0,0,4,0"
+                                                          ToolTip="Voice for every beat's line — sets it on every beat using this engine."/>
+                                            </StackPanel>
+                                            <Button Content="↻" Command="{Binding RefreshYakVoicesCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="22" Width="22" Padding="0" FontSize="10" Margin="0,0,4,0"
+                                                    ToolTip="Read the voices from Yakkinator again"/>
+                                            <Button Content="{Binding SendAllLabel}" Command="{Binding SendAllLinesCommand}" Style="{StaticResource AccentButtonStyle}" Height="22" Padding="8,0" FontSize="10.5" Margin="0,0,4,0"
+                                                    ToolTip="Voice every beat's spoken line with Yakkinator, one after another, and use each clip as that beat's dialogue. Beats already voiced from the same line and voice are skipped."/>
+                                            <Button Content="■" Command="{Binding StopVoicingCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="22" Width="22" Padding="0" FontSize="10"
+                                                    ToolTip="Stop voicing"/>
+                                            <TextBlock Text="{Binding YakStatus}" FontSize="9.5" VerticalAlignment="Center" Margin="6,0,0,0" MaxWidth="260"
+                                                       Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding YakStatus}"/>
+                                        </StackPanel>
+                                    </Border>
                                     <Button Content="▶ Joined film" Command="{Binding PlayJoinedCommand}" Style="{StaticResource AccentButtonStyle}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,6,4"/>
                                     <Button Content="🎞 Join now" Command="{Binding JoinCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,6,4"
                                             ToolTip="Joins every rendered beat in a row from beat 1."/>

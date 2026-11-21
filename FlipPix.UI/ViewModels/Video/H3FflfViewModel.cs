@@ -142,12 +142,13 @@ namespace FlipPix.UI.ViewModels.Video
             OfferLora(_lora);
             OnInitialImagePathChanged(_initialImagePath);
             LoadTabSettings(s);
+            InitVoice(s);
             _loading = false;
 
             Beats.CollectionChanged += (_, e) =>
             {
                 if (e.OldItems != null) foreach (FflfBeat b in e.OldItems) b.PropertyChanged -= Beat_PropertyChanged;
-                if (e.NewItems != null) foreach (FflfBeat b in e.NewItems) b.PropertyChanged += Beat_PropertyChanged;
+                if (e.NewItems != null) foreach (FflfBeat b in e.NewItems) { b.PropertyChanged += Beat_PropertyChanged; AdoptVoice(b); }
                 OnPropertyChanged(nameof(HasBeats)); OnPropertyChanged(nameof(BeatSummary)); RefreshCommands();
             };
             ReparseBeats();
@@ -257,6 +258,7 @@ namespace FlipPix.UI.ViewModels.Video
             RedoBeatCommand?.NotifyCanExecuteChanged();
             BrowseDialogueCommand?.NotifyCanExecuteChanged();
             ClearDialogueCommand?.NotifyCanExecuteChanged();
+            RefreshVoiceCommands();
             PlayJoinedCommand?.NotifyCanExecuteChanged();
             JoinCommand?.NotifyCanExecuteChanged();
             StartOverCommand?.NotifyCanExecuteChanged();
@@ -350,6 +352,7 @@ namespace FlipPix.UI.ViewModels.Video
             if (index < 0) return;
             beat.DialoguePath = path;
             beat.DialogueSeconds = path.Length > 0 ? seconds : 0;
+            beat.VoicedFor = string.Empty;
             beat.UploadedDialogue = string.Empty;
             beat.UploadedDialogueFor = string.Empty;
 
@@ -430,6 +433,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// the old text is dropped — that beat and every one after it render again (queued, during a run).</summary>
         private void Beat_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
+            if (sender is FflfBeat voiced) OnBeatVoiceChanged(voiced, e.PropertyName);
             if (e.PropertyName != nameof(FflfBeat.Text) || _loading || _syncingBeatText || sender is not FflfBeat beat) return;
             var index = Beats.IndexOf(beat);
             if (index < 0) return;
@@ -482,13 +486,18 @@ namespace FlipPix.UI.ViewModels.Video
             OnUi(() =>
             {
                 // A beat's dialogue stays with its place in the story when its text is rewritten.
-                var dialogue = Beats.Select(b => (b.DialoguePath, b.DialogueSeconds)).ToList();
+                var dialogue = Beats.Select(b => (b.DialoguePath, b.DialogueSeconds, b.LineText, b.TtsEngine, b.TtsVoice, b.VoicedFor)).ToList();
                 for (var i = 0; i < keep; i++) Beats[i].Title = parsed[i].Title;
                 while (Beats.Count > keep) Beats.RemoveAt(Beats.Count - 1);
                 for (var i = keep; i < parsed.Count; i++)
                 {
                     var beat = new FflfBeat(i + 1, parsed[i].Title, parsed[i].Text);
-                    if (i < dialogue.Count) { beat.DialoguePath = dialogue[i].DialoguePath; beat.DialogueSeconds = dialogue[i].DialogueSeconds; }
+                    if (i < dialogue.Count)
+                    {
+                        var d = dialogue[i];
+                        beat.DialoguePath = d.DialoguePath; beat.DialogueSeconds = d.DialogueSeconds;
+                        beat.LineText = d.LineText; beat.TtsEngine = d.TtsEngine; beat.TtsVoice = d.TtsVoice; beat.VoicedFor = d.VoicedFor;
+                    }
                     Beats.Add(beat);
                 }
             });
@@ -697,6 +706,7 @@ namespace FlipPix.UI.ViewModels.Video
             nameof(LoraStrength), nameof(FirstPassSteps), nameof(LockFirstFrame), nameof(KeepInitialReference), nameof(JoinWhenDone),
             nameof(MaxFidelityReferences), nameof(RepairHandoffFace), nameof(FaceRepairStrength),
             nameof(SettingText), nameof(WardrobeText), nameof(WardrobeImagePath),
+            nameof(SelectedYakEngine), nameof(SelectedYakVoice),
         };
 
         protected override void OnPropertyChanged(PropertyChangedEventArgs e)
@@ -733,6 +743,8 @@ namespace FlipPix.UI.ViewModels.Video
             s.RepairHandoffFace = RepairHandoffFace;
             s.FaceRepairStrength = FaceRepairStrength;
             s.JoinWhenDone = JoinWhenDone;
+            s.YakEngine = SelectedYakEngine;
+            s.YakVoice = SelectedYakVoice;
             SaveTabSettings(s);
             try { _settingsService.SaveSettings(settings); }
             catch (Exception ex) { _logger.LogWarning($"{Profile.Name}: could not save settings: {ex.Message}"); }

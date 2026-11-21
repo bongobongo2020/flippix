@@ -199,6 +199,10 @@ namespace FlipPix.UI.ViewModels.Video
                 DialoguePath = b.DialoguePath,
                 DialogueSeconds = b.DialogueSeconds,
                 RenderedDialogue = b.IsDone ? b.RenderedDialogue : string.Empty,
+                LineText = b.LineText,
+                TtsEngine = b.TtsEngine,
+                TtsVoice = b.TtsVoice,
+                VoicedFor = b.VoicedFor,
             }).ToList(),
         };
 
@@ -295,6 +299,10 @@ namespace FlipPix.UI.ViewModels.Video
                         // The dialogue belongs to the beat's place in the story, whatever its text.
                         beat.DialoguePath = s.Beats[i].DialoguePath ?? string.Empty;
                         beat.DialogueSeconds = s.Beats[i].DialogueSeconds;
+                        beat.LineText = s.Beats[i].LineText ?? string.Empty;
+                        beat.TtsEngine = s.Beats[i].TtsEngine ?? string.Empty;
+                        beat.TtsVoice = s.Beats[i].TtsVoice ?? string.Empty;
+                        beat.VoicedFor = s.Beats[i].VoicedFor ?? string.Empty;
                     }
                     if (i < s.Beats.Count && s.Beats[i].Text == beat.Text)
                     {

@@ -667,6 +667,9 @@ public class H3FflfSettings
 
     public string InitialImagePath { get; set; } = string.Empty;
     public string BeatsText { get; set; } = string.Empty;
+    /// <summary>The Yakkinator engine and voice new spoken lines are voiced with.</summary>
+    public string YakEngine { get; set; } = "indextts";
+    public string YakVoice { get; set; } = string.Empty;
     /// <summary>Written in front of every beat (style, place, who is who). Optional.</summary>
     public string StyleText { get; set; } = string.Empty;
     /// <summary>The space and light, written after the style in front of every beat. Optional.</summary>

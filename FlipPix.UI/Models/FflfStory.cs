@@ -93,5 +93,10 @@ namespace FlipPix.UI.Models
         public double DialogueSeconds { get; set; }
         /// <summary>The dialogue the saved take was rendered with.</summary>
         public string RenderedDialogue { get; set; } = string.Empty;
+        /// <summary>The spoken line and the Yakkinator engine/voice it is voiced with.</summary>
+        public string LineText { get; set; } = string.Empty;
+        public string TtsEngine { get; set; } = string.Empty;
+        public string TtsVoice { get; set; } = string.Empty;
+        public string VoicedFor { get; set; } = string.Empty;
     }
 }
