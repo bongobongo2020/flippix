@@ -6150,6 +6150,20 @@
                                                                  FontSize="9.5" Foreground="{StaticResource TextPrimaryBrush}" Background="Transparent" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                                                                  TextWrapping="Wrap" Height="52" VerticalScrollBarVisibility="Auto" Padding="2,1" Margin="0,3,0,0"
                                                                  ToolTip="Edit this beat — click away to apply. A finished beat renders again, with every beat after it."/>
+                                                        <Grid Margin="0,3,0,0" ToolTip="Optional dialogue for this beat. The character speaks it on camera with lip sync: the soundtrack is locked to this audio and only the picture is generated. The beat is lengthened to fit the line (up to 20 s).">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Button Content="🎙 Browse…" Command="{Binding DataContext.BrowseDialogueCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                    Style="{StaticResource SecondaryButtonStyle}" Height="20" Padding="6,0" FontSize="9.5"/>
+                                                            <TextBlock Grid.Column="1" Text="{Binding DialogueName}" FontSize="9" Margin="5,0,2,0" VerticalAlignment="Center"
+                                                                       Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis"/>
+                                                            <Button Grid.Column="2" Content="✕" Command="{Binding DataContext.ClearDialogueCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                    Style="{StaticResource SecondaryButtonStyle}" Height="20" Width="20" Padding="0" FontSize="9" ToolTip="Remove the dialogue"
+                                                                    Visibility="{Binding HasDialogue, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                        </Grid>
                                                         <TextBlock Text="{Binding Status}" FontSize="9" Foreground="{StaticResource TextFaintBrush}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
                                                         <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
                                                             <Button Content="▶ Play" Command="{Binding DataContext.PlayBeatCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
@@ -6627,6 +6641,20 @@
                                                                  FontSize="9.5" Foreground="{StaticResource TextPrimaryBrush}" Background="Transparent" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                                                                  TextWrapping="Wrap" Height="52" VerticalScrollBarVisibility="Auto" Padding="2,1" Margin="0,3,0,0"
                                                                  ToolTip="Edit this beat — click away to apply. A finished beat renders again, with every beat after it."/>
+                                                        <Grid Margin="0,3,0,0" ToolTip="Optional dialogue for this beat. The character speaks it on camera with lip sync: the soundtrack is locked to this audio and only the picture is generated. The beat is lengthened to fit the line (up to 20 s).">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Button Content="🎙 Browse…" Command="{Binding DataContext.BrowseDialogueCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                    Style="{StaticResource SecondaryButtonStyle}" Height="20" Padding="6,0" FontSize="9.5"/>
+                                                            <TextBlock Grid.Column="1" Text="{Binding DialogueName}" FontSize="9" Margin="5,0,2,0" VerticalAlignment="Center"
+                                                                       Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis"/>
+                                                            <Button Grid.Column="2" Content="✕" Command="{Binding DataContext.ClearDialogueCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                    Style="{StaticResource SecondaryButtonStyle}" Height="20" Width="20" Padding="0" FontSize="9" ToolTip="Remove the dialogue"
+                                                                    Visibility="{Binding HasDialogue, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                        </Grid>
                                                         <TextBlock Text="{Binding Status}" FontSize="9" Foreground="{StaticResource TextFaintBrush}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
                                                         <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
                                                             <Button Content="▶ Play" Command="{Binding DataContext.PlayBeatCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"

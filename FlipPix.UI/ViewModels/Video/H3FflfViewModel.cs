@@ -102,6 +102,8 @@ namespace FlipPix.UI.ViewModels.Video
             RedoBeatCommand = new RelayCommand<FflfBeat>(b => { if (b != null) _ = RedoAsync(b); }, CanRedo);
             PlayBeatCommand = new RelayCommand<FflfBeat>(b => { if (b?.HasVideo == true) { WatchingLive = false; Show(b.VideoPath); } });
             ShowFrameCommand = new RelayCommand<FflfBeat>(ShowBeat);
+            BrowseDialogueCommand = new RelayCommand<FflfBeat>(b => { if (b != null) _ = BrowseDialogueAsync(b); }, b => b != null && !b.IsRendering);
+            ClearDialogueCommand = new RelayCommand<FflfBeat>(b => { if (b != null) SetDialogue(b, string.Empty, 0); }, b => b != null && !b.IsRendering && b.HasDialogue);
             ClosePreviewImageCommand = new RelayCommand(() => { PreviewImagePath = string.Empty; if (IsProcessing) WatchingLive = true; });
             PlayJoinedCommand = new RelayCommand(() => { WatchingLive = false; Show(JoinedVideoPath); }, () => HasJoined);
             JoinCommand = new RelayCommand(() => _ = JoinNowAsync(), () => !IsProcessing && Beats.Count(b => b.HasVideo) >= 2);
@@ -166,6 +168,8 @@ namespace FlipPix.UI.ViewModels.Video
         public RelayCommand<FflfBeat> RedoBeatCommand { get; }
         public RelayCommand<FflfBeat> PlayBeatCommand { get; }
         public RelayCommand<FflfBeat> ShowFrameCommand { get; }
+        public RelayCommand<FflfBeat> BrowseDialogueCommand { get; }
+        public RelayCommand<FflfBeat> ClearDialogueCommand { get; }
         public RelayCommand ClosePreviewImageCommand { get; }
         public RelayCommand PlayJoinedCommand { get; }
         public RelayCommand JoinCommand { get; }
@@ -251,6 +255,8 @@ namespace FlipPix.UI.ViewModels.Video
             GenerateCommand?.NotifyCanExecuteChanged();
             StopCommand?.NotifyCanExecuteChanged();
             RedoBeatCommand?.NotifyCanExecuteChanged();
+            BrowseDialogueCommand?.NotifyCanExecuteChanged();
+            ClearDialogueCommand?.NotifyCanExecuteChanged();
             PlayJoinedCommand?.NotifyCanExecuteChanged();
             JoinCommand?.NotifyCanExecuteChanged();
             StartOverCommand?.NotifyCanExecuteChanged();
@@ -316,6 +322,78 @@ namespace FlipPix.UI.ViewModels.Video
             AddLog($"Opening image: {Path.GetFileName(path)}");
         }
 
+        // ── Dialogue (optional, per beat) ────────────────────────────────────────────────────────
+
+        /// <summary>The longest beat rendered here; dialogue longer than this is cut.</summary>
+        public const double MaxBeatSeconds = 20;
+
+        private async Task BrowseDialogueAsync(FflfBeat beat)
+        {
+            var start = !string.IsNullOrEmpty(beat.DialoguePath) ? Path.GetDirectoryName(beat.DialoguePath) : null;
+            if (string.IsNullOrEmpty(start) || !Directory.Exists(start))
+                start = Beats.Select(b => Path.GetDirectoryName(b.DialoguePath ?? string.Empty))
+                             .FirstOrDefault(d => !string.IsNullOrEmpty(d) && Directory.Exists(d))
+                        ?? Environment.GetFolderPath(Environment.SpecialFolder.MyMusic);
+            var path = await _fileDialogService.OpenFileDialogAsync($"Dialogue for {beat.Label}",
+                "Audio Files|*.wav;*.mp3;*.flac;*.ogg;*.m4a;*.aac;*.opus|All Files|*.*", start, persistKey: $"{Profile.Key}.dialogue");
+            if (path == null || !File.Exists(path)) return;
+            var seconds = await Task.Run(() => GetVideoDuration(path));
+            SetDialogue(beat, path, seconds);
+        }
+
+        /// <summary>Sets (or, with an empty path, clears) a beat's dialogue. A take rendered with other dialogue is
+        /// stale: that beat and every one after it render again (queued, during a run).</summary>
+        private void SetDialogue(FflfBeat beat, string path, double seconds)
+        {
+            if (beat.IsRendering) return;
+            var index = Beats.IndexOf(beat);
+            if (index < 0) return;
+            beat.DialoguePath = path;
+            beat.DialogueSeconds = path.Length > 0 ? seconds : 0;
+            beat.UploadedDialogue = string.Empty;
+            beat.UploadedDialogueFor = string.Empty;
+
+            if (path.Length == 0) AddLog($"{beat.Label}: dialogue removed.");
+            else
+            {
+                var length = seconds > 0 ? $"{seconds:0.0} s" : "length unknown";
+                AddLog($"{beat.Label}: dialogue {Path.GetFileName(path)} ({length}) — the character speaks it, lips locked to the audio." +
+                       (seconds > MaxBeatSeconds ? $" ⚠ Longer than {MaxBeatSeconds:0} s: the beat is cut at {MaxBeatSeconds:0} s." : string.Empty));
+            }
+
+            if ((beat.State == FflfBeatState.Done || beat.HasVideo) && beat.RenderedDialogue != beat.DialoguePath)
+            {
+                if (IsProcessing) { if (CanStartAt(index)) QueueRedo(beat, index); }
+                else
+                {
+                    ResetFrom(index);
+                    AddLog($"{beat.Label}'s dialogue changed — it and every beat after it will render again.");
+                }
+            }
+            OnPropertyChanged(nameof(BeatSummary));
+            OnPropertyChanged(nameof(GenerateLabel));
+            RefreshCommands();
+            ScheduleStorySave();
+        }
+
+        /// <summary>How long a beat renders: the tab's beat length, stretched to fit its dialogue.</summary>
+        protected double SecondsFor(FflfBeat beat) =>
+            beat.HasDialogue && beat.DialogueSeconds > 0
+                ? Math.Min(MaxBeatSeconds, Math.Max(BeatSeconds, Math.Ceiling((beat.DialogueSeconds + 0.3) * 10) / 10))
+                : BeatSeconds;
+
+        private async Task<string?> UploadDialogueAsync(FflfBeat beat, CancellationToken ct)
+        {
+            if (!beat.HasDialogue) return null;
+            if (beat.UploadedDialogue.Length > 0 && beat.UploadedDialogueFor == beat.DialoguePath) return beat.UploadedDialogue;
+            ProcessingStatus = $"{beat.Label}: sending the dialogue to ComfyUI…";
+            var name = await _comfyUIService.UploadAudioAsync(beat.DialoguePath, ct);
+            if (string.IsNullOrEmpty(name)) throw new InvalidOperationException($"{beat.Label}: the dialogue could not be uploaded.");
+            beat.UploadedDialogue = name;
+            beat.UploadedDialogueFor = beat.DialoguePath;
+            return name;
+        }
+
         // ── Story beats ──────────────────────────────────────────────────────────────────────────
 
         [ObservableProperty] private string _beatsText = string.Empty;
@@ -332,7 +410,7 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 if (Beats.Count == 0) return "No beats yet — paste them above.";
                 var done = Beats.Count(b => b.IsDone);
-                var total = Beats.Count * BeatSeconds;
+                var total = Beats.Sum(SecondsFor);
                 return $"{Beats.Count} beat{(Beats.Count == 1 ? "" : "s")} · ≈{total:0.#} s in all · {done} rendered";
             }
         }
@@ -403,10 +481,16 @@ namespace FlipPix.UI.ViewModels.Video
 
             OnUi(() =>
             {
+                // A beat's dialogue stays with its place in the story when its text is rewritten.
+                var dialogue = Beats.Select(b => (b.DialoguePath, b.DialogueSeconds)).ToList();
                 for (var i = 0; i < keep; i++) Beats[i].Title = parsed[i].Title;
                 while (Beats.Count > keep) Beats.RemoveAt(Beats.Count - 1);
                 for (var i = keep; i < parsed.Count; i++)
-                    Beats.Add(new FflfBeat(i + 1, parsed[i].Title, parsed[i].Text));
+                {
+                    var beat = new FflfBeat(i + 1, parsed[i].Title, parsed[i].Text);
+                    if (i < dialogue.Count) { beat.DialoguePath = dialogue[i].DialoguePath; beat.DialogueSeconds = dialogue[i].DialogueSeconds; }
+                    Beats.Add(beat);
+                }
             });
             if (keep < parsed.Count || keep < Beats.Count) JoinedVideoPath = string.Empty;
             OnPropertyChanged(nameof(BeatSummary));
@@ -1035,13 +1119,18 @@ namespace FlipPix.UI.ViewModels.Video
             ProcessingStatus = $"{label}: {Shorten(beat.Text, 70)}";
             OnPropertyChanged(nameof(ReadyHint));
 
+            string? dialogue;
+            try { dialogue = await UploadDialogueAsync(beat, ct); }
+            catch { beat.State = FflfBeatState.Failed; beat.Status = "dialogue upload failed"; throw; }
             var prompt = ComposeBeatPrompt(beat, index, total, identityImage != null);
+            if (dialogue != null) prompt = FflfGraph.WithDialogueDirection(prompt);
             var request = CustomizeRender(new FflfBeatRender
             {
                 StartImage = startImage,
                 IdentityImage = identityImage,
                 Prompt = prompt,
-                Seconds = BeatSeconds,
+                Seconds = SecondsFor(beat),
+                DialogueAudio = dialogue,
                 Seed = beat.Seed,
                 AspectRatio = aspect,
                 FirstPassMegapixels = FirstPassMegapixels,
@@ -1057,7 +1146,8 @@ namespace FlipPix.UI.ViewModels.Video
             }, index);
             var graph = BuildBeatGraph(template, request, index, out var pruned);
             AddLog($"{label} — seed {beat.Seed}, starts on {(index == 0 ? "the opening image" : $"beat {index}'s last frame")}" +
-                   $"{(LockFirstFrame ? " (anchored at frame 0)" : " (reference only)")}, {pruned} node(s) pruned.");
+                   $"{(LockFirstFrame ? " (anchored at frame 0)" : " (reference only)")}, {pruned} node(s) pruned" +
+                   (dialogue != null ? $", {request.Seconds:0.#} s, lips locked to {Path.GetFileName(beat.DialoguePath)}." : "."));
 
             var share = 1.0 / Math.Max(1, total - start);
             var done = index - start;
@@ -1105,6 +1195,7 @@ namespace FlipPix.UI.ViewModels.Video
             beat.LastFramePath = Keep(frame, $"{_runFolder}_beat{index + 1:D2}_last");
             beat.UploadedLastFrame = string.Empty;   // uploaded when the next beat needs it
             beat.RenderedText = beat.Text;
+            beat.RenderedDialogue = beat.DialoguePath;
             beat.State = FflfBeatState.Done;
             beat.Status = $"seed {beat.Seed} · {(DateTime.Now - renderStart):m\\:ss}";
             ResultVideoPath = video;

@@ -7196,6 +7196,16 @@
                                                 <TextBox Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" IsReadOnly="{Binding IsRendering}"
                                                          FontSize="9.5" TextWrapping="Wrap" Height="52" MinHeight="0" Padding="3,2" Margin="0,3,0,0"
                                                          ToolTip.Tip="Edit this beat — click away to apply. A finished beat renders again, with every beat after it."/>
+                                                <Grid Margin="0,3,0,0" ColumnDefinitions="Auto,*,Auto"
+                                                      ToolTip.Tip="Optional dialogue for this beat. The character speaks it on camera with lip sync: the soundtrack is locked to this audio and only the picture is generated. The beat is lengthened to fit the line (up to 20 s).">
+                                                    <Button Content="🎙 Browse…" Command="{Binding $parent[ItemsControl].((vmv:H3FflfViewModel)DataContext).BrowseDialogueCommand}" CommandParameter="{Binding}"
+                                                            Theme="{StaticResource SecondaryButtonStyle}" Height="20" Padding="6,0" FontSize="9.5"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding DialogueName}" FontSize="9" Margin="5,0,2,0" VerticalAlignment="Center"
+                                                               Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis"/>
+                                                    <Button Grid.Column="2" Content="✕" Command="{Binding $parent[ItemsControl].((vmv:H3FflfViewModel)DataContext).ClearDialogueCommand}" CommandParameter="{Binding}"
+                                                            Theme="{StaticResource SecondaryButtonStyle}" Height="20" Width="20" Padding="0" FontSize="9" ToolTip.Tip="Remove the dialogue"
+                                                            IsVisible="{Binding HasDialogue}"/>
+                                                </Grid>
                                                 <TextBlock Text="{Binding Status}" FontSize="9" Foreground="{StaticResource TextFaintBrush}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
                                                 <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
                                                     <Button Content="▶ Play" Command="{Binding $parent[ItemsControl].((vmv:H3FflfViewModel)DataContext).PlayBeatCommand}" CommandParameter="{Binding}"

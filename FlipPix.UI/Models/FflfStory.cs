@@ -88,5 +88,10 @@ namespace FlipPix.UI.Models
         public string VideoPath { get; set; } = string.Empty;
         public string LastFramePath { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
+        /// <summary>The beat's optional dialogue audio, and its length in seconds.</summary>
+        public string DialoguePath { get; set; } = string.Empty;
+        public double DialogueSeconds { get; set; }
+        /// <summary>The dialogue the saved take was rendered with.</summary>
+        public string RenderedDialogue { get; set; } = string.Empty;
     }
 }

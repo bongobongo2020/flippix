@@ -196,6 +196,9 @@ namespace FlipPix.UI.ViewModels.Video
                 VideoPath = b.VideoPath,
                 LastFramePath = b.LastFramePath,
                 Status = b.IsDone ? b.Status : string.Empty,
+                DialoguePath = b.DialoguePath,
+                DialogueSeconds = b.DialogueSeconds,
+                RenderedDialogue = b.IsDone ? b.RenderedDialogue : string.Empty,
             }).ToList(),
         };
 
@@ -287,16 +290,24 @@ namespace FlipPix.UI.ViewModels.Video
                 for (var i = 0; i < parsed.Count; i++)
                 {
                     var beat = new FflfBeat(i + 1, parsed[i].Title, parsed[i].Text);
+                    if (i < s.Beats.Count)
+                    {
+                        // The dialogue belongs to the beat's place in the story, whatever its text.
+                        beat.DialoguePath = s.Beats[i].DialoguePath ?? string.Empty;
+                        beat.DialogueSeconds = s.Beats[i].DialogueSeconds;
+                    }
                     if (i < s.Beats.Count && s.Beats[i].Text == beat.Text)
                     {
                         var saved = s.Beats[i];
                         beat.Seed = saved.Seed;
-                        chainIntact &= saved.Done && File.Exists(saved.VideoPath) && File.Exists(saved.LastFramePath);
+                        chainIntact &= saved.Done && File.Exists(saved.VideoPath) && File.Exists(saved.LastFramePath)
+                                       && (saved.RenderedDialogue ?? string.Empty) == beat.DialoguePath;
                         if (chainIntact)
                         {
                             beat.VideoPath = saved.VideoPath;
                             beat.LastFramePath = saved.LastFramePath;
                             beat.RenderedText = beat.Text;
+                            beat.RenderedDialogue = beat.DialoguePath;
                             beat.Status = saved.Status;
                             beat.State = FflfBeatState.Done;
                         }

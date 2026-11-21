@@ -50,6 +50,10 @@ namespace FlipPix.UI.Services
         /// <summary>Sampler and first-pass scheduler; empty keeps the graph's own (er_sde · sgm_uniform).</summary>
         public string Sampler { get; init; } = string.Empty;
         public string FirstPassScheduler { get; init; } = string.Empty;
+
+        /// <summary>The beat's dialogue (an uploaded audio file), or null. The soundtrack is locked to it and H3
+        /// draws only the picture, so the speaker's lips follow the words — see <see cref="FflfGraph.AddDialogueLock"/>.</summary>
+        public string? DialogueAudio { get; init; }
     }
 
     /// <summary>
@@ -77,6 +81,15 @@ namespace FlipPix.UI.Services
         private const string Pass2Guider = MiniMaxI2VViewModel.TpSampler2Guider;   // 151:32
         private const string Pass1Latent = MiniMaxI2VViewModel.TpRef2V;             // 151:11, output 1
         private const string Pass2Latent = "151:10";                               // LTXVConcatAVLatent
+        private const string Pass1Sampler = "151:21";                              // SamplerCustomAdvanced
+        private const string Pass2Sampler = "151:16";                              // SamplerCustomAdvanced
+        private const string FrameCount = "151:19";                                // seconds → frames (17k+5), output 1
+        private const string AudioVae = "4";                                       // VAELoader, audio
+        private const string AudioDecode = "151:14";                               // VAEDecodeAudio → the export
+
+        public const string DialogueLoadNode = "fflf_dlg_load";
+        public const string DialogueLockPass1Node = "fflf_dlg_lock1";
+        public const string DialogueLockPass2Node = "fflf_dlg_lock2";
 
         // ── Beats ───────────────────────────────────────────────────────────────────────────────────
 
@@ -209,7 +222,91 @@ namespace FlipPix.UI.Services
             if (r.LockFirstFrame) AddFirstFrameGuide(root, r.StartImage);
             AddLastFrameSave(root, r.OutputPrefix + "_last");
             if (r.RefineLoras != null) AddRefineLoraMix(root, r.ExtraLoras, r.RefineLoras);
+            // Last: it wraps whatever model each guider ends up reading, refine LoRA mix included.
+            if (!string.IsNullOrEmpty(r.DialogueAudio)) AddDialogueLock(root, r.DialogueAudio!);
             return root;
+        }
+
+        /// <summary>What the prompt adds when a beat has dialogue: the soundtrack is speech, and someone in frame says it.</summary>
+        public const string DialogueDirection =
+            "The soundtrack is this shot's dialogue: the character who is speaking says every word of it on camera, " +
+            "mouth, lips, jaw and face moving in exact sync with the voice — clear, natural talking, with the mouth visible.";
+
+        public static string WithDialogueDirection(string prompt) =>
+            string.IsNullOrWhiteSpace(prompt) ? DialogueDirection : prompt.TrimEnd() + "\n\n" + DialogueDirection;
+
+        /// <summary>
+        /// Locks the beat's soundtrack to <paramref name="audio"/> (an uploaded input file) so the character speaks it
+        /// with lip sync. H3 samples one audio-video latent; <c>MiniMaxH3NativeAudioLock</c> encodes the exact audio
+        /// into that latent's audio half, holds it at its clean timestep and masks sampling so only the video is
+        /// denoised — the picture is drawn attending to the words, which is what moves the mouth in time.
+        ///
+        /// <para>The dialogue is first padded with silence and cut to the clip's length (frames / 24), so a short
+        /// line ends in quiet rather than in whatever the model would have made up. Both passes are locked (the
+        /// refine pass would otherwise redraw the audio, and the mouths with it), and the export takes the lock's
+        /// exact audio rather than a VAE round trip of it.</para>
+        /// </summary>
+        public static void AddDialogueLock(JsonObject root, string audio)
+        {
+            static JsonObject Node(string cls, string title, JsonObject inputs) => new()
+            {
+                ["class_type"] = cls,
+                ["_meta"] = new JsonObject { ["title"] = title },
+                ["inputs"] = inputs,
+            };
+            static JsonArray L(string id, int slot = 0) => new() { id, slot };
+            JsonObject Inputs(string id) => root[id]?["inputs"] as JsonObject
+                ?? throw new InvalidOperationException($"Workflow node '{id}' is missing — h3-erosmax-2pass.json no longer matches the FFLF tab's dialogue lock.");
+
+            var pass1Guider = Inputs(Pass1Guider);
+            var pass1Sampler = Inputs(Pass1Sampler);
+            Inputs(FrameCount);
+
+            root[DialogueLoadNode] = Node("LoadAudio", "FFLF: dialogue", new JsonObject { ["audio"] = audio });
+            root["fflf_dlg_dur"] = Node("ComfyMathExpression", "FFLF: clip duration = frames / 24",
+                new JsonObject { ["expression"] = "a / 24", ["values.a"] = L(FrameCount, 1) });
+            root["fflf_dlg_silence"] = Node("EmptyAudio", "FFLF: silence to pad the dialogue",
+                new JsonObject { ["duration"] = L("fflf_dlg_dur"), ["sample_rate"] = 32000, ["channels"] = 2 });
+            root["fflf_dlg_pad"] = Node("AudioConcat", "FFLF: dialogue + silence",
+                new JsonObject { ["audio1"] = L(DialogueLoadNode), ["audio2"] = L("fflf_dlg_silence"), ["direction"] = "after" });
+            root["fflf_dlg_fit"] = Node("TrimAudioDuration", "FFLF: dialogue fitted to the clip",
+                new JsonObject { ["audio"] = L("fflf_dlg_pad"), ["start_index"] = 0, ["duration"] = L("fflf_dlg_dur") });
+
+            // Pass 1: the lock wraps the guider's model and replaces the sampler's starting latent.
+            root[DialogueLockPass1Node] = Node("MiniMaxH3NativeAudioLock", "FFLF: dialogue lock, pass 1", new JsonObject
+            {
+                ["model"] = pass1Guider["model"]!.DeepClone(),
+                ["av_latent"] = pass1Sampler["latent_image"]!.DeepClone(),
+                ["audio_vae"] = L(AudioVae),
+                ["audio"] = L("fflf_dlg_fit"),
+            });
+            pass1Guider["model"] = L(DialogueLockPass1Node, 0);
+            pass1Sampler["latent_image"] = L(DialogueLockPass1Node, 1);
+
+            // Pass 2 (a draft has none).
+            if (root[Pass2Guider]?["inputs"] is JsonObject pass2Guider && root[Pass2Sampler]?["inputs"] is JsonObject pass2Sampler)
+            {
+                root[DialogueLockPass2Node] = Node("MiniMaxH3NativeAudioLock", "FFLF: dialogue lock, pass 2", new JsonObject
+                {
+                    ["model"] = pass2Guider["model"]!.DeepClone(),
+                    ["av_latent"] = pass2Sampler["latent_image"]!.DeepClone(),
+                    ["audio_vae"] = L(AudioVae),
+                    ["audio"] = L("fflf_dlg_fit"),
+                });
+                pass2Guider["model"] = L(DialogueLockPass2Node, 0);
+                pass2Sampler["latent_image"] = L(DialogueLockPass2Node, 1);
+            }
+
+            // The export: the exact dialogue, not the decoded latent.
+            foreach (var (id, node) in root.ToList())
+            {
+                if (id.StartsWith("fflf_dlg_", StringComparison.Ordinal) || node?["inputs"] is not JsonObject inputs) continue;
+                foreach (var key in inputs.Select(kv => kv.Key).ToList())
+                {
+                    if (inputs[key] is JsonArray link && link.Count == 2 && link[0]?.ToString() == AudioDecode && link[1]?.ToString() == "0")
+                        inputs[key] = L(DialogueLockPass1Node, 2);
+                }
+            }
         }
 
         public const string RefineNodePrefix = "fflf_refine_";

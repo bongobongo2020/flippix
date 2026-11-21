@@ -226,6 +226,42 @@ public class FflfGraphTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Build_WithDialogue_LocksTheSoundtrackOnEveryPass(bool preview)
+    {
+        var root = FflfGraph.Build(TwoPassJson(), Request(preview) with { DialogueAudio = "line.wav" }, out _);
+
+        Assert.Equal("line.wav", root[FflfGraph.DialogueLoadNode]!["inputs"]!["audio"]!.GetValue<string>());
+        Assert.Equal(new[] { FflfGraph.DialogueLockPass1Node, "0" }, Link(root, "151:29", "model"));
+        Assert.Equal(new[] { FflfGraph.DialogueLockPass1Node, "1" }, Link(root, "151:21", "latent_image"));
+        Assert.Equal("MiniMaxH3NativeAudioLock", root[FflfGraph.DialogueLockPass1Node]!["class_type"]!.GetValue<string>());
+        Assert.Equal(new[] { "151:11", "1" }, Link(root, FflfGraph.DialogueLockPass1Node, "av_latent"));
+
+        // A draft has no refine pass; a full render locks it too.
+        Assert.Equal(!preview, root.ContainsKey(FflfGraph.DialogueLockPass2Node));
+        if (!preview)
+        {
+            Assert.Equal(new[] { FflfGraph.DialogueLockPass2Node, "0" }, Link(root, "151:32", "model"));
+            Assert.Equal(new[] { FflfGraph.DialogueLockPass2Node, "1" }, Link(root, "151:16", "latent_image"));
+        }
+
+        // Nothing exports the decoded audio any more: the exact dialogue goes out.
+        foreach (var (id, node) in root)
+            foreach (var (_, value) in node!["inputs"]!.AsObject())
+                if (value is JsonArray { Count: 2 } link)
+                    Assert.False(link[0]!.ToString() == "151:14" && link[1]!.ToString() == "0", $"{id} still reads the decoded audio");
+        AssertLinksResolve(root);
+    }
+
+    [Fact]
+    public void Build_WithoutDialogue_AddsNoLock()
+    {
+        var root = FflfGraph.Build(TwoPassJson(), Request(), out _);
+        Assert.DoesNotContain(root, kv => kv.Key.StartsWith("fflf_dlg_", StringComparison.Ordinal));
+    }
+
     private static void AssertLinksResolve(JsonObject root)
     {
         foreach (var (id, node) in root)

@@ -81,6 +81,32 @@ namespace FlipPix.UI.Models
         /// <summary>The text the take was rendered from — an edit after that makes the take stale.</summary>
         public string RenderedText { get; set; } = string.Empty;
 
+        // ── Optional dialogue ────────────────────────────────────────────────────────────────────
+
+        /// <summary>An audio file the character speaks in this beat. When set, the beat's soundtrack is locked to it
+        /// (MiniMaxH3NativeAudioLock) and H3 only draws the picture, lips in time with the words.</summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(HasDialogue), nameof(DialogueName))]
+        private string _dialoguePath = string.Empty;
+
+        public bool HasDialogue => !string.IsNullOrEmpty(DialoguePath) && File.Exists(DialoguePath);
+
+        public string DialogueName => HasDialogue
+            ? Path.GetFileName(DialoguePath) + (DialogueSeconds > 0 ? $" · {DialogueSeconds:0.0} s" : string.Empty)
+            : "No dialogue";
+
+        /// <summary>The dialogue's length, measured when it is picked; 0 if unknown.</summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(DialogueName))]
+        private double _dialogueSeconds;
+
+        /// <summary>The dialogue file as uploaded to ComfyUI's input folder, and the local file it was uploaded from.</summary>
+        public string UploadedDialogue { get; set; } = string.Empty;
+        public string UploadedDialogueFor { get; set; } = string.Empty;
+
+        /// <summary>The dialogue the take was rendered with — a change after that makes the take stale.</summary>
+        public string RenderedDialogue { get; set; } = string.Empty;
+
         private BitmapImage? _thumbnail;
         public BitmapImage? Thumbnail => _thumbnail;
 
@@ -108,6 +134,7 @@ namespace FlipPix.UI.Models
             LastFramePath = string.Empty;
             UploadedLastFrame = string.Empty;
             RenderedText = string.Empty;
+            RenderedDialogue = string.Empty;
         }
     }
 }
