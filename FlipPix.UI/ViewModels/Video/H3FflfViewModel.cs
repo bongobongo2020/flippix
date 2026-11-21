@@ -143,6 +143,7 @@ namespace FlipPix.UI.ViewModels.Video
             OnInitialImagePathChanged(_initialImagePath);
             LoadTabSettings(s);
             InitVoice(s);
+            InitStoryEngine(s);
             _loading = false;
 
             Beats.CollectionChanged += (_, e) =>
@@ -259,6 +260,7 @@ namespace FlipPix.UI.ViewModels.Video
             BrowseDialogueCommand?.NotifyCanExecuteChanged();
             ClearDialogueCommand?.NotifyCanExecuteChanged();
             RefreshVoiceCommands();
+            RefreshEngineCommands();
             PlayJoinedCommand?.NotifyCanExecuteChanged();
             JoinCommand?.NotifyCanExecuteChanged();
             StartOverCommand?.NotifyCanExecuteChanged();
@@ -707,6 +709,7 @@ namespace FlipPix.UI.ViewModels.Video
             nameof(MaxFidelityReferences), nameof(RepairHandoffFace), nameof(FaceRepairStrength),
             nameof(SettingText), nameof(WardrobeText), nameof(WardrobeImagePath),
             nameof(SelectedYakEngine), nameof(SelectedYakVoice),
+            nameof(EngineStoryText), nameof(EngineBeatCount), nameof(EngineWriter), nameof(EngineWithDialogue),
         };
 
         protected override void OnPropertyChanged(PropertyChangedEventArgs e)
@@ -745,6 +748,7 @@ namespace FlipPix.UI.ViewModels.Video
             s.JoinWhenDone = JoinWhenDone;
             s.YakEngine = SelectedYakEngine;
             s.YakVoice = SelectedYakVoice;
+            SaveStoryEngine(s);
             SaveTabSettings(s);
             try { _settingsService.SaveSettings(settings); }
             catch (Exception ex) { _logger.LogWarning($"{Profile.Name}: could not save settings: {ex.Message}"); }
@@ -882,7 +886,7 @@ namespace FlipPix.UI.ViewModels.Video
         private bool CanStartAt(int index) =>
             index == 0 ? HasInitialImage : index > 0 && index < Beats.Count && Beats[index - 1].IsDone && Beats[index - 1].HasLastFrame;
 
-        private bool CanGenerate() => !IsProcessing && HasInitialImage && Beats.Count > 0 && FirstUnfinished() is var i && i >= 0 && CanStartAt(i);
+        private bool CanGenerate() => !IsProcessing && !IsEngineWriting && HasInitialImage && Beats.Count > 0 && FirstUnfinished() is var i && i >= 0 && CanStartAt(i);
 
         private void Stop()
         {

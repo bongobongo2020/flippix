@@ -276,6 +276,26 @@ namespace FlipPix.UI
             if (DroppedImage(e) is { } path) _viewModel.H3FflfVM.SetInitialImage(path);
         }
 
+        // A .txt / .md dropped on the ✨ story box is read into it (a TextBox takes plain text drops on its own).
+        private static string? DroppedStoryFile(System.Windows.DragEventArgs e) =>
+            e.Data.GetData(System.Windows.DataFormats.FileDrop) is string[] { Length: > 0 } files
+            && System.IO.Path.GetExtension(files[0]).ToLowerInvariant() is ".txt" or ".md" or ".markdown" or ".text"
+                ? files[0] : null;
+
+        private void FflfStoryBox_PreviewDragOver(object sender, System.Windows.DragEventArgs e)
+        {
+            if (!e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop)) return;
+            e.Effects = DroppedStoryFile(e) != null ? System.Windows.DragDropEffects.Copy : System.Windows.DragDropEffects.None;
+            e.Handled = true;
+        }
+
+        private void FflfStoryBox_PreviewDrop(object sender, System.Windows.DragEventArgs e)
+        {
+            if (DroppedStoryFile(e) is not { } path) return;
+            _viewModel.H3FflfVM.LoadStoryFile(path);
+            e.Handled = true;
+        }
+
         // ── Action tab ──────────────────────────────────────────────────────────────────────────
 
         private void H3ActionVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

@@ -87,12 +87,32 @@ namespace FlipPix.UI.Services
             public void Dispose() { _onDispose?.Invoke(); _onDispose = null; }
         }
 
+        // Set for a pass the user pointed at DeepSeek on its own page, whatever Settings' story switch says.
+        private static readonly AsyncLocal<bool> _preferDeepSeek = new();
+
+        /// <summary>
+        /// Sends every text call made inside the returned scope to DeepSeek when a DeepSeek key is saved in
+        /// Settings, even with "use DeepSeek for stories" switched off. Calls that carry images still go to the
+        /// local server. Dispose to end the scope.
+        /// </summary>
+        public IDisposable PreferDeepSeek()
+        {
+            var previous = _preferDeepSeek.Value;
+            _preferDeepSeek.Value = true;
+            return new Scope(() => _preferDeepSeek.Value = previous);
+        }
+
+        /// <summary>True when a DeepSeek API key is saved in Settings.</summary>
+        public bool HasDeepSeekKey => !string.IsNullOrWhiteSpace(_getSettings?.Invoke()?.DeepSeekApiKey);
+
         /// <summary>The DeepSeek settings when this text call should go there, else null.</summary>
         private FlipPix.Core.Models.LMStudioSettings? DeepSeekTarget()
         {
             if (_localOnly.Value) return null;
             var settings = _getSettings?.Invoke();
-            return settings?.DeepSeekActive == true ? settings : null;
+            if (settings == null) return null;
+            if (settings.DeepSeekActive) return settings;
+            return _preferDeepSeek.Value && !string.IsNullOrWhiteSpace(settings.DeepSeekApiKey) ? settings : null;
         }
 
         /// <summary>

@@ -701,6 +701,12 @@ public class H3FflfSettings
     public string LastPhotoFolder { get; set; } = string.Empty;
     /// <summary>The story in the FFLF story library the tab had open, put back on the next launch.</summary>
     public string ActiveStoryId { get; set; } = string.Empty;
+    /// <summary>✨ Story engine: the story pasted or loaded, how many beats to cut it into, which writer
+    /// ("settings", "local" or "deepseek") and whether it writes spoken lines.</summary>
+    public string StoryEngineText { get; set; } = string.Empty;
+    public int StoryEngineBeats { get; set; } = 8;
+    public string StoryEngineWriter { get; set; } = "settings";
+    public bool StoryEngineDialogue { get; set; } = true;
 }
 
 /// <summary>The 🥋 Action tab: everything the ⛓ FFLF tab keeps, plus the combat preset, the LoRA mix, the cast

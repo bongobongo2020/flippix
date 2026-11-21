@@ -5889,6 +5889,66 @@
                                                     ToolTip="Start a blank story. The one on the page stays in 📚 Stories."/>
                                         </Grid>
 
+                                        <!-- ✨ Story engine: story → master prompt, location, wardrobe, beats, lines (H3FflfViewModel.StoryEngine.cs) -->
+                                        <Border Style="{StaticResource SectionCardStyle}" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <ctrl:SectionHeader Title="✨ STORY IDEA" Note="  · one click fills the whole page"/>
+                                                    <Button Grid.Column="1" Content="📂 Load .txt" Command="{Binding BrowseStoryFileCommand}" Style="{StaticResource SecondaryButtonStyle}"
+                                                            Height="24" Padding="8,0" FontSize="10.5" ToolTip="Read a story.txt (or .md) into the box. You can also drop the file on the box."/>
+                                                </Grid>
+                                                <TextBox x:Name="FflfStoryBox" Text="{Binding EngineStoryText, UpdateSourceTrigger=PropertyChanged, Delay=400}" Margin="0,8,0,0"
+                                                         Height="120" FontSize="11" Padding="5,4" TextWrapping="Wrap" AcceptsReturn="True" AcceptsTab="False"
+                                                         VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top" AllowDrop="True"
+                                                         PreviewDragOver="FflfStoryBox_PreviewDragOver" PreviewDrop="FflfStoryBox_PreviewDrop"
+                                                         ToolTip="Paste a story, an idea, an article or a script — a line or many pages — or drop a .txt here. ✨ Generate writes the master prompt, location, wardrobe, beats and each beat's spoken line into the boxes below."/>
+                                                <Grid Margin="0,8,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="110"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="30"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Beats" Style="{StaticResource FflfRowLabel}"/>
+                                                    <Slider Grid.Column="1" Value="{Binding EngineBeatCount}" Minimum="1" Maximum="20" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                                                            ToolTip="How many beats the story is cut into. Each is one clip of 'Seconds / beat' (③ Shot), chained to the next."/>
+                                                    <TextBlock Grid.Column="2" Text="{Binding EngineBeatCount}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                </Grid>
+                                                <Grid Margin="0,6,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="110"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Writer" Style="{StaticResource FflfRowLabel}"/>
+                                                    <ComboBox Grid.Column="1" ItemsSource="{Binding EngineWriters}" DisplayMemberPath="Label" SelectedValuePath="Id"
+                                                              SelectedValue="{Binding EngineWriter}" Height="24" FontSize="11"
+                                                              ToolTip="As in Settings: DeepSeek when 'use DeepSeek for stories' is on, else llama-server. llama-server: the local server in Settings → LM Studio. DeepSeek API: the key saved in Settings."/>
+                                                </Grid>
+                                                <CheckBox Content="Write a spoken line for every beat (voiced with 🗣 Yakkinator)" IsChecked="{Binding EngineWithDialogue}" FontSize="11" Margin="0,6,0,0"/>
+                                                <TextBlock Text="{Binding EnginePlan}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,3,0,0"/>
+                                                <Grid Margin="0,8,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Button Command="{Binding GenerateFromStoryCommand}" Style="{StaticResource AccentButtonStyle}" Height="30" FontSize="12" FontWeight="SemiBold"
+                                                            ToolTip="Sends the story to the writer and fills style / direction (master prompt), setting (location), wardrobe, the beats and every beat's line. The story on the page now is kept in 📚 Stories. Edit anything before you ▶ Generate.">
+                                                        <TextBlock Text="{Binding EngineLabel}"/>
+                                                    </Button>
+                                                    <Button Grid.Column="1" Content="✕" Command="{Binding CancelEngineCommand}" Style="{StaticResource SecondaryButtonStyle}"
+                                                            Width="30" Height="30" Padding="0" FontSize="11" Margin="6,0,0,0" ToolTip="Cancel"
+                                                            Visibility="{Binding IsEngineWriting, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                </Grid>
+                                                <ProgressBar IsIndeterminate="True" Height="3" Margin="0,5,0,0"
+                                                             Visibility="{Binding IsEngineWriting, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                <TextBlock Text="{Binding EngineStatus}" FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"
+                                                           Visibility="{Binding EngineStatus, Converter={StaticResource StringToVisibilityConverter}}"/>
+                                            </StackPanel>
+                                        </Border>
+
                                         <!-- ① Opening image -->
                                         <Border Style="{StaticResource SectionCardStyle}" Margin="0,0,0,10">
                                             <StackPanel>
