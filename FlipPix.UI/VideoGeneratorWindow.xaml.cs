@@ -31,6 +31,10 @@ namespace FlipPix.UI
             _viewModel = viewModel;
             _windowPositionService = windowPositionService ?? throw new ArgumentNullException(nameof(windowPositionService));
             Loaded += OnLoaded;
+            // Until the first click or key press, every video a tab puts in its player is one it restored
+            // (its last take, a story or project loading in the background), so it opens paused.
+            PreviewMouseDown += EndPreviewRestore;
+            PreviewKeyDown += EndPreviewRestore;
 
             // App shuts down when the main window closes (ShutdownMode.OnMainWindowClose). Let this
             // reused window actually close at that point instead of cancelling into Hide() forever.
@@ -64,8 +68,8 @@ namespace FlipPix.UI
             _windowPositionService.EnsureWindowVisible(this);
             // Pick up a video that was already loaded before this window's handlers wired up — the last
             // take of each tab. It opens paused on its first frame: nothing should start playing (with
-            // sound) just because the app was opened. A video picked after this plays as usual.
-            _restoringPreviews = true;
+            // sound) just because the app was opened. _restoringPreviews stays set until the user's first
+            // click or key press, so a take restored later by an async load is held too.
             ApplyScail2RefSource();
             ApplyH3VrSource();
             ApplySeedUpscaleSource();
@@ -75,7 +79,16 @@ namespace FlipPix.UI
             ApplyFflfSource();
             ApplyActionSource();
             ApplyMartialSource();
+        }
+
+        /// <summary>The user's first click or key press: from here on a video put in a player is one they
+        /// asked for, and plays.</summary>
+        private void EndPreviewRestore(object sender, System.Windows.Input.InputEventArgs e)
+        {
+            PreviewMouseDown -= EndPreviewRestore;
+            PreviewKeyDown -= EndPreviewRestore;
             _restoringPreviews = false;
+            Controls.HoverPlay.HoldSelected = false;
         }
 
         private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -651,7 +664,7 @@ namespace FlipPix.UI
         /// <summary>Points a seed-board player at a file, as an absolute Uri. Clicking the
         /// same tile twice replays it rather than doing nothing.</summary>
         // True while OnLoaded restores the tabs' last videos: those open paused (see StartPlayer).
-        private bool _restoringPreviews;
+        private bool _restoringPreviews = true;
         private readonly System.Collections.Generic.HashSet<System.Windows.Controls.MediaElement> _holdFirstPlay = new();
 
         /// <summary>Every shared player's MediaOpened/MediaEnded: plays, unless the video was restored when

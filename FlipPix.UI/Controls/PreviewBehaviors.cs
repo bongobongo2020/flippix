@@ -116,7 +116,12 @@ namespace FlipPix.UI.Controls
             }
         }
 
-        private static bool ShouldPlay(MediaElement media) => GetIsActive(media) || media.IsMouseOver;
+        /// <summary>While true, a selected tile rests paused like the rest (hovering still plays it): the
+        /// selection restored with a project at startup should not start looping before the user does anything.
+        /// The video window clears it on the first click or key press.</summary>
+        public static bool HoldSelected { get; set; } = true;
+
+        private static bool ShouldPlay(MediaElement media) => (GetIsActive(media) && !HoldSelected) || media.IsMouseOver;
 
         private static void Update(MediaElement media)
         {
