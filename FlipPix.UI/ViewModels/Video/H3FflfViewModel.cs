@@ -111,11 +111,15 @@ namespace FlipPix.UI.ViewModels.Video
             NewSeedCommand = new RelayCommand(() => BaseSeed = NewSeed());
             ClearLogCommand = new RelayCommand(() => LogOutput = string.Empty);
             ResetModelCommand = new RelayCommand(ResetModel);
+            InitLook();
 
             var s = settingsService.Settings is { } all ? profile.Settings(all) : new H3FflfSettings();
             _initialImagePath = File.Exists(s.InitialImagePath) ? s.InitialImagePath : string.Empty;
             _beatsText = s.BeatsText ?? string.Empty;
             _styleText = s.StyleText ?? string.Empty;
+            _settingText = s.SettingText ?? string.Empty;
+            _wardrobeText = s.WardrobeText ?? string.Empty;
+            _wardrobeImagePath = File.Exists(s.WardrobeImagePath) ? s.WardrobeImagePath : string.Empty;
             _beatSeconds = Math.Clamp(s.BeatSeconds, 1, 20);
             _selectedAspectRatio = AspectRatioOptions.Contains(s.AspectRatio) ? s.AspectRatio : H3Canvas.AutoAspect;
             _firstPassMegapixels = FirstPassSizes.Any(o => o.Value == s.FirstPassMegapixels) ? s.FirstPassMegapixels : 0.3;
@@ -195,7 +199,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>The text sent for one beat.</summary>
         protected virtual string ComposeBeatPrompt(FflfBeat beat, int index, int total, bool hasIdentityImage) =>
-            FflfGraph.ComposePrompt(beat.Text, StyleText, hasIdentityImage, index == 0);
+            FflfGraph.ComposePrompt(beat.Text, ComposedStyle, hasIdentityImage, index == 0);
 
         /// <summary>Last word on a beat's render request, after the page's own dials are on it.</summary>
         protected virtual FflfBeatRender CustomizeRender(FflfBeatRender request, int index) => request;
@@ -251,6 +255,7 @@ namespace FlipPix.UI.ViewModels.Video
             JoinCommand?.NotifyCanExecuteChanged();
             StartOverCommand?.NotifyCanExecuteChanged();
             OpenFolderCommand?.NotifyCanExecuteChanged();
+            RefreshLookCommands();
             OpenStoriesCommand?.NotifyCanExecuteChanged();
             NewStoryCommand?.NotifyCanExecuteChanged();
             OnPropertyChanged(nameof(ReadyHint));
@@ -607,6 +612,7 @@ namespace FlipPix.UI.ViewModels.Video
             nameof(FirstPassMegapixels), nameof(FinalMegapixels), nameof(PreviewOnly), nameof(DiffusionModel), nameof(Lora),
             nameof(LoraStrength), nameof(FirstPassSteps), nameof(LockFirstFrame), nameof(KeepInitialReference), nameof(JoinWhenDone),
             nameof(MaxFidelityReferences), nameof(RepairHandoffFace), nameof(FaceRepairStrength),
+            nameof(SettingText), nameof(WardrobeText), nameof(WardrobeImagePath),
         };
 
         protected override void OnPropertyChanged(PropertyChangedEventArgs e)
@@ -625,6 +631,9 @@ namespace FlipPix.UI.ViewModels.Video
             s.InitialImagePath = InitialImagePath;
             s.BeatsText = BeatsText;
             s.StyleText = StyleText;
+            s.SettingText = SettingText;
+            s.WardrobeText = WardrobeText;
+            s.WardrobeImagePath = WardrobeImagePath;
             s.BeatSeconds = BeatSeconds;
             s.AspectRatio = SelectedAspectRatio;
             s.FirstPassMegapixels = FirstPassMegapixels;

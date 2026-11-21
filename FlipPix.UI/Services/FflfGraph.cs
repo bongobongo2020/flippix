@@ -124,6 +124,18 @@ namespace FlipPix.UI.Services
         /// <c>&lt;Picture 1&gt;</c> is always the frame the beat starts on; <c>&lt;Picture 2&gt;</c>, when sent, is
         /// the initial image as the look of the characters.
         /// </summary>
+        /// <summary>The style, setting and wardrobe boxes as the one block written in front of every beat: the
+        /// style (master direction) first, then the setting and the wardrobe, each under its own heading so a style
+        /// that says "see Setting / see Wardrobe" points at something. Empty boxes are left out.</summary>
+        public static string ComposeLook(string? style, string? setting, string? wardrobe)
+        {
+            var parts = new List<string>();
+            if (!string.IsNullOrWhiteSpace(style)) parts.Add(style.Trim());
+            if (!string.IsNullOrWhiteSpace(setting)) parts.Add("SETTING: " + setting.Trim());
+            if (!string.IsNullOrWhiteSpace(wardrobe)) parts.Add("WARDROBE (keep identical in every shot): " + wardrobe.Trim());
+            return string.Join("\n\n", parts);
+        }
+
         public static string ComposePrompt(string beat, string? style, bool hasIdentityImage, bool isFirstBeat)
         {
             var sb = new StringBuilder();

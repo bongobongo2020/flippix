@@ -450,7 +450,7 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         protected override string ComposeBeatPrompt(FflfBeat beat, int index, int total, bool hasIdentityImage) =>
-            ActionDirector.ComposeBeatPrompt(beat.Text, StyleText, SelectedPreset, FirstPassMix, BeatSeconds,
+            ActionDirector.ComposeBeatPrompt(beat.Text, ComposedStyle, SelectedPreset, FirstPassMix, BeatSeconds,
                 hasIdentityImage, isFirstBeat: index == 0, isLastBeat: index == total - 1,
                 _uploadedCast.Select(c => c.Role).ToList(), MiniMaxI2VViewModel.MaxTwoPassPictures);
 

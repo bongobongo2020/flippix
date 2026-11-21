@@ -13,6 +13,9 @@ namespace FlipPix.UI.Models
         public string InitialImagePath { get; set; } = string.Empty;
         public string BeatsText { get; set; } = string.Empty;
         public string StyleText { get; set; } = string.Empty;
+        public string SettingText { get; set; } = string.Empty;
+        public string WardrobeText { get; set; } = string.Empty;
+        public string WardrobeImagePath { get; set; } = string.Empty;
         public double BeatSeconds { get; set; } = 5;
         public string AspectRatio { get; set; } = string.Empty;
         public double FirstPassMegapixels { get; set; } = 0.3;

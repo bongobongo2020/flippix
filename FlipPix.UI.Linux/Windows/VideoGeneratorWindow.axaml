@@ -7034,9 +7034,24 @@
                                                  VerticalContentAlignment="Top"
                                                  Watermark="Paste the beats. A blank line, a numbered line (1. 2) Beat 3:) or a bullet starts the next beat."/>
                                         <TextBlock Text="{Binding BeatSummary}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
-                                        <TextBlock Classes="flabel" Text="STYLE / SETTING (optional — written in front of every beat)"/>
-                                        <TextBox Text="{Binding StyleText}" Height="54" FontSize="11" TextWrapping="Wrap" AcceptsReturn="True" VerticalContentAlignment="Top"
-                                                 Watermark="Cinematic live action, a judo dojo in warm afternoon light; Kira wears the white gi, Toru the blue."/>
+                                        <TextBlock Classes="flabel" Text="STYLE / DIRECTION (optional — format, camera, performance)"/>
+                                        <TextBox Text="{Binding StyleText}" Height="90" FontSize="11" TextWrapping="Wrap" AcceptsReturn="True" VerticalContentAlignment="Top"
+                                                 Watermark="The master prompt. Paste one with SETTING PROMPT / WARDROBE PROMPT headings and it is split into the boxes below."/>
+                                        <TextBlock Classes="flabel" Text="SETTING (optional — the space and the light)"/>
+                                        <TextBox Text="{Binding SettingText}" Height="70" FontSize="11" TextWrapping="Wrap" AcceptsReturn="True" VerticalContentAlignment="Top"
+                                                 Watermark="Indoor studio, seamless black void; one hard 45° key, a thin cool rim, faint haze."/>
+                                        <TextBlock Classes="flabel" Text="WARDROBE (optional — how the character looks)"/>
+                                        <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,4">
+                                            <TextBlock Text="{Binding WardrobeImageName}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                                <Button Content="📂 Browse" Command="{Binding BrowseWardrobeImageCommand}" Theme="{StaticResource SecondaryButtonStyle}" Height="24" Padding="8,0" FontSize="10.5" Margin="4,0,0,0"/>
+                                                <Button Content="🔍 Analyze" Command="{Binding AnalyzeWardrobeCommand}" Theme="{StaticResource SecondaryButtonStyle}" Height="24" Padding="8,0" FontSize="10.5" Margin="4,0,0,0"/>
+                                                <Button Content="✕" Command="{Binding ClearWardrobeImageCommand}" Theme="{StaticResource SecondaryButtonStyle}" Height="24" Width="24" Padding="0" FontSize="10" Margin="4,0,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
+                                        <TextBox Text="{Binding WardrobeText}" Height="70" FontSize="11" TextWrapping="Wrap" AcceptsReturn="True" VerticalContentAlignment="Top"
+                                                 Watermark="Hair, outfit head to toe, footwear, accessories — or fill it from a picture with 🔍 Analyze."/>
+                                        <TextBlock Text="{Binding WardrobeStatus}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,3,0,0" TextWrapping="Wrap"/>
                                     </StackPanel>
                                 </Border>
 

@@ -5922,10 +5922,40 @@
                                                          VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"
                                                          ToolTip="Paste the beats. A blank line, a numbered line (1. 2) Beat 3:) or a bullet starts the next beat. A short 'Title:' in front of a beat becomes its name."/>
                                                 <TextBlock Text="{Binding BeatSummary}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
-                                                <TextBlock Text="STYLE / SETTING (optional — written in front of every beat)" Style="{StaticResource FflfLabel}"/>
-                                                <TextBox Text="{Binding StyleText, UpdateSourceTrigger=PropertyChanged, Delay=600}" Height="54" FontSize="11" Padding="5,4"
+                                                <TextBlock Text="STYLE / DIRECTION (optional — format, camera, performance; written in front of every beat)" Style="{StaticResource FflfLabel}" TextWrapping="Wrap"/>
+                                                <TextBox Text="{Binding StyleText, UpdateSourceTrigger=PropertyChanged, Delay=600}" Height="90" FontSize="11" Padding="5,4"
                                                          TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"
-                                                         ToolTip="e.g. 'Cinematic live action, a judo dojo with tatami mats and warm afternoon light; Kira is the woman in the white gi, Toru the man in the blue gi.'"/>
+                                                         ToolTip="The master prompt: format, camera, fight direction, performance rules. e.g. 'Cinematic live action, one handheld medium-wide shot; Kira is the woman in the white gi, Toru the man in the blue gi.' Paste a whole master prompt with SETTING PROMPT / WARDROBE PROMPT headings and it is split into the three boxes."/>
+                                                <TextBlock Text="SETTING (optional — the space and the light)" Style="{StaticResource FflfLabel}"/>
+                                                <TextBox Text="{Binding SettingText, UpdateSourceTrigger=PropertyChanged, Delay=600}" Height="70" FontSize="11" Padding="5,4"
+                                                         TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"
+                                                         ToolTip="e.g. 'Indoor studio, seamless black void behind the subject; one hard 45° key, a thin cool rim, faint low haze.'"/>
+                                                <TextBlock Text="WARDROBE (optional — how the character looks)" Style="{StaticResource FflfLabel}"/>
+                                                <Grid Margin="0,4,0,4">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Width="40" Height="40" CornerRadius="4" Background="{StaticResource PlayerSurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            Visibility="{Binding HasWardrobeImage, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="0,0,6,0">
+                                                        <Image Source="{Binding WardrobeThumbnail}" Stretch="UniformToFill"/>
+                                                    </Border>
+                                                    <TextBlock Grid.Column="1" Text="{Binding WardrobeImageName}" FontSize="10" Foreground="{StaticResource TextMutedBrush}"
+                                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                                        <Button Content="📂 Browse" Command="{Binding BrowseWardrobeImageCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="24" Padding="8,0" FontSize="10.5" Margin="4,0,0,0"
+                                                                ToolTip="Pick a picture of the character to read the outfit from"/>
+                                                        <Button Content="🔍 Analyze" Command="{Binding AnalyzeWardrobeCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="24" Padding="8,0" FontSize="10.5" Margin="4,0,0,0"
+                                                                ToolTip="Send the picture to llama-server and fill the wardrobe box with what the character wears"/>
+                                                        <Button Content="✕" Command="{Binding ClearWardrobeImageCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="24" Width="24" Padding="0" FontSize="10" Margin="4,0,0,0"
+                                                                ToolTip="Forget the character picture (the wardrobe text stays)"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                                <TextBox Text="{Binding WardrobeText, UpdateSourceTrigger=PropertyChanged, Delay=600}" Height="70" FontSize="11" Padding="5,4"
+                                                         TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"
+                                                         ToolTip="Hair, outfit head to toe, footwear, accessories. Type it, paste it, or fill it from a picture with 🔍 Analyze."/>
+                                                <TextBlock Text="{Binding WardrobeStatus}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,3,0,0" TextWrapping="Wrap"/>
                                             </StackPanel>
                                         </Border>
 

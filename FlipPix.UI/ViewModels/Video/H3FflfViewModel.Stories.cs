@@ -167,6 +167,9 @@ namespace FlipPix.UI.ViewModels.Video
             InitialImagePath = InitialImagePath,
             BeatsText = BeatsText,
             StyleText = StyleText,
+            SettingText = SettingText,
+            WardrobeText = WardrobeText,
+            WardrobeImagePath = WardrobeImagePath,
             BeatSeconds = BeatSeconds,
             AspectRatio = SelectedAspectRatio,
             FirstPassMegapixels = FirstPassMegapixels,
@@ -251,6 +254,9 @@ namespace FlipPix.UI.ViewModels.Video
                 InitialImagePath = File.Exists(s.InitialImagePath) ? s.InitialImagePath : string.Empty;
                 BeatsText = s.BeatsText;
                 StyleText = s.StyleText;
+                SettingText = s.SettingText ?? string.Empty;
+                WardrobeText = s.WardrobeText ?? string.Empty;
+                WardrobeImagePath = File.Exists(s.WardrobeImagePath) ? s.WardrobeImagePath : string.Empty;
                 BeatSeconds = Math.Clamp(s.BeatSeconds, 1, 20);
                 SelectedAspectRatio = AspectRatioOptions.Contains(s.AspectRatio) ? s.AspectRatio : H3Canvas.AutoAspect;
                 FirstPassMegapixels = FirstPassSizes.Any(o => o.Value == s.FirstPassMegapixels) ? s.FirstPassMegapixels : 0.3;
@@ -328,6 +334,9 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 BeatsText = string.Empty;
                 StyleText = string.Empty;
+                SettingText = string.Empty;
+                WardrobeText = string.Empty;
+                WardrobeImagePath = string.Empty;
                 InitialImagePath = string.Empty;
                 Beats.Clear();
                 _runFolder = string.Empty;

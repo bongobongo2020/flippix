@@ -443,7 +443,7 @@ namespace FlipPix.UI.ViewModels.Video
                 if (window.ShowDialog() != true || window.SelectedScene?.Fflf is not { } s) return;
                 NewStoryCommand.Execute(null);
                 InitialImagePath = File.Exists(s.InitialImagePath) ? s.InitialImagePath : string.Empty;
-                StyleText = s.StyleText ?? string.Empty;
+                StyleText = FflfGraph.ComposeLook(s.StyleText, s.SettingText, s.WardrobeText);
                 BeatSeconds = Math.Clamp(s.BeatSeconds, 1, 20);
                 if (AspectRatioOptions.Contains(s.AspectRatio)) SelectedAspectRatio = s.AspectRatio;
                 BeatsText = s.BeatsText ?? string.Empty;
@@ -515,7 +515,7 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         protected override string ComposeBeatPrompt(FflfBeat beat, int index, int total, bool hasIdentityImage) =>
-            MartialGraph.ComposePrompt(Triggers, beat.Text, StyleText, PictureRoles(index, hasIdentityImage));
+            MartialGraph.ComposePrompt(Triggers, beat.Text, ComposedStyle, PictureRoles(index, hasIdentityImage));
 
         protected override JsonObject BuildBeatGraph(string template, FflfBeatRender request, int index, out int pruned)
         {

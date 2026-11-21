@@ -669,6 +669,12 @@ public class H3FflfSettings
     public string BeatsText { get; set; } = string.Empty;
     /// <summary>Written in front of every beat (style, place, who is who). Optional.</summary>
     public string StyleText { get; set; } = string.Empty;
+    /// <summary>The space and light, written after the style in front of every beat. Optional.</summary>
+    public string SettingText { get; set; } = string.Empty;
+    /// <summary>The character's look, written after the setting in front of every beat. Optional.</summary>
+    public string WardrobeText { get; set; } = string.Empty;
+    /// <summary>The character picture the wardrobe was (or will be) read from.</summary>
+    public string WardrobeImagePath { get; set; } = string.Empty;
     public double BeatSeconds { get; set; } = 5;
     public string AspectRatio { get; set; } = "16:9 (Widescreen)";
     public double FirstPassMegapixels { get; set; } = 0.3;
