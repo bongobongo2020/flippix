@@ -364,6 +364,10 @@ public class ComfyUISettings
     // 🥋 Action tab (the FFLF chain with the Action Director workflow's nine combat LoRA presets and a fight director).
     public H3ActionSettings H3Action { get; set; } = new H3ActionSettings();
 
+    // 🥷 Martial tab (the FFLF chain rendered through the MiniMax H3 martial-arts workflow: wushu LoRA stack,
+    // reference pictures, keyframe guides, two-stage refine with the 3D latent upscaler).
+    public H3MartialSettings H3Martial { get; set; } = new H3MartialSettings();
+
     // Video Generator header 🔊/🔇: silences every preview player in the window.
     public bool VideoPreviewsMuted { get; set; }
 
@@ -713,4 +717,68 @@ public class H3ActionSettings : H3FflfSettings
     public int BeatCount { get; set; } = 4;
     /// <summary>"turbo" (er_sde · sgm_uniform, as FFLF) or "authored" (res_multistep · simple, the workflow's own).</summary>
     public string Sampling { get; set; } = "turbo";
+}
+
+/// <summary>One row of the 🥷 Martial tab's LoRA stack.</summary>
+public class H3MartialLoraRow
+{
+    public bool On { get; set; } = true;
+    public string Name { get; set; } = string.Empty;
+    public double Strength { get; set; } = 1.0;
+    /// <summary>Also applied on the refine (second) pass.</summary>
+    public bool OnRefine { get; set; } = true;
+}
+
+/// <summary>A picture sent with every beat as a reference, with what it shows ("the black tactical outfit").</summary>
+public class H3MartialReference
+{
+    public string Path { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
+}
+
+/// <summary>A keyframe pinned inside one beat (MiniMaxH3AddGuide at a frame index).</summary>
+public class H3MartialGuide
+{
+    public string Path { get; set; } = string.Empty;
+    /// <summary>1-based beat the keyframe belongs to.</summary>
+    public int Beat { get; set; } = 1;
+    /// <summary>Where in that beat, in seconds.</summary>
+    public double Seconds { get; set; } = 2.5;
+}
+
+/// <summary>The 🥷 Martial tab: everything the ⛓ FFLF tab keeps, plus the martial workflow's model plumbing,
+/// LoRA stack, references, keyframes and refine settings. The defaults are the authored workflow's
+/// (02_MiniMax_H3martial: 0.8 MP first pass, 8 steps, 1.2 MP refine, 10 s = 243 frames).</summary>
+public class H3MartialSettings : H3FflfSettings
+{
+    // The authored "MiniMax-H3-int8" is not published under that name; the wushu LoRAs were trained on fl2va.
+    public const string DefaultMartialModel = "h3-minimax/minimax_h3_fl2va_pruned_int8_convrot.safetensors";
+    public const string DefaultTextEncoder = "qwen3vl_32b_minimax_h3-w4a8_convrot.safetensors";
+    public const string DefaultTriggers = "wushu_action, camera motion,";
+
+    public H3MartialSettings()
+    {
+        BeatSeconds = 10;
+        FirstPassMegapixels = 0.8;
+        FinalMegapixels = 1.2;
+        DiffusionModel = DefaultMartialModel;
+        Lora = string.Empty;
+        LoraStrength = 0;
+        FirstPassSteps = 8;
+        MaxFidelityReferences = false;   // the workflow's ref_image_size: match
+    }
+
+    /// <summary>Empty: the refine pass runs on <see cref="H3FflfSettings.DiffusionModel"/>.</summary>
+    public string RefineModel { get; set; } = string.Empty;
+    public string TextEncoder { get; set; } = DefaultTextEncoder;
+    /// <summary>Null until the tab first saves: the authored stack is offered.</summary>
+    public List<H3MartialLoraRow>? Loras { get; set; }
+    public List<H3MartialReference> References { get; set; } = new();
+    public List<H3MartialGuide> Guides { get; set; } = new();
+    public string Triggers { get; set; } = DefaultTriggers;
+    public string Attention { get; set; } = "comfy kitchen attention";
+    public double RefineStrength { get; set; } = 0.6;
+    public int RefineSteps { get; set; } = 10;
+    public bool RtxUpscale { get; set; }
+    public double RtxScale { get; set; } = 2.0;
 }

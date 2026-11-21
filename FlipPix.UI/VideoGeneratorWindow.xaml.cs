@@ -56,6 +56,7 @@ namespace FlipPix.UI
             _viewModel.RemakeVM.PropertyChanged += RemakeVM_PropertyChanged;
             _viewModel.H3FflfVM.PropertyChanged += H3FflfVM_PropertyChanged;
             _viewModel.H3ActionVM.PropertyChanged += H3ActionVM_PropertyChanged;
+            _viewModel.H3MartialVM.PropertyChanged += H3MartialVM_PropertyChanged;
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
@@ -73,6 +74,7 @@ namespace FlipPix.UI
             ApplyRemakeSource();
             ApplyFflfSource();
             ApplyActionSource();
+            ApplyMartialSource();
             _restoringPreviews = false;
         }
 
@@ -279,6 +281,45 @@ namespace FlipPix.UI
             ActionPlayer.Position = System.TimeSpan.FromMilliseconds(1);
             ActionPlayer.Play();
         }
+
+        // ── Martial tab ─────────────────────────────────────────────────────────────────────────
+
+        private void H3MartialVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(ViewModels.Video.H3FflfViewModel.ActivePreview)) return;
+            if (Dispatcher.CheckAccess()) ApplyMartialSource();
+            else Dispatcher.Invoke(ApplyMartialSource);
+        }
+
+        private void ApplyMartialSource() => ApplySharedPlayerSource(MartialPlayer, _viewModel.H3MartialVM.ActivePreview);
+
+        private void MartialPlayer_MediaOpened(object sender, RoutedEventArgs e) => StartPlayer(MartialPlayer);
+
+        private void MartialPlayer_MediaEnded(object sender, RoutedEventArgs e)
+        {
+            MartialPlayer.Position = System.TimeSpan.FromMilliseconds(1);
+            MartialPlayer.Play();
+        }
+
+        private void MartialDropZone_Drop(object sender, System.Windows.DragEventArgs e)
+        {
+            if (DroppedImage(e) is { } path) _viewModel.H3MartialVM.SetInitialImage(path);
+        }
+
+        private void MartialReference_Drop(object sender, System.Windows.DragEventArgs e)
+        {
+            foreach (var path in DroppedImages(e)) _viewModel.H3MartialVM.AddReference(path);
+        }
+
+        private void MartialGuide_Drop(object sender, System.Windows.DragEventArgs e)
+        {
+            foreach (var path in DroppedImages(e)) _viewModel.H3MartialVM.AddGuide(path);
+        }
+
+        private static string[] DroppedImages(System.Windows.DragEventArgs e) =>
+            e.Data.GetData(System.Windows.DataFormats.FileDrop) is string[] files
+                ? files.Where(f => new[] { ".png", ".jpg", ".jpeg", ".webp", ".bmp" }.Contains(System.IO.Path.GetExtension(f).ToLowerInvariant())).ToArray()
+                : System.Array.Empty<string>();
 
         private void ActionDropZone_Drop(object sender, System.Windows.DragEventArgs e)
         {
@@ -960,6 +1001,7 @@ namespace FlipPix.UI
             RemakePlayer?.Stop();
             FflfPlayer?.Stop();
             ActionPlayer?.Stop();
+            MartialPlayer?.Stop();
         }
 
         protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
@@ -989,6 +1031,7 @@ namespace FlipPix.UI
             _viewModel.RemakeVM.PropertyChanged -= RemakeVM_PropertyChanged;
             _viewModel.H3FflfVM.PropertyChanged -= H3FflfVM_PropertyChanged;
             _viewModel.H3ActionVM.PropertyChanged -= H3ActionVM_PropertyChanged;
+            _viewModel.H3MartialVM.PropertyChanged -= H3MartialVM_PropertyChanged;
             _viewModel.PlayRequested -= OnPlayRequested;
 
             if (_viewModel is IDisposable disposable)

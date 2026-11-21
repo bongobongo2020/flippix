@@ -110,12 +110,7 @@ namespace FlipPix.UI.ViewModels.Video
             RefreshModelsCommand = new RelayCommand(() => _ = LoadModelListsAsync(userAsked: true));
             NewSeedCommand = new RelayCommand(() => BaseSeed = NewSeed());
             ClearLogCommand = new RelayCommand(() => LogOutput = string.Empty);
-            ResetModelCommand = new RelayCommand(() =>
-            {
-                DiffusionModel = H3FflfSettings.DefaultModel;
-                Lora = H3FflfSettings.DefaultLora;
-                LoraStrength = 0.25;
-            });
+            ResetModelCommand = new RelayCommand(ResetModel);
 
             var s = settingsService.Settings is { } all ? profile.Settings(all) : new H3FflfSettings();
             _initialImagePath = File.Exists(s.InitialImagePath) ? s.InitialImagePath : string.Empty;
@@ -219,6 +214,31 @@ namespace FlipPix.UI.ViewModels.Video
         protected virtual void OnModelListsLoaded() { }
 
         protected IReadOnlyList<string> ServerLoras { get; private set; } = Array.Empty<string>();
+
+        /// <summary>↺ Defaults in the model section.</summary>
+        protected virtual void ResetModel()
+        {
+            DiffusionModel = H3FflfSettings.DefaultModel;
+            Lora = H3FflfSettings.DefaultLora;
+            LoraStrength = 0.25;
+        }
+
+        /// <summary>The workflow file a beat's graph is built from (under the app folder), or null when the tab
+        /// builds its graph without one.</summary>
+        protected virtual string? BeatWorkflowFile => WorkflowFileName;
+
+        /// <summary>One beat's API graph.</summary>
+        protected virtual System.Text.Json.Nodes.JsonObject BuildBeatGraph(string template, FflfBeatRender request, int index, out int pruned) =>
+            FflfGraph.Build(template, request, out pruned);
+
+        /// <summary>The graph nodes the take's video and its last frame are read from.</summary>
+        protected virtual string VideoOutputNode => FflfGraph.VideoSaveNode;
+        protected virtual string LastFrameOutputNode => FflfGraph.LastFrameSaveNode;
+
+        /// <summary>The model line of the run's first log entry.</summary>
+        protected virtual string DescribeModel() =>
+            $"Model {Path.GetFileName(DiffusionModel)}" +
+            (Lora.Length > 0 && LoraStrength > 0 ? $" + {Path.GetFileName(Lora)} @ {LoraStrength:0.##}" : string.Empty);
 
         protected virtual void RefreshCommands() => OnUi(() =>
         {
@@ -421,8 +441,9 @@ namespace FlipPix.UI.ViewModels.Video
         [NotifyPropertyChangedFor(nameof(CanvasSummary))]
         private string _selectedAspectRatio = H3Canvas.AutoAspect;
 
-        public IReadOnlyList<MegapixelOption> FirstPassSizes => MiniMaxI2VViewModel.TwoPassFirstPassSizes;
-        public IReadOnlyList<MegapixelOption> FinalSizes => MiniMaxI2VViewModel.TwoPassFinalSizes;
+        /// <summary>Read in the constructor: an override must not depend on the subclass's own fields.</summary>
+        public virtual IReadOnlyList<MegapixelOption> FirstPassSizes => MiniMaxI2VViewModel.TwoPassFirstPassSizes;
+        public virtual IReadOnlyList<MegapixelOption> FinalSizes => MiniMaxI2VViewModel.TwoPassFinalSizes;
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(CanvasSummary))]
@@ -476,7 +497,7 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        public string CanvasSummary
+        public virtual string CanvasSummary
         {
             get
             {
@@ -833,17 +854,19 @@ namespace FlipPix.UI.ViewModels.Video
                 using var lease = await _workflowCoordinator.AcquireAsync($"h3_{Profile.Key}", ct);
                 _holdingLease = true;
 
-                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, WorkflowFileName);
-                if (!File.Exists(workflowPath)) throw new FileNotFoundException($"Workflow file not found: {WorkflowFileName}");
-                var template = await File.ReadAllTextAsync(workflowPath, ct);
+                var template = string.Empty;
+                if (BeatWorkflowFile is { } workflowFile)
+                {
+                    var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, workflowFile);
+                    if (!File.Exists(workflowPath)) throw new FileNotFoundException($"Workflow file not found: {workflowFile}");
+                    template = await File.ReadAllTextAsync(workflowPath, ct);
+                }
 
                 if (start == 0 || _runFolder.Length == 0) _runFolder = $"{Profile.Key}_{DateTime.Now:yyyyMMdd_HHmmss}";
                 var initial = await UploadInitialAsync(ct);
                 await PrepareRunAsync(ct);
                 var aspect = ResolvedAspectRatio;
-                AddLog($"Story: beats {start + 1}–{beats.Count} of {beats.Count}, {BeatSeconds:0.#} s each, {CanvasSummary}. " +
-                       $"Model {Path.GetFileName(DiffusionModel)}" +
-                       (Lora.Length > 0 && LoraStrength > 0 ? $" + {Path.GetFileName(Lora)} @ {LoraStrength:0.##}" : string.Empty) + ".");
+                AddLog($"Story: beats {start + 1}–{beats.Count} of {beats.Count}, {BeatSeconds:0.#} s each, {CanvasSummary}. {DescribeModel()}.");
 
                 var i = start;
                 while (true)
@@ -1023,7 +1046,7 @@ namespace FlipPix.UI.ViewModels.Video
                 MaxFidelityReferences = MaxFidelityReferences,
                 OutputPrefix = $"video/{Profile.Key}/{_runFolder}/beat_{index + 1:D2}{(PreviewOnly ? "_draft" : string.Empty)}",
             }, index);
-            var graph = FflfGraph.Build(template, request, out var pruned);
+            var graph = BuildBeatGraph(template, request, index, out var pruned);
             AddLog($"{label} — seed {beat.Seed}, starts on {(index == 0 ? "the opening image" : $"beat {index}'s last frame")}" +
                    $"{(LockFirstFrame ? " (anchored at frame 0)" : " (reference only)")}, {pruned} node(s) pruned.");
 
@@ -1059,10 +1082,10 @@ namespace FlipPix.UI.ViewModels.Video
 
             ProcessingStatus = $"{label}: fetching the take…";
             var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, ct);
-            var videoFile = byNode.TryGetValue(FflfGraph.VideoSaveNode, out var vids)
+            var videoFile = byNode.TryGetValue(VideoOutputNode, out var vids)
                 ? vids.FirstOrDefault(f => f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase)) ?? vids.FirstOrDefault()
                 : byNode.Values.SelectMany(f => f).LastOrDefault(f => f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase));
-            var frameFile = byNode.TryGetValue(FflfGraph.LastFrameSaveNode, out var frames) ? frames.FirstOrDefault() : null;
+            var frameFile = byNode.TryGetValue(LastFrameOutputNode, out var frames) ? frames.FirstOrDefault() : null;
 
             var video = videoFile == null ? null : await FetchOutputFileAsync(videoFile, ct);
             if (video == null) { beat.State = FflfBeatState.Failed; throw new InvalidOperationException($"{label}: ComfyUI reported no video. Check the ComfyUI console."); }

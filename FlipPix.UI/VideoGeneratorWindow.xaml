@@ -6635,6 +6635,503 @@
                         </Grid>
                     </TabItem>
 
+                    <!-- ═══════════════════════════════════════════════════════════════════════
+                         Tab: 🥷 Martial (H3MartialViewModel : H3FflfViewModel)
+
+                         The MiniMax H3 martial-arts workflow (02_MiniMax_H3martial, rebuilt by MartialGraph)
+                         inside the ⛓ FFLF chain: wushu LoRA stack, reference pictures, keyframes pinned
+                         with MiniMaxH3AddGuide, two-stage refine through the 3D latent upscaler. Stories can be
+                         imported from the FFLF and Action libraries. The beat cards, player and log are the
+                         FFLF tab's; keep them in step.
+                         ═══════════════════════════════════════════════════════════════════════ -->
+                    <TabItem Header="🥷 Martial">
+                        <Grid x:Name="MartialRoot" DataContext="{Binding H3MartialVM}" Style="{StaticResource TabPageStyle}">
+                            <Grid.Resources>
+                                <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource AccentAmberColor}"/>
+                                <Style x:Key="FflfLabel" TargetType="TextBlock">
+                                    <Setter Property="FontSize" Value="10"/>
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                    <Setter Property="Margin" Value="0,8,0,3"/>
+                                </Style>
+                                <Style x:Key="FflfRowLabel" TargetType="TextBlock">
+                                    <Setter Property="FontSize" Value="11"/>
+                                    <Setter Property="VerticalAlignment" Value="Center"/>
+                                    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                </Style>
+                            </Grid.Resources>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="420"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- ═══ Left: setup ═════════════════════════════════════════════ -->
+                            <Grid Grid.Column="0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10,8,10,0">
+                                    <StackPanel>
+                                        <!-- Story: autosaved into 📚 Stories (the martial-stories library) -->
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="FIGHT" FontSize="9" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}"/>
+                                                <TextBlock Text="{Binding StoryName}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"
+                                                           TextTrimming="CharacterEllipsis" ToolTip="Saved automatically as you go — reopen it any time from 📚 Stories."/>
+                                            </StackPanel>
+                                            <Button Grid.Column="1" Content="{Binding StoriesLabel}" Command="{Binding OpenStoriesCommand}" Style="{StaticResource SecondaryButtonStyle}"
+                                                    Height="26" Padding="10,0" FontSize="11" Margin="6,0,0,0"
+                                                    ToolTip="Every Martial story is saved here as you go — beats, opening image, LoRA stack, references, keyframes and each beat's take."/>
+                                            <Button Grid.Column="2" Content="＋ New" Command="{Binding NewStoryCommand}" Style="{StaticResource SecondaryButtonStyle}"
+                                                    Height="26" Padding="10,0" FontSize="11" Margin="5,0,0,0"
+                                                    ToolTip="Start a blank story. The model and LoRA stack stay; references and keyframes are cleared."/>
+                                        </Grid>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                            <Button Content="📥 From ⛓ FFLF stories" Command="{Binding ImportFflfCommand}" Style="{StaticResource SecondaryButtonStyle}"
+                                                    Height="24" Padding="10,0" FontSize="10.5" Margin="0,0,6,0"
+                                                    ToolTip="Pick a story from the FFLF tab's library: its opening image, beats, setting, beat length and aspect come over as a new Martial story."/>
+                                            <Button Content="📥 From 🥋 Action stories" Command="{Binding ImportActionCommand}" Style="{StaticResource SecondaryButtonStyle}"
+                                                    Height="24" Padding="10,0" FontSize="10.5"
+                                                    ToolTip="The same, from the Action tab's library (fights the Action director already wrote)."/>
+                                        </StackPanel>
+
+                                        <!-- ① Opening image -->
+                                        <Border Style="{StaticResource SectionCardStyle}" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="① OPENING IMAGE" Note="  · the fight starts on it"/>
+                                                <Border x:Name="MartialDropZone" Height="160" Margin="0,8,0,0" CornerRadius="6" Cursor="Hand" AllowDrop="True"
+                                                        Background="{StaticResource PlayerSurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                        DragOver="FflfDropZone_DragOver" Drop="MartialDropZone_Drop">
+                                                    <Grid>
+                                                        <TextBlock Text="＋ Pick or drop the image the fight opens on" Foreground="{StaticResource PlayerTextBrush}" FontSize="11"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" Margin="12"/>
+                                                        <Image Source="{Binding InitialThumbnail}" Stretch="Uniform"/>
+                                                        <Button Content="✕" Width="20" Height="20" Margin="4" Padding="0" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                                Background="{StaticResource ScrimBrush}" Foreground="White" BorderThickness="0" Cursor="Hand"
+                                                                Command="{Binding ClearImageCommand}"
+                                                                Visibility="{Binding HasInitialImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                    </Grid>
+                                                    <Border.InputBindings>
+                                                        <MouseBinding MouseAction="LeftClick" Command="{Binding BrowseImageCommand}"/>
+                                                    </Border.InputBindings>
+                                                </Border>
+                                                <TextBlock Text="{Binding InitialImageName}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- ② Beats -->
+                                        <Border Style="{StaticResource SectionCardStyle}" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="② BEATS" Note="  · one clip each, chained"/>
+                                                <TextBox Text="{Binding BeatsText, UpdateSourceTrigger=PropertyChanged, Delay=600}" Margin="0,8,0,0"
+                                                         Height="200" FontSize="11" Padding="5,4" TextWrapping="Wrap" AcceptsReturn="True" AcceptsTab="False"
+                                                         VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"
+                                                         ToolTip="The fight, beat by beat. A blank line, a numbered line (1. 2) Beat 3:) or a bullet starts the next beat; a short 'Title:' in front becomes its name. Write each exchange in four steps — who starts and from which foot, where it lands or how it is blocked, what it does to the body, how it flows into the next — with left/right positions and camera at the start of each shot. Each beat starts on the last frame of the one before."/>
+                                                <TextBlock Text="{Binding BeatSummary}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                                <TextBlock Text="SETTING · who is who, the place, the style" Style="{StaticResource FflfLabel}"/>
+                                                <TextBox Text="{Binding StyleText, UpdateSourceTrigger=PropertyChanged, Delay=600}" Height="76" FontSize="11" Padding="5,4"
+                                                         TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"
+                                                         ToolTip="Written in front of every beat: the fighters, where they stand, the place, light and camera style — everything that must not change."/>
+                                                <TextBlock Text="TRIGGER WORDS · first in every prompt" Style="{StaticResource FflfLabel}"/>
+                                                <TextBox Text="{Binding Triggers, UpdateSourceTrigger=PropertyChanged, Delay=400}" Height="26" FontSize="11" Padding="5,3" VerticalContentAlignment="Center"
+                                                         ToolTip="The workflow's rule: 'wushu_action,' must lead the prompt (with 'camera motion,' for the camera LoRA). Clear it if you take those LoRAs out of the stack."/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- ③ References -->
+                                        <Border Style="{StaticResource SectionCardStyle}" Margin="0,0,0,10" AllowDrop="True"
+                                                DragOver="FflfDropZone_DragOver" Drop="MartialReference_Drop">
+                                            <StackPanel>
+                                                <Grid>
+                                                    <ctrl:SectionHeader Title="③ REFERENCES" Note="  · subjects, outfits, places"/>
+                                                    <Button Content="＋ Add" Command="{Binding AddReferenceCommand}" Style="{StaticResource SecondaryButtonStyle}"
+                                                            Height="22" Padding="8,0" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                            ToolTip="Add a picture (or drop several on this card). Up to seven."/>
+                                                </Grid>
+                                                <ItemsControl ItemsSource="{Binding References}" Margin="0,6,0,0">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Grid Margin="0,0,0,6">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="64"/>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                    <ColumnDefinition Width="Auto"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <Border Height="56" CornerRadius="4" Background="{StaticResource PlayerSurfaceBrush}" ClipToBounds="True">
+                                                                    <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"/>
+                                                                </Border>
+                                                                <StackPanel Grid.Column="1" Margin="6,0,4,0" VerticalAlignment="Center">
+                                                                    <TextBlock Text="{Binding FileName}" FontSize="9.5" Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis"/>
+                                                                    <TextBox Text="{Binding Label, UpdateSourceTrigger=PropertyChanged, Delay=500}" Height="24" FontSize="10.5" Padding="3,2" Margin="0,2,0,0"
+                                                                             VerticalContentAlignment="Center"
+                                                                             ToolTip="What the picture shows, read as '&lt;Picture N&gt; is …': 'the silver-haired combat agent', 'the black tactical bodysuit and white coat', 'the sky city with suspended railways'."/>
+                                                                </StackPanel>
+                                                                <Button Grid.Column="2" Content="✕" Width="22" Height="22" Padding="0" FontSize="10" Style="{StaticResource SecondaryButtonStyle}"
+                                                                        Command="{Binding DataContext.RemoveReferenceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/>
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBlock Text="{Binding ReferenceSummary}" FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- ④ Keyframes -->
+                                        <Border Style="{StaticResource SectionCardStyle}" Margin="0,0,0,10" AllowDrop="True"
+                                                DragOver="FflfDropZone_DragOver" Drop="MartialGuide_Drop">
+                                            <StackPanel>
+                                                <Grid>
+                                                    <ctrl:SectionHeader Title="④ KEYFRAMES" Note="  · pinned at a second of a beat"/>
+                                                    <Button Content="＋ Add" Command="{Binding AddGuideCommand}" Style="{StaticResource SecondaryButtonStyle}"
+                                                            Height="22" Padding="8,0" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                            ToolTip="Add a keyframe (or drop it on this card). Up to three, as authored."/>
+                                                </Grid>
+                                                <ItemsControl ItemsSource="{Binding Guides}" Margin="0,6,0,0">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Grid Margin="0,0,0,6">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="64"/>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                    <ColumnDefinition Width="Auto"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <Border Height="56" CornerRadius="4" Background="{StaticResource PlayerSurfaceBrush}" ClipToBounds="True">
+                                                                    <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"/>
+                                                                </Border>
+                                                                <StackPanel Grid.Column="1" Margin="6,0,4,0" VerticalAlignment="Center">
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <TextBlock Text="Beat" FontSize="10.5" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                                        <TextBox Text="{Binding Beat, UpdateSourceTrigger=LostFocus}" Width="34" Height="22" FontSize="10.5" Margin="4,0,8,0"
+                                                                                 VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
+                                                                        <TextBlock Text="at" FontSize="10.5" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                                        <TextBox Text="{Binding Seconds, UpdateSourceTrigger=LostFocus, StringFormat={}{0:0.##}}" Width="44" Height="22" FontSize="10.5" Margin="4,0,3,0"
+                                                                                 VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
+                                                                        <TextBlock Text="s" FontSize="10.5" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                                    </StackPanel>
+                                                                    <TextBlock Text="{Binding FrameHint}" FontSize="9.5" Foreground="{DynamicResource TabAccentBrush}" Margin="0,3,0,0"/>
+                                                                </StackPanel>
+                                                                <Button Grid.Column="2" Content="✕" Width="22" Height="22" Padding="0" FontSize="10" Style="{StaticResource SecondaryButtonStyle}"
+                                                                        Command="{Binding DataContext.RemoveGuideCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/>
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBlock Text="{Binding GuideSummary}" FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- ⑤ LoRA stack -->
+                                        <Border Style="{StaticResource SectionCardStyle}" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="⑤ LORA STACK" Note="  · the workflow's wushu mix"/>
+                                                <ItemsControl ItemsSource="{Binding Loras}" Margin="0,8,0,0">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Margin="0,0,0,6" Padding="6" CornerRadius="5" BorderThickness="1" BorderBrush="{StaticResource BorderBrush}">
+                                                                <StackPanel>
+                                                                    <Grid>
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="Auto"/>
+                                                                            <ColumnDefinition Width="*"/>
+                                                                            <ColumnDefinition Width="Auto"/>
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <CheckBox IsChecked="{Binding On}" VerticalAlignment="Center" ToolTip="On / off"/>
+                                                                        <ComboBox Grid.Column="1" Margin="4,0,4,0" Height="24" FontSize="10" IsEditable="True"
+                                                                                  ItemsSource="{Binding DataContext.MartialLoraOptions, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                                  Text="{Binding Name, UpdateSourceTrigger=LostFocus}" ToolTip="{Binding Name}"/>
+                                                                        <Button Grid.Column="2" Content="✕" Width="22" Height="22" Padding="0" FontSize="10" Style="{StaticResource SecondaryButtonStyle}"
+                                                                                Command="{Binding DataContext.RemoveLoraCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/>
+                                                                    </Grid>
+                                                                    <Grid Margin="0,4,0,0">
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="*"/>
+                                                                            <ColumnDefinition Width="40"/>
+                                                                            <ColumnDefinition Width="Auto"/>
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <Slider Value="{Binding Strength}" Minimum="0" Maximum="1.5" TickFrequency="0.05" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                                                                        <TextBlock Grid.Column="1" Text="{Binding Strength, StringFormat={}{0:0.00}}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                                        <CheckBox Grid.Column="2" IsChecked="{Binding OnRefine}" Content="refine" FontSize="10" Margin="8,0,0,0" VerticalAlignment="Center"
+                                                                                  ToolTip="Also on the refine pass (as authored: every LoRA runs on both passes)."/>
+                                                                    </Grid>
+                                                                    <TextBlock Text="{Binding Purpose}" FontSize="9.5" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"
+                                                                               Visibility="{Binding Purpose, Converter={StaticResource StringToVisibilityConverter}}"/>
+                                                                    <TextBox Text="{Binding MissingNote, Mode=OneWay}" IsReadOnly="True" FontSize="9.5" TextWrapping="Wrap" BorderThickness="0" Background="Transparent"
+                                                                             Foreground="{StaticResource AccentAmberBrush}" Padding="0" Margin="0,2,0,0"
+                                                                             Visibility="{Binding IsMissing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button Content="＋ LoRA" Command="{Binding AddLoraCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="24" Padding="10,0" FontSize="10.5" Margin="0,0,6,0"/>
+                                                    <Button Content="↺ Workflow stack" Command="{Binding AuthoredStackCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="24" Padding="10,0" FontSize="10.5"
+                                                            ToolTip="Turbo 8-step 0.8 · wushu spatial physics 0.3 · wushu_action 0.4 · camera motion 0.3 — the workflow's stack, under the published file names."/>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding StackSummary}" FontSize="10" Foreground="{DynamicResource TabAccentBrush}" Margin="0,5,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- ⑥ Shot -->
+                                        <Border Style="{StaticResource SectionCardStyle}" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="⑥ SHOT" Note="  · every beat the same"/>
+                                                <Grid Margin="0,8,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="110"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                    </Grid.RowDefinitions>
+                                                    <TextBlock Text="Seconds / beat" Style="{StaticResource FflfRowLabel}"/>
+                                                    <Grid Grid.Column="1" Margin="0,0,0,6">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="40"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Slider Value="{Binding BeatSeconds}" Minimum="2" Maximum="15" TickFrequency="0.5" IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                                                                ToolTip="Snapped to H3's 17n+5 frames at 24 fps: 5.2 s = 124, 10.1 s = 243, 15.1 s = 362 (about the model's limit)."/>
+                                                        <TextBlock Grid.Column="1" Text="{Binding BeatSeconds, StringFormat={}{0:0.#} s}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                    <TextBlock Grid.Row="1" Text="Aspect" Style="{StaticResource FflfRowLabel}"/>
+                                                    <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding AspectRatioOptions}" SelectedItem="{Binding SelectedAspectRatio}" Height="26" FontSize="11" Margin="0,0,0,6"/>
+                                                    <TextBlock Grid.Row="2" Text="Pass 1" Style="{StaticResource FflfRowLabel}"/>
+                                                    <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding FirstPassSizes}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                              SelectedValue="{Binding FirstPassMegapixels}" Height="26" FontSize="11" Margin="0,0,0,6"/>
+                                                    <TextBlock Grid.Row="3" Text="Refined" Style="{StaticResource FflfRowLabel}"/>
+                                                    <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{Binding FinalSizes}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                              SelectedValue="{Binding FinalMegapixels}" Height="26" FontSize="11"
+                                                              ToolTip="The 3D latent upscaler's target before the finishing steps."/>
+                                                </Grid>
+                                                <TextBlock Text="{Binding CanvasSummary}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,5,0,0"/>
+                                                <CheckBox IsChecked="{Binding PreviewOnly}" Margin="0,8,0,0" FontSize="11" Content="⚡ Draft — pass 1 only"
+                                                          ToolTip="Skip the refine and the upscale: a quick run of the whole fight to check the choreography. Untick and Start over for the final."/>
+                                                <CheckBox IsChecked="{Binding LockFirstFrame}" Margin="0,5,0,0" FontSize="11" Content="📌 Anchor each beat's first frame"
+                                                          ToolTip="On: the frame a beat starts on is pinned at frame 0 (MiniMaxH3AddGuide) as well as sent as &lt;Picture 1&gt;, so the beats join without a jump."/>
+                                                <CheckBox IsChecked="{Binding KeepInitialReference}" Margin="0,5,0,0" FontSize="11" Content="🧍 Keep the opening image as the character reference"
+                                                          ToolTip="From beat 2 on the opening image is also sent, as &lt;Picture 2&gt;."/>
+                                                <CheckBox IsChecked="{Binding MaxFidelityReferences}" Margin="0,5,0,0" FontSize="11" Content="🔍 Full-size references (ref_image_size: max)"
+                                                          ToolTip="The workflow uses 'match' (references scaled to the pass-1 canvas). A refined beat with two or more pictures — every beat after the first — always uses 'max': scaled to the small canvas they break the upscaled finish. Tick to use 'max' everywhere, drafts included (closer faces, about 15% slower)."/>
+                                                <CheckBox IsChecked="{Binding RepairHandoffFace}" Margin="0,5,0,0" FontSize="11" Content="🪞 Restore the opening face on each handoff frame"
+                                                          ToolTip="Before a beat starts on the last frame of the one before, that frame's face is redrawn against the opening image's (Qwen Edit 2511) and pasted back. About 15 s per beat."/>
+                                                <ComboBox ItemsSource="{Binding FaceRepairStrengths}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                          SelectedValue="{Binding FaceRepairStrength}" IsEnabled="{Binding RepairHandoffFace}"
+                                                          Height="24" FontSize="10.5" Margin="22,4,0,0"/>
+                                                <CheckBox IsChecked="{Binding JoinWhenDone}" Margin="0,5,0,0" FontSize="11" Content="🎞 Join the beats when the last one lands"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- ⚙ Models and sampling -->
+                                        <Expander IsExpanded="False" Margin="0,0,0,10">
+                                            <Expander.Header>
+                                                <TextBlock Text="⚙ Models, refine, attention &amp; seed" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            </Expander.Header>
+                                            <StackPanel Margin="0,6,0,0">
+                                                <TextBlock Text="DIFFUSION MODEL (pass 1)" Style="{StaticResource FflfLabel}" Margin="0,0,0,3"/>
+                                                <ComboBox ItemsSource="{Binding ModelOptions}" Text="{Binding DiffusionModel, UpdateSourceTrigger=LostFocus}" IsEditable="True" Height="26" FontSize="10.5"
+                                                          ToolTip="Any model in diffusion_models/h3-minimax. The wushu LoRAs were trained on fl2va; a ref2va or hybrid model holds references closer."/>
+                                                <TextBlock Text="REFINE MODEL (empty = the same)" Style="{StaticResource FflfLabel}"/>
+                                                <ComboBox ItemsSource="{Binding RefineModelOptions}" Text="{Binding RefineModel, UpdateSourceTrigger=LostFocus}" IsEditable="True" Height="26" FontSize="10.5"
+                                                          ToolTip="A second model for the refine and finish steps — e.g. block out the fight on fl2va, refine on a ref2va or Eros model. Two models need more RAM; ComfyUI swaps them."/>
+                                                <TextBlock Text="TEXT ENCODER" Style="{StaticResource FflfLabel}"/>
+                                                <ComboBox ItemsSource="{Binding TextEncoderOptions}" Text="{Binding TextEncoder, UpdateSourceTrigger=LostFocus}" IsEditable="True" Height="26" FontSize="10.5"
+                                                          ToolTip="The workflow names qwen3vl_32b_minimax_h3_int8_convrot; the w4a8 build the other H3 tabs use stands in for it."/>
+                                                <TextBlock Text="ATTENTION" Style="{StaticResource FflfLabel}"/>
+                                                <ComboBox ItemsSource="{Binding AttentionOptions}" SelectedItem="{Binding SelectedAttention}" DisplayMemberPath="Label" Height="26" FontSize="10.5"
+                                                          ToolTip="comfy kitchen attention: the server's own INT8 backend (as the other H3 tabs). sage: the workflow's Sage patches (needs sageattention on the server)."/>
+                                                <Grid Margin="0,8,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="110"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="40"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                    </Grid.RowDefinitions>
+                                                    <TextBlock Text="Pass-1 steps" Style="{StaticResource FflfRowLabel}"/>
+                                                    <Slider Grid.Column="1" Value="{Binding FirstPassSteps}" Minimum="2" Maximum="30" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                                                            ToolTip="8 with the turbo LoRA (as authored). The workflow notes that fast motion blurs at low steps — add steps if it does."/>
+                                                    <TextBlock Grid.Column="2" Text="{Binding FirstPassSteps}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Row="1" Text="Refine strength" Style="{StaticResource FflfRowLabel}"/>
+                                                    <Slider Grid.Row="1" Grid.Column="1" Value="{Binding RefineStrength}" Minimum="0.2" Maximum="0.9" TickFrequency="0.05" IsSnapToTickEnabled="True" VerticalAlignment="Center" Margin="0,4,0,0"
+                                                            ToolTip="The sigma the refine starts from (0.6 as authored). Higher redraws more."/>
+                                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding RefineStrength, StringFormat={}{0:0.00}}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Row="2" Text="Refine steps" Style="{StaticResource FflfRowLabel}"/>
+                                                    <Slider Grid.Row="2" Grid.Column="1" Value="{Binding RefineSteps}" Minimum="4" Maximum="20" TickFrequency="2" IsSnapToTickEnabled="True" VerticalAlignment="Center" Margin="0,4,0,0"
+                                                            ToolTip="Split in half around the 3D upscale (10 = 5 + 5, as authored)."/>
+                                                    <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding RefineSteps}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                </Grid>
+                                                <TextBlock Text="{Binding RefineSummary}" FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                                <Grid Margin="0,6,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="40"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <CheckBox IsChecked="{Binding RtxUpscale}" Content="RTX upscale ×" FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0"
+                                                              ToolTip="RTX Video Super Resolution on the decoded frames (bypassed in the workflow, ×2 there)."/>
+                                                    <Slider Grid.Column="1" Value="{Binding RtxScale}" Minimum="1.2" Maximum="3" TickFrequency="0.1" IsSnapToTickEnabled="True" VerticalAlignment="Center" IsEnabled="{Binding RtxUpscale}"/>
+                                                    <TextBlock Grid.Column="2" Text="{Binding RtxScale, StringFormat={}{0:0.0}}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                </Grid>
+                                                <Grid Margin="0,8,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="110"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Beat 1 seed" Style="{StaticResource FflfRowLabel}"/>
+                                                    <TextBox Grid.Column="1" Text="{Binding BaseSeed, UpdateSourceTrigger=LostFocus}" Height="26" FontSize="11" VerticalContentAlignment="Center"/>
+                                                    <Button Grid.Column="2" Content="🎲" Command="{Binding NewSeedCommand}" Style="{StaticResource SecondaryButtonStyle}" Width="30" Height="26" Padding="0" Margin="4,0,0,0"/>
+                                                </Grid>
+                                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                                    <Button Content="↺ Workflow defaults" Command="{Binding ResetModelCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="24" Padding="10,0" FontSize="10.5" Margin="0,0,5,0"
+                                                            ToolTip="fl2va pruned int8, w4a8 encoder, the workflow's LoRA stack, 8 steps, refine 0.6 over 10 steps."/>
+                                                    <Button Content="⟳ Server lists" Command="{Binding RefreshModelsCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="24" Padding="10,0" FontSize="10.5"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Expander>
+                                    </StackPanel>
+                                </ScrollViewer>
+
+                                <!-- Action bar -->
+                                <Border Grid.Row="1" Padding="10,8" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+                                    <StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Button Command="{Binding GenerateCommand}" Style="{StaticResource AccentButtonStyle}" Height="40" FontSize="13" FontWeight="SemiBold">
+                                                <TextBlock Text="{Binding GenerateLabel}"/>
+                                            </Button>
+                                            <Button Grid.Column="1" Content="⏹" Command="{Binding StopCommand}" Style="{StaticResource SecondaryButtonStyle}"
+                                                    Width="40" Height="40" Padding="0" FontSize="13" Margin="6,0,0,0" ToolTip="Stop"/>
+                                        </Grid>
+                                        <ProgressBar Value="{Binding ProcessingProgress, Mode=OneWay}" Maximum="100" Height="4" Margin="0,6,0,0"
+                                                     Visibility="{Binding IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        <TextBlock Text="{Binding ReadyHint}" FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"
+                                                   HorizontalAlignment="Center" TextAlignment="Center" Margin="0,6,0,0"/>
+                                        <Button Content="↺ Start over" Command="{Binding StartOverCommand}" Style="{StaticResource SecondaryButtonStyle}"
+                                                Height="22" Padding="10,0" FontSize="10" Margin="0,6,0,0" HorizontalAlignment="Center"
+                                                ToolTip="Forget every take and render the fight again from beat 1 with new seeds."/>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+
+                            <!-- ═══ Right: player and beats ═════════════════════════════════ -->
+                            <Grid Grid.Column="1" Margin="0,8,10,8">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <Border Grid.Row="0" CornerRadius="12" Background="{StaticResource PlayerSurfaceBrush}" ClipToBounds="True" MinHeight="220">
+                                    <Grid>
+                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <TextBlock Text="🥷" FontSize="40" HorizontalAlignment="Center" Opacity="0.6"/>
+                                            <TextBlock Text="Each beat plays here as it lands, then the joined fight."
+                                                       FontSize="12" Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                        </StackPanel>
+                                        <MediaElement x:Name="MartialPlayer" LoadedBehavior="Manual" UnloadedBehavior="Stop" Stretch="Uniform"
+                                                      MediaOpened="MartialPlayer_MediaOpened" MediaEnded="MartialPlayer_MediaEnded"/>
+                                        <Grid Background="Black" Visibility="{Binding ShowLivePreview, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <ctrl:LivePreviewPlayer Source="{Binding LivePreviewPath}"/>
+                                        </Grid>
+                                        <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="10" CornerRadius="6" Padding="8,3" Background="#CC000000"
+                                                Visibility="{Binding ShowLiveCaption, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <TextBlock Text="{Binding LivePreviewCaption}" FontSize="10" FontFamily="Consolas" Foreground="#f0c060"/>
+                                        </Border>
+                                        <Grid Background="{StaticResource PlayerSurfaceBrush}"
+                                              Visibility="{Binding HasPreviewImage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <Image Source="{Binding PreviewImage}" Stretch="Uniform"/>
+                                            <Button Content="✕  Back to video" Command="{Binding ClosePreviewImageCommand}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                    Margin="10" Height="26" Padding="10,0" FontSize="10.5" Style="{StaticResource SecondaryButtonStyle}" Opacity="0.92"/>
+                                        </Grid>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Beats, in order: last frame, state, play, redo -->
+                                <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Margin="0,10,0,0">
+                                    <ItemsControl ItemsSource="{Binding Beats}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Horizontal"/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Width="190" Margin="0,0,8,6" CornerRadius="8" Padding="6" Background="{StaticResource SurfaceBrush}"
+                                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                                    <StackPanel>
+                                                        <Border Height="96" CornerRadius="5" Background="{StaticResource PlayerSurfaceBrush}" ClipToBounds="True" Cursor="Hand">
+                                                            <Grid>
+                                                                <TextBlock Text="{Binding StateIcon}" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.7"/>
+                                                                <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"/>
+                                                            </Grid>
+                                                            <Border.InputBindings>
+                                                                <MouseBinding MouseAction="LeftClick" Command="{Binding DataContext.ShowFrameCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/>
+                                                            </Border.InputBindings>
+                                                        </Border>
+                                                        <TextBlock Margin="0,5,0,0" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis">
+                                                            <Run Text="{Binding StateIcon, Mode=OneWay}"/>
+                                                            <Run Text="{Binding Label, Mode=OneWay}"/>
+                                                        </TextBlock>
+                                                        <TextBox Text="{Binding Text, UpdateSourceTrigger=LostFocus}" IsReadOnly="{Binding IsRendering, Mode=OneWay}"
+                                                                 FontSize="9.5" Foreground="{StaticResource TextPrimaryBrush}" Background="Transparent" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                 TextWrapping="Wrap" Height="52" VerticalScrollBarVisibility="Auto" Padding="2,1" Margin="0,3,0,0"
+                                                                 ToolTip="Edit this beat — click away to apply. A finished beat renders again, with every beat after it."/>
+                                                        <TextBlock Text="{Binding Status}" FontSize="9" Foreground="{StaticResource TextFaintBrush}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
+                                                        <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                                                            <Button Content="▶ Play" Command="{Binding DataContext.PlayBeatCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                    Style="{StaticResource SecondaryButtonStyle}" Height="22" Padding="8,0" FontSize="10" Margin="0,0,4,0"
+                                                                    IsEnabled="{Binding HasVideo}"/>
+                                                            <Button Content="↻ Redo" Command="{Binding DataContext.RedoBeatCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                    Style="{StaticResource SecondaryButtonStyle}" Height="22" Padding="8,0" FontSize="10"
+                                                                    ToolTip="A new take of this beat (new seed) — every beat after it renders again from its new last frame."/>
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+
+                                <WrapPanel Grid.Row="2" Margin="0,4,0,0">
+                                    <Button Content="▶ Joined film" Command="{Binding PlayJoinedCommand}" Style="{StaticResource AccentButtonStyle}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,6,4"/>
+                                    <Button Content="🎞 Join now" Command="{Binding JoinCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,6,4"
+                                            ToolTip="Joins every rendered beat in a row from beat 1."/>
+                                    <Button Content="📁 Open folder" Command="{Binding OpenFolderCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,10,4"/>
+                                    <TextBlock Text="{Binding ResultVideoInfo}" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis" Margin="0,0,0,4"/>
+                                </WrapPanel>
+
+                                <Expander Grid.Row="3" Header="📝 Log" IsExpanded="False" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0">
+                                    <Grid>
+                                        <TextBox Text="{Binding LogOutput, Mode=OneWay}" IsReadOnly="True" FontFamily="Consolas" FontSize="10"
+                                                 Height="130" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                                 Background="#1a1a1a" Foreground="#999" BorderThickness="0"
+                                                 TextChanged="FflfLog_TextChanged"/>
+                                        <Button Content="Clear" Command="{Binding ClearLogCommand}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                Height="18" Padding="6,0" FontSize="8" Style="{StaticResource SecondaryButtonStyle}" Margin="0,2,18,0"/>
+                                    </Grid>
+                                </Expander>
+                            </Grid>
+                        </Grid>
+                    </TabItem>
+
                     <!-- ════════════════════════════════════════════════════════════════ -->
                     <!-- Tab: H3 Batch Upscale (batch upscale preview videos)             -->
                     <!-- ════════════════════════════════════════════════════════════════ -->

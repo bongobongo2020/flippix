@@ -37,6 +37,25 @@ namespace FlipPix.UI.Models
 
         /// <summary>Set on stories of the 🥋 Action tab: its preset, LoRA mix, cast and story idea.</summary>
         public FflfActionStory? Action { get; set; }
+
+        /// <summary>Set on stories of the 🥷 Martial tab: its LoRA stack, references, keyframes and refine dials.</summary>
+        public FflfMartialStory? Martial { get; set; }
+    }
+
+    /// <summary>What a 🥷 Martial story keeps on top of an FFLF one.</summary>
+    public sealed class FflfMartialStory
+    {
+        public string RefineModel { get; set; } = string.Empty;
+        public string TextEncoder { get; set; } = string.Empty;
+        public List<FlipPix.Core.Models.H3MartialLoraRow> Loras { get; set; } = new();
+        public List<FlipPix.Core.Models.H3MartialReference> References { get; set; } = new();
+        public List<FlipPix.Core.Models.H3MartialGuide> Guides { get; set; } = new();
+        public string Triggers { get; set; } = string.Empty;
+        public string Attention { get; set; } = string.Empty;
+        public double RefineStrength { get; set; } = 0.6;
+        public int RefineSteps { get; set; } = 10;
+        public bool RtxUpscale { get; set; }
+        public double RtxScale { get; set; } = 2.0;
     }
 
     /// <summary>What a 🥋 Action story keeps on top of an FFLF one.</summary>

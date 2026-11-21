@@ -103,6 +103,12 @@ namespace FlipPix.UI.ViewModels
         /// </summary>
         public H3ActionViewModel H3ActionVM { get; }
 
+        /// <summary>
+        /// Martial ViewModel — the FFLF chain rendered through the MiniMax H3 martial-arts workflow: wushu LoRA
+        /// stack, reference pictures, keyframes and the two-stage refine.
+        /// </summary>
+        public H3MartialViewModel H3MartialVM { get; }
+
         // Bound to the main TabControl so code can switch tabs programmatically.
         // 0 = Scail 2 tab.
         private int _selectedTabIndex = 0;
@@ -258,6 +264,14 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService,
                 _lmStudioService);
+
+            H3MartialVM = new H3MartialViewModel(
+                comfyUIService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
 
             // Forward PlayRequested events from sub-VMs
             MainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
@@ -524,6 +538,7 @@ namespace FlipPix.UI.ViewModels
                 (H3BatchUpscaleVM as IDisposable)?.Dispose();
                 H3FflfVM.Dispose();
                 H3ActionVM.Dispose();
+                H3MartialVM.Dispose();
 
                 _disposed = true;
             }
