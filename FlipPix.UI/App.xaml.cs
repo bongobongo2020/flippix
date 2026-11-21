@@ -238,12 +238,17 @@ namespace FlipPix.UI
 
                 // Pass functions that dynamically retrieve the URL (and the whole LLM settings
                 // block, for the friendly server/model names used in status messages) from settings
-                return new LMStudioService(
+                var service = new LMStudioService(
                     httpClient,
                     logger,
                     () => settingsService.Settings.LMStudioSettings?.BaseUrl ?? "http://alien:8080",
                     () => settingsService.Settings.LMStudioSettings);
+                // Resolved on first use: the broker needs ComfyUI, which is registered after this.
+                service.BeforeLocalCall = (baseUrl, loading, ct) =>
+                    provider.GetRequiredService<GpuMemoryBroker>().FreeForLlmAsync(baseUrl, loading, ct);
+                return service;
             });
+            services.AddSingleton<GpuMemoryBroker>();
 
             // Prompt service
             services.AddSingleton<IPromptService, PromptService>();

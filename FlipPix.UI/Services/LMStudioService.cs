@@ -44,6 +44,26 @@ namespace FlipPix.UI.Services
 
         private string _baseUrl => _getBaseUrl();
 
+        /// <summary>Runs just before a request reaches the local server (base URL, whether a model is about to
+        /// load) — App wires it to <see cref="GpuMemoryBroker"/> so the LLM gets the GPU.</summary>
+        public Func<string, bool, CancellationToken, Task>? BeforeLocalCall { get; set; }
+
+        private async Task PrepareLocalAsync(bool loadingModel, CancellationToken cancellationToken)
+        {
+            var hook = BeforeLocalCall;
+            if (hook == null) return;
+            try { await hook(_baseUrl, loadingModel, cancellationToken); }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (Exception ex) { _logger.LogWarning($"Preparing the GPU for the LLM failed: {ex.Message}"); }
+        }
+
+        /// <summary>The local chat endpoint, with the GPU made ready for it first.</summary>
+        private async Task<string> LocalChatUrlAsync(CancellationToken cancellationToken)
+        {
+            await PrepareLocalAsync(loadingModel: false, cancellationToken);
+            return $"{_baseUrl.TrimEnd('/')}/v1/chat/completions";
+        }
+
         // Set for the duration of a pass that must stay on the local server even when DeepSeek is on —
         // the H3 rewriter, whose LoRA only exists there. AsyncLocal so it follows the awaits of that pass
         // and nothing else running at the same time.
@@ -244,6 +264,8 @@ namespace FlipPix.UI.Services
                         return false;
                     }
 
+                    // The new model allocates its weights and KV cache as it loads: make room first.
+                    await PrepareLocalAsync(loadingModel: true, cancellationToken);
                     _logger.LogInfo($"llama-service: switching '{status.Current}' → '{name}' for {(anyVision ? "an image request" : "the H3 rewriter")}");
                     using var switchCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                     switchCts.CancelAfter(TimeSpan.FromSeconds(10));
@@ -462,7 +484,7 @@ namespace FlipPix.UI.Services
 
                 _logger.LogInfo($"Sending image {Path.GetFileName(imagePath)} ({imageBytes.Length} bytes) to {DescribeTarget(modelName)}");
 
-                var fullUrl = $"{_baseUrl.TrimEnd('/')}/v1/chat/completions";
+                var fullUrl = await LocalChatUrlAsync(cancellationToken);
                 using var content = new StringContent(json, Encoding.UTF8, "application/json");
                 using var response = await _httpClient.PostAsync(fullUrl, content, cancellationToken);
 
@@ -570,7 +592,7 @@ namespace FlipPix.UI.Services
 
                 var json = JsonSerializer.Serialize(requestBody, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
-                var fullUrl = $"{_baseUrl.TrimEnd('/')}/v1/chat/completions";
+                var fullUrl = await LocalChatUrlAsync(cancellationToken);
                 using var content = new StringContent(json, Encoding.UTF8, "application/json");
                 using var response = await _httpClient.PostAsync(fullUrl, content, cancellationToken);
 
@@ -681,7 +703,7 @@ namespace FlipPix.UI.Services
 
                 _logger.LogInfo($"Sending image {Path.GetFileName(imagePath)} ({imageBytes.Length} bytes) to {DescribeTarget(modelName)}");
 
-                var fullUrl = $"{_baseUrl.TrimEnd('/')}/v1/chat/completions";
+                var fullUrl = await LocalChatUrlAsync(cancellationToken);
                 using var content = new StringContent(json, Encoding.UTF8, "application/json");
                 using var response = await _httpClient.PostAsync(fullUrl, content, cancellationToken);
 
@@ -776,7 +798,7 @@ namespace FlipPix.UI.Services
 
                 _logger.LogInfo($"Sending enhancement request to LM Studio for model: {modelName}");
 
-                var fullUrl = $"{_baseUrl.TrimEnd('/')}/v1/chat/completions";
+                var fullUrl = await LocalChatUrlAsync(cancellationToken);
                 using var content = new StringContent(json, Encoding.UTF8, "application/json");
                 using var response = await _httpClient.PostAsync(fullUrl, content, cancellationToken);
 
@@ -868,7 +890,7 @@ namespace FlipPix.UI.Services
 
                 _logger.LogInfo($"SendTextChatAsync: model={modelName}, userMessage length={userMessage.Length}{s.Describe()}");
 
-                var fullUrl = $"{_baseUrl.TrimEnd('/')}/v1/chat/completions";
+                var fullUrl = await LocalChatUrlAsync(cancellationToken);
                 using var content = new StringContent(json, Encoding.UTF8, "application/json");
                 using var response = await _httpClient.PostAsync(fullUrl, content, cancellationToken);
 
@@ -1076,7 +1098,7 @@ namespace FlipPix.UI.Services
 
                 var json = JsonSerializer.Serialize(requestBody, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
-                var fullUrl = $"{_baseUrl.TrimEnd('/')}/v1/chat/completions";
+                var fullUrl = await LocalChatUrlAsync(cancellationToken);
                 using var content = new StringContent(json, Encoding.UTF8, "application/json");
                 using var response = await _httpClient.PostAsync(fullUrl, content, cancellationToken);
 
@@ -1318,7 +1340,7 @@ namespace FlipPix.UI.Services
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             });
 
-            var fullUrl = $"{_baseUrl.TrimEnd('/')}/v1/chat/completions";
+            var fullUrl = await LocalChatUrlAsync(cancellationToken);
             using var content = new StringContent(json, Encoding.UTF8, "application/json");
             using var response = await _httpClient.PostAsync(fullUrl, content, cancellationToken);
 
@@ -1605,4 +1627,4 @@ namespace FlipPix.UI.Services
             }
         }
     }
-}
+}

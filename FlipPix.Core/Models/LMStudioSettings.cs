@@ -63,6 +63,14 @@ public class LMStudioSettings
     public bool AutoConnect { get; set; } = true;
 
     /// <summary>
+    /// Before a call to a llama-server on this PC, unload ComfyUI's and Yakkinator's models when the GPU has
+    /// less than <see cref="AutoFreeMinFreeGb"/> free, so the LLM stays in VRAM instead of spilling into
+    /// shared system RAM.
+    /// </summary>
+    public bool AutoFreeGpuMemory { get; set; } = true;
+    public double AutoFreeMinFreeGb { get; set; } = 4;
+
+    /// <summary>
     /// Port of llama-service's model-switch endpoint on the same host as <see cref="BaseUrl"/>. The tray
     /// serves one model at a time and loads another on request: <see cref="VisionSwitchModel"/> before a
     /// request that carries images (when the loaded model has no vision projector), and
