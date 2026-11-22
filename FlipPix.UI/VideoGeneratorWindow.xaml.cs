@@ -260,6 +260,70 @@ namespace FlipPix.UI
         private void FflfLog_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) =>
             (sender as System.Windows.Controls.TextBox)?.ScrollToEnd();
 
+        // ── FFLF / Action / Martial stage: player pane ⇄ beat strip ──────────────────────────
+        // The right side of those tabs is a Grid tagged "Stage": row 0 player, row 1 splitter,
+        // row 2 beat strip. ⤢ (or double-clicking the picture) hides the strip so the player
+        // gets the whole column, and brings it back at the height the splitter last left it.
+        private readonly System.Collections.Generic.Dictionary<System.Windows.Controls.Grid, GridLength> _stageBeatsHeight = new();
+
+        private void StageExpand_Click(object sender, RoutedEventArgs e) => ToggleStage(sender as DependencyObject);
+
+        private void StagePlayer_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ClickCount != 2) return;
+            ToggleStage(sender as DependencyObject);
+            e.Handled = true;
+        }
+
+        // The splitter position persists per tab (LayoutStateStore, keyed by the tab root's name) as
+        // the player's share of the two panes, and is put back whenever the stage loads.
+        private static string? StageKey(System.Windows.Controls.Grid stage) =>
+            (stage.Parent as FrameworkElement)?.Name is { Length: > 0 } root ? $"{root}.PlayerShare" : null;
+
+        private void Stage_Loaded(object sender, RoutedEventArgs e)
+        {
+            if (sender is not System.Windows.Controls.Grid stage || stage.RowDefinitions.Count < 3) return;
+            if (stage.RowDefinitions[2].Height.Value == 0) return; // strip hidden by ⤢ — leave it
+            if (StageKey(stage) is not { } key || !LayoutStateStore.TryGet(key, out var share)) return;
+            if (double.IsNaN(share) || share < 0.05 || share > 0.95) return;
+            stage.RowDefinitions[0].Height = new GridLength(share, GridUnitType.Star);
+            stage.RowDefinitions[2].Height = new GridLength(1 - share, GridUnitType.Star);
+        }
+
+        private void StageSplitter_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.Parent is not System.Windows.Controls.Grid stage || stage.RowDefinitions.Count < 3) return;
+            double player = stage.RowDefinitions[0].ActualHeight, beats = stage.RowDefinitions[2].ActualHeight;
+            if (player + beats <= 0 || StageKey(stage) is not { } key) return;
+            LayoutStateStore.Set(key, player / (player + beats));
+        }
+
+        private void ToggleStage(DependencyObject? from)
+        {
+            var node = from;
+            while (node != null && !(node is System.Windows.Controls.Grid g && Equals(g.Tag, "Stage")))
+                node = System.Windows.Media.VisualTreeHelper.GetParent(node);
+            if (node is not System.Windows.Controls.Grid stage || stage.RowDefinitions.Count < 3) return;
+
+            var beatsRow = stage.RowDefinitions[2];
+            var parts = stage.Children.OfType<UIElement>()
+                .Where(c => System.Windows.Controls.Grid.GetRow(c) is 1 or 2).ToList();
+            bool hide = beatsRow.ActualHeight > 0;
+            if (hide)
+            {
+                _stageBeatsHeight[stage] = beatsRow.Height;
+                beatsRow.MinHeight = 0;
+                beatsRow.Height = new GridLength(0);
+                foreach (var p in parts) p.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                beatsRow.Height = _stageBeatsHeight.TryGetValue(stage, out var h) ? h : new GridLength(1, GridUnitType.Star);
+                beatsRow.MinHeight = 150;
+                foreach (var p in parts) p.Visibility = Visibility.Visible;
+            }
+        }
+
         private static string? DroppedImage(System.Windows.DragEventArgs e) =>
             e.Data.GetData(System.Windows.DataFormats.FileDrop) is string[] { Length: > 0 } files
             && new[] { ".png", ".jpg", ".jpeg", ".webp", ".bmp" }.Contains(System.IO.Path.GetExtension(files[0]).ToLowerInvariant())

@@ -6146,156 +6146,260 @@
                                 </Border>
                             </Grid>
 
-                            <!-- ═══ Right: player and beats ═════════════════════════════════ -->
-                            <Grid Grid.Column="1" Margin="0,8,10,8">
+                            <!-- ═══ Right: player and beats ═════════════════════════════════
+                                 Two panes with a splitter between them: drag it to trade player height for
+                                 beat-strip height. ⤢ on the player bar (or double-clicking the picture) hides
+                                 the beat strip and gives the player the whole column (StageExpand_Click). -->
+                            <Grid Grid.Column="1" Margin="0,8,10,8" Tag="Stage" Loaded="Stage_Loaded">
+                                <Grid.Resources>
+                                    <Style x:Key="StageCardText" TargetType="TextBox">
+                                        <Setter Property="FontSize" Value="10"/>
+                                        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                        <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                                        <Setter Property="BorderThickness" Value="1"/>
+                                        <Setter Property="TextWrapping" Value="Wrap"/>
+                                        <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+                                        <Setter Property="Padding" Value="4,2"/>
+                                    </Style>
+                                    <Style x:Key="StageIconButton" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                        <Setter Property="Width" Value="26"/>
+                                        <Setter Property="Height" Value="24"/>
+                                        <Setter Property="Padding" Value="0"/>
+                                        <Setter Property="FontSize" Value="10.5"/>
+                                    </Style>
+                                </Grid.Resources>
                                 <Grid.RowDefinitions>
-                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="1.35*" MinHeight="200"/>
                                     <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*" MinHeight="150"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                <Border Grid.Row="0" CornerRadius="12" Background="{StaticResource PlayerSurfaceBrush}" ClipToBounds="True" MinHeight="220">
-                                    <Grid>
-                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <TextBlock Text="⛓" FontSize="40" HorizontalAlignment="Center" Opacity="0.6"/>
-                                            <TextBlock Text="Each beat plays here as it lands, then the joined film."
-                                                       FontSize="12" Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                <!-- ═══ Top pane: player + film bar ═══ -->
+                                <Grid Grid.Row="0">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Border CornerRadius="12" Background="{StaticResource PlayerSurfaceBrush}" ClipToBounds="True"
+                                            MouseLeftButtonDown="StagePlayer_MouseLeftButtonDown" ToolTip="Double-click to give the player the whole column">
+                                        <Grid>
+                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="⛓" FontSize="40" HorizontalAlignment="Center" Opacity="0.6"/>
+                                                <TextBlock Text="Each beat plays here as it lands, then the joined film."
+                                                           FontSize="12" Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                            </StackPanel>
+                                            <MediaElement x:Name="FflfPlayer" LoadedBehavior="Manual" UnloadedBehavior="Stop" Stretch="Uniform"
+                                                          MediaOpened="FflfPlayer_MediaOpened" MediaEnded="FflfPlayer_MediaEnded"/>
+                                            <Grid Background="Black" Visibility="{Binding ShowLivePreview, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <ctrl:LivePreviewPlayer Source="{Binding LivePreviewPath}"/>
+                                            </Grid>
+                                            <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="10" CornerRadius="6" Padding="8,3" Background="#CC000000"
+                                                    Visibility="{Binding ShowLiveCaption, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <TextBlock Text="{Binding LivePreviewCaption}" FontSize="10" FontFamily="Consolas" Foreground="#f0c060"/>
+                                            </Border>
+                                            <Grid Background="{StaticResource PlayerSurfaceBrush}"
+                                                  Visibility="{Binding HasPreviewImage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <Image Source="{Binding PreviewImage}" Stretch="Uniform"/>
+                                                <Button Content="✕  Back to video" Command="{Binding ClosePreviewImageCommand}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                        Margin="10" Height="26" Padding="10,0" FontSize="10.5" Style="{StaticResource SecondaryButtonStyle}" Opacity="0.92"/>
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Film bar: what's in the player and what to do with the joined film -->
+                                    <Grid Grid.Row="1" Margin="2,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding ResultVideoInfo}" FontSize="10.5" VerticalAlignment="Center" Margin="0,0,10,0"
+                                                   Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding ResultVideoInfo}"/>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                            <Button Content="▶ Joined film" Command="{Binding PlayJoinedCommand}" Style="{StaticResource AccentButtonStyle}" Height="28" Padding="12,0" FontSize="11" Margin="0,0,6,0"/>
+                                            <Button Content="🎞 Join now" Command="{Binding JoinCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="28" Padding="12,0" FontSize="11" Margin="0,0,6,0"
+                                                    ToolTip="Joins every rendered beat in a row from beat 1."/>
+                                            <Button Content="📁 Open folder" Command="{Binding OpenFolderCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="28" Padding="12,0" FontSize="11" Margin="0,0,6,0"/>
+                                            <Button Content="⤢" Click="StageExpand_Click" Style="{StaticResource SecondaryButtonStyle}" Height="28" Width="32" Padding="0" FontSize="13"
+                                                    ToolTip="Hide or show the beat strip — gives the player the whole column"/>
                                         </StackPanel>
-                                        <MediaElement x:Name="FflfPlayer" LoadedBehavior="Manual" UnloadedBehavior="Stop" Stretch="Uniform"
-                                                      MediaOpened="FflfPlayer_MediaOpened" MediaEnded="FflfPlayer_MediaEnded"/>
-                                        <Grid Background="Black" Visibility="{Binding ShowLivePreview, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                            <ctrl:LivePreviewPlayer Source="{Binding LivePreviewPath}"/>
-                                        </Grid>
-                                        <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="10" CornerRadius="6" Padding="8,3" Background="#CC000000"
-                                                Visibility="{Binding ShowLiveCaption, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                            <TextBlock Text="{Binding LivePreviewCaption}" FontSize="10" FontFamily="Consolas" Foreground="#f0c060"/>
+                                    </Grid>
+                                </Grid>
+
+                                <!-- ═══ Splitter: drag to trade player height for beat-strip height ═══ -->
+                                <GridSplitter Grid.Row="1" Height="14" HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                              ResizeDirection="Rows" ResizeBehavior="PreviousAndNext" Cursor="SizeNS" Focusable="False"
+                                              ToolTip="Drag to resize the player and the beat strip" DragCompleted="StageSplitter_DragCompleted">
+                                    <GridSplitter.Template>
+                                        <ControlTemplate TargetType="GridSplitter">
+                                            <Grid Background="Transparent">
+                                                <Border x:Name="Grip" Width="48" Height="4" CornerRadius="2" Background="{StaticResource BorderStrongBrush}"
+                                                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Grid>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Grip" Property="Background" Value="{StaticResource TabAccentBrush}"/>
+                                                    <Setter TargetName="Grip" Property="Width" Value="72"/>
+                                                </Trigger>
+                                                <Trigger Property="IsDragging" Value="True">
+                                                    <Setter TargetName="Grip" Property="Background" Value="{StaticResource TabAccentBrush}"/>
+                                                    <Setter TargetName="Grip" Property="Width" Value="72"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </GridSplitter.Template>
+                                </GridSplitter>
+
+                                <!-- ═══ Bottom pane: the beats ═══ -->
+                                <Border Grid.Row="2" CornerRadius="12" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <Border Padding="12,8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}">
+                                                    <Run Text="Beats"/>
+                                                    <Run Text="{Binding Beats.Count, Mode=OneWay}" Foreground="{StaticResource TextFaintBrush}" FontWeight="Normal"/>
+                                                </TextBlock>
+                                                <TextBlock Grid.Column="1" Text="{Binding YakStatus}" FontSize="10" VerticalAlignment="Center" Margin="10,0,10,0"
+                                                           Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding YakStatus}"/>
+                                                <!-- Yakkinator: the engine and voice every beat's line is spoken with, and Send all -->
+                                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <TextBlock Text="🗣" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{StaticResource TextSecondaryBrush}" ToolTip="Yakkinator voice for every beat"/>
+                                                    <StackPanel Orientation="Horizontal" IsEnabled="{Binding CanPickYakVoice}">
+                                                        <ComboBox ItemsSource="{Binding YakEngines}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding SelectedYakEngine}"
+                                                                  Width="104" Height="26" FontSize="10.5" Margin="0,0,4,0"
+                                                                  ToolTip="Engine for every beat's line — sets it on every beat (each beat can still pick its own)."/>
+                                                        <ComboBox ItemsSource="{Binding YakVoices}" SelectedItem="{Binding SelectedYakVoice}"
+                                                                  Width="140" Height="26" FontSize="10.5" Margin="0,0,4,0"
+                                                                  ToolTip="Voice for every beat's line — sets it on every beat using this engine."/>
+                                                    </StackPanel>
+                                                    <Button Content="↻" Command="{Binding RefreshYakVoicesCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="26" Width="26" Padding="0" FontSize="11" Margin="0,0,4,0"
+                                                            ToolTip="Read the voices from Yakkinator again"/>
+                                                    <Button Content="{Binding SendAllLabel}" Command="{Binding SendAllLinesCommand}" Style="{StaticResource AccentButtonStyle}" Height="26" Padding="10,0" FontSize="10.5" Margin="0,0,4,0"
+                                                            ToolTip="Voice every beat's spoken line with Yakkinator, one after another, and use each clip as that beat's dialogue. Beats already voiced from the same line and voice are skipped."/>
+                                                    <Button Content="■" Command="{Binding StopVoicingCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="26" Width="26" Padding="0" FontSize="10"
+                                                            ToolTip="Stop voicing"/>
+                                                </StackPanel>
+                                            </Grid>
                                         </Border>
-                                        <Grid Background="{StaticResource PlayerSurfaceBrush}"
-                                              Visibility="{Binding HasPreviewImage, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                            <Image Source="{Binding PreviewImage}" Stretch="Uniform"/>
-                                            <Button Content="✕  Back to video" Command="{Binding ClosePreviewImageCommand}" HorizontalAlignment="Right" VerticalAlignment="Top"
-                                                    Margin="10" Height="26" Padding="10,0" FontSize="10.5" Style="{StaticResource SecondaryButtonStyle}" Opacity="0.92"/>
-                                        </Grid>
+
+                                        <!-- Beats, in order: last frame, state, play, redo -->
+                                        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Padding="10,10,4,4">
+                                            <ItemsControl ItemsSource="{Binding Beats}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel Orientation="Horizontal"/>
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Width="214" Margin="0,0,10,6" CornerRadius="10" Padding="8" VerticalAlignment="Top"
+                                                                Background="{StaticResource AppBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                                            <StackPanel>
+                                                                <!-- Header: state + label, play / redo -->
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <TextBlock VerticalAlignment="Center" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis">
+                                                                        <Run Text="{Binding StateIcon, Mode=OneWay}"/>
+                                                                        <Run Text="{Binding Label, Mode=OneWay}"/>
+                                                                    </TextBlock>
+                                                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                                                        <Button Content="▶" Command="{Binding DataContext.PlayBeatCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                                Style="{StaticResource StageIconButton}" Margin="0,0,4,0" IsEnabled="{Binding HasVideo}" ToolTip="Play this beat"/>
+                                                                        <Button Content="↻" Command="{Binding DataContext.RedoBeatCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                                Style="{StaticResource StageIconButton}"
+                                                                                ToolTip="A new take of this beat (new seed) — every beat after it renders again from its new last frame. While the story renders, it is queued: the beat in progress stops and the run goes back to this one."/>
+                                                                    </StackPanel>
+                                                                </Grid>
+                                                                <!-- Last frame, with the beat's status on it -->
+                                                                <Border Height="108" Margin="0,6,0,0" CornerRadius="6" Background="{StaticResource PlayerSurfaceBrush}" ClipToBounds="True" Cursor="Hand"
+                                                                        ToolTip="Show this beat's last frame in the player">
+                                                                    <Grid>
+                                                                        <TextBlock Text="{Binding StateIcon}" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.7"/>
+                                                                        <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"/>
+                                                                        <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="6" CornerRadius="4" Padding="6,2" Background="#B3000000" MaxWidth="186">
+                                                                            <Border.Style>
+                                                                                <Style TargetType="Border">
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding Status}" Value="">
+                                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                        </DataTrigger>
+                                                                                        <DataTrigger Binding="{Binding Status}" Value="{x:Null}">
+                                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </Border.Style>
+                                                                            <TextBlock Text="{Binding Status}" FontSize="9.5" Foreground="#EEE" TextTrimming="CharacterEllipsis" ToolTip="{Binding Status}"/>
+                                                                        </Border>
+                                                                    </Grid>
+                                                                    <Border.InputBindings>
+                                                                        <MouseBinding MouseAction="LeftClick" Command="{Binding DataContext.ShowFrameCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/>
+                                                                    </Border.InputBindings>
+                                                                </Border>
+                                                                <TextBox Text="{Binding Text, UpdateSourceTrigger=LostFocus}" IsReadOnly="{Binding IsRendering, Mode=OneWay}" Style="{StaticResource StageCardText}"
+                                                                         Height="54" Margin="0,6,0,0"
+                                                                         ToolTip="Edit this beat — click away to apply. A finished beat renders again, with every beat after it."/>
+                                                                <!-- Spoken line, voiced by Yakkinator -->
+                                                                <Grid Margin="0,4,0,0">
+                                                                    <TextBox Text="{Binding LineText, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsVoicing, Mode=OneWay}" Style="{StaticResource StageCardText}"
+                                                                             AcceptsReturn="False" Height="34"
+                                                                             ToolTip="What the character says in this beat. 🗣 Generate (or 🗣 Send all) has Yakkinator speak it and uses the audio as the beat's dialogue."/>
+                                                                    <TextBlock Text="🗣 Spoken line…" FontSize="9.5" Margin="6,3,0,0" IsHitTestVisible="False" Foreground="{StaticResource TextFaintBrush}"
+                                                                               Visibility="{Binding ShowLineHint, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                                </Grid>
+                                                                <Grid Margin="0,4,0,0" IsEnabled="{Binding CanPickVoice}">
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="76"/>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <ComboBox ItemsSource="{Binding DataContext.YakEngines, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                              DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding TtsEngine}"
+                                                                              FontSize="9.5" Height="22" Padding="4,0" ToolTip="Yakkinator engine for this beat's line"/>
+                                                                    <ComboBox Grid.Column="1" ItemsSource="{Binding TtsVoiceOptions}" SelectedItem="{Binding TtsVoice}"
+                                                                              FontSize="9.5" Height="22" Padding="4,0" Margin="4,0,0,0" ToolTip="Voice for this beat's line"/>
+                                                                </Grid>
+                                                                <Grid Margin="0,4,0,0" ToolTip="Optional dialogue for this beat. The character speaks it on camera with lip sync: the soundtrack is locked to this audio and only the picture is generated. The beat is lengthened to fit the line (up to 20 s).">
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <Button Content="🎙 Browse" Command="{Binding DataContext.BrowseDialogueCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                            Style="{StaticResource SecondaryButtonStyle}" Height="22" Padding="7,0" FontSize="9.5"
+                                                                            ToolTip="Pick an audio file to use as this beat's dialogue."/>
+                                                                    <Button Grid.Column="1" Content="🗣 Generate" Command="{Binding DataContext.GenerateLineCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                            Style="{StaticResource SecondaryButtonStyle}" Height="22" Padding="7,0" FontSize="9.5" Margin="4,0,0,0"
+                                                                            ToolTip="Send the spoken line to Yakkinator with the engine and voice picked above; the audio it makes becomes this beat's dialogue."/>
+                                                                    <TextBlock Grid.Column="2" Text="{Binding DialogueName}" FontSize="9" Margin="6,0,2,0" VerticalAlignment="Center"
+                                                                               Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding DialogueName}"/>
+                                                                    <Button Grid.Column="3" Content="✕" Command="{Binding DataContext.ClearDialogueCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                            Style="{StaticResource SecondaryButtonStyle}" Height="22" Width="22" Padding="0" FontSize="9" ToolTip="Remove the dialogue"
+                                                                            Visibility="{Binding HasDialogue, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                                </Grid>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
                                     </Grid>
                                 </Border>
 
-                                <!-- Beats, in order: last frame, state, play, redo -->
-                                <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Margin="0,10,0,0">
-                                    <ItemsControl ItemsSource="{Binding Beats}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <StackPanel Orientation="Horizontal"/>
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border Width="190" Margin="0,0,8,6" CornerRadius="8" Padding="6" Background="{StaticResource SurfaceBrush}"
-                                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                                                    <StackPanel>
-                                                        <Border Height="96" CornerRadius="5" Background="{StaticResource PlayerSurfaceBrush}" ClipToBounds="True" Cursor="Hand">
-                                                            <Grid>
-                                                                <TextBlock Text="{Binding StateIcon}" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.7"/>
-                                                                <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"/>
-                                                            </Grid>
-                                                            <Border.InputBindings>
-                                                                <MouseBinding MouseAction="LeftClick" Command="{Binding DataContext.ShowFrameCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/>
-                                                            </Border.InputBindings>
-                                                        </Border>
-                                                        <TextBlock Margin="0,5,0,0" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis">
-                                                            <Run Text="{Binding StateIcon, Mode=OneWay}"/>
-                                                            <Run Text="{Binding Label, Mode=OneWay}"/>
-                                                        </TextBlock>
-                                                        <TextBox Text="{Binding Text, UpdateSourceTrigger=LostFocus}" IsReadOnly="{Binding IsRendering, Mode=OneWay}"
-                                                                 FontSize="9.5" Foreground="{StaticResource TextPrimaryBrush}" Background="Transparent" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                                 TextWrapping="Wrap" Height="52" VerticalScrollBarVisibility="Auto" Padding="2,1" Margin="0,3,0,0"
-                                                                 ToolTip="Edit this beat — click away to apply. A finished beat renders again, with every beat after it."/>
-                                                        <!-- Spoken line, voiced by Yakkinator -->
-                                                        <Grid Margin="0,3,0,0">
-                                                            <TextBox Text="{Binding LineText, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsVoicing, Mode=OneWay}"
-                                                                     FontSize="9.5" Foreground="{StaticResource TextPrimaryBrush}" Background="Transparent" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                                     TextWrapping="Wrap" AcceptsReturn="False" Height="34" VerticalScrollBarVisibility="Auto" Padding="2,1"
-                                                                     ToolTip="What the character says in this beat. 🗣 Generate (or 🗣 Send all) has Yakkinator speak it and uses the audio as the beat's dialogue."/>
-                                                            <TextBlock Text="🗣 Spoken line…" FontSize="9.5" Margin="5,2,0,0" IsHitTestVisible="False" Foreground="{StaticResource TextFaintBrush}"
-                                                                       Visibility="{Binding ShowLineHint, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                                        </Grid>
-                                                        <Grid Margin="0,3,0,0" IsEnabled="{Binding CanPickVoice}">
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="72"/>
-                                                                <ColumnDefinition Width="*"/>
-                                                            </Grid.ColumnDefinitions>
-                                                            <ComboBox ItemsSource="{Binding DataContext.YakEngines, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                                      DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding TtsEngine}"
-                                                                      FontSize="9" Height="20" Padding="3,0" ToolTip="Yakkinator engine for this beat's line"/>
-                                                            <ComboBox Grid.Column="1" ItemsSource="{Binding TtsVoiceOptions}" SelectedItem="{Binding TtsVoice}"
-                                                                      FontSize="9" Height="20" Padding="3,0" Margin="3,0,0,0" ToolTip="Voice for this beat's line"/>
-                                                        </Grid>
-                                                        <Grid Margin="0,3,0,0" ToolTip="Optional dialogue for this beat. The character speaks it on camera with lip sync: the soundtrack is locked to this audio and only the picture is generated. The beat is lengthened to fit the line (up to 20 s).">
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="Auto"/>
-                                                                <ColumnDefinition Width="*"/>
-                                                                <ColumnDefinition Width="Auto"/>
-                                                            </Grid.ColumnDefinitions>
-                                                            <StackPanel Orientation="Horizontal">
-                                                                <Button Content="🎙 Browse…" Command="{Binding DataContext.BrowseDialogueCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
-                                                                        Style="{StaticResource SecondaryButtonStyle}" Height="20" Padding="6,0" FontSize="9.5"/>
-                                                                <Button Content="🗣 Generate" Command="{Binding DataContext.GenerateLineCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
-                                                                        Style="{StaticResource SecondaryButtonStyle}" Height="20" Padding="6,0" FontSize="9.5" Margin="3,0,0,0"
-                                                                        ToolTip="Send the spoken line to Yakkinator with the engine and voice picked above; the audio it makes becomes this beat's dialogue."/>
-                                                            </StackPanel>
-                                                            <TextBlock Grid.Column="1" Text="{Binding DialogueName}" FontSize="9" Margin="5,0,2,0" VerticalAlignment="Center"
-                                                                       Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis"/>
-                                                            <Button Grid.Column="2" Content="✕" Command="{Binding DataContext.ClearDialogueCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
-                                                                    Style="{StaticResource SecondaryButtonStyle}" Height="20" Width="20" Padding="0" FontSize="9" ToolTip="Remove the dialogue"
-                                                                    Visibility="{Binding HasDialogue, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                                        </Grid>
-                                                        <TextBlock Text="{Binding Status}" FontSize="9" Foreground="{StaticResource TextFaintBrush}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
-                                                        <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
-                                                            <Button Content="▶ Play" Command="{Binding DataContext.PlayBeatCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
-                                                                    Style="{StaticResource SecondaryButtonStyle}" Height="22" Padding="8,0" FontSize="10" Margin="0,0,4,0"
-                                                                    IsEnabled="{Binding HasVideo}"/>
-                                                            <Button Content="↻ Redo" Command="{Binding DataContext.RedoBeatCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
-                                                                    Style="{StaticResource SecondaryButtonStyle}" Height="22" Padding="8,0" FontSize="10"
-                                                                    ToolTip="A new take of this beat (new seed) — every beat after it renders again from its new last frame. While the story renders, it is queued: the beat in progress stops and the run goes back to this one."/>
-                                                        </StackPanel>
-                                                    </StackPanel>
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </ScrollViewer>
-
-                                <WrapPanel Grid.Row="2" Margin="0,4,0,0">
-                                    <!-- Yakkinator: the engine and voice every beat's line is spoken with, and Send all -->
-                                    <Border CornerRadius="6" Padding="6,2" Margin="0,0,10,4" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="🗣 Yakkinator" FontSize="10.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                            <StackPanel Orientation="Horizontal" IsEnabled="{Binding CanPickYakVoice}">
-                                                <ComboBox ItemsSource="{Binding YakEngines}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding SelectedYakEngine}"
-                                                          Width="96" Height="22" FontSize="10" Margin="0,0,4,0"
-                                                          ToolTip="Engine for every beat's line — sets it on every beat (each beat can still pick its own)."/>
-                                                <ComboBox ItemsSource="{Binding YakVoices}" SelectedItem="{Binding SelectedYakVoice}"
-                                                          Width="130" Height="22" FontSize="10" Margin="0,0,4,0"
-                                                          ToolTip="Voice for every beat's line — sets it on every beat using this engine."/>
-                                            </StackPanel>
-                                            <Button Content="↻" Command="{Binding RefreshYakVoicesCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="22" Width="22" Padding="0" FontSize="10" Margin="0,0,4,0"
-                                                    ToolTip="Read the voices from Yakkinator again"/>
-                                            <Button Content="{Binding SendAllLabel}" Command="{Binding SendAllLinesCommand}" Style="{StaticResource AccentButtonStyle}" Height="22" Padding="8,0" FontSize="10.5" Margin="0,0,4,0"
-                                                    ToolTip="Voice every beat's spoken line with Yakkinator, one after another, and use each clip as that beat's dialogue. Beats already voiced from the same line and voice are skipped."/>
-                                            <Button Content="■" Command="{Binding StopVoicingCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="22" Width="22" Padding="0" FontSize="10"
-                                                    ToolTip="Stop voicing"/>
-                                            <TextBlock Text="{Binding YakStatus}" FontSize="9.5" VerticalAlignment="Center" Margin="6,0,0,0" MaxWidth="260"
-                                                       Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding YakStatus}"/>
-                                        </StackPanel>
-                                    </Border>
-                                    <Button Content="▶ Joined film" Command="{Binding PlayJoinedCommand}" Style="{StaticResource AccentButtonStyle}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,6,4"/>
-                                    <Button Content="🎞 Join now" Command="{Binding JoinCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,6,4"
-                                            ToolTip="Joins every rendered beat in a row from beat 1."/>
-                                    <Button Content="📁 Open folder" Command="{Binding OpenFolderCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,10,4"/>
-                                    <TextBlock Text="{Binding ResultVideoInfo}" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis" Margin="0,0,0,4"/>
-                                </WrapPanel>
-
-                                <Expander Grid.Row="3" Header="📝 Log" IsExpanded="False" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0">
+                                <Expander Grid.Row="3" Header="📝 Log" IsExpanded="False" Foreground="{StaticResource TextMutedBrush}" Margin="0,6,0,0">
                                     <Grid>
                                         <TextBox Text="{Binding LogOutput, Mode=OneWay}" IsReadOnly="True" FontFamily="Consolas" FontSize="10"
                                                  Height="130" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
@@ -6684,156 +6788,260 @@
                                 </Border>
                             </Grid>
 
-                            <!-- ═══ Right: player and beats ═════════════════════════════════ -->
-                            <Grid Grid.Column="1" Margin="0,8,10,8">
+                            <!-- ═══ Right: player and beats ═════════════════════════════════
+                                 Two panes with a splitter between them: drag it to trade player height for
+                                 beat-strip height. ⤢ on the player bar (or double-clicking the picture) hides
+                                 the beat strip and gives the player the whole column (StageExpand_Click). -->
+                            <Grid Grid.Column="1" Margin="0,8,10,8" Tag="Stage" Loaded="Stage_Loaded">
+                                <Grid.Resources>
+                                    <Style x:Key="StageCardText" TargetType="TextBox">
+                                        <Setter Property="FontSize" Value="10"/>
+                                        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                        <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                                        <Setter Property="BorderThickness" Value="1"/>
+                                        <Setter Property="TextWrapping" Value="Wrap"/>
+                                        <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+                                        <Setter Property="Padding" Value="4,2"/>
+                                    </Style>
+                                    <Style x:Key="StageIconButton" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                        <Setter Property="Width" Value="26"/>
+                                        <Setter Property="Height" Value="24"/>
+                                        <Setter Property="Padding" Value="0"/>
+                                        <Setter Property="FontSize" Value="10.5"/>
+                                    </Style>
+                                </Grid.Resources>
                                 <Grid.RowDefinitions>
-                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="1.35*" MinHeight="200"/>
                                     <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*" MinHeight="150"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                <Border Grid.Row="0" CornerRadius="12" Background="{StaticResource PlayerSurfaceBrush}" ClipToBounds="True" MinHeight="220">
-                                    <Grid>
-                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <TextBlock Text="🥋" FontSize="40" HorizontalAlignment="Center" Opacity="0.6"/>
-                                            <TextBlock Text="Each beat plays here as it lands, then the joined scene."
-                                                       FontSize="12" Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                <!-- ═══ Top pane: player + film bar ═══ -->
+                                <Grid Grid.Row="0">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Border CornerRadius="12" Background="{StaticResource PlayerSurfaceBrush}" ClipToBounds="True"
+                                            MouseLeftButtonDown="StagePlayer_MouseLeftButtonDown" ToolTip="Double-click to give the player the whole column">
+                                        <Grid>
+                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="🥋" FontSize="40" HorizontalAlignment="Center" Opacity="0.6"/>
+                                                <TextBlock Text="Each beat plays here as it lands, then the joined scene."
+                                                           FontSize="12" Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                            </StackPanel>
+                                            <MediaElement x:Name="ActionPlayer" LoadedBehavior="Manual" UnloadedBehavior="Stop" Stretch="Uniform"
+                                                          MediaOpened="ActionPlayer_MediaOpened" MediaEnded="ActionPlayer_MediaEnded"/>
+                                            <Grid Background="Black" Visibility="{Binding ShowLivePreview, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <ctrl:LivePreviewPlayer Source="{Binding LivePreviewPath}"/>
+                                            </Grid>
+                                            <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="10" CornerRadius="6" Padding="8,3" Background="#CC000000"
+                                                    Visibility="{Binding ShowLiveCaption, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <TextBlock Text="{Binding LivePreviewCaption}" FontSize="10" FontFamily="Consolas" Foreground="#f0c060"/>
+                                            </Border>
+                                            <Grid Background="{StaticResource PlayerSurfaceBrush}"
+                                                  Visibility="{Binding HasPreviewImage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <Image Source="{Binding PreviewImage}" Stretch="Uniform"/>
+                                                <Button Content="✕  Back to video" Command="{Binding ClosePreviewImageCommand}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                        Margin="10" Height="26" Padding="10,0" FontSize="10.5" Style="{StaticResource SecondaryButtonStyle}" Opacity="0.92"/>
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Film bar: what's in the player and what to do with the joined film -->
+                                    <Grid Grid.Row="1" Margin="2,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding ResultVideoInfo}" FontSize="10.5" VerticalAlignment="Center" Margin="0,0,10,0"
+                                                   Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding ResultVideoInfo}"/>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                            <Button Content="▶ Joined film" Command="{Binding PlayJoinedCommand}" Style="{StaticResource AccentButtonStyle}" Height="28" Padding="12,0" FontSize="11" Margin="0,0,6,0"/>
+                                            <Button Content="🎞 Join now" Command="{Binding JoinCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="28" Padding="12,0" FontSize="11" Margin="0,0,6,0"
+                                                    ToolTip="Joins every rendered beat in a row from beat 1."/>
+                                            <Button Content="📁 Open folder" Command="{Binding OpenFolderCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="28" Padding="12,0" FontSize="11" Margin="0,0,6,0"/>
+                                            <Button Content="⤢" Click="StageExpand_Click" Style="{StaticResource SecondaryButtonStyle}" Height="28" Width="32" Padding="0" FontSize="13"
+                                                    ToolTip="Hide or show the beat strip — gives the player the whole column"/>
                                         </StackPanel>
-                                        <MediaElement x:Name="ActionPlayer" LoadedBehavior="Manual" UnloadedBehavior="Stop" Stretch="Uniform"
-                                                      MediaOpened="ActionPlayer_MediaOpened" MediaEnded="ActionPlayer_MediaEnded"/>
-                                        <Grid Background="Black" Visibility="{Binding ShowLivePreview, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                            <ctrl:LivePreviewPlayer Source="{Binding LivePreviewPath}"/>
-                                        </Grid>
-                                        <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="10" CornerRadius="6" Padding="8,3" Background="#CC000000"
-                                                Visibility="{Binding ShowLiveCaption, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                            <TextBlock Text="{Binding LivePreviewCaption}" FontSize="10" FontFamily="Consolas" Foreground="#f0c060"/>
+                                    </Grid>
+                                </Grid>
+
+                                <!-- ═══ Splitter: drag to trade player height for beat-strip height ═══ -->
+                                <GridSplitter Grid.Row="1" Height="14" HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                              ResizeDirection="Rows" ResizeBehavior="PreviousAndNext" Cursor="SizeNS" Focusable="False"
+                                              ToolTip="Drag to resize the player and the beat strip" DragCompleted="StageSplitter_DragCompleted">
+                                    <GridSplitter.Template>
+                                        <ControlTemplate TargetType="GridSplitter">
+                                            <Grid Background="Transparent">
+                                                <Border x:Name="Grip" Width="48" Height="4" CornerRadius="2" Background="{StaticResource BorderStrongBrush}"
+                                                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Grid>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Grip" Property="Background" Value="{StaticResource TabAccentBrush}"/>
+                                                    <Setter TargetName="Grip" Property="Width" Value="72"/>
+                                                </Trigger>
+                                                <Trigger Property="IsDragging" Value="True">
+                                                    <Setter TargetName="Grip" Property="Background" Value="{StaticResource TabAccentBrush}"/>
+                                                    <Setter TargetName="Grip" Property="Width" Value="72"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </GridSplitter.Template>
+                                </GridSplitter>
+
+                                <!-- ═══ Bottom pane: the beats ═══ -->
+                                <Border Grid.Row="2" CornerRadius="12" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <Border Padding="12,8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}">
+                                                    <Run Text="Beats"/>
+                                                    <Run Text="{Binding Beats.Count, Mode=OneWay}" Foreground="{StaticResource TextFaintBrush}" FontWeight="Normal"/>
+                                                </TextBlock>
+                                                <TextBlock Grid.Column="1" Text="{Binding YakStatus}" FontSize="10" VerticalAlignment="Center" Margin="10,0,10,0"
+                                                           Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding YakStatus}"/>
+                                                <!-- Yakkinator: the engine and voice every beat's line is spoken with, and Send all -->
+                                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <TextBlock Text="🗣" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{StaticResource TextSecondaryBrush}" ToolTip="Yakkinator voice for every beat"/>
+                                                    <StackPanel Orientation="Horizontal" IsEnabled="{Binding CanPickYakVoice}">
+                                                        <ComboBox ItemsSource="{Binding YakEngines}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding SelectedYakEngine}"
+                                                                  Width="104" Height="26" FontSize="10.5" Margin="0,0,4,0"
+                                                                  ToolTip="Engine for every beat's line — sets it on every beat (each beat can still pick its own)."/>
+                                                        <ComboBox ItemsSource="{Binding YakVoices}" SelectedItem="{Binding SelectedYakVoice}"
+                                                                  Width="140" Height="26" FontSize="10.5" Margin="0,0,4,0"
+                                                                  ToolTip="Voice for every beat's line — sets it on every beat using this engine."/>
+                                                    </StackPanel>
+                                                    <Button Content="↻" Command="{Binding RefreshYakVoicesCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="26" Width="26" Padding="0" FontSize="11" Margin="0,0,4,0"
+                                                            ToolTip="Read the voices from Yakkinator again"/>
+                                                    <Button Content="{Binding SendAllLabel}" Command="{Binding SendAllLinesCommand}" Style="{StaticResource AccentButtonStyle}" Height="26" Padding="10,0" FontSize="10.5" Margin="0,0,4,0"
+                                                            ToolTip="Voice every beat's spoken line with Yakkinator, one after another, and use each clip as that beat's dialogue. Beats already voiced from the same line and voice are skipped."/>
+                                                    <Button Content="■" Command="{Binding StopVoicingCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="26" Width="26" Padding="0" FontSize="10"
+                                                            ToolTip="Stop voicing"/>
+                                                </StackPanel>
+                                            </Grid>
                                         </Border>
-                                        <Grid Background="{StaticResource PlayerSurfaceBrush}"
-                                              Visibility="{Binding HasPreviewImage, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                            <Image Source="{Binding PreviewImage}" Stretch="Uniform"/>
-                                            <Button Content="✕  Back to video" Command="{Binding ClosePreviewImageCommand}" HorizontalAlignment="Right" VerticalAlignment="Top"
-                                                    Margin="10" Height="26" Padding="10,0" FontSize="10.5" Style="{StaticResource SecondaryButtonStyle}" Opacity="0.92"/>
-                                        </Grid>
+
+                                        <!-- Beats, in order: last frame, state, play, redo -->
+                                        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Padding="10,10,4,4">
+                                            <ItemsControl ItemsSource="{Binding Beats}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel Orientation="Horizontal"/>
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Width="214" Margin="0,0,10,6" CornerRadius="10" Padding="8" VerticalAlignment="Top"
+                                                                Background="{StaticResource AppBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                                            <StackPanel>
+                                                                <!-- Header: state + label, play / redo -->
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <TextBlock VerticalAlignment="Center" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis">
+                                                                        <Run Text="{Binding StateIcon, Mode=OneWay}"/>
+                                                                        <Run Text="{Binding Label, Mode=OneWay}"/>
+                                                                    </TextBlock>
+                                                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                                                        <Button Content="▶" Command="{Binding DataContext.PlayBeatCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                                Style="{StaticResource StageIconButton}" Margin="0,0,4,0" IsEnabled="{Binding HasVideo}" ToolTip="Play this beat"/>
+                                                                        <Button Content="↻" Command="{Binding DataContext.RedoBeatCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                                Style="{StaticResource StageIconButton}"
+                                                                                ToolTip="A new take of this beat (new seed) — every beat after it renders again from its new last frame. While the story renders, it is queued: the beat in progress stops and the run goes back to this one."/>
+                                                                    </StackPanel>
+                                                                </Grid>
+                                                                <!-- Last frame, with the beat's status on it -->
+                                                                <Border Height="108" Margin="0,6,0,0" CornerRadius="6" Background="{StaticResource PlayerSurfaceBrush}" ClipToBounds="True" Cursor="Hand"
+                                                                        ToolTip="Show this beat's last frame in the player">
+                                                                    <Grid>
+                                                                        <TextBlock Text="{Binding StateIcon}" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.7"/>
+                                                                        <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"/>
+                                                                        <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="6" CornerRadius="4" Padding="6,2" Background="#B3000000" MaxWidth="186">
+                                                                            <Border.Style>
+                                                                                <Style TargetType="Border">
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding Status}" Value="">
+                                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                        </DataTrigger>
+                                                                                        <DataTrigger Binding="{Binding Status}" Value="{x:Null}">
+                                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </Border.Style>
+                                                                            <TextBlock Text="{Binding Status}" FontSize="9.5" Foreground="#EEE" TextTrimming="CharacterEllipsis" ToolTip="{Binding Status}"/>
+                                                                        </Border>
+                                                                    </Grid>
+                                                                    <Border.InputBindings>
+                                                                        <MouseBinding MouseAction="LeftClick" Command="{Binding DataContext.ShowFrameCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/>
+                                                                    </Border.InputBindings>
+                                                                </Border>
+                                                                <TextBox Text="{Binding Text, UpdateSourceTrigger=LostFocus}" IsReadOnly="{Binding IsRendering, Mode=OneWay}" Style="{StaticResource StageCardText}"
+                                                                         Height="54" Margin="0,6,0,0"
+                                                                         ToolTip="Edit this beat — click away to apply. A finished beat renders again, with every beat after it."/>
+                                                                <!-- Spoken line, voiced by Yakkinator -->
+                                                                <Grid Margin="0,4,0,0">
+                                                                    <TextBox Text="{Binding LineText, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsVoicing, Mode=OneWay}" Style="{StaticResource StageCardText}"
+                                                                             AcceptsReturn="False" Height="34"
+                                                                             ToolTip="What the character says in this beat. 🗣 Generate (or 🗣 Send all) has Yakkinator speak it and uses the audio as the beat's dialogue."/>
+                                                                    <TextBlock Text="🗣 Spoken line…" FontSize="9.5" Margin="6,3,0,0" IsHitTestVisible="False" Foreground="{StaticResource TextFaintBrush}"
+                                                                               Visibility="{Binding ShowLineHint, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                                </Grid>
+                                                                <Grid Margin="0,4,0,0" IsEnabled="{Binding CanPickVoice}">
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="76"/>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <ComboBox ItemsSource="{Binding DataContext.YakEngines, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                              DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding TtsEngine}"
+                                                                              FontSize="9.5" Height="22" Padding="4,0" ToolTip="Yakkinator engine for this beat's line"/>
+                                                                    <ComboBox Grid.Column="1" ItemsSource="{Binding TtsVoiceOptions}" SelectedItem="{Binding TtsVoice}"
+                                                                              FontSize="9.5" Height="22" Padding="4,0" Margin="4,0,0,0" ToolTip="Voice for this beat's line"/>
+                                                                </Grid>
+                                                                <Grid Margin="0,4,0,0" ToolTip="Optional dialogue for this beat. The character speaks it on camera with lip sync: the soundtrack is locked to this audio and only the picture is generated. The beat is lengthened to fit the line (up to 20 s).">
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <Button Content="🎙 Browse" Command="{Binding DataContext.BrowseDialogueCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                            Style="{StaticResource SecondaryButtonStyle}" Height="22" Padding="7,0" FontSize="9.5"
+                                                                            ToolTip="Pick an audio file to use as this beat's dialogue."/>
+                                                                    <Button Grid.Column="1" Content="🗣 Generate" Command="{Binding DataContext.GenerateLineCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                            Style="{StaticResource SecondaryButtonStyle}" Height="22" Padding="7,0" FontSize="9.5" Margin="4,0,0,0"
+                                                                            ToolTip="Send the spoken line to Yakkinator with the engine and voice picked above; the audio it makes becomes this beat's dialogue."/>
+                                                                    <TextBlock Grid.Column="2" Text="{Binding DialogueName}" FontSize="9" Margin="6,0,2,0" VerticalAlignment="Center"
+                                                                               Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding DialogueName}"/>
+                                                                    <Button Grid.Column="3" Content="✕" Command="{Binding DataContext.ClearDialogueCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                            Style="{StaticResource SecondaryButtonStyle}" Height="22" Width="22" Padding="0" FontSize="9" ToolTip="Remove the dialogue"
+                                                                            Visibility="{Binding HasDialogue, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                                </Grid>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
                                     </Grid>
                                 </Border>
 
-                                <!-- Beats, in order: last frame, state, play, redo -->
-                                <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Margin="0,10,0,0">
-                                    <ItemsControl ItemsSource="{Binding Beats}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <StackPanel Orientation="Horizontal"/>
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border Width="190" Margin="0,0,8,6" CornerRadius="8" Padding="6" Background="{StaticResource SurfaceBrush}"
-                                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                                                    <StackPanel>
-                                                        <Border Height="96" CornerRadius="5" Background="{StaticResource PlayerSurfaceBrush}" ClipToBounds="True" Cursor="Hand">
-                                                            <Grid>
-                                                                <TextBlock Text="{Binding StateIcon}" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.7"/>
-                                                                <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"/>
-                                                            </Grid>
-                                                            <Border.InputBindings>
-                                                                <MouseBinding MouseAction="LeftClick" Command="{Binding DataContext.ShowFrameCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/>
-                                                            </Border.InputBindings>
-                                                        </Border>
-                                                        <TextBlock Margin="0,5,0,0" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis">
-                                                            <Run Text="{Binding StateIcon, Mode=OneWay}"/>
-                                                            <Run Text="{Binding Label, Mode=OneWay}"/>
-                                                        </TextBlock>
-                                                        <TextBox Text="{Binding Text, UpdateSourceTrigger=LostFocus}" IsReadOnly="{Binding IsRendering, Mode=OneWay}"
-                                                                 FontSize="9.5" Foreground="{StaticResource TextPrimaryBrush}" Background="Transparent" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                                 TextWrapping="Wrap" Height="52" VerticalScrollBarVisibility="Auto" Padding="2,1" Margin="0,3,0,0"
-                                                                 ToolTip="Edit this beat — click away to apply. A finished beat renders again, with every beat after it."/>
-                                                        <!-- Spoken line, voiced by Yakkinator -->
-                                                        <Grid Margin="0,3,0,0">
-                                                            <TextBox Text="{Binding LineText, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsVoicing, Mode=OneWay}"
-                                                                     FontSize="9.5" Foreground="{StaticResource TextPrimaryBrush}" Background="Transparent" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                                     TextWrapping="Wrap" AcceptsReturn="False" Height="34" VerticalScrollBarVisibility="Auto" Padding="2,1"
-                                                                     ToolTip="What the character says in this beat. 🗣 Generate (or 🗣 Send all) has Yakkinator speak it and uses the audio as the beat's dialogue."/>
-                                                            <TextBlock Text="🗣 Spoken line…" FontSize="9.5" Margin="5,2,0,0" IsHitTestVisible="False" Foreground="{StaticResource TextFaintBrush}"
-                                                                       Visibility="{Binding ShowLineHint, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                                        </Grid>
-                                                        <Grid Margin="0,3,0,0" IsEnabled="{Binding CanPickVoice}">
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="72"/>
-                                                                <ColumnDefinition Width="*"/>
-                                                            </Grid.ColumnDefinitions>
-                                                            <ComboBox ItemsSource="{Binding DataContext.YakEngines, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                                      DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding TtsEngine}"
-                                                                      FontSize="9" Height="20" Padding="3,0" ToolTip="Yakkinator engine for this beat's line"/>
-                                                            <ComboBox Grid.Column="1" ItemsSource="{Binding TtsVoiceOptions}" SelectedItem="{Binding TtsVoice}"
-                                                                      FontSize="9" Height="20" Padding="3,0" Margin="3,0,0,0" ToolTip="Voice for this beat's line"/>
-                                                        </Grid>
-                                                        <Grid Margin="0,3,0,0" ToolTip="Optional dialogue for this beat. The character speaks it on camera with lip sync: the soundtrack is locked to this audio and only the picture is generated. The beat is lengthened to fit the line (up to 20 s).">
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="Auto"/>
-                                                                <ColumnDefinition Width="*"/>
-                                                                <ColumnDefinition Width="Auto"/>
-                                                            </Grid.ColumnDefinitions>
-                                                            <StackPanel Orientation="Horizontal">
-                                                                <Button Content="🎙 Browse…" Command="{Binding DataContext.BrowseDialogueCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
-                                                                        Style="{StaticResource SecondaryButtonStyle}" Height="20" Padding="6,0" FontSize="9.5"/>
-                                                                <Button Content="🗣 Generate" Command="{Binding DataContext.GenerateLineCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
-                                                                        Style="{StaticResource SecondaryButtonStyle}" Height="20" Padding="6,0" FontSize="9.5" Margin="3,0,0,0"
-                                                                        ToolTip="Send the spoken line to Yakkinator with the engine and voice picked above; the audio it makes becomes this beat's dialogue."/>
-                                                            </StackPanel>
-                                                            <TextBlock Grid.Column="1" Text="{Binding DialogueName}" FontSize="9" Margin="5,0,2,0" VerticalAlignment="Center"
-                                                                       Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis"/>
-                                                            <Button Grid.Column="2" Content="✕" Command="{Binding DataContext.ClearDialogueCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
-                                                                    Style="{StaticResource SecondaryButtonStyle}" Height="20" Width="20" Padding="0" FontSize="9" ToolTip="Remove the dialogue"
-                                                                    Visibility="{Binding HasDialogue, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                                        </Grid>
-                                                        <TextBlock Text="{Binding Status}" FontSize="9" Foreground="{StaticResource TextFaintBrush}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
-                                                        <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
-                                                            <Button Content="▶ Play" Command="{Binding DataContext.PlayBeatCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
-                                                                    Style="{StaticResource SecondaryButtonStyle}" Height="22" Padding="8,0" FontSize="10" Margin="0,0,4,0"
-                                                                    IsEnabled="{Binding HasVideo}"/>
-                                                            <Button Content="↻ Redo" Command="{Binding DataContext.RedoBeatCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
-                                                                    Style="{StaticResource SecondaryButtonStyle}" Height="22" Padding="8,0" FontSize="10"
-                                                                    ToolTip="A new take of this beat (new seed) — every beat after it renders again from its new last frame. While the story renders, it is queued: the beat in progress stops and the run goes back to this one."/>
-                                                        </StackPanel>
-                                                    </StackPanel>
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </ScrollViewer>
-
-                                <WrapPanel Grid.Row="2" Margin="0,4,0,0">
-                                    <!-- Yakkinator: the engine and voice every beat's line is spoken with, and Send all -->
-                                    <Border CornerRadius="6" Padding="6,2" Margin="0,0,10,4" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="🗣 Yakkinator" FontSize="10.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                            <StackPanel Orientation="Horizontal" IsEnabled="{Binding CanPickYakVoice}">
-                                                <ComboBox ItemsSource="{Binding YakEngines}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding SelectedYakEngine}"
-                                                          Width="96" Height="22" FontSize="10" Margin="0,0,4,0"
-                                                          ToolTip="Engine for every beat's line — sets it on every beat (each beat can still pick its own)."/>
-                                                <ComboBox ItemsSource="{Binding YakVoices}" SelectedItem="{Binding SelectedYakVoice}"
-                                                          Width="130" Height="22" FontSize="10" Margin="0,0,4,0"
-                                                          ToolTip="Voice for every beat's line — sets it on every beat using this engine."/>
-                                            </StackPanel>
-                                            <Button Content="↻" Command="{Binding RefreshYakVoicesCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="22" Width="22" Padding="0" FontSize="10" Margin="0,0,4,0"
-                                                    ToolTip="Read the voices from Yakkinator again"/>
-                                            <Button Content="{Binding SendAllLabel}" Command="{Binding SendAllLinesCommand}" Style="{StaticResource AccentButtonStyle}" Height="22" Padding="8,0" FontSize="10.5" Margin="0,0,4,0"
-                                                    ToolTip="Voice every beat's spoken line with Yakkinator, one after another, and use each clip as that beat's dialogue. Beats already voiced from the same line and voice are skipped."/>
-                                            <Button Content="■" Command="{Binding StopVoicingCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="22" Width="22" Padding="0" FontSize="10"
-                                                    ToolTip="Stop voicing"/>
-                                            <TextBlock Text="{Binding YakStatus}" FontSize="9.5" VerticalAlignment="Center" Margin="6,0,0,0" MaxWidth="260"
-                                                       Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding YakStatus}"/>
-                                        </StackPanel>
-                                    </Border>
-                                    <Button Content="▶ Joined film" Command="{Binding PlayJoinedCommand}" Style="{StaticResource AccentButtonStyle}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,6,4"/>
-                                    <Button Content="🎞 Join now" Command="{Binding JoinCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,6,4"
-                                            ToolTip="Joins every rendered beat in a row from beat 1."/>
-                                    <Button Content="📁 Open folder" Command="{Binding OpenFolderCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,10,4"/>
-                                    <TextBlock Text="{Binding ResultVideoInfo}" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis" Margin="0,0,0,4"/>
-                                </WrapPanel>
-
-                                <Expander Grid.Row="3" Header="📝 Log" IsExpanded="False" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0">
+                                <Expander Grid.Row="3" Header="📝 Log" IsExpanded="False" Foreground="{StaticResource TextMutedBrush}" Margin="0,6,0,0">
                                     <Grid>
                                         <TextBox Text="{Binding LogOutput, Mode=OneWay}" IsReadOnly="True" FontFamily="Consolas" FontSize="10"
                                                  Height="130" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
@@ -7242,95 +7450,202 @@
                                 </Border>
                             </Grid>
 
-                            <!-- ═══ Right: player and beats ═════════════════════════════════ -->
-                            <Grid Grid.Column="1" Margin="0,8,10,8">
+                            <!-- ═══ Right: player and beats ═════════════════════════════════
+                                 Two panes with a splitter between them: drag it to trade player height for
+                                 beat-strip height. ⤢ on the player bar (or double-clicking the picture) hides
+                                 the beat strip and gives the player the whole column (StageExpand_Click). -->
+                            <Grid Grid.Column="1" Margin="0,8,10,8" Tag="Stage" Loaded="Stage_Loaded">
+                                <Grid.Resources>
+                                    <Style x:Key="StageCardText" TargetType="TextBox">
+                                        <Setter Property="FontSize" Value="10"/>
+                                        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                        <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                                        <Setter Property="BorderThickness" Value="1"/>
+                                        <Setter Property="TextWrapping" Value="Wrap"/>
+                                        <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+                                        <Setter Property="Padding" Value="4,2"/>
+                                    </Style>
+                                    <Style x:Key="StageIconButton" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                        <Setter Property="Width" Value="26"/>
+                                        <Setter Property="Height" Value="24"/>
+                                        <Setter Property="Padding" Value="0"/>
+                                        <Setter Property="FontSize" Value="10.5"/>
+                                    </Style>
+                                </Grid.Resources>
                                 <Grid.RowDefinitions>
-                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="1.35*" MinHeight="200"/>
                                     <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*" MinHeight="150"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                <Border Grid.Row="0" CornerRadius="12" Background="{StaticResource PlayerSurfaceBrush}" ClipToBounds="True" MinHeight="220">
-                                    <Grid>
-                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <TextBlock Text="🥷" FontSize="40" HorizontalAlignment="Center" Opacity="0.6"/>
-                                            <TextBlock Text="Each beat plays here as it lands, then the joined fight."
-                                                       FontSize="12" Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                <!-- ═══ Top pane: player + film bar ═══ -->
+                                <Grid Grid.Row="0">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Border CornerRadius="12" Background="{StaticResource PlayerSurfaceBrush}" ClipToBounds="True"
+                                            MouseLeftButtonDown="StagePlayer_MouseLeftButtonDown" ToolTip="Double-click to give the player the whole column">
+                                        <Grid>
+                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="🥷" FontSize="40" HorizontalAlignment="Center" Opacity="0.6"/>
+                                                <TextBlock Text="Each beat plays here as it lands, then the joined fight."
+                                                           FontSize="12" Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                            </StackPanel>
+                                            <MediaElement x:Name="MartialPlayer" LoadedBehavior="Manual" UnloadedBehavior="Stop" Stretch="Uniform"
+                                                          MediaOpened="MartialPlayer_MediaOpened" MediaEnded="MartialPlayer_MediaEnded"/>
+                                            <Grid Background="Black" Visibility="{Binding ShowLivePreview, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <ctrl:LivePreviewPlayer Source="{Binding LivePreviewPath}"/>
+                                            </Grid>
+                                            <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="10" CornerRadius="6" Padding="8,3" Background="#CC000000"
+                                                    Visibility="{Binding ShowLiveCaption, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <TextBlock Text="{Binding LivePreviewCaption}" FontSize="10" FontFamily="Consolas" Foreground="#f0c060"/>
+                                            </Border>
+                                            <Grid Background="{StaticResource PlayerSurfaceBrush}"
+                                                  Visibility="{Binding HasPreviewImage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <Image Source="{Binding PreviewImage}" Stretch="Uniform"/>
+                                                <Button Content="✕  Back to video" Command="{Binding ClosePreviewImageCommand}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                        Margin="10" Height="26" Padding="10,0" FontSize="10.5" Style="{StaticResource SecondaryButtonStyle}" Opacity="0.92"/>
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Film bar: what's in the player and what to do with the joined film -->
+                                    <Grid Grid.Row="1" Margin="2,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding ResultVideoInfo}" FontSize="10.5" VerticalAlignment="Center" Margin="0,0,10,0"
+                                                   Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding ResultVideoInfo}"/>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                            <Button Content="▶ Joined film" Command="{Binding PlayJoinedCommand}" Style="{StaticResource AccentButtonStyle}" Height="28" Padding="12,0" FontSize="11" Margin="0,0,6,0"/>
+                                            <Button Content="🎞 Join now" Command="{Binding JoinCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="28" Padding="12,0" FontSize="11" Margin="0,0,6,0"
+                                                    ToolTip="Joins every rendered beat in a row from beat 1."/>
+                                            <Button Content="📁 Open folder" Command="{Binding OpenFolderCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="28" Padding="12,0" FontSize="11" Margin="0,0,6,0"/>
+                                            <Button Content="⤢" Click="StageExpand_Click" Style="{StaticResource SecondaryButtonStyle}" Height="28" Width="32" Padding="0" FontSize="13"
+                                                    ToolTip="Hide or show the beat strip — gives the player the whole column"/>
                                         </StackPanel>
-                                        <MediaElement x:Name="MartialPlayer" LoadedBehavior="Manual" UnloadedBehavior="Stop" Stretch="Uniform"
-                                                      MediaOpened="MartialPlayer_MediaOpened" MediaEnded="MartialPlayer_MediaEnded"/>
-                                        <Grid Background="Black" Visibility="{Binding ShowLivePreview, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                            <ctrl:LivePreviewPlayer Source="{Binding LivePreviewPath}"/>
-                                        </Grid>
-                                        <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="10" CornerRadius="6" Padding="8,3" Background="#CC000000"
-                                                Visibility="{Binding ShowLiveCaption, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                            <TextBlock Text="{Binding LivePreviewCaption}" FontSize="10" FontFamily="Consolas" Foreground="#f0c060"/>
+                                    </Grid>
+                                </Grid>
+
+                                <!-- ═══ Splitter: drag to trade player height for beat-strip height ═══ -->
+                                <GridSplitter Grid.Row="1" Height="14" HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                              ResizeDirection="Rows" ResizeBehavior="PreviousAndNext" Cursor="SizeNS" Focusable="False"
+                                              ToolTip="Drag to resize the player and the beat strip" DragCompleted="StageSplitter_DragCompleted">
+                                    <GridSplitter.Template>
+                                        <ControlTemplate TargetType="GridSplitter">
+                                            <Grid Background="Transparent">
+                                                <Border x:Name="Grip" Width="48" Height="4" CornerRadius="2" Background="{StaticResource BorderStrongBrush}"
+                                                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Grid>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Grip" Property="Background" Value="{StaticResource TabAccentBrush}"/>
+                                                    <Setter TargetName="Grip" Property="Width" Value="72"/>
+                                                </Trigger>
+                                                <Trigger Property="IsDragging" Value="True">
+                                                    <Setter TargetName="Grip" Property="Background" Value="{StaticResource TabAccentBrush}"/>
+                                                    <Setter TargetName="Grip" Property="Width" Value="72"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </GridSplitter.Template>
+                                </GridSplitter>
+
+                                <!-- ═══ Bottom pane: the beats ═══ -->
+                                <Border Grid.Row="2" CornerRadius="12" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <Border Padding="12,8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}">
+                                                    <Run Text="Beats"/>
+                                                    <Run Text="{Binding Beats.Count, Mode=OneWay}" Foreground="{StaticResource TextFaintBrush}" FontWeight="Normal"/>
+                                                </TextBlock>
+                                            </Grid>
                                         </Border>
-                                        <Grid Background="{StaticResource PlayerSurfaceBrush}"
-                                              Visibility="{Binding HasPreviewImage, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                            <Image Source="{Binding PreviewImage}" Stretch="Uniform"/>
-                                            <Button Content="✕  Back to video" Command="{Binding ClosePreviewImageCommand}" HorizontalAlignment="Right" VerticalAlignment="Top"
-                                                    Margin="10" Height="26" Padding="10,0" FontSize="10.5" Style="{StaticResource SecondaryButtonStyle}" Opacity="0.92"/>
-                                        </Grid>
+
+                                        <!-- Beats, in order: last frame, state, play, redo -->
+                                        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Padding="10,10,4,4">
+                                            <ItemsControl ItemsSource="{Binding Beats}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel Orientation="Horizontal"/>
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Width="214" Margin="0,0,10,6" CornerRadius="10" Padding="8" VerticalAlignment="Top"
+                                                                Background="{StaticResource AppBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                                            <StackPanel>
+                                                                <!-- Header: state + label, play / redo -->
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <TextBlock VerticalAlignment="Center" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis">
+                                                                        <Run Text="{Binding StateIcon, Mode=OneWay}"/>
+                                                                        <Run Text="{Binding Label, Mode=OneWay}"/>
+                                                                    </TextBlock>
+                                                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                                                        <Button Content="▶" Command="{Binding DataContext.PlayBeatCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                                Style="{StaticResource StageIconButton}" Margin="0,0,4,0" IsEnabled="{Binding HasVideo}" ToolTip="Play this beat"/>
+                                                                        <Button Content="↻" Command="{Binding DataContext.RedoBeatCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                                Style="{StaticResource StageIconButton}"
+                                                                                ToolTip="A new take of this beat (new seed) — every beat after it renders again from its new last frame."/>
+                                                                    </StackPanel>
+                                                                </Grid>
+                                                                <!-- Last frame, with the beat's status on it -->
+                                                                <Border Height="108" Margin="0,6,0,0" CornerRadius="6" Background="{StaticResource PlayerSurfaceBrush}" ClipToBounds="True" Cursor="Hand"
+                                                                        ToolTip="Show this beat's last frame in the player">
+                                                                    <Grid>
+                                                                        <TextBlock Text="{Binding StateIcon}" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.7"/>
+                                                                        <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"/>
+                                                                        <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="6" CornerRadius="4" Padding="6,2" Background="#B3000000" MaxWidth="186">
+                                                                            <Border.Style>
+                                                                                <Style TargetType="Border">
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding Status}" Value="">
+                                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                        </DataTrigger>
+                                                                                        <DataTrigger Binding="{Binding Status}" Value="{x:Null}">
+                                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </Border.Style>
+                                                                            <TextBlock Text="{Binding Status}" FontSize="9.5" Foreground="#EEE" TextTrimming="CharacterEllipsis" ToolTip="{Binding Status}"/>
+                                                                        </Border>
+                                                                    </Grid>
+                                                                    <Border.InputBindings>
+                                                                        <MouseBinding MouseAction="LeftClick" Command="{Binding DataContext.ShowFrameCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/>
+                                                                    </Border.InputBindings>
+                                                                </Border>
+                                                                <TextBox Text="{Binding Text, UpdateSourceTrigger=LostFocus}" IsReadOnly="{Binding IsRendering, Mode=OneWay}" Style="{StaticResource StageCardText}"
+                                                                         Height="54" Margin="0,6,0,0"
+                                                                         ToolTip="Edit this beat — click away to apply. A finished beat renders again, with every beat after it."/>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
                                     </Grid>
                                 </Border>
 
-                                <!-- Beats, in order: last frame, state, play, redo -->
-                                <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Margin="0,10,0,0">
-                                    <ItemsControl ItemsSource="{Binding Beats}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <StackPanel Orientation="Horizontal"/>
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border Width="190" Margin="0,0,8,6" CornerRadius="8" Padding="6" Background="{StaticResource SurfaceBrush}"
-                                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                                                    <StackPanel>
-                                                        <Border Height="96" CornerRadius="5" Background="{StaticResource PlayerSurfaceBrush}" ClipToBounds="True" Cursor="Hand">
-                                                            <Grid>
-                                                                <TextBlock Text="{Binding StateIcon}" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.7"/>
-                                                                <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"/>
-                                                            </Grid>
-                                                            <Border.InputBindings>
-                                                                <MouseBinding MouseAction="LeftClick" Command="{Binding DataContext.ShowFrameCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/>
-                                                            </Border.InputBindings>
-                                                        </Border>
-                                                        <TextBlock Margin="0,5,0,0" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis">
-                                                            <Run Text="{Binding StateIcon, Mode=OneWay}"/>
-                                                            <Run Text="{Binding Label, Mode=OneWay}"/>
-                                                        </TextBlock>
-                                                        <TextBox Text="{Binding Text, UpdateSourceTrigger=LostFocus}" IsReadOnly="{Binding IsRendering, Mode=OneWay}"
-                                                                 FontSize="9.5" Foreground="{StaticResource TextPrimaryBrush}" Background="Transparent" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                                 TextWrapping="Wrap" Height="52" VerticalScrollBarVisibility="Auto" Padding="2,1" Margin="0,3,0,0"
-                                                                 ToolTip="Edit this beat — click away to apply. A finished beat renders again, with every beat after it."/>
-                                                        <TextBlock Text="{Binding Status}" FontSize="9" Foreground="{StaticResource TextFaintBrush}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"/>
-                                                        <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
-                                                            <Button Content="▶ Play" Command="{Binding DataContext.PlayBeatCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
-                                                                    Style="{StaticResource SecondaryButtonStyle}" Height="22" Padding="8,0" FontSize="10" Margin="0,0,4,0"
-                                                                    IsEnabled="{Binding HasVideo}"/>
-                                                            <Button Content="↻ Redo" Command="{Binding DataContext.RedoBeatCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
-                                                                    Style="{StaticResource SecondaryButtonStyle}" Height="22" Padding="8,0" FontSize="10"
-                                                                    ToolTip="A new take of this beat (new seed) — every beat after it renders again from its new last frame."/>
-                                                        </StackPanel>
-                                                    </StackPanel>
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </ScrollViewer>
-
-                                <WrapPanel Grid.Row="2" Margin="0,4,0,0">
-                                    <Button Content="▶ Joined film" Command="{Binding PlayJoinedCommand}" Style="{StaticResource AccentButtonStyle}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,6,4"/>
-                                    <Button Content="🎞 Join now" Command="{Binding JoinCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,6,4"
-                                            ToolTip="Joins every rendered beat in a row from beat 1."/>
-                                    <Button Content="📁 Open folder" Command="{Binding OpenFolderCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="26" Padding="10,0" FontSize="11" Margin="0,0,10,4"/>
-                                    <TextBlock Text="{Binding ResultVideoInfo}" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis" Margin="0,0,0,4"/>
-                                </WrapPanel>
-
-                                <Expander Grid.Row="3" Header="📝 Log" IsExpanded="False" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0">
+                                <Expander Grid.Row="3" Header="📝 Log" IsExpanded="False" Foreground="{StaticResource TextMutedBrush}" Margin="0,6,0,0">
                                     <Grid>
                                         <TextBox Text="{Binding LogOutput, Mode=OneWay}" IsReadOnly="True" FontFamily="Consolas" FontSize="10"
                                                  Height="130" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
