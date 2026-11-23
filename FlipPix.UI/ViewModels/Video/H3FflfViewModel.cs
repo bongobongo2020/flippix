@@ -113,6 +113,7 @@ namespace FlipPix.UI.ViewModels.Video
             NewSeedCommand = new RelayCommand(() => BaseSeed = NewSeed());
             ClearLogCommand = new RelayCommand(() => LogOutput = string.Empty);
             ResetModelCommand = new RelayCommand(ResetModel);
+            RefineBeatFaceCommand = new RelayCommand<FflfBeat>(b => { if (b != null) _ = RefineBeatFaceNowAsync(b); }, CanRefineBeatFace);
             InitLook();
 
             var s = settingsService.Settings is { } all ? profile.Settings(all) : new H3FflfSettings();
@@ -136,6 +137,8 @@ namespace FlipPix.UI.ViewModels.Video
             _maxFidelityReferences = s.MaxFidelityReferences;
             _repairHandoffFace = s.RepairHandoffFace;
             _faceRepairStrength = ClampRepairStrength(s.FaceRepairStrength);
+            _faceRefine = s.FaceRefine;
+            _faceRefineStrength = ClampRefineStrength(s.FaceRefineStrength);
             _joinWhenDone = s.JoinWhenDone;
             _baseSeed = NewSeed();
             OfferModel(_diffusionModel);
@@ -257,6 +260,7 @@ namespace FlipPix.UI.ViewModels.Video
             GenerateCommand?.NotifyCanExecuteChanged();
             StopCommand?.NotifyCanExecuteChanged();
             RedoBeatCommand?.NotifyCanExecuteChanged();
+            RefineBeatFaceCommand?.NotifyCanExecuteChanged();
             BrowseDialogueCommand?.NotifyCanExecuteChanged();
             ClearDialogueCommand?.NotifyCanExecuteChanged();
             RefreshVoiceCommands();
@@ -707,6 +711,7 @@ namespace FlipPix.UI.ViewModels.Video
             nameof(FirstPassMegapixels), nameof(FinalMegapixels), nameof(PreviewOnly), nameof(DiffusionModel), nameof(Lora),
             nameof(LoraStrength), nameof(FirstPassSteps), nameof(LockFirstFrame), nameof(KeepInitialReference), nameof(JoinWhenDone),
             nameof(MaxFidelityReferences), nameof(RepairHandoffFace), nameof(FaceRepairStrength),
+            nameof(FaceRefine), nameof(FaceRefineStrength),
             nameof(SettingText), nameof(WardrobeText), nameof(WardrobeImagePath),
             nameof(SelectedYakEngine), nameof(SelectedYakVoice),
             nameof(EngineStoryText), nameof(EngineBeatCount), nameof(EngineWriter), nameof(EngineWithDialogue),
@@ -745,6 +750,8 @@ namespace FlipPix.UI.ViewModels.Video
             s.MaxFidelityReferences = MaxFidelityReferences;
             s.RepairHandoffFace = RepairHandoffFace;
             s.FaceRepairStrength = FaceRepairStrength;
+            s.FaceRefine = FaceRefine;
+            s.FaceRefineStrength = FaceRefineStrength;
             s.JoinWhenDone = JoinWhenDone;
             s.YakEngine = SelectedYakEngine;
             s.YakVoice = SelectedYakVoice;
@@ -997,6 +1004,9 @@ namespace FlipPix.UI.ViewModels.Video
                     {
                         var startImage = i == 0 ? initial : await StartFrameAfterAsync(beats[i - 1], initial, beatCts.Token);
                         await RenderBeatAsync(template, beat, i, beats.Count, start, startImage, i > 0 && KeepInitialReference ? initial : null, aspect, beatCts.Token);
+                        // ✨ Before the next beat starts on its last frame, so the refined face is carried on.
+                        if (FaceRefine && !PreviewOnly)
+                            await RefineBeatFaceAsync(beat, i, template, beatCts.Token);
                         i++;
                     }
                     catch (Exception) when (beatCts.IsCancellationRequested && !ct.IsCancellationRequested)
@@ -1208,6 +1218,8 @@ namespace FlipPix.UI.ViewModels.Video
             if (frame == null) { beat.State = FflfBeatState.Failed; throw new InvalidOperationException($"{label}: the last frame was not saved, so the next beat has nothing to start on."); }
 
             beat.VideoPath = video;
+            beat.OriginalVideoPath = string.Empty;   // a new take: nothing refined yet
+            beat.OriginalLastFramePath = string.Empty;
             beat.LastFramePath = Keep(frame, $"{_runFolder}_beat{index + 1:D2}_last");
             beat.UploadedLastFrame = string.Empty;   // uploaded when the next beat needs it
             beat.RenderedText = beat.Text;

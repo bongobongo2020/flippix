@@ -195,6 +195,8 @@ namespace FlipPix.UI.ViewModels.Video
                 Done = b.IsDone,
                 VideoPath = b.VideoPath,
                 LastFramePath = b.LastFramePath,
+                OriginalVideoPath = b.OriginalVideoPath,
+                OriginalLastFramePath = b.OriginalLastFramePath,
                 Status = b.IsDone ? b.Status : string.Empty,
                 DialoguePath = b.DialoguePath,
                 DialogueSeconds = b.DialogueSeconds,
@@ -314,6 +316,11 @@ namespace FlipPix.UI.ViewModels.Video
                         {
                             beat.VideoPath = saved.VideoPath;
                             beat.LastFramePath = saved.LastFramePath;
+                            if (File.Exists(saved.OriginalVideoPath))
+                            {
+                                beat.OriginalVideoPath = saved.OriginalVideoPath;
+                                beat.OriginalLastFramePath = saved.OriginalLastFramePath ?? string.Empty;
+                            }
                             beat.RenderedText = beat.Text;
                             beat.RenderedDialogue = beat.DialoguePath;
                             beat.Status = saved.Status;

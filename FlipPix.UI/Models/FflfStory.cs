@@ -87,6 +87,9 @@ namespace FlipPix.UI.Models
         public bool Done { get; set; }
         public string VideoPath { get; set; } = string.Empty;
         public string LastFramePath { get; set; } = string.Empty;
+        /// <summary>The take as rendered, before ✨ face refine replaced <see cref="VideoPath"/>; empty when not refined.</summary>
+        public string OriginalVideoPath { get; set; } = string.Empty;
+        public string OriginalLastFramePath { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
         /// <summary>The beat's optional dialogue audio, and its length in seconds.</summary>
         public string DialoguePath { get; set; } = string.Empty;

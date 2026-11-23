@@ -565,6 +565,18 @@ namespace FlipPix.UI.ViewModels.Video
             return MartialGraph.Build(render);
         }
 
+        /// <summary>The face refine runs on the refine pass's model and its LoRAs (the ones ticked for the
+        /// refine), with the page's text encoder.</summary>
+        protected override FaceRefineModels FaceRefineModelsFor(string template) => new()
+        {
+            DiffusionModel = string.IsNullOrWhiteSpace(RefineModel) ? DiffusionModel : RefineModel,
+            TextEncoder = TextEncoder,
+            VideoVae = MartialGraph.VideoVae,
+            AudioVae = MartialGraph.AudioVae,
+            Loras = Loras.Where(l => l.On && l.OnRefine && l.Name.Trim().Length > 0 && l.Strength != 0)
+                         .Select(l => new FaceRefineLora(l.Name, l.Strength)).ToList(),
+        };
+
         // ── Settings and stories ─────────────────────────────────────────────────────────────────
 
         private static readonly HashSet<string> OwnPersisted = new()

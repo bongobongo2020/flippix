@@ -64,6 +64,20 @@ namespace FlipPix.UI.Models
 
         public bool HasLastFrame => !string.IsNullOrEmpty(LastFramePath) && File.Exists(LastFramePath);
 
+        /// <summary>The take as rendered, kept when ✨ face refine replaces <see cref="VideoPath"/> — a second
+        /// refine starts from it again rather than refining a refine. Empty while the take is unrefined.</summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(IsFaceRefined))]
+        private string _originalVideoPath = string.Empty;
+
+        /// <summary>The take's own last frame, before the refine.</summary>
+        public string OriginalLastFramePath { get; set; } = string.Empty;
+
+        public bool IsFaceRefined => !string.IsNullOrEmpty(OriginalVideoPath);
+
+        /// <summary>True while ✨ face refine runs on this beat.</summary>
+        [ObservableProperty] private bool _isRefiningFace;
+
         /// <summary>The same frame as uploaded to ComfyUI's input folder.</summary>
         public string UploadedLastFrame { get; set; } = string.Empty;
 
@@ -160,6 +174,8 @@ namespace FlipPix.UI.Models
             VideoPath = string.Empty;
             LastFramePath = string.Empty;
             UploadedLastFrame = string.Empty;
+            OriginalVideoPath = string.Empty;
+            OriginalLastFramePath = string.Empty;
             RenderedText = string.Empty;
             RenderedDialogue = string.Empty;
         }

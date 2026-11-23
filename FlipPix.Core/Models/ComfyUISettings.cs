@@ -697,6 +697,11 @@ public class H3FflfSettings
     public bool RepairHandoffFace { get; set; } = true;
     /// <summary>Denoise of that repair (Qwen Edit 2511 on the face crop): 1.0, or 0.89 to keep the expression closer.</summary>
     public double FaceRepairStrength { get; set; } = 1.0;
+    /// <summary>✨ Face refine: run H3 FaceRefine Plus on every beat as it lands (needs the ComfyUI-H3-FaceRefine
+    /// and ComfyUI-H3-FaceRefine-Plus node packs).</summary>
+    public bool FaceRefine { get; set; }
+    /// <summary>Denoise of that refine: 0.30 (the Plus pack's default) or 0.15 (light).</summary>
+    public double FaceRefineStrength { get; set; } = 0.30;
     public bool JoinWhenDone { get; set; } = true;
     public string LastPhotoFolder { get; set; } = string.Empty;
     /// <summary>The story in the FFLF story library the tab had open, put back on the next launch.</summary>
