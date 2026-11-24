@@ -5914,9 +5914,22 @@
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Text="Beats" Style="{StaticResource FflfRowLabel}"/>
                                                     <Slider Grid.Column="1" Value="{Binding EngineBeatCount}" Minimum="1" Maximum="20" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"
-                                                            ToolTip="How many beats the story is cut into. Each is one clip of 'Seconds / beat' (③ Shot), chained to the next."/>
+                                                            ToolTip="How many beats the story is cut into. Each is one clip of 'Seconds / beat', chained to the next."/>
                                                     <TextBlock Grid.Column="2" Text="{Binding EngineBeatCount}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                                 </Grid>
+                                                <Grid Margin="0,6,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="110"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="40"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding BeatSecondsLabel}" Style="{StaticResource FflfRowLabel}"/>
+                                                    <Slider Grid.Column="1" Value="{Binding BeatSeconds}" Minimum="2" Maximum="15" TickFrequency="0.5" IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                                                            ToolTip="How long each beat renders.&#x0a;&#x0a;With ⏱ Dynamic beat time on, this is the AVERAGE: the writer aims for beats × this in all, and picks each beat's own length. A beat with no [n s] tag in the beats box renders at this length."/>
+                                                    <TextBlock Grid.Column="2" Text="{Binding BeatSeconds, StringFormat={}{0:0.#} s}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                </Grid>
+                                                <CheckBox Content="⏱ Dynamic beat time — the writer picks each beat's length" IsChecked="{Binding EngineDynamicBeatTime}" FontSize="11" Margin="0,6,0,0"
+                                                          ToolTip="On: instead of every beat being 'Seconds / beat' long, the writer gives each beat the length its action and spoken line need — e.g. 3 s, 7 s, 15 s, 5 s — between 2 and 15 s, aiming for about beats × 'Seconds / beat' in all.&#x0a;&#x0a;Each beat's length is written into the beats box as a tag — '1. [7 s] A leans in…' — and ▶ Generate renders every beat at its own length. Edit or delete a tag to change it; a beat without one uses 'Seconds / beat'. A beat whose spoken line runs longer is still stretched to fit it."/>
                                                 <Grid Margin="0,6,0,0">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="110"/>
@@ -6022,7 +6035,7 @@
                                         <!-- ③ Shot -->
                                         <Border Style="{StaticResource SectionCardStyle}" Margin="0,0,0,10">
                                             <StackPanel>
-                                                <ctrl:SectionHeader Title="③ SHOT" Note="  · every beat the same"/>
+                                                <ctrl:SectionHeader Title="③ SHOT" Note="  · beat length is set under ✨ Story idea"/>
                                                 <Grid Margin="0,8,0,0">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="110"/>
@@ -6032,24 +6045,14 @@
                                                         <RowDefinition Height="Auto"/>
                                                         <RowDefinition Height="Auto"/>
                                                         <RowDefinition Height="Auto"/>
-                                                        <RowDefinition Height="Auto"/>
                                                     </Grid.RowDefinitions>
-                                                    <TextBlock Text="Seconds / beat" Style="{StaticResource FflfRowLabel}"/>
-                                                    <Grid Grid.Column="1" Margin="0,0,0,6">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="*"/>
-                                                            <ColumnDefinition Width="40"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <Slider Value="{Binding BeatSeconds}" Minimum="2" Maximum="15" TickFrequency="0.5" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
-                                                        <TextBlock Grid.Column="1" Text="{Binding BeatSeconds, StringFormat={}{0:0.#} s}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                                                    </Grid>
-                                                    <TextBlock Grid.Row="1" Text="Aspect" Style="{StaticResource FflfRowLabel}"/>
-                                                    <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding AspectRatioOptions}" SelectedItem="{Binding SelectedAspectRatio}" Height="26" FontSize="11" Margin="0,0,0,6"/>
-                                                    <TextBlock Grid.Row="2" Text="First pass" Style="{StaticResource FflfRowLabel}"/>
-                                                    <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding FirstPassSizes}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                    <TextBlock Text="Aspect" Style="{StaticResource FflfRowLabel}"/>
+                                                    <ComboBox Grid.Column="1" ItemsSource="{Binding AspectRatioOptions}" SelectedItem="{Binding SelectedAspectRatio}" Height="26" FontSize="11" Margin="0,0,0,6"/>
+                                                    <TextBlock Grid.Row="1" Text="First pass" Style="{StaticResource FflfRowLabel}"/>
+                                                    <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding FirstPassSizes}" DisplayMemberPath="Label" SelectedValuePath="Value"
                                                               SelectedValue="{Binding FirstPassMegapixels}" Height="26" FontSize="11" Margin="0,0,0,6"/>
-                                                    <TextBlock Grid.Row="3" Text="Refined" Style="{StaticResource FflfRowLabel}"/>
-                                                    <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{Binding FinalSizes}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                    <TextBlock Grid.Row="2" Text="Refined" Style="{StaticResource FflfRowLabel}"/>
+                                                    <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding FinalSizes}" DisplayMemberPath="Label" SelectedValuePath="Value"
                                                               SelectedValue="{Binding FinalMegapixels}" Height="26" FontSize="11"/>
                                                 </Grid>
                                                 <TextBlock Text="{Binding CanvasSummary}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,5,0,0"/>

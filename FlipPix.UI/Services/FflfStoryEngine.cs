@@ -12,9 +12,14 @@ namespace FlipPix.UI.Services
         string Location,
         string Wardrobe,
         IReadOnlyList<string> Beats,
-        IReadOnlyList<string> Dialogue)
+        IReadOnlyList<string> Dialogue,
+        IReadOnlyList<double>? BeatSeconds = null)
     {
         public bool HasDialogue => Dialogue.Any(d => d.Length > 0);
+
+        /// <summary>Each beat's own length when the writer gave one (⏱ dynamic beat time), else 0 — one per beat.</summary>
+        public IReadOnlyList<double> BeatSeconds { get; init; } =
+            BeatSeconds is { } given && given.Count == Beats.Count ? given : Beats.Select(_ => 0d).ToList();
     }
 
     /// <summary>
@@ -68,8 +73,10 @@ namespace FlipPix.UI.Services
         /// <summary>The user turn: the story, and how many beats of how long to cut it into.</summary>
         /// <param name="openingImage">The vision model's description of the opening image, when there is one; the
         /// sheet is then written around that exact picture.</param>
+        /// <param name="dynamicBeatTime">⏱ On: the writer picks each beat's length (tagged <c>[7 s]</c>), aiming for
+        /// <paramref name="beats"/> × <paramref name="beatSeconds"/> in all, instead of every beat being that long.</param>
         public static string BuildRequest(string story, int beats, double beatSeconds, bool withDialogue, bool hasOpeningImage,
-                                          string? openingImage = null)
+                                          string? openingImage = null, bool dynamicBeatTime = false)
         {
             openingImage = openingImage?.Trim();
             if (string.IsNullOrEmpty(openingImage)) openingImage = null;
@@ -81,13 +88,32 @@ namespace FlipPix.UI.Services
 
             var sb = new StringBuilder();
             sb.AppendLine($"Turn the story below into a {beats}-beat video sheet.");
-            sb.AppendLine($"- Exactly {beats} beats of {beatSeconds:0.#} seconds each — total runtime {total:0.#} seconds. " +
-                          "Say that runtime in the MASTER PROMPT.");
-            if (withDialogue)
-                sb.AppendLine($"- Exactly {beats} dialogue blocks, one per beat, each about {target} words and never more than {max}, " +
-                              "so it can be spoken at a natural pace inside its beat.");
+            if (dynamicBeatTime)
+            {
+                sb.AppendLine($"- Exactly {beats} beats, and YOU choose how long each one is: a whole number of seconds from " +
+                              $"{FflfGraph.MinTaggedSeconds:0} to {FflfGraph.MaxTaggedSeconds:0}. Give each beat the time its action and its spoken line " +
+                              "really need — a quick reaction or a glance can be 3 seconds, a long line or a slow build 12 to 15. " +
+                              "Vary the lengths to pace the story; do not make them all the same.");
+                sb.AppendLine($"- Aim for a total runtime of about {total:0} seconds across all beats. Say the real total in the MASTER PROMPT.");
+                sb.AppendLine("- Start every beat with its length in square brackets right after the dash, exactly like " +
+                              "\"BEAT 1 — [4 s] A turns…\" and \"BEAT 2 — [11 s] A leans…\". The number in the brackets is that beat's runtime.");
+                if (withDialogue)
+                    sb.AppendLine($"- Exactly {beats} dialogue blocks, one per beat. Size each to ITS beat: about {WordsPerSecond:0.#} words per second " +
+                                  $"of that beat and never more than {WordsPerSecond + 0.3:0.#} — a 4-second beat gets about {DialogueWords(4).Target} words, " +
+                                  $"a 12-second beat about {DialogueWords(12).Target}. A very short beat may have an empty line (\"\").");
+                else
+                    sb.AppendLine("- No spoken lines: write the [DIALOGUE] section with every block as just \"\" (an empty quote).");
+            }
             else
-                sb.AppendLine("- No spoken lines: write the [DIALOGUE] section with every block as just \"\" (an empty quote).");
+            {
+                sb.AppendLine($"- Exactly {beats} beats of {beatSeconds:0.#} seconds each — total runtime {total:0.#} seconds. " +
+                              "Say that runtime in the MASTER PROMPT.");
+                if (withDialogue)
+                    sb.AppendLine($"- Exactly {beats} dialogue blocks, one per beat, each about {target} words and never more than {max}, " +
+                                  "so it can be spoken at a natural pace inside its beat.");
+                else
+                    sb.AppendLine("- No spoken lines: write the [DIALOGUE] section with every block as just \"\" (an empty quote).");
+            }
             if (openingImage != null)
             {
                 sb.AppendLine("- The video starts EXACTLY on the opening picture described below — it is frame one of beat 1, and every beat continues from it. It is the ground truth for how everything looks:");
@@ -172,8 +198,15 @@ namespace FlipPix.UI.Services
             // No headings at all: the whole reply is read as beats.
             if (headings.Count == 0) sections[Section.Beats] = Tidy(text);
 
-            var beats = Numbered(sections.GetValueOrDefault(Section.Beats) ?? string.Empty, BeatStart)
-                .Select(b => Collapse(StripBeatLabel(b))).Where(b => b.Length > 0).ToList();
+            var timed = Numbered(TagLengthsAfterNumber(sections.GetValueOrDefault(Section.Beats) ?? string.Empty), BeatStart)
+                .Select(b =>
+                {
+                    var beat = Collapse(StripBeatLabel(b));
+                    var seconds = FflfGraph.TakeSecondsTag(ref beat);
+                    return (Text: beat, Seconds: seconds);
+                })
+                .Where(b => b.Text.Length > 0).ToList();
+            var beats = timed.Select(b => b.Text).ToList();
             if (beats.Count == 0)
                 throw new InvalidOperationException("the writer's reply had no beats in it.");
 
@@ -184,14 +217,26 @@ namespace FlipPix.UI.Services
                 sections.GetValueOrDefault(Section.Master) ?? string.Empty,
                 sections.GetValueOrDefault(Section.Location) ?? string.Empty,
                 sections.GetValueOrDefault(Section.Wardrobe) ?? string.Empty,
-                beats, dialogue);
+                beats, dialogue, timed.Select(b => b.Seconds).ToList());
         }
+
+        // "BEAT 3 (7 s) —" and "3. (7 s)": the beat-start pattern swallows a bracket after the number, so a length
+        // written there is turned into the "[7 s]" tag at the start of the beat before the beats are split.
+        private static readonly Regex LengthAfterNumber = new(
+            @"^(?<head>[ \t]*[-*#]*[ \t]*(?:BEAT[ \t]*\d{1,2}|\d{1,2}[.)]))[ \t]*\((?<len>\d{1,2}(?:[.,]\d)?[ \t]*(?:s|sec|secs|second|seconds))\)[ \t]*[—–:\-.)]*",
+            RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled);
+
+        private static string TagLengthsAfterNumber(string beats) =>
+            LengthAfterNumber.Replace(beats, m => $"{m.Groups["head"].Value} — [{m.Groups["len"].Value}] ");
 
         /// <summary>The beats as the beats box reads them: one numbered paragraph each. A beat the box would read as
         /// "Title: text" ("A visibly relaxes: shoulders drop…") has that colon turned into a dash, so no words are lost
         /// to a beat name.</summary>
-        public static string ToBeatsText(IEnumerable<string> beats) =>
-            string.Join("\n\n", beats.Select((b, i) => $"{i + 1}. {KeepWhole(b)}"));
+        /// <param name="seconds">Each beat's own length (⏱ dynamic beat time), written in front of it as the
+        /// <c>[7 s]</c> tag the beats box reads back; 0 or missing for none.</param>
+        public static string ToBeatsText(IEnumerable<string> beats, IReadOnlyList<double>? seconds = null) =>
+            string.Join("\n\n", beats.Select((b, i) =>
+                $"{i + 1}. {FflfGraph.SecondsTagFor(seconds != null && i < seconds.Count ? seconds[i] : 0)}{KeepWhole(b)}"));
 
         private static string KeepWhole(string beat)
         {

@@ -387,11 +387,15 @@ namespace FlipPix.UI.ViewModels.Video
             ScheduleStorySave();
         }
 
-        /// <summary>How long a beat renders: the tab's beat length, stretched to fit its dialogue.</summary>
-        protected double SecondsFor(FflfBeat beat) =>
-            beat.HasDialogue && beat.DialogueSeconds > 0
-                ? Math.Min(MaxBeatSeconds, Math.Max(BeatSeconds, Math.Ceiling((beat.DialogueSeconds + 0.3) * 10) / 10))
-                : BeatSeconds;
+        /// <summary>How long a beat renders: its own <c>[n s]</c> length (⏱ dynamic beat time) or the tab's beat
+        /// length, stretched to fit its dialogue.</summary>
+        protected double SecondsFor(FflfBeat beat)
+        {
+            var planned = beat.Seconds > 0 ? beat.Seconds : BeatSeconds;
+            return beat.HasDialogue && beat.DialogueSeconds > 0
+                ? Math.Min(MaxBeatSeconds, Math.Max(planned, Math.Ceiling((beat.DialogueSeconds + 0.3) * 10) / 10))
+                : planned;
+        }
 
         private async Task<string?> UploadDialogueAsync(FflfBeat beat, CancellationToken ct)
         {
@@ -458,7 +462,8 @@ namespace FlipPix.UI.ViewModels.Video
                     return;
                 }
                 if (clean != beat.Text) beat.Text = clean;
-                BeatsText = string.Join("\n\n", Beats.Select(b => b.Title.Length > 0 ? $"{b.Title}: {b.Text}" : b.Text));
+                BeatsText = string.Join("\n\n", Beats.Select(b =>
+                    FflfGraph.SecondsTagFor(b.Seconds) + (b.Title.Length > 0 ? $"{b.Title}: {b.Text}" : b.Text)));
             }
             finally { _syncingBeatText = false; }
 
@@ -486,7 +491,9 @@ namespace FlipPix.UI.ViewModels.Video
         {
             var parsed = FflfGraph.ParseBeats(BeatsText);
             var keep = 0;
-            while (keep < parsed.Count && keep < Beats.Count && Beats[keep].Text == parsed[keep].Text) keep++;
+            // A beat whose length changed renders again too: its last frame, the next beat's start, moves.
+            while (keep < parsed.Count && keep < Beats.Count && Beats[keep].Text == parsed[keep].Text
+                   && Beats[keep].Seconds == parsed[keep].Seconds) keep++;
 
             if (keep < Beats.Count && Beats.Skip(keep).Any(b => b.State == FflfBeatState.Done) && !IsProcessing)
                 AddLog($"Beat {keep + 1} changed — it and every beat after it will render again.");
@@ -499,7 +506,7 @@ namespace FlipPix.UI.ViewModels.Video
                 while (Beats.Count > keep) Beats.RemoveAt(Beats.Count - 1);
                 for (var i = keep; i < parsed.Count; i++)
                 {
-                    var beat = new FflfBeat(i + 1, parsed[i].Title, parsed[i].Text);
+                    var beat = new FflfBeat(i + 1, parsed[i].Title, parsed[i].Text) { Seconds = parsed[i].Seconds };
                     if (i < dialogue.Count)
                     {
                         var d = dialogue[i];
@@ -716,7 +723,7 @@ namespace FlipPix.UI.ViewModels.Video
             nameof(FaceRefine), nameof(FaceRefineStrength),
             nameof(SettingText), nameof(WardrobeText), nameof(WardrobeImagePath),
             nameof(SelectedYakEngine), nameof(SelectedYakVoice),
-            nameof(EngineStoryText), nameof(EngineBeatCount), nameof(EngineWriter), nameof(EngineWithDialogue),
+            nameof(EngineStoryText), nameof(EngineBeatCount), nameof(EngineWriter), nameof(EngineWithDialogue), nameof(EngineDynamicBeatTime),
             nameof(CharacterSheets), nameof(SheetEngine),
         };
 
@@ -987,7 +994,11 @@ namespace FlipPix.UI.ViewModels.Video
                 await PrepareCharacterSheetsAsync(ct);
                 await PrepareRunAsync(ct);
                 var aspect = ResolvedAspectRatio;
-                AddLog($"Story: beats {start + 1}–{beats.Count} of {beats.Count}, {BeatSeconds:0.#} s each, {CanvasSummary}. {DescribeModel()}.");
+                AddLog($"Story: beats {start + 1}–{beats.Count} of {beats.Count}, " +
+                       (beats.Any(b => b.Seconds > 0)
+                           ? $"{string.Join(" / ", beats.Skip(start).Select(b => $"{SecondsFor(b):0.#}"))} s"
+                           : $"{BeatSeconds:0.#} s each") +
+                       $", {CanvasSummary}. {DescribeModel()}.");
 
                 var i = start;
                 while (true)

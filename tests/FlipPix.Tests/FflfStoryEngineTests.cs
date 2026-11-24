@@ -163,4 +163,64 @@ public class FflfStoryEngineTests
         Assert.DoesNotContain("THE OPENING PICTURE", request);
         Assert.Contains("existing opening picture", request);
     }
+
+    [Fact]
+    public void BuildRequest_DynamicBeatTime_LetsTheWriterPickEachLength()
+    {
+        var request = FflfStoryEngine.BuildRequest("A story.", 8, 5, withDialogue: true, hasOpeningImage: false, dynamicBeatTime: true);
+
+        Assert.Contains("YOU choose how long each one is", request);
+        Assert.Contains("about 40 seconds", request);
+        Assert.Contains("[4 s]", request);
+        Assert.DoesNotContain("beats of 5 seconds each", request);
+    }
+
+    [Fact]
+    public void Parse_ReadsEachBeatsLength_InEitherSpelling()
+    {
+        const string reply = """
+            [MASTER PROMPT]
+            A short film.
+            [BEATS]
+            BEAT 1 — [3 s] A glances up.
+
+            BEAT 2 (7 s) — A stands and crosses to the window.
+
+            3. [15 sec] A speaks at length, hands open.
+
+            BEAT 4 — A sits back down.
+            [DIALOGUE]
+            --- DIALOGUE 1 (Beat 1) ---
+            ""
+            --- DIALOGUE 2 (Beat 2) ---
+            "Here we go."
+            --- DIALOGUE 3 (Beat 3) ---
+            "A long line."
+            --- DIALOGUE 4 (Beat 4) ---
+            "Done."
+            """;
+
+        var script = FflfStoryEngine.Parse(reply);
+
+        Assert.Equal(new[] { 3d, 7d, 15d, 0d }, script.BeatSeconds);
+        Assert.Equal("A glances up.", script.Beats[0]);
+        Assert.Equal("A stands and crosses to the window.", script.Beats[1]);
+        Assert.Equal("Here we go.", script.Dialogue[1]);
+    }
+
+    [Fact]
+    public void ToBeatsText_KeepsEachBeatsLength_ThroughTheBeatBox()
+    {
+        var text = FflfStoryEngine.ToBeatsText(new[] { "A glances up.", "A sits." }, new[] { 3d, 0d });
+
+        Assert.StartsWith("1. [3 s] A glances up.", text);
+        var parsed = FflfGraph.ParseBeats(text);
+        Assert.Equal(3, parsed[0].Seconds);
+        Assert.Equal("A glances up.", parsed[0].Text);
+        Assert.Equal(0, parsed[1].Seconds);
+        // Out of range is held to the slider's range; a title keeps its tag.
+        Assert.Equal(15, FflfGraph.ParseBeats("[40 s] A waits.")[0].Seconds);
+        var titled = FflfGraph.ParseBeats("[6 s] The turn: A spins round.")[0];
+        Assert.Equal(("The turn", "A spins round.", 6d), (titled.Title, titled.Text, titled.Seconds));
+    }
 }

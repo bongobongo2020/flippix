@@ -53,6 +53,14 @@ namespace FlipPix.UI.ViewModels.Video
         [NotifyPropertyChangedFor(nameof(EnginePlan))]
         private bool _engineWithDialogue = true;
 
+        /// <summary>⏱ On: the writer gives each beat its own length (a <c>[7 s]</c> tag in the beats box), aiming for
+        /// beats × <see cref="H3FflfViewModel.BeatSeconds"/> in all; off: every beat is BeatSeconds long.</summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(EnginePlan), nameof(BeatSecondsLabel))]
+        private bool _engineDynamicBeatTime;
+
+        public string BeatSecondsLabel => EngineDynamicBeatTime ? "Avg seconds / beat" : "Seconds / beat";
+
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(EngineLabel))]
         private bool _isEngineWriting;
@@ -66,6 +74,11 @@ namespace FlipPix.UI.ViewModels.Video
             get
             {
                 var beats = Math.Clamp(EngineBeatCount, FflfStoryEngine.MinBeats, FflfStoryEngine.MaxBeats);
+                if (EngineDynamicBeatTime)
+                {
+                    var dynamicPlan = $"{beats} beat{(beats == 1 ? "" : "s")}, each {FflfGraph.MinTaggedSeconds:0}–{FflfGraph.MaxTaggedSeconds:0} s as the writer sees fit · ≈{beats * BeatSeconds:0.#} s in all";
+                    return EngineWithDialogue ? $"{dynamicPlan} · lines sized to each beat" : dynamicPlan;
+                }
                 var plan = $"{beats} beat{(beats == 1 ? "" : "s")} × {BeatSeconds:0.#} s = {beats * BeatSeconds:0.#} s";
                 return EngineWithDialogue ? $"{plan} · ≈{FflfStoryEngine.DialogueWords(BeatSeconds).Target} spoken words a beat" : plan;
             }
@@ -88,6 +101,7 @@ namespace FlipPix.UI.ViewModels.Video
             _engineBeatCount = Math.Clamp(s.StoryEngineBeats, FflfStoryEngine.MinBeats, FflfStoryEngine.MaxBeats);
             _engineWriter = EngineWriters.Any(w => w.Id == s.StoryEngineWriter) ? s.StoryEngineWriter : WriterSettings;
             _engineWithDialogue = s.StoryEngineDialogue;
+            _engineDynamicBeatTime = s.StoryEngineDynamicBeats;
             _openingDescription = s.OpeningImageDescription;
             _openingDescriptionFor = s.OpeningImageDescriptionFor;
 #pragma warning restore MVVMTK0034
@@ -99,6 +113,7 @@ namespace FlipPix.UI.ViewModels.Video
             s.StoryEngineBeats = EngineBeatCount;
             s.StoryEngineWriter = EngineWriter;
             s.StoryEngineDialogue = EngineWithDialogue;
+            s.StoryEngineDynamicBeats = EngineDynamicBeatTime;
             s.OpeningImageDescription = _openingDescription ?? string.Empty;
             s.OpeningImageDescriptionFor = _openingDescriptionFor ?? string.Empty;
         }
@@ -194,9 +209,13 @@ namespace FlipPix.UI.ViewModels.Video
                 var system = await File.ReadAllTextAsync(promptPath, token);
 
                 var beats = Math.Clamp(EngineBeatCount, FflfStoryEngine.MinBeats, FflfStoryEngine.MaxBeats);
-                var request = FflfStoryEngine.BuildRequest(EngineStoryText, beats, BeatSeconds, EngineWithDialogue, HasInitialImage, openingImage);
+                var dynamicTime = EngineDynamicBeatTime;
+                var request = FflfStoryEngine.BuildRequest(EngineStoryText, beats, BeatSeconds, EngineWithDialogue, HasInitialImage, openingImage,
+                                                           dynamicBeatTime: dynamicTime);
                 var target = toDeepSeek ? lm?.DescribeDeepSeekTarget() ?? "DeepSeek" : llm.DescribeTarget(model);
-                AddLog($"✨ Writing {beats} beat(s) of {BeatSeconds:0.#} s from the story ({EngineStoryText.Length:N0} chars) → {target}");
+                AddLog(dynamicTime
+                    ? $"✨ Writing {beats} beat(s), the writer picking each one's length (≈{beats * BeatSeconds:0.#} s in all), from the story ({EngineStoryText.Length:N0} chars) → {target}"
+                    : $"✨ Writing {beats} beat(s) of {BeatSeconds:0.#} s from the story ({EngineStoryText.Length:N0} chars) → {target}");
                 if (EngineStoryText.Length > FflfStoryEngine.MaxStoryChars)
                     AddLog($"✨ ⚠ The story is long — only its first {FflfStoryEngine.MaxStoryChars:N0} characters are sent.");
                 EngineStatus = $"The writer is turning the story into {beats} beats…";
@@ -216,6 +235,15 @@ namespace FlipPix.UI.ViewModels.Video
                 }.Where(m => m != null).ToList();
                 var note = script.Beats.Count == beats ? string.Empty : $" (asked for {beats})";
                 var lines = script.Dialogue.Count(d => d.Length > 0);
+                if (dynamicTime)
+                {
+                    var timed = script.BeatSeconds.Count(s => s > 0);
+                    AddLog(timed > 0
+                        ? $"⏱ Beat lengths from the writer: {string.Join(" / ", script.BeatSeconds.Select(s => s > 0 ? $"{s:0.#}" : $"{BeatSeconds:0.#}"))} s " +
+                          $"= {script.BeatSeconds.Sum(s => s > 0 ? s : BeatSeconds):0.#} s." +
+                          (timed < script.Beats.Count ? $" {script.Beats.Count - timed} beat(s) came back without one and use {BeatSeconds:0.#} s." : string.Empty)
+                        : $"⏱ ⚠ The writer gave no beat lengths — every beat uses {BeatSeconds:0.#} s.");
+                }
                 EngineStatus = $"✔ {script.Beats.Count} beats{note}, {lines} spoken line{(lines == 1 ? "" : "s")} — read them through" +
                                (HasInitialImage ? ", then ▶ Generate." : ", pick the opening image, then ▶ Generate.") +
                                (missing.Count > 0 ? $" ⚠ No {string.Join(", ", missing)} came back." : string.Empty) +
@@ -311,7 +339,7 @@ namespace FlipPix.UI.ViewModels.Video
                 if (script.MasterPrompt.Length > 0) StyleText = script.MasterPrompt;
                 if (script.Location.Length > 0) SettingText = script.Location;
                 if (script.Wardrobe.Length > 0) WardrobeText = script.Wardrobe;
-                BeatsText = FflfStoryEngine.ToBeatsText(script.Beats);
+                BeatsText = FflfStoryEngine.ToBeatsText(script.Beats, script.BeatSeconds);
 
                 var parsed = FflfGraph.ParseBeats(BeatsText);
                 Beats.Clear();
@@ -319,6 +347,7 @@ namespace FlipPix.UI.ViewModels.Video
                 {
                     var beat = new FflfBeat(i + 1, parsed[i].Title, parsed[i].Text)
                     {
+                        Seconds = parsed[i].Seconds,
                         LineText = i < script.Dialogue.Count ? script.Dialogue[i] : string.Empty,
                     };
                     Beats.Add(beat);

@@ -29,7 +29,14 @@ namespace FlipPix.UI.Models
 
         [ObservableProperty] private string _text;
 
-        public string Label => string.IsNullOrEmpty(Title) ? $"Beat {Number}" : $"Beat {Number} · {Title}";
+        /// <summary>The beat's own length, from its <c>[7 s]</c> tag in the beats box (⏱ dynamic beat time);
+        /// 0 = the tab's 'Seconds / beat'.</summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(Label))]
+        private double _seconds;
+
+        public string Label => (string.IsNullOrEmpty(Title) ? $"Beat {Number}" : $"Beat {Number} · {Title}") +
+                               (Seconds > 0 ? $" · {Seconds:0.#} s" : string.Empty);
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(StateIcon), nameof(IsDone), nameof(IsRendering))]

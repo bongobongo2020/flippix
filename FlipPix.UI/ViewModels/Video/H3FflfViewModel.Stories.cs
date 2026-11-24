@@ -138,7 +138,7 @@ namespace FlipPix.UI.ViewModels.Video
             story.AspectRatio = SelectedAspectRatio;
             story.LengthSeconds = BeatSeconds;
             story.Shots = Beats.Count;
-            story.StoryDurationSeconds = Beats.Count * BeatSeconds;
+            story.StoryDurationSeconds = Beats.Sum(SecondsFor);
             story.LastUsed = DateTime.Now;
             story.Fflf = Snapshot();
 
@@ -295,7 +295,7 @@ namespace FlipPix.UI.ViewModels.Video
                 var chainIntact = true;
                 for (var i = 0; i < parsed.Count; i++)
                 {
-                    var beat = new FflfBeat(i + 1, parsed[i].Title, parsed[i].Text);
+                    var beat = new FflfBeat(i + 1, parsed[i].Title, parsed[i].Text) { Seconds = parsed[i].Seconds };
                     if (i < s.Beats.Count)
                     {
                         // The dialogue belongs to the beat's place in the story, whatever its text.
@@ -389,7 +389,7 @@ namespace FlipPix.UI.ViewModels.Video
             story.BeatsText = entry.Prompt;
             var beats = FflfGraph.ParseBeats(entry.Prompt);
             entry.Shots = beats.Count;
-            entry.StoryDurationSeconds = beats.Count * story.BeatSeconds;
+            entry.StoryDurationSeconds = beats.Sum(b => b.Seconds > 0 ? b.Seconds : story.BeatSeconds);
             story.JoinedVideoPath = string.Empty;
         }
 

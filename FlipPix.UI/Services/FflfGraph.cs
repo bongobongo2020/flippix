@@ -11,7 +11,9 @@ using FlipPix.UI.ViewModels.Video;
 namespace FlipPix.UI.Services
 {
     /// <summary>One story beat from the FFLF tab's text box.</summary>
-    public sealed record FflfBeatText(string Title, string Text);
+    /// <param name="Seconds">The beat's own length from a leading <c>[7 s]</c> tag (⏱ dynamic beat time); 0 when it
+    /// has none and renders at the tab's 'Seconds / beat'.</param>
+    public sealed record FflfBeatText(string Title, string Text, double Seconds = 0);
 
     /// <summary>Everything one FFLF beat render needs, already uploaded to the server.</summary>
     public sealed record FflfBeatRender
@@ -112,12 +114,18 @@ namespace FlipPix.UI.Services
             {
                 var raw = Regex.Replace(current.ToString(), @"\s+", " ").Trim();
                 current.Clear();
+                var seconds = TakeSecondsTag(ref raw);
                 if (raw.Length == 0) return;
                 var m = Heading.Match(raw);
                 if (m.Success && m.Groups["t"].Value.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 8)
-                    beats.Add(new FflfBeatText(m.Groups["t"].Value.Trim(), m.Groups["b"].Value.Trim()));
+                {
+                    // "Title: [7 s] text" as well as "[7 s] Title: text".
+                    var body = m.Groups["b"].Value.Trim();
+                    if (seconds == 0) seconds = TakeSecondsTag(ref body);
+                    beats.Add(new FflfBeatText(m.Groups["t"].Value.Trim(), body, seconds));
+                }
                 else
-                    beats.Add(new FflfBeatText(string.Empty, raw));
+                    beats.Add(new FflfBeatText(string.Empty, raw, seconds));
             }
 
             foreach (var line in text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
@@ -131,6 +139,30 @@ namespace FlipPix.UI.Services
             Flush();
             return beats;
         }
+
+        /// <summary>Shortest and longest length a ⏱ dynamic beat may ask for — the 'Seconds / beat' slider's range.</summary>
+        public const double MinTaggedSeconds = 2, MaxTaggedSeconds = 15;
+
+        // "[7 s]", "[7s]", "[7.5 sec]", "(7 seconds)" at the very start of a beat.
+        private static readonly Regex SecondsTag = new(
+            @"^[\[(]\s*(?<s>\d{1,2}(?:[.,]\d)?)\s*(?:s|sec|secs|second|seconds)\s*[\])]\s*[—–:\-]?\s*",
+            RegexOptions.IgnoreCase);
+
+        /// <summary>Removes a leading <c>[7 s]</c> length tag from a beat and returns its seconds (clamped to
+        /// <see cref="MinTaggedSeconds"/>–<see cref="MaxTaggedSeconds"/>), or 0 when there is none.</summary>
+        public static double TakeSecondsTag(ref string text)
+        {
+            var m = SecondsTag.Match(text);
+            if (!m.Success) return 0;
+            if (!double.TryParse(m.Groups["s"].Value.Replace(',', '.'), System.Globalization.NumberStyles.Float,
+                                 System.Globalization.CultureInfo.InvariantCulture, out var s) || s <= 0) return 0;
+            text = text[m.Length..].Trim();
+            return Math.Clamp(s, MinTaggedSeconds, MaxTaggedSeconds);
+        }
+
+        /// <summary>The tag <see cref="ParseBeats"/> reads back: "[7 s] " (with its trailing space), or empty for 0.</summary>
+        public static string SecondsTagFor(double seconds) =>
+            seconds > 0 ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"[{seconds:0.#} s] ") : string.Empty;
 
         /// <summary>
         /// The beat's prompt: who and what the pictures are, the optional style line, then the beat itself.

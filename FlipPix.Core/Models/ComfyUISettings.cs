@@ -712,6 +712,8 @@ public class H3FflfSettings
     public int StoryEngineBeats { get; set; } = 8;
     public string StoryEngineWriter { get; set; } = "settings";
     public bool StoryEngineDialogue { get; set; } = true;
+    /// <summary>⏱ Dynamic beat time: the writer picks each beat's length instead of every beat being BeatSeconds.</summary>
+    public bool StoryEngineDynamicBeats { get; set; }
     /// <summary>The vision model's description of the opening image, and the image it was made from
     /// ("path|last-write ticks"). It names the cast A, B, C — the letters the beats and the character sheets use.</summary>
     public string OpeningImageDescription { get; set; } = string.Empty;
