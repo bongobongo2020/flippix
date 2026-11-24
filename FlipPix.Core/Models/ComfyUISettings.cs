@@ -712,6 +712,25 @@ public class H3FflfSettings
     public int StoryEngineBeats { get; set; } = 8;
     public string StoryEngineWriter { get; set; } = "settings";
     public bool StoryEngineDialogue { get; set; } = true;
+    /// <summary>The vision model's description of the opening image, and the image it was made from
+    /// ("path|last-write ticks"). It names the cast A, B, C — the letters the beats and the character sheets use.</summary>
+    public string OpeningImageDescription { get; set; } = string.Empty;
+    public string OpeningImageDescriptionFor { get; set; } = string.Empty;
+    /// <summary>🧾 One character sheet per person in the opening image, sent with every beat.</summary>
+    public bool CharacterSheets { get; set; } = true;
+    /// <summary>The image-edit model that draws them: "qwen21" (Qwen Image 2.1 Edit), "klein" (Flux2 Klein 9B) or "fibo2".</summary>
+    public string CharacterSheetEngine { get; set; } = "qwen21";
+    /// <summary>The sheets made for <see cref="CharacterSheetsFor"/> (same key as the description).</summary>
+    public List<FflfCharacterSheetEntry> CharacterSheetList { get; set; } = new();
+    public string CharacterSheetsFor { get; set; } = string.Empty;
+}
+
+/// <summary>One person's character sheet on the ⛓ FFLF tab: their letter, who they are in the opening image, the file.</summary>
+public class FflfCharacterSheetEntry
+{
+    public string Letter { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
+    public string Path { get; set; } = string.Empty;
 }
 
 /// <summary>The 🥋 Action tab: everything the ⛓ FFLF tab keeps, plus the combat preset, the LoRA mix, the cast

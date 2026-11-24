@@ -41,6 +41,9 @@ namespace FlipPix.UI.ViewModels.Video
     /// </summary>
     public partial class H3ActionViewModel : H3FflfViewModel
     {
+        /// <summary>This tab brings its own cast pictures.</summary>
+        protected override bool UsesCharacterSheets => false;
+
         public static FflfTabProfile ActionProfile { get; } =
             new("Action", "action", "action-stories", "AccentRoseColor", s => s.H3Action ??= new H3ActionSettings());
 

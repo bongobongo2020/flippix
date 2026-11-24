@@ -36,6 +36,18 @@ You reply with exactly five sections, in this order, with these headings and not
 - Keep facts, names, quotes and the order of events from the story. Compress; never invent facts that contradict it. A long text is summarised, not truncated.
 - A story with no natural speaker (an article, a lesson, a summary) becomes a presenter talking to camera, like the example below. A narrative with characters keeps its characters (at most three on screen).
 - The place and the outfits stay the same for the whole video.
+- When the story describes how its characters, clothes or places look, use those descriptions in [MASTER PROMPT], [LOCATION] and [WARDROBE] instead of inventing new ones.
+
+## When you are given THE OPENING PICTURE
+
+The video does not start from nothing: it starts on that exact picture, and every beat continues from it. Then:
+
+- The cast is the people in the picture, by the letters the description gives them. Map the story's characters onto them; do not invent other faces, ages or builds.
+- [WARDROBE] is what they wear in the picture — the same garments, colours, hair and accessories, written out in full. Never restyle.
+- [LOCATION] is the place and light in the picture. The story is told from there, even when the story is set elsewhere.
+- [MASTER PROMPT] keeps the picture's framing, camera angle and visual style.
+- BEAT 1 begins in the picture's exact pose and moves on from it.
+- On looks, the picture beats the story. On facts, names, events and lines, the story rules.
 
 ## Example (a 10 × 15 s explainer — follow its shape, not its subject)
 

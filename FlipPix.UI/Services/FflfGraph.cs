@@ -149,7 +149,10 @@ namespace FlipPix.UI.Services
             return string.Join("\n\n", parts);
         }
 
-        public static string ComposePrompt(string beat, string? style, bool hasIdentityImage, bool isFirstBeat)
+        /// <param name="sheets">Who each character sheet sent after the start frame (and the identity image) shows —
+        /// "A, on the left" — in picture order.</param>
+        public static string ComposePrompt(string beat, string? style, bool hasIdentityImage, bool isFirstBeat,
+                                           IReadOnlyList<string>? sheets = null)
         {
             var sb = new StringBuilder();
             sb.Append(isFirstBeat
@@ -158,6 +161,10 @@ namespace FlipPix.UI.Services
             sb.Append("Keep the same people with the same faces, hair, build and clothing, the same place, light and camera style throughout.");
             if (hasIdentityImage)
                 sb.Append(" <Picture 2> shows how the characters look; keep them identical to it.");
+            var picture = hasIdentityImage ? 3 : 2;
+            foreach (var who in sheets ?? Array.Empty<string>())
+                sb.Append($" <Picture {picture++}> is the character sheet of {who} (front, three-quarter, side, back and face): " +
+                          "keep that character's face, hair, build and clothes identical to it from every angle.");
             sb.Append("\n\n");
             if (!string.IsNullOrWhiteSpace(style)) sb.Append(style.Trim()).Append("\n\n");
             sb.Append(beat.Trim());

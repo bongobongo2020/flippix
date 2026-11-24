@@ -88,6 +88,8 @@ namespace FlipPix.UI.ViewModels.Video
             _engineBeatCount = Math.Clamp(s.StoryEngineBeats, FflfStoryEngine.MinBeats, FflfStoryEngine.MaxBeats);
             _engineWriter = EngineWriters.Any(w => w.Id == s.StoryEngineWriter) ? s.StoryEngineWriter : WriterSettings;
             _engineWithDialogue = s.StoryEngineDialogue;
+            _openingDescription = s.OpeningImageDescription;
+            _openingDescriptionFor = s.OpeningImageDescriptionFor;
 #pragma warning restore MVVMTK0034
         }
 
@@ -97,6 +99,8 @@ namespace FlipPix.UI.ViewModels.Video
             s.StoryEngineBeats = EngineBeatCount;
             s.StoryEngineWriter = EngineWriter;
             s.StoryEngineDialogue = EngineWithDialogue;
+            s.OpeningImageDescription = _openingDescription ?? string.Empty;
+            s.OpeningImageDescriptionFor = _openingDescriptionFor ?? string.Empty;
         }
 
         private void RefreshEngineCommands()
@@ -162,6 +166,10 @@ namespace FlipPix.UI.ViewModels.Video
                     throw new InvalidOperationException("no DeepSeek API key is saved — add one in Settings → LM Studio, or pick llama-server.");
                 var toDeepSeek = writer == WriterDeepSeek || (writer == WriterSettings && lm?.DeepSeekActive == true);
 
+                // The writer cannot see pictures: the opening image is described first (on the local vision model),
+                // so the sheet is written around the frame the video really starts on.
+                var openingImage = HasInitialImage ? await DescribeOpeningImageAsync(llm, token, status => EngineStatus = status) : null;
+
                 using var route = writer switch
                 {
                     WriterDeepSeek => llm.PreferDeepSeek(),
@@ -186,7 +194,7 @@ namespace FlipPix.UI.ViewModels.Video
                 var system = await File.ReadAllTextAsync(promptPath, token);
 
                 var beats = Math.Clamp(EngineBeatCount, FflfStoryEngine.MinBeats, FflfStoryEngine.MaxBeats);
-                var request = FflfStoryEngine.BuildRequest(EngineStoryText, beats, BeatSeconds, EngineWithDialogue, HasInitialImage);
+                var request = FflfStoryEngine.BuildRequest(EngineStoryText, beats, BeatSeconds, EngineWithDialogue, HasInitialImage, openingImage);
                 var target = toDeepSeek ? lm?.DescribeDeepSeekTarget() ?? "DeepSeek" : llm.DescribeTarget(model);
                 AddLog($"✨ Writing {beats} beat(s) of {BeatSeconds:0.#} s from the story ({EngineStoryText.Length:N0} chars) → {target}");
                 if (EngineStoryText.Length > FflfStoryEngine.MaxStoryChars)
@@ -210,7 +218,8 @@ namespace FlipPix.UI.ViewModels.Video
                 var lines = script.Dialogue.Count(d => d.Length > 0);
                 EngineStatus = $"✔ {script.Beats.Count} beats{note}, {lines} spoken line{(lines == 1 ? "" : "s")} — read them through" +
                                (HasInitialImage ? ", then ▶ Generate." : ", pick the opening image, then ▶ Generate.") +
-                               (missing.Count > 0 ? $" ⚠ No {string.Join(", ", missing)} came back." : string.Empty);
+                               (missing.Count > 0 ? $" ⚠ No {string.Join(", ", missing)} came back." : string.Empty) +
+                               (HasInitialImage && openingImage == null ? " ⚠ The opening image could not be described, so the sheet may not match it — see the log." : string.Empty);
                 AddLog($"✨ Page filled in {(DateTime.Now - started):m\\:ss}: master prompt, location, wardrobe, {script.Beats.Count} beat(s){note}, {lines} line(s)." +
                        (missing.Count > 0 ? $" ⚠ Missing: {string.Join(", ", missing)}." : string.Empty) +
                        (lines > 0 ? " 🗣 Send all voices the lines." : string.Empty));
@@ -237,6 +246,57 @@ namespace FlipPix.UI.ViewModels.Video
                     }
                     cts.Dispose();
                 });
+            }
+        }
+
+        // The last description, kept (and saved) while the same image file — same path and timestamp — is the opening
+        // image. Its A, B, C are the letters the beats and the character sheets use, so it is made once per image.
+        private string? _openingDescription, _openingDescriptionFor;
+
+        /// <summary>"path|last-write ticks": what the description and the character sheets were made from.</summary>
+        private string OpeningImageKey => HasInitialImage ? $"{InitialImagePath}|{File.GetLastWriteTimeUtc(InitialImagePath).Ticks}" : string.Empty;
+
+        /// <summary>
+        /// The opening image in words, from the local vision model — null when it cannot be described, in which case
+        /// the writer is only told that an opening image exists (logged and shown as a warning).
+        /// </summary>
+        private async Task<string?> DescribeOpeningImageAsync(LMStudioService llm, CancellationToken token, Action<string> status)
+        {
+            var path = InitialImagePath;
+            var key = OpeningImageKey;
+            if (key.Length == 0) return null;
+            if (_openingDescriptionFor == key && !string.IsNullOrWhiteSpace(_openingDescription)) return _openingDescription;
+
+            var lm = _settingsService.Settings?.LMStudioSettings;
+            status("Looking at the opening image…");
+            var started = DateTime.Now;
+            try
+            {
+                using var local = llm.LocalOnly();
+                await llm.SetBaseUrlAsync(lm?.BaseUrl ?? "http://localhost:8080");
+                var model = lm?.SelectedModel ?? string.Empty;
+                if (string.IsNullOrEmpty(model))
+                {
+                    var models = await llm.GetAvailableModelsAsync(token);
+                    if (models.Count > 0) model = models[0].Id ?? models[0].Name ?? string.Empty;
+                }
+                var reply = await llm.AnalyzeImageAsync(model, path, FflfStoryEngine.OpeningImagePrompt, maxTokens: 1200, token);
+                var description = CleanLLMOutput(reply ?? string.Empty).Trim();
+                if (description.Length < 40) throw new InvalidOperationException("the vision model returned no description.");
+
+                _openingDescription = description;
+                _openingDescriptionFor = key;
+                OnUi(Save);
+                AddLog($"✨ Opening image described in {(DateTime.Now - started):m\\:ss} — the sheet will be written around it:\n{description}");
+                return description;
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+            catch (Exception ex)
+            {
+                AddLog($"✨ ⚠ Could not describe the opening image ({ex.Message}). The writer will not know what it shows — " +
+                       "load a vision model in llama-server (or set the vision switch model in Settings) and generate again.");
+                _logger.LogWarning($"{Profile.Name} opening image description failed: {ex}");
+                return null;
             }
         }
 

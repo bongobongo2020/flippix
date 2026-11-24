@@ -44,9 +44,35 @@ namespace FlipPix.UI.Services
         public static (int Target, int Max) DialogueWords(double beatSeconds) =>
             ((int)Math.Round(beatSeconds * WordsPerSecond), (int)Math.Round(beatSeconds * (WordsPerSecond + 0.3)));
 
+        /// <summary>
+        /// What the vision model is asked about the opening image before the writer runs. The writer never sees the
+        /// picture itself, so this description is all it has to keep the cast, wardrobe and place on the frame the
+        /// video actually starts on.
+        /// </summary>
+        public const string OpeningImagePrompt =
+            "This picture is the exact first frame of a video. Describe it precisely so a writer who cannot see it can " +
+            "continue the video from it without changing anything. Plain text, these five labelled parts, nothing else:\n" +
+            "PEOPLE: one line per visible person, from left to right, called A, B, C, written exactly as\n" +
+            "A | where they are in the frame (e.g. left, centre, right, foreground) | apparent gender and age range, build, " +
+            "skin tone, face, hair (colour, length, style), expression\n" +
+            "If nobody is visible, write: none\n" +
+            "WARDROBE: one line per person, written exactly as\n" +
+            "A | every visible garment top to bottom with colour, material and fit, footwear if visible, jewellery and accessories\n" +
+            "POSE: for each person by letter, the exact pose right now: standing/sitting, which way the body and head " +
+            "face, where the eyes look, where each hand and arm is, anything held.\n" +
+            "PLACE: the setting, backdrop, surfaces, props, time of day, light (direction, quality, colour) and colour palette.\n" +
+            "CAMERA: shot size (close-up, chest-up, waist-up, full body), angle, lens feel, depth of field, and the visual " +
+            "style (photo-real, film still, illustration, anime, 3D render…).\n" +
+            "Describe only what is visible. Do not guess names. Do not invent a story.";
+
         /// <summary>The user turn: the story, and how many beats of how long to cut it into.</summary>
-        public static string BuildRequest(string story, int beats, double beatSeconds, bool withDialogue, bool hasOpeningImage)
+        /// <param name="openingImage">The vision model's description of the opening image, when there is one; the
+        /// sheet is then written around that exact picture.</param>
+        public static string BuildRequest(string story, int beats, double beatSeconds, bool withDialogue, bool hasOpeningImage,
+                                          string? openingImage = null)
         {
+            openingImage = openingImage?.Trim();
+            if (string.IsNullOrEmpty(openingImage)) openingImage = null;
             beats = Math.Clamp(beats, MinBeats, MaxBeats);
             var text = (story ?? string.Empty).Trim();
             if (text.Length > MaxStoryChars) text = text[..MaxStoryChars] + "\n[…story cut here for length…]";
@@ -62,15 +88,37 @@ namespace FlipPix.UI.Services
                               "so it can be spoken at a natural pace inside its beat.");
             else
                 sb.AppendLine("- No spoken lines: write the [DIALOGUE] section with every block as just \"\" (an empty quote).");
-            sb.AppendLine(hasOpeningImage
-                ? "- The video starts on an existing opening picture of the main character: keep the cast and place consistent with a single continuous shot that could start on it."
-                : "- No opening picture exists yet: describe the main character and place precisely enough to create one.");
+            if (openingImage != null)
+            {
+                sb.AppendLine("- The video starts EXACTLY on the opening picture described below — it is frame one of beat 1, and every beat continues from it. It is the ground truth for how everything looks:");
+                sb.AppendLine("  • The cast is the people in the picture, with the letters given there. Cast the story's characters onto them (the story's main character is A unless the story clearly fits another person better). Add nobody who is not in the picture, unless the story needs them to walk in.");
+                sb.AppendLine("  • [WARDROBE] describes what each person is wearing in the picture — the same garments, colours and hair. Do not restyle them, even if the story describes other clothes.");
+                sb.AppendLine("  • [LOCATION] describes the place and light in the picture. The whole video stays there, even if the story is set somewhere else — tell the story from this place.");
+                sb.AppendLine("  • [MASTER PROMPT] keeps the picture's framing, camera angle and visual style, and describes the cast as they look in it.");
+                sb.AppendLine("  • BEAT 1 starts from the exact pose in the picture and moves on from it — no jump to a different pose, position or framing.");
+                sb.AppendLine("  • Where the story's own descriptions of people or places agree with the picture, use them; where they disagree on looks, the picture wins. Story facts, names, events and lines still come from the story.");
+                sb.AppendLine();
+                sb.AppendLine("THE OPENING PICTURE (frame one of the video):");
+                sb.AppendLine("<<<");
+                sb.AppendLine(openingImage);
+                sb.AppendLine(">>>");
+            }
+            else if (hasOpeningImage)
+            {
+                sb.AppendLine("- The video starts on an existing opening picture of the main character (no description of it is available): keep the cast and place simple and consistent with a single continuous shot that could start on it.");
+            }
+            else
+            {
+                sb.AppendLine("- No opening picture exists yet: describe the main character and place precisely enough to create one. Where the story describes how its characters or places look, use those descriptions.");
+            }
             sb.AppendLine();
             sb.AppendLine("THE STORY:");
             sb.AppendLine("<<<");
             sb.AppendLine(text);
             sb.AppendLine(">>>");
             sb.AppendLine();
+            if (openingImage != null)
+                sb.AppendLine("Remember: the people, clothes, place, light and framing are the opening picture's, and beat 1 starts from its pose.");
             sb.Append("Reply with the sheet only: the five sections [MASTER PROMPT], [LOCATION], [WARDROBE], [BEATS] and [DIALOGUE], in that order, nothing before or after.");
             return sb.ToString();
         }

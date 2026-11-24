@@ -139,4 +139,28 @@ public class FflfStoryEngineTests
         Assert.Contains("about 39 words and never more than 44", request);
         Assert.Contains("A story.", request);
     }
+
+    [Fact]
+    public void BuildRequest_WritesTheSheetAroundTheOpeningPicture()
+    {
+        const string picture = "PEOPLE: one woman (A), thirties, red bob haircut. WARDROBE: A wears a green raincoat.";
+        var request = FflfStoryEngine.BuildRequest("A knight rides to war in silver armour.", 4, 10,
+            withDialogue: false, hasOpeningImage: true, openingImage: picture);
+
+        Assert.Contains("THE OPENING PICTURE", request);
+        Assert.Contains(picture, request);
+        Assert.Contains("BEAT 1 starts from the exact pose in the picture", request);
+        Assert.Contains("the picture wins", request);
+        // The picture comes before the story, so the writer reads it first.
+        Assert.True(request.IndexOf(picture) < request.IndexOf("THE STORY:"));
+    }
+
+    [Fact]
+    public void BuildRequest_WithoutADescriptionStillSaysThereIsAnOpeningPicture()
+    {
+        var request = FflfStoryEngine.BuildRequest("A story.", 2, 5, withDialogue: false, hasOpeningImage: true, openingImage: "  ");
+
+        Assert.DoesNotContain("THE OPENING PICTURE", request);
+        Assert.Contains("existing opening picture", request);
+    }
 }

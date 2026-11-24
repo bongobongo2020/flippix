@@ -147,6 +147,7 @@ namespace FlipPix.UI.ViewModels.Video
             LoadTabSettings(s);
             InitVoice(s);
             InitStoryEngine(s);
+            InitCharacterSheets(s);
             _loading = false;
 
             Beats.CollectionChanged += (_, e) =>
@@ -208,7 +209,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>The text sent for one beat.</summary>
         protected virtual string ComposeBeatPrompt(FflfBeat beat, int index, int total, bool hasIdentityImage) =>
-            FflfGraph.ComposePrompt(beat.Text, ComposedStyle, hasIdentityImage, index == 0);
+            FflfGraph.ComposePrompt(beat.Text, ComposedStyle, hasIdentityImage, index == 0, _runSheets.Select(r => r.Label).ToList());
 
         /// <summary>Last word on a beat's render request, after the page's own dials are on it.</summary>
         protected virtual FflfBeatRender CustomizeRender(FflfBeatRender request, int index) => request;
@@ -298,6 +299,7 @@ namespace FlipPix.UI.ViewModels.Video
                 _initialThumbnail = bitmap;
                 OnPropertyChanged(nameof(InitialThumbnail));
             });
+            OnPropertyChanged(nameof(CharacterSheetsHint));
             if (_loading) return;
             // Every beat descends from the opening frame.
             if (Beats.Any(b => b.State != FflfBeatState.Pending))
@@ -715,6 +717,7 @@ namespace FlipPix.UI.ViewModels.Video
             nameof(SettingText), nameof(WardrobeText), nameof(WardrobeImagePath),
             nameof(SelectedYakEngine), nameof(SelectedYakVoice),
             nameof(EngineStoryText), nameof(EngineBeatCount), nameof(EngineWriter), nameof(EngineWithDialogue),
+            nameof(CharacterSheets), nameof(SheetEngine),
         };
 
         protected override void OnPropertyChanged(PropertyChangedEventArgs e)
@@ -756,6 +759,7 @@ namespace FlipPix.UI.ViewModels.Video
             s.YakEngine = SelectedYakEngine;
             s.YakVoice = SelectedYakVoice;
             SaveStoryEngine(s);
+            SaveCharacterSheets(s);
             SaveTabSettings(s);
             try { _settingsService.SaveSettings(settings); }
             catch (Exception ex) { _logger.LogWarning($"{Profile.Name}: could not save settings: {ex.Message}"); }
@@ -980,6 +984,7 @@ namespace FlipPix.UI.ViewModels.Video
 
                 if (start == 0 || _runFolder.Length == 0) _runFolder = $"{Profile.Key}_{DateTime.Now:yyyyMMdd_HHmmss}";
                 var initial = await UploadInitialAsync(ct);
+                await PrepareCharacterSheetsAsync(ct);
                 await PrepareRunAsync(ct);
                 var aspect = ResolvedAspectRatio;
                 AddLog($"Story: beats {start + 1}–{beats.Count} of {beats.Count}, {BeatSeconds:0.#} s each, {CanvasSummary}. {DescribeModel()}.");
@@ -1003,7 +1008,9 @@ namespace FlipPix.UI.ViewModels.Video
                     try
                     {
                         var startImage = i == 0 ? initial : await StartFrameAfterAsync(beats[i - 1], initial, beatCts.Token);
-                        await RenderBeatAsync(template, beat, i, beats.Count, start, startImage, i > 0 && KeepInitialReference ? initial : null, aspect, beatCts.Token);
+                        // H3 takes four pictures: with three sheets the opening image steps aside (the sheets carry the cast).
+                        var identity = i > 0 && KeepInitialReference && _runSheets.Count < FflfCast.MaxSheets ? initial : null;
+                        await RenderBeatAsync(template, beat, i, beats.Count, start, startImage, identity, aspect, beatCts.Token);
                         // ✨ Before the next beat starts on its last frame, so the refined face is carried on.
                         if (FaceRefine && !PreviewOnly)
                             await RefineBeatFaceAsync(beat, i, template, beatCts.Token);
@@ -1154,6 +1161,7 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 StartImage = startImage,
                 IdentityImage = identityImage,
+                CastImages = _runSheets.Select(r => r.Uploaded).ToList(),
                 Prompt = prompt,
                 Seconds = SecondsFor(beat),
                 DialogueAudio = dialogue,
@@ -1173,6 +1181,7 @@ namespace FlipPix.UI.ViewModels.Video
             var graph = BuildBeatGraph(template, request, index, out var pruned);
             AddLog($"{label} — seed {beat.Seed}, starts on {(index == 0 ? "the opening image" : $"beat {index}'s last frame")}" +
                    $"{(LockFirstFrame ? " (anchored at frame 0)" : " (reference only)")}, {pruned} node(s) pruned" +
+                   (_runSheets.Count > 0 ? $", {_runSheets.Count} character sheet(s)" : string.Empty) +
                    (dialogue != null ? $", {request.Seconds:0.#} s, lips locked to {Path.GetFileName(beat.DialoguePath)}." : "."));
 
             var share = 1.0 / Math.Max(1, total - start);
