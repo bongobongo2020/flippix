@@ -156,6 +156,23 @@ public class FflfStoryEngineTests
     }
 
     [Fact]
+    public void BuildRequest_PutsWhatChangesLeastFirst_SoTheServerCacheIsReused()
+    {
+        const string picture = "PEOPLE: A | centre | woman.";
+        var eight = FflfStoryEngine.BuildRequest("The same story.", 8, 5, withDialogue: true, hasOpeningImage: true, openingImage: picture);
+        var twelve = FflfStoryEngine.BuildRequest("The same story.", 12, 7, withDialogue: false, hasOpeningImage: true, openingImage: picture,
+                                                  dynamicBeatTime: true);
+
+        // Picture, then story, then the slider settings.
+        Assert.StartsWith("THE OPENING PICTURE", eight);
+        Assert.True(eight.IndexOf("THE STORY:") < eight.IndexOf("-beat video sheet"));
+        // Changing only the sliders leaves the picture and the story as a shared prefix.
+        var shared = eight[..eight.IndexOf("Turn the story above")];
+        Assert.StartsWith(shared, twelve);
+        Assert.Contains("The same story.", shared);
+    }
+
+    [Fact]
     public void BuildRequest_WithoutADescriptionStillSaysThereIsAnOpeningPicture()
     {
         var request = FflfStoryEngine.BuildRequest("A story.", 2, 5, withDialogue: false, hasOpeningImage: true, openingImage: "  ");

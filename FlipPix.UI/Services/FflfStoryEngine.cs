@@ -86,8 +86,25 @@ namespace FlipPix.UI.Services
             var (target, max) = DialogueWords(beatSeconds);
             var total = beats * beatSeconds;
 
+            // Ordered for the server's prompt cache: what changes least comes first. The opening picture's
+            // description is the same for every story told on that image, the story the same for every re-run with
+            // other sliders; the beat count, seconds and dialogue switch go last. A re-run then only reprocesses the
+            // tail instead of the whole request (llama-server reuses a prompt up to its first changed token).
             var sb = new StringBuilder();
-            sb.AppendLine($"Turn the story below into a {beats}-beat video sheet.");
+            if (openingImage != null)
+            {
+                sb.AppendLine("THE OPENING PICTURE (frame one of the video):");
+                sb.AppendLine("<<<");
+                sb.AppendLine(openingImage);
+                sb.AppendLine(">>>");
+                sb.AppendLine();
+            }
+            sb.AppendLine("THE STORY:");
+            sb.AppendLine("<<<");
+            sb.AppendLine(text);
+            sb.AppendLine(">>>");
+            sb.AppendLine();
+            sb.AppendLine($"Turn the story above into a {beats}-beat video sheet.");
             if (dynamicBeatTime)
             {
                 sb.AppendLine($"- Exactly {beats} beats, and YOU choose how long each one is: a whole number of seconds from " +
@@ -116,7 +133,7 @@ namespace FlipPix.UI.Services
             }
             if (openingImage != null)
             {
-                sb.AppendLine("- The video starts EXACTLY on the opening picture described below — it is frame one of beat 1, and every beat continues from it. It is the ground truth for how everything looks:");
+                sb.AppendLine("- The video starts EXACTLY on the opening picture described above — it is frame one of beat 1, and every beat continues from it. It is the ground truth for how everything looks:");
                 sb.AppendLine("  • The cast is the people in the picture, with the letters given there. Cast the story's characters onto them (the story's main character is A unless the story clearly fits another person better). Add nobody who is not in the picture, unless the story needs them to walk in.");
                 sb.AppendLine("  • [WARDROBE] describes what each person is wearing in the picture — the same garments, colours and hair. Do not restyle them, even if the story describes other clothes.");
                 sb.AppendLine("  • [LOCATION] describes the place and light in the picture. The whole video stays there, even if the story is set somewhere else — tell the story from this place.");
@@ -124,10 +141,7 @@ namespace FlipPix.UI.Services
                 sb.AppendLine("  • BEAT 1 starts from the exact pose in the picture and moves on from it — no jump to a different pose, position or framing.");
                 sb.AppendLine("  • Where the story's own descriptions of people or places agree with the picture, use them; where they disagree on looks, the picture wins. Story facts, names, events and lines still come from the story.");
                 sb.AppendLine();
-                sb.AppendLine("THE OPENING PICTURE (frame one of the video):");
-                sb.AppendLine("<<<");
-                sb.AppendLine(openingImage);
-                sb.AppendLine(">>>");
+                sb.AppendLine("Remember: the people, clothes, place, light and framing are the opening picture's, and beat 1 starts from its pose.");
             }
             else if (hasOpeningImage)
             {
@@ -137,14 +151,6 @@ namespace FlipPix.UI.Services
             {
                 sb.AppendLine("- No opening picture exists yet: describe the main character and place precisely enough to create one. Where the story describes how its characters or places look, use those descriptions.");
             }
-            sb.AppendLine();
-            sb.AppendLine("THE STORY:");
-            sb.AppendLine("<<<");
-            sb.AppendLine(text);
-            sb.AppendLine(">>>");
-            sb.AppendLine();
-            if (openingImage != null)
-                sb.AppendLine("Remember: the people, clothes, place, light and framing are the opening picture's, and beat 1 starts from its pose.");
             sb.Append("Reply with the sheet only: the five sections [MASTER PROMPT], [LOCATION], [WARDROBE], [BEATS] and [DIALOGUE], in that order, nothing before or after.");
             return sb.ToString();
         }
