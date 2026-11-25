@@ -51,6 +51,12 @@ The video does not start from nothing: it starts on that exact picture, and ever
 - BEAT 1 begins in the picture's exact pose and moves on from it.
 - On looks, the picture beats the story. On facts, names, events and lines, the story rules.
 
+## Extra direction
+
+- The request may carry an **EXTRA DIRECTION** after the story — e.g. "rewrite this as a brutal cinematic fight, continuous physical action, no backstory". Follow it: it decides the kind of video, tone, pacing, what the beats focus on and what is left out, and it overrides this guide's defaults (calm pacing, "no fast or complex choreography", the explainer shape) wherever they clash. Reflect it in [MASTER PROMPT] and in every beat's action.
+- The direction outranks the story. The story supplies the raw material (characters, place, situation); where its events, talk or ending do not fit the direction, change, compress or drop them — this overrides "keep facts and the order of events" below. Every beat, the last ones included, carries out the direction; none drifts back to the story's original mood or ending. The spoken lines obey it too (no backstory in the lines when it says no backstory).
+- The opening picture still decides looks. The five-section format, the beat and dialogue counts and the lengths you are given never change.
+
 ## Example (a 10 × 15 s explainer — follow its shape, not its subject)
 
 ```

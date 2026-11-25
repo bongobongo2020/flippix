@@ -141,6 +141,30 @@ public class FflfStoryEngineTests
     }
 
     [Fact]
+    public void BuildRequest_SendsTheExtraDirectionAfterTheStory()
+    {
+        var request = FflfStoryEngine.BuildRequest("A story.", 6, 5, withDialogue: true, hasOpeningImage: false,
+                                                   direction: "  More action: make it a brutal fight.  ");
+
+        Assert.Contains("EXTRA DIRECTION", request);
+        Assert.Contains("More action: make it a brutal fight.", request);
+        Assert.True(request.IndexOf("A story.") < request.IndexOf("More action:"));
+        Assert.Contains("written the way the EXTRA DIRECTION asks", request);
+        Assert.Contains("OUTRANKS THE STORY", request);
+        Assert.EndsWith("nothing before or after.", request);
+
+        var plain = FflfStoryEngine.BuildRequest("A story.", 6, 5, withDialogue: true, hasOpeningImage: false, direction: "   ");
+        Assert.DoesNotContain("EXTRA DIRECTION", plain);
+    }
+
+    [Theory]
+    [InlineData("More action: Rewrite this scene as a brutal cinematic fight.", "More action")]
+    [InlineData("Make it slower and sadder", "Make it slower and sadder")]
+    [InlineData("Rewrite this scene as a brutal cinematic fight and focus on action", "Rewrite this scene as a brutal cinematic…")]
+    public void DirectionName_UsesTheLabelOrTheFirstWords(string text, string name)
+        => Assert.Equal(name, FlipPix.UI.ViewModels.Video.H3FflfViewModel.DirectionName(text));
+
+    [Fact]
     public void BuildRequest_WritesTheSheetAroundTheOpeningPicture()
     {
         const string picture = "PEOPLE: one woman (A), thirties, red bob haircut. WARDROBE: A wears a green raincoat.";

@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -46,6 +48,32 @@ namespace FlipPix.UI.ViewModels.Video
         [NotifyPropertyChangedFor(nameof(EnginePlan))]
         private int _engineBeatCount = 8;
 
+        /// <summary>✨ Extra direction (optional): how the writer should treat the story — sent with it, and kept in
+        /// <see cref="SavedDirections"/> once a story is generated with it.</summary>
+        [ObservableProperty] private string _engineDirection = string.Empty;
+
+        /// <summary>Every extra direction used, newest first — one list shared by every FFLF-style tab and saved in
+        /// <see cref="ComfyUISettings.StoryDirections"/>.</summary>
+        public ObservableCollection<StoryDirectionPreset> SavedDirections => _savedDirections ??= LoadSavedDirections();
+        private static ObservableCollection<StoryDirectionPreset>? _savedDirections;
+
+        /// <summary>The direction picked in the drop-down: picking one puts its text in the box.</summary>
+        [ObservableProperty] private StoryDirectionPreset? _selectedDirection;
+
+        public const int MaxSavedDirections = 40;
+
+        /// <summary>Offered the first time, so the drop-down shows what a direction looks like.</summary>
+        private static readonly StoryDirectionPreset[] StarterDirections =
+        {
+            new()
+            {
+                Name = "More action",
+                Text = "Rewrite this scene as a brutal cinematic fight and focus on continuous physical action, not backstory. " +
+                       "Write the combat like a choreographed action sequence: every strike creates the next movement, every dodge " +
+                       "uses momentum, and every counter grows from the previous position.",
+            },
+        };
+
         [ObservableProperty] private string _engineWriter = WriterSettings;
 
         /// <summary>Off: the engine writes the beats without spoken lines.</summary>
@@ -87,6 +115,7 @@ namespace FlipPix.UI.ViewModels.Video
         public RelayCommand GenerateFromStoryCommand { get; private set; } = null!;
         public RelayCommand BrowseStoryFileCommand { get; private set; } = null!;
         public RelayCommand CancelEngineCommand { get; private set; } = null!;
+        public RelayCommand DeleteDirectionCommand { get; private set; } = null!;
 
         /// <summary>Runs in the constructor, while the page is still loading.</summary>
         private void InitStoryEngine(H3FflfSettings s)
@@ -95,9 +124,11 @@ namespace FlipPix.UI.ViewModels.Video
                 () => !IsProcessing && !IsEngineWriting && !string.IsNullOrWhiteSpace(EngineStoryText));
             BrowseStoryFileCommand = new RelayCommand(() => _ = BrowseStoryFileAsync(), () => !IsEngineWriting);
             CancelEngineCommand = new RelayCommand(() => _engineCts?.Cancel(), () => IsEngineWriting);
+            DeleteDirectionCommand = new RelayCommand(DeleteSelectedDirection, () => SelectedDirection != null);
 
 #pragma warning disable MVVMTK0034
             _engineStoryText = s.StoryEngineText ?? string.Empty;
+            _engineDirection = s.StoryEngineDirection ?? string.Empty;
             _engineBeatCount = Math.Clamp(s.StoryEngineBeats, FflfStoryEngine.MinBeats, FflfStoryEngine.MaxBeats);
             _engineWriter = EngineWriters.Any(w => w.Id == s.StoryEngineWriter) ? s.StoryEngineWriter : WriterSettings;
             _engineWithDialogue = s.StoryEngineDialogue;
@@ -110,6 +141,7 @@ namespace FlipPix.UI.ViewModels.Video
         private void SaveStoryEngine(H3FflfSettings s)
         {
             s.StoryEngineText = EngineStoryText;
+            s.StoryEngineDirection = EngineDirection;
             s.StoryEngineBeats = EngineBeatCount;
             s.StoryEngineWriter = EngineWriter;
             s.StoryEngineDialogue = EngineWithDialogue;
@@ -126,6 +158,90 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         partial void OnEngineStoryTextChanged(string value) => RefreshEngineCommands();
+
+        partial void OnSelectedDirectionChanged(StoryDirectionPreset? value)
+        {
+            if (value != null && !_loading) EngineDirection = value.Text;
+            DeleteDirectionCommand?.NotifyCanExecuteChanged();
+        }
+
+        // ── ✨ Saved directions ─────────────────────────────────────────────────────────────────
+
+        private ObservableCollection<StoryDirectionPreset> LoadSavedDirections()
+        {
+            var all = _settingsService.Settings;
+            var list = all?.StoryDirections;
+            if (list == null)
+            {
+                // First run: seed the starters (null means never seeded; an emptied list stays empty).
+                list = StarterDirections.Select(d => new StoryDirectionPreset { Name = d.Name, Text = d.Text }).ToList();
+                if (all != null) all.StoryDirections = list;
+            }
+            return new ObservableCollection<StoryDirectionPreset>(list.Where(d => !string.IsNullOrWhiteSpace(d.Text)));
+        }
+
+        private void PersistSavedDirections()
+        {
+            var all = _settingsService.Settings;
+            if (all == null) return;
+            all.StoryDirections = SavedDirections.ToList();
+            try { _settingsService.SaveSettings(all); }
+            catch (Exception ex) { _logger.LogWarning($"{Profile.Name}: could not save the story directions: {ex.Message}"); }
+        }
+
+        /// <summary>Puts a direction at the top of the drop-down — moved there if the same text is already saved.</summary>
+        private void RememberDirection(string text)
+        {
+            text = (text ?? string.Empty).Trim();
+            if (text.Length == 0) return;
+            var list = SavedDirections;
+            var existing = list.FirstOrDefault(d => string.Equals(d.Text.Trim(), text, StringComparison.OrdinalIgnoreCase));
+            if (existing != null)
+            {
+                var at = list.IndexOf(existing);
+                if (at > 0) list.Move(at, 0);
+            }
+            else
+            {
+                list.Insert(0, new StoryDirectionPreset { Name = UniqueDirectionName(DirectionName(text)), Text = text });
+                while (list.Count > MaxSavedDirections) list.RemoveAt(list.Count - 1);
+            }
+            PersistSavedDirections();
+        }
+
+        // "More action: Rewrite this scene…" → "More action"; otherwise the first few words.
+        private static readonly Regex DirectionLabel = new(@"^\s*(?<name>[^:\r\n]{1,40}?)\s*:\s*\S", RegexOptions.Compiled);
+
+        /// <summary>The drop-down name of a direction: its "Name:" prefix when it has one, else its first words.</summary>
+        public static string DirectionName(string text)
+        {
+            text = (text ?? string.Empty).Trim();
+            var m = DirectionLabel.Match(text);
+            if (m.Success && m.Groups["name"].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 5)
+                return m.Groups["name"].Value.Trim();
+            var words = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            var full = string.Join(' ', words.Take(7));
+            var name = full.Length > 48 ? full[..48].TrimEnd() : full;
+            return words.Length > 7 || name.Length < full.Length ? name + "…" : name;
+        }
+
+        private string UniqueDirectionName(string name)
+        {
+            var taken = SavedDirections.Select(d => d.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (!taken.Contains(name)) return name;
+            for (var n = 2; ; n++)
+                if (!taken.Contains($"{name} ({n})")) return $"{name} ({n})";
+        }
+
+        /// <summary>✕ by the drop-down: forgets the picked direction (the text in the box stays).</summary>
+        private void DeleteSelectedDirection()
+        {
+            var picked = SelectedDirection;
+            if (picked == null) return;
+            SelectedDirection = null;
+            SavedDirections.Remove(picked);
+            PersistSavedDirections();
+        }
         partial void OnIsEngineWritingChanged(bool value) => RefreshCommands();
         partial void OnBeatSecondsChanged(double value) => OnPropertyChanged(nameof(EnginePlan));
 
@@ -210,8 +326,14 @@ namespace FlipPix.UI.ViewModels.Video
 
                 var beats = Math.Clamp(EngineBeatCount, FflfStoryEngine.MinBeats, FflfStoryEngine.MaxBeats);
                 var dynamicTime = EngineDynamicBeatTime;
+                var direction = EngineDirection.Trim();
                 var request = FflfStoryEngine.BuildRequest(EngineStoryText, beats, BeatSeconds, EngineWithDialogue, HasInitialImage, openingImage,
-                                                           dynamicBeatTime: dynamicTime);
+                                                           dynamicBeatTime: dynamicTime, direction: direction);
+                if (direction.Length > 0)
+                {
+                    OnUi(() => RememberDirection(direction));
+                    AddLog($"✨ Extra direction: {(direction.Length > 160 ? direction[..160] + "…" : direction)}");
+                }
                 var target = toDeepSeek ? lm?.DescribeDeepSeekTarget() ?? "DeepSeek" : llm.DescribeTarget(model);
                 AddLog(dynamicTime
                     ? $"✨ Writing {beats} beat(s), the writer picking each one's length (≈{beats * BeatSeconds:0.#} s in all), from the story ({EngineStoryText.Length:N0} chars) → {target}"

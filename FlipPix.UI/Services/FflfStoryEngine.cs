@@ -42,6 +42,8 @@ namespace FlipPix.UI.Services
 
         /// <summary>Stories longer than this are cut before they are sent — local servers have small contexts.</summary>
         public const int MaxStoryChars = 24000;
+        /// <summary>The longest ✨ extra direction sent to the writer.</summary>
+        public const int MaxDirectionChars = 4000;
 
         /// <summary>Speaking pace the dialogue is sized to: words per second of beat.</summary>
         public const double WordsPerSecond = 2.6;
@@ -76,8 +78,11 @@ namespace FlipPix.UI.Services
         /// <param name="dynamicBeatTime">⏱ On: the writer picks each beat's length (tagged <c>[7 s]</c>), aiming for
         /// <paramref name="beats"/> × <paramref name="beatSeconds"/> in all, instead of every beat being that long.</param>
         public static string BuildRequest(string story, int beats, double beatSeconds, bool withDialogue, bool hasOpeningImage,
-                                          string? openingImage = null, bool dynamicBeatTime = false)
+                                          string? openingImage = null, bool dynamicBeatTime = false, string? direction = null)
         {
+            direction = direction?.Trim();
+            if (string.IsNullOrEmpty(direction)) direction = null;
+            else if (direction.Length > MaxDirectionChars) direction = direction[..MaxDirectionChars];
             openingImage = openingImage?.Trim();
             if (string.IsNullOrEmpty(openingImage)) openingImage = null;
             beats = Math.Clamp(beats, MinBeats, MaxBeats);
@@ -104,7 +109,19 @@ namespace FlipPix.UI.Services
             sb.AppendLine(text);
             sb.AppendLine(">>>");
             sb.AppendLine();
-            sb.AppendLine($"Turn the story above into a {beats}-beat video sheet.");
+            if (direction != null)
+            {
+                // After the story (so a new direction on the same story only reprocesses from here) and before the
+                // beat rules, which it shapes.
+                sb.AppendLine("EXTRA DIRECTION (how to treat the story — follow it):");
+                sb.AppendLine("<<<");
+                sb.AppendLine(direction);
+                sb.AppendLine(">>>");
+                sb.AppendLine();
+            }
+            sb.AppendLine(direction != null
+                ? $"Turn the story above into a {beats}-beat video sheet, written the way the EXTRA DIRECTION asks."
+                : $"Turn the story above into a {beats}-beat video sheet.");
             if (dynamicBeatTime)
             {
                 sb.AppendLine($"- Exactly {beats} beats, and YOU choose how long each one is: a whole number of seconds from " +
@@ -150,6 +167,26 @@ namespace FlipPix.UI.Services
             else
             {
                 sb.AppendLine("- No opening picture exists yet: describe the main character and place precisely enough to create one. Where the story describes how its characters or places look, use those descriptions.");
+            }
+            if (direction != null)
+            {
+                // Last, so it is the freshest instruction when the writer starts: early drafts drifted back to the
+                // story's own mood and ending in the last beats, and kept the story's backstory in the spoken lines.
+                sb.AppendLine();
+                sb.AppendLine("THE EXTRA DIRECTION OUTRANKS THE STORY — follow it strictly:");
+                sb.AppendLine("- It decides what kind of video this is, its tone, pacing and kind of action, and what the beats focus on or leave out. " +
+                              "It overrides the system guide's defaults (calm pacing, \"no fast or complex choreography\", the explainer arc) wherever they clash.");
+                sb.AppendLine("- The story only supplies the raw material — who the characters are, the place, the situation. Where its events, its talk " +
+                              "or its ending do not fit the direction, change, compress or drop them. Never let the story pull the video back to its own mood.");
+                sb.AppendLine($"- EVERY beat, 1 to {beats}, carries out the direction — including the last ones. No beat winds down into the story's " +
+                              "original tone or ending unless the direction itself asks for that; the final beat lands the direction's own climax.");
+                if (withDialogue)
+                    sb.AppendLine("- The spoken lines obey the direction too: if it says to drop backstory, explanation or talk, the lines carry none of it " +
+                                  "— short words that belong to the moment of action (or \"\" where nobody would speak).");
+                sb.AppendLine("- Put the direction in the [MASTER PROMPT] as the video's format and tone.");
+                if (openingImage != null)
+                    sb.AppendLine("- The opening picture still decides how the people, clothes and place look; the direction decides what they do.");
+                sb.AppendLine("Before you reply, check each beat and each line against the EXTRA DIRECTION and rewrite any that drift from it.");
             }
             sb.Append("Reply with the sheet only: the five sections [MASTER PROMPT], [LOCATION], [WARDROBE], [BEATS] and [DIALOGUE], in that order, nothing before or after.");
             return sb.ToString();

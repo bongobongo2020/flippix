@@ -361,6 +361,10 @@ public class ComfyUISettings
     // FFLF tab (story beats chained first-frame/last-frame through the ErosMax 2-Pass graph): the last choices on the page.
     public H3FflfSettings H3Fflf { get; set; } = new H3FflfSettings();
 
+    // ✨ Extra direction for the FFLF story writer: every direction used is kept here (newest first), shared by the
+    // FFLF, 🥋 Action and 🥷 Martial tabs, and offered in the drop-down under the story box. Null until first seeded.
+    public List<StoryDirectionPreset>? StoryDirections { get; set; }
+
     // 🥋 Action tab (the FFLF chain with the Action Director workflow's nine combat LoRA presets and a fight director).
     public H3ActionSettings H3Action { get; set; } = new H3ActionSettings();
 
@@ -714,6 +718,8 @@ public class H3FflfSettings
     public bool StoryEngineDialogue { get; set; } = true;
     /// <summary>⏱ Dynamic beat time: the writer picks each beat's length instead of every beat being BeatSeconds.</summary>
     public bool StoryEngineDynamicBeats { get; set; }
+    /// <summary>✨ Extra direction: how the writer should treat the story (e.g. "rewrite it as a brutal fight").</summary>
+    public string StoryEngineDirection { get; set; } = string.Empty;
     /// <summary>The vision model's description of the opening image, and the image it was made from
     /// ("path|last-write ticks"). It names the cast A, B, C — the letters the beats and the character sheets use.</summary>
     public string OpeningImageDescription { get; set; } = string.Empty;
@@ -725,6 +731,14 @@ public class H3FflfSettings
     /// <summary>The sheets made for <see cref="CharacterSheetsFor"/> (same key as the description).</summary>
     public List<FflfCharacterSheetEntry> CharacterSheetList { get; set; } = new();
     public string CharacterSheetsFor { get; set; } = string.Empty;
+}
+
+/// <summary>A saved ✨ extra direction for the FFLF story writer: a short name for the drop-down and the text.</summary>
+public class StoryDirectionPreset
+{
+    public string Name { get; set; } = string.Empty;
+    public string Text { get; set; } = string.Empty;
+    public override string ToString() => Name;
 }
 
 /// <summary>One person's character sheet on the ⛓ FFLF tab: their letter, who they are in the opening image, the file.</summary>

@@ -5906,6 +5906,32 @@
                                                          VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top" AllowDrop="True"
                                                          PreviewDragOver="FflfStoryBox_PreviewDragOver" PreviewDrop="FflfStoryBox_PreviewDrop"
                                                          ToolTip="Paste a story, an idea, an article or a script — a line or many pages — or drop a .txt here. ✨ Generate writes the master prompt, location, wardrobe, beats and each beat's spoken line into the boxes below."/>
+                                                <!-- ✨ Extra direction: how the writer treats the story; every one used is kept in the drop-down -->
+                                                <Grid Margin="0,8,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="200"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="EXTRA DIRECTION (optional — how to treat the story)" FontSize="9" FontWeight="Bold"
+                                                               Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                    <ComboBox Grid.Column="1" ItemsSource="{Binding SavedDirections}" DisplayMemberPath="Name"
+                                                              SelectedItem="{Binding SelectedDirection}" Height="22" FontSize="10.5" Margin="6,0,0,0"
+                                                              ToolTip="Directions you have used before — every one you ✨ Generate with is saved here automatically. Pick one to put it in the box.">
+                                                        <ComboBox.ItemContainerStyle>
+                                                            <Style TargetType="ComboBoxItem">
+                                                                <Setter Property="ToolTip" Value="{Binding Text}"/>
+                                                            </Style>
+                                                        </ComboBox.ItemContainerStyle>
+                                                    </ComboBox>
+                                                    <Button Grid.Column="2" Content="✕" Command="{Binding DeleteDirectionCommand}" Style="{StaticResource SecondaryButtonStyle}"
+                                                            Width="22" Height="22" Padding="0" FontSize="10" Margin="4,0,0,0"
+                                                            ToolTip="Forget the picked direction (the text in the box stays)"/>
+                                                </Grid>
+                                                <TextBox Text="{Binding EngineDirection, UpdateSourceTrigger=PropertyChanged, Delay=400}" Margin="0,4,0,0"
+                                                         Height="60" FontSize="11" Padding="5,4" TextWrapping="Wrap" AcceptsReturn="True" AcceptsTab="False"
+                                                         VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"
+                                                         ToolTip="Tells the writer what to do with the story above — e.g. 'More action: Rewrite this scene as a brutal cinematic fight, continuous physical action, not backstory.'&#x0a;&#x0a;It shapes the tone, pacing and every beat. Start it with 'Name:' to name it in the drop-down. Saved automatically when you ✨ Generate."/>
                                                 <Grid Margin="0,8,0,0">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="110"/>

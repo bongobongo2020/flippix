@@ -729,7 +729,7 @@ namespace FlipPix.UI.ViewModels.Video
             nameof(FaceRefine), nameof(FaceRefineStrength),
             nameof(SettingText), nameof(WardrobeText), nameof(WardrobeImagePath),
             nameof(SelectedYakEngine), nameof(SelectedYakVoice),
-            nameof(EngineStoryText), nameof(EngineBeatCount), nameof(EngineWriter), nameof(EngineWithDialogue), nameof(EngineDynamicBeatTime),
+            nameof(EngineStoryText), nameof(EngineDirection), nameof(EngineBeatCount), nameof(EngineWriter), nameof(EngineWithDialogue), nameof(EngineDynamicBeatTime),
             nameof(CharacterSheets), nameof(SheetEngine),
         };
 
