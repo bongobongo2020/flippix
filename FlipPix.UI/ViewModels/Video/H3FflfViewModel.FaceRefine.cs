@@ -133,7 +133,7 @@ namespace FlipPix.UI.ViewModels.Video
                     HasAudio = probe?.HasAudio ?? true,
                     FrameCap = FaceRefinePlusGraph.FrameCapFor(probe?.DurationSeconds ?? 0),
                     IdentityImage = identity,
-                    Prompt = FaceRefinePlusGraph.ComposePrompt(beat.Text, ComposedStyle),
+                    Prompt = FaceRefinePlusGraph.ComposePrompt(FflfGraph.SplitSound(beat.Text).Action, ComposedStyle),
                     Models = FaceRefineModelsFor(template),
                     Strength = FaceRefineStrength,
                     Seed = beat.Seed > 0 ? beat.Seed : NewSeed(),

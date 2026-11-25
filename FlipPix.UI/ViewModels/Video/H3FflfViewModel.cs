@@ -207,9 +207,15 @@ namespace FlipPix.UI.ViewModels.Video
         /// <summary>Whether a change to this property is written to settings and to the open story.</summary>
         protected virtual bool IsPersistedProperty(string name) => Persisted.Contains(name);
 
-        /// <summary>The text sent for one beat.</summary>
-        protected virtual string ComposeBeatPrompt(FflfBeat beat, int index, int total, bool hasIdentityImage) =>
-            FflfGraph.ComposePrompt(beat.Text, ComposedStyle, hasIdentityImage, index == 0, _runSheets.Select(r => r.Label).ToList());
+        /// <summary>The text sent for one beat: the beat in MiniMax H3's six-section full-reference format
+        /// (<see cref="FflfGraph.ComposeH3Prompt"/>), with the cast read from the opening image's description.</summary>
+        protected virtual string ComposeBeatPrompt(FflfBeat beat, int index, int total, bool hasIdentityImage)
+        {
+            var people = _openingDescriptionFor == OpeningImageKey ? FflfCast.Parse(_openingDescription) : Array.Empty<FflfCastMember>();
+            var spoken = beat.HasDialogue && !string.IsNullOrWhiteSpace(beat.LineText) ? beat.LineText : null;
+            return FflfGraph.ComposeH3Prompt(beat.Text, SecondsFor(beat), StyleText, SettingText, FflfGraph.H3Cast(people, WardrobeText),
+                                             hasIdentityImage, index == 0, _runSheets.Select(r => r.Label).ToList(), spoken);
+        }
 
         /// <summary>Last word on a beat's render request, after the page's own dials are on it.</summary>
         protected virtual FflfBeatRender CustomizeRender(FflfBeatRender request, int index) => request;

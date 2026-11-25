@@ -203,6 +203,187 @@ namespace FlipPix.UI.Services
             return sb.ToString();
         }
 
+        // ── The H3 full-reference prompt (⛓ FFLF tab) ───────────────────────────────────────────────
+
+        /// <summary>One person the shot keeps, for <see cref="ComposeH3Prompt"/>.</summary>
+        /// <param name="Letter">A, B, C — what the beats call them.</param>
+        /// <param name="Where">"on the left", or empty.</param>
+        /// <param name="Look">Face, hair, build — from the opening image's description; may be empty.</param>
+        /// <param name="Wardrobe">What they wear — their paragraph of the wardrobe box, else the description's.</param>
+        public sealed record H3CastMember(string Letter, string Where, string Look, string Wardrobe);
+
+        // "Sound: …" / "Sounds — …" at the end of a beat: what the story engine writes for overall_soundscape.
+        private static readonly Regex SoundTail = new(@"(?:^|(?<=[.!?…""”)\]]))\s*Sounds?\s*[:—–-]\s*(?<s>[^\n]+?)\s*$",
+                                                      RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>A beat split into its action and its trailing "Sound: …" line (empty when it has none).</summary>
+        public static (string Action, string Sound) SplitSound(string? beat)
+        {
+            var text = (beat ?? string.Empty).Trim();
+            var m = SoundTail.Match(text);
+            if (!m.Success || m.Index == 0) return (text, string.Empty);
+            var sound = m.Groups["s"].Value.Trim().TrimEnd('.');
+            return (text[..m.Index].Trim(), sound.Length > 0 ? char.ToUpperInvariant(sound[0]) + sound[1..] + "." : string.Empty);
+        }
+
+        // The master prompt is written for the whole video ("Total runtime: 150 seconds (10 beats x 15 seconds)"). One
+        // clip is one beat: a sentence about the whole runtime would contradict the clip's own length, so it is dropped.
+        private static readonly Regex RuntimeSentence = new(
+            @"[^.!?\n]*(?:\bruntime\b|\b\d+\s*(?:beats?|clips?|shots?)\s*(?:x|×|of)\s*\d+|\b\d+\s*[x×]\s*\d+\s*(?:s|sec|seconds)\b)[^.!?\n]*[.!?]?\s*",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>
+        /// One ⛓ FFLF beat as a MiniMax H3 full-reference prompt, in the six sections of MiniMax's
+        /// VIDEO_PROMPT_WRITING_GUIDE_ref_en: <c>subject_definitions</c>, <c>summary</c>, <c>retention_analysis</c>,
+        /// <c>detailed_description</c>, <c>overall_soundscape</c>, <c>non_diegetic_music</c>.
+        ///
+        /// <para>Everything but the beat's own words is known here, so it is written in code, not by a model:
+        /// <c>&lt;Picture 1&gt;</c> is the frame the shot starts on (the guide's standalone picture entry); the opening
+        /// image and the character sheets only define people, so they are cited inside each person's
+        /// <c>&lt;Subject N&gt;</c> (guide §2.2). The beat stays as the writer wrote it, with its letters; the definitions
+        /// bind each letter to its subject. The beat's "Sound: …" line becomes <c>overall_soundscape</c>, and a spoken
+        /// line goes in the shot as <c>(S1) &lt;d&gt;…&lt;/d&gt;</c>.</para>
+        /// </summary>
+        /// <param name="sheets">The character sheets sent after the start frame (and the identity image), in picture
+        /// order, by label ("A (the person on the left)").</param>
+        /// <param name="spokenLine">The words spoken in this beat when its soundtrack is locked to them, else null.</param>
+        public static string ComposeH3Prompt(string beat, double seconds, string? style, string? setting,
+                                             IReadOnlyList<H3CastMember> cast, bool hasIdentityImage, bool isFirstBeat,
+                                             IReadOnlyList<string>? sheets = null, string? spokenLine = null)
+        {
+            var (action, sound) = SplitSound(beat);
+            TakeSecondsTag(ref action);   // "[9 s]" is the beat's length, already the clip's duration — not words for H3
+            style = Regex.Replace(RuntimeSentence.Replace(style ?? string.Empty, " "), @"[ \t]{2,}", " ").Trim();
+            setting = (setting ?? string.Empty).Trim();
+            spokenLine = string.IsNullOrWhiteSpace(spokenLine) ? null : spokenLine.Trim();
+
+            // Pictures: 1 = start frame, then the identity image, then the sheets (the order FflfGraph.Build sends them).
+            var identity = hasIdentityImage ? "<Picture 2>" : null;
+            var sheetPicture = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var next = hasIdentityImage ? 3 : 2;
+            foreach (var label in sheets ?? Array.Empty<string>())
+            {
+                var letter = label.Trim().Length > 0 ? label.Trim()[..1] : "?";
+                sheetPicture.TryAdd(letter, $"<Picture {next}>");
+                next++;
+            }
+
+            // Subjects: each person, then the place.
+            var subjects = new List<(string Label, string Letter, string Definition, string Keep)>();
+            foreach (var c in cast)
+            {
+                var label = $"<Subject {subjects.Count + 1}>";
+                var sources = new List<string> { "<Picture 1>" };
+                if (identity != null) sources.Add(identity);
+                if (sheetPicture.TryGetValue(c.Letter, out var sheet)) sources.Add($"{sheet} (their character sheet: front, three-quarter, side, back and face)");
+                var where = c.Where.Length > 0 ? $" {c.Where}" : string.Empty;
+                var look = Clause(c.Look);
+                var wears = Clause(StripLeadingLetter(c.Wardrobe, c.Letter));
+                var description = string.Join("; ", new[] { look, wears.Length > 0 ? "wearing " + LowerFirst(StripWears(wears)) : string.Empty }.Where(s => s.Length > 0));
+                subjects.Add((label, c.Letter,
+                    $"{label} is {c.Letter}, the person{where}{(where.Length > 0 ? "," : string.Empty)} in {JoinAnd(sources)}" +
+                    (description.Length > 0 ? $": {description}." : "."),
+                    "the same face, hair, build, skin and clothing in every frame, also in motion and close to the camera"));
+            }
+            if (cast.Count == 0)
+                subjects.Add(("<Subject 1>", string.Empty,
+                    $"<Subject 1> is the people in <Picture 1>{(identity != null ? $" and {identity}" : string.Empty)}, with their faces, hair, build and clothing.",
+                    "the same people with the same faces, hair, build and clothing in every frame"));
+            string? place = null;
+            if (setting.Length > 0)
+            {
+                place = $"<Subject {subjects.Count + 1}>";
+                subjects.Add((place, string.Empty, $"{place} is the place in <Picture 1>: {Regex.Replace(Clause(setting), @"^(A|An|The)\b", m => m.Value.ToLowerInvariant())}.",
+                              "the same place, props, light and colour palette throughout"));
+            }
+
+            var sb = new StringBuilder();
+            sb.AppendLine("subject_definitions:");
+            sb.AppendLine(isFirstBeat
+                ? "<Picture 1> is the first frame of [Shot 1]: the video starts exactly on it."
+                : "<Picture 1> is the first frame of [Shot 1], the last moment of the shot before it: the video starts exactly on it and the action carries straight on.");
+            foreach (var s in subjects) sb.AppendLine(s.Definition);
+            sb.AppendLine();
+
+            var people = cast.Count > 0 ? JoinAnd(subjects.Where(s => s.Letter.Length > 0).Select(s => s.Label)) : "<Subject 1>";
+            sb.AppendLine("summary:");
+            sb.AppendLine($"[keyframe completion + reference generation] A single continuous {seconds:0.#}-second shot that starts exactly on " +
+                          $"<Picture 1> and carries on from it, with {people}{(place != null ? $" in {place}" : string.Empty)}: {LowerFirst(FirstSentence(action))}");
+            sb.AppendLine();
+
+            sb.AppendLine("retention_analysis:");
+            sb.AppendLine("<Picture 1> ([Shot 1] first frame): fully_preserved - the video begins on this exact frame: the people, their poses, " +
+                          "the place, the light, the framing and the visual style are taken from it.");
+            foreach (var s in subjects) sb.AppendLine($"{s.Label} (appears in [Shot 1]): fully_preserved - {s.Keep}.");
+            sb.AppendLine();
+
+            sb.AppendLine("detailed_description:");
+            if (style.Length > 0) sb.AppendLine(style);
+            var shot = new StringBuilder("[Shot 1] ");
+            if (cast.Count > 0)
+                shot.Append(string.Join(" ", subjects.Where(s => s.Letter.Length > 0).Select(s => $"{s.Letter} is {s.Label}."))).Append(' ');
+            shot.Append("The shot opens on <Picture 1>. ").Append(Clause(action)).Append('.');
+            if (spokenLine != null)
+                shot.Append($" The speaker (S1) says, <d>{LanguageTag(spokenLine)}{spokenLine.Trim('"', '“', '”')}</d>")
+                    .Append(" — the mouth, lips, jaw and face move in exact sync with the voice.");
+            else
+                shot.Append(" No one speaks.");
+            sb.AppendLine(shot.ToString());
+            sb.AppendLine();
+
+            sb.AppendLine("overall_soundscape:");
+            sb.AppendLine(sound.Length > 0 ? sound
+                : "The natural ambient sound of the place and the physical sounds of the movements in the shot — footsteps, cloth, breath.");
+            sb.AppendLine();
+            sb.AppendLine("non_diegetic_music:");
+            sb.Append("N/A");
+            // Plain LF line ends, so the sections are found the same way on every platform (WithDialogueDirection).
+            return sb.ToString().Replace("\r\n", "\n");
+
+            static string Clause(string s) => Regex.Replace(s ?? string.Empty, @"\s+", " ").Trim().TrimEnd('.', ';', ',');
+            // Only a capitalised word: "A packed-dirt clearing" → "a packed…", but a cast letter ("B raises…") stays.
+            static string LowerFirst(string s) => s.Length > 1 && char.IsUpper(s[0]) && char.IsLower(s[1]) ? char.ToLowerInvariant(s[0]) + s[1..] : s;
+            static string StripLeadingLetter(string s, string letter) =>
+                Regex.Replace(s ?? string.Empty, $@"^\s*{Regex.Escape(letter)}\b\s*[:|—–-]?\s*", string.Empty);
+            static string StripWears(string s) => Regex.Replace(s, @"^(?:wears|is wearing|wearing)\s+", string.Empty, RegexOptions.IgnoreCase);
+            static string FirstSentence(string s)
+            {
+                var m = Regex.Match(s ?? string.Empty, @"^.+?[.!?](?=\s|$)");
+                var first = (m.Success ? m.Value : s ?? string.Empty).Trim();
+                return first.EndsWith('.') || first.EndsWith('!') || first.EndsWith('?') ? first : first + ".";
+            }
+            static string JoinAnd(IEnumerable<string> items)
+            {
+                var list = items.ToList();
+                return list.Count switch { 0 => string.Empty, 1 => list[0], 2 => $"{list[0]} and {list[1]}", _ => string.Join(", ", list.Take(list.Count - 1)) + ", and " + list[^1] };
+            }
+            // The guide wants <d>[Language] …</d>; plain-ASCII lines are taken as English, others left untagged.
+            static string LanguageTag(string line) => line.All(ch => ch < 128) ? "[English] " : string.Empty;
+        }
+
+        /// <summary>
+        /// The cast for <see cref="ComposeH3Prompt"/>: the opening image's people (letter, place in the frame, look),
+        /// each with their own paragraph of the wardrobe box ("A wears …") or, without one, the description's outfit.
+        /// With no description, the letters the wardrobe box starts its paragraphs with.
+        /// </summary>
+        public static List<H3CastMember> H3Cast(IReadOnlyList<FflfCastMember> people, string? wardrobe)
+        {
+            var paragraphs = Regex.Split((wardrobe ?? string.Empty).Replace("\r", string.Empty).Trim(), @"\n\s*\n|\n(?=[A-F]\b)")
+                .Select(p => Regex.Replace(p, @"\s+", " ").Trim()).Where(p => p.Length > 0).ToList();
+            string? Own(string letter) => paragraphs.FirstOrDefault(p => Regex.IsMatch(p, $@"^{letter}\b(?!\.)"));
+
+            if (people.Count > 0)
+                return people.Select(p => new H3CastMember(p.Letter, p.Position.Length > 0 ? FflfCast.Where(p.Position) : string.Empty, p.Look,
+                    Own(p.Letter) ?? (people.Count == 1 && paragraphs.Count == 1 ? paragraphs[0] : p.Outfit))).ToList();
+
+            return paragraphs
+                .Select(p => Regex.Match(p, @"^(?<l>[A-F])\b(?!\.)\s"))
+                .Where(m => m.Success)
+                .Select(m => m.Groups["l"].Value).Distinct()
+                .Select(l => new H3CastMember(l, string.Empty, string.Empty, Own(l) ?? string.Empty))
+                .ToList();
+        }
+
         // ── The graph ───────────────────────────────────────────────────────────────────────────────
 
         /// <summary>The 2-Pass options one beat renders with: the authored graph, with this tab's model, LoRA,
@@ -271,8 +452,19 @@ namespace FlipPix.UI.Services
             "The soundtrack is this shot's dialogue: the character who is speaking says every word of it on camera, " +
             "mouth, lips, jaw and face moving in exact sync with the voice — clear, natural talking, with the mouth visible.";
 
-        public static string WithDialogueDirection(string prompt) =>
-            string.IsNullOrWhiteSpace(prompt) ? DialogueDirection : prompt.TrimEnd() + "\n\n" + DialogueDirection;
+        public static string WithDialogueDirection(string prompt)
+        {
+            if (string.IsNullOrWhiteSpace(prompt)) return DialogueDirection;
+            // A six-section prompt (ComposeH3Prompt): the direction belongs in the shot, not after non_diegetic_music.
+            var sound = prompt.IndexOf("\n\noverall_soundscape:", StringComparison.Ordinal);
+            if (sound > 0 && prompt.Contains("detailed_description:", StringComparison.Ordinal))
+            {
+                if (prompt.Contains("(S1)", StringComparison.Ordinal)) return prompt;   // the spoken line is already in the shot
+                var shot = prompt[..sound].Replace(" No one speaks.", string.Empty).TrimEnd();
+                return shot + " " + DialogueDirection + prompt[sound..];
+            }
+            return prompt.TrimEnd() + "\n\n" + DialogueDirection;
+        }
 
         /// <summary>
         /// Locks the beat's soundtrack to <paramref name="audio"/> (an uploaded input file) so the character speaks it
