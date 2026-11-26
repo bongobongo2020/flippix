@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -48,9 +48,11 @@ namespace FlipPix.UI.ViewModels.Video
         /// LoRA, with the text encoder and VAEs the beat template loads.</summary>
         protected virtual FaceRefineModels FaceRefineModelsFor(string template)
         {
-            var loras = Lora.Length > 0 && LoraStrength > 0
-                ? new[] { new FaceRefineLora(Lora, LoraStrength) }
-                : Array.Empty<FaceRefineLora>();
+            var loras = (Lora.Length > 0 && LoraStrength > 0
+                    ? new[] { new FaceRefineLora(Lora, LoraStrength) }
+                    : Array.Empty<FaceRefineLora>())
+                .Concat(ActiveExtraLoras().Select(l => new FaceRefineLora(l.Name, l.Strength)))
+                .ToList();
             return FaceRefinePlusGraph.FromTwoPassTemplate(template, DiffusionModel, loras);
         }
 

@@ -690,6 +690,8 @@ public class H3FflfSettings
     public string DiffusionModel { get; set; } = DefaultModel;
     public string Lora { get; set; } = DefaultLora;
     public double LoraStrength { get; set; } = 0.25;
+    /// <summary>LoRAs stacked after <see cref="Lora"/>, on both passes.</summary>
+    public List<H3FflfLoraRow> ExtraLoras { get; set; } = new();
     public int FirstPassSteps { get; set; } = 8;
     /// <summary>Anchor each beat's first frame on the image it starts from (MiniMaxH3AddGuide at frame 0).</summary>
     public bool LockFirstFrame { get; set; } = true;
@@ -731,6 +733,14 @@ public class H3FflfSettings
     /// <summary>The sheets made for <see cref="CharacterSheetsFor"/> (same key as the description).</summary>
     public List<FflfCharacterSheetEntry> CharacterSheetList { get; set; } = new();
     public string CharacterSheetsFor { get; set; } = string.Empty;
+}
+
+/// <summary>One extra LoRA on the ⛓ FFLF tab, stacked after the main one.</summary>
+public class H3FflfLoraRow
+{
+    public bool On { get; set; } = true;
+    public string Name { get; set; } = string.Empty;
+    public double Strength { get; set; } = 0.5;
 }
 
 /// <summary>A saved ✨ extra direction for the FFLF story writer: a short name for the drop-down and the text.</summary>

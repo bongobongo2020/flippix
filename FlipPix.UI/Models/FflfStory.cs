@@ -24,6 +24,8 @@ namespace FlipPix.UI.Models
         public string DiffusionModel { get; set; } = string.Empty;
         public string Lora { get; set; } = string.Empty;
         public double LoraStrength { get; set; } = 0.25;
+        /// <summary>Extra LoRAs after <see cref="Lora"/>; null on stories saved before there were any.</summary>
+        public List<FlipPix.Core.Models.H3FflfLoraRow>? ExtraLoras { get; set; }
         public int FirstPassSteps { get; set; } = 8;
         public bool LockFirstFrame { get; set; } = true;
         public bool KeepInitialReference { get; set; } = true;

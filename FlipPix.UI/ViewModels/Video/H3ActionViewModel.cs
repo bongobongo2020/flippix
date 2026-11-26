@@ -459,8 +459,9 @@ namespace FlipPix.UI.ViewModels.Video
 
         protected override FflfBeatRender CustomizeRender(FflfBeatRender request, int index) => request with
         {
-            ExtraLoras = Resolve(FirstPassMix),
-            RefineLoras = SoftenRefine && !PreviewOnly ? Resolve(RefineMix) : null,
+            // The page's own extra LoRAs stay on both passes; the combat mix follows them.
+            ExtraLoras = request.ExtraLoras.Concat(Resolve(FirstPassMix)).ToList(),
+            RefineLoras = SoftenRefine && !PreviewOnly ? request.ExtraLoras.Concat(Resolve(RefineMix)).ToList() : null,
             CastImages = _uploadedCast.Select(c => c.Uploaded).ToList(),
             Sampler = SelectedSampling.Sampler,
             FirstPassScheduler = SelectedSampling.Scheduler,

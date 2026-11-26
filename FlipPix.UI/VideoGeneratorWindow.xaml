@@ -6133,6 +6133,43 @@
                                                     <Slider Grid.Column="1" Value="{Binding LoraStrength}" Minimum="0" Maximum="1.5" TickFrequency="0.05" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
                                                     <TextBlock Grid.Column="2" Text="{Binding LoraStrength, StringFormat={}{0:0.00}}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                                 </Grid>
+                                                <TextBlock Text="EXTRA LORAS (stacked after the one above, both passes)" Style="{StaticResource FflfLabel}"/>
+                                                <ItemsControl ItemsSource="{Binding ExtraLoras}" Margin="0,3,0,0">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Margin="0,0,0,6" Padding="6" CornerRadius="5" BorderThickness="1" BorderBrush="{StaticResource BorderBrush}">
+                                                                <StackPanel>
+                                                                    <Grid>
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="Auto"/>
+                                                                            <ColumnDefinition Width="*"/>
+                                                                            <ColumnDefinition Width="Auto"/>
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <CheckBox IsChecked="{Binding On}" VerticalAlignment="Center" ToolTip="On / off"/>
+                                                                        <ComboBox Grid.Column="1" Margin="4,0,4,0" Height="24" FontSize="10" IsEditable="True"
+                                                                                  ItemsSource="{Binding DataContext.LoraOptions, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                                  Text="{Binding Name, UpdateSourceTrigger=LostFocus}" ToolTip="{Binding Name}"/>
+                                                                        <Button Grid.Column="2" Content="✕" Width="22" Height="22" Padding="0" FontSize="10" Style="{StaticResource SecondaryButtonStyle}"
+                                                                                Command="{Binding DataContext.RemoveExtraLoraCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/>
+                                                                    </Grid>
+                                                                    <Grid Margin="0,4,0,0">
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="*"/>
+                                                                            <ColumnDefinition Width="40"/>
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <Slider Value="{Binding Strength}" Minimum="0" Maximum="1.5" TickFrequency="0.05" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                                                                        <TextBlock Grid.Column="1" Text="{Binding Strength, StringFormat={}{0:0.00}}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                                    </Grid>
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button Content="＋ LoRA" Command="{Binding AddExtraLoraCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="24" Padding="10,0" FontSize="10.5"
+                                                            ToolTip="Add another LoRA to the stack. Each row has its own strength; untick to leave it out without losing it."/>
+                                                    <TextBlock Text="{Binding ExtraLoraSummary}" FontSize="10" Foreground="{DynamicResource TabAccentBrush}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                                </StackPanel>
                                                 <Grid Margin="0,6,0,0">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="110"/>
@@ -6781,6 +6818,43 @@
                                                     <Slider Grid.Column="1" Value="{Binding LoraStrength}" Minimum="0" Maximum="1.5" TickFrequency="0.05" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
                                                     <TextBlock Grid.Column="2" Text="{Binding LoraStrength, StringFormat={}{0:0.00}}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                                 </Grid>
+                                                <TextBlock Text="EXTRA LORAS (stacked after the one above, both passes)" Style="{StaticResource FflfLabel}"/>
+                                                <ItemsControl ItemsSource="{Binding ExtraLoras}" Margin="0,3,0,0">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Margin="0,0,0,6" Padding="6" CornerRadius="5" BorderThickness="1" BorderBrush="{StaticResource BorderBrush}">
+                                                                <StackPanel>
+                                                                    <Grid>
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="Auto"/>
+                                                                            <ColumnDefinition Width="*"/>
+                                                                            <ColumnDefinition Width="Auto"/>
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <CheckBox IsChecked="{Binding On}" VerticalAlignment="Center" ToolTip="On / off"/>
+                                                                        <ComboBox Grid.Column="1" Margin="4,0,4,0" Height="24" FontSize="10" IsEditable="True"
+                                                                                  ItemsSource="{Binding DataContext.LoraOptions, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                                  Text="{Binding Name, UpdateSourceTrigger=LostFocus}" ToolTip="{Binding Name}"/>
+                                                                        <Button Grid.Column="2" Content="✕" Width="22" Height="22" Padding="0" FontSize="10" Style="{StaticResource SecondaryButtonStyle}"
+                                                                                Command="{Binding DataContext.RemoveExtraLoraCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/>
+                                                                    </Grid>
+                                                                    <Grid Margin="0,4,0,0">
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="*"/>
+                                                                            <ColumnDefinition Width="40"/>
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <Slider Value="{Binding Strength}" Minimum="0" Maximum="1.5" TickFrequency="0.05" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                                                                        <TextBlock Grid.Column="1" Text="{Binding Strength, StringFormat={}{0:0.00}}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                                    </Grid>
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button Content="＋ LoRA" Command="{Binding AddExtraLoraCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="24" Padding="10,0" FontSize="10.5"
+                                                            ToolTip="Add another LoRA to the stack. Each row has its own strength; untick to leave it out without losing it."/>
+                                                    <TextBlock Text="{Binding ExtraLoraSummary}" FontSize="10" Foreground="{DynamicResource TabAccentBrush}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                                </StackPanel>
                                                 <TextBlock Text="SAMPLING" Style="{StaticResource FflfLabel}"/>
                                                 <ComboBox ItemsSource="{Binding SamplingOptions}" SelectedItem="{Binding SelectedSampling}" DisplayMemberPath="Label" Height="26" FontSize="10.5"
                                                           ToolTip="Turbo: the pairing the ⛓ FFLF tab renders with, for the turbo models (Eros Max, anything with a 4/8-step LoRA). As authored: the Action Director workflow's own res_multistep · simple at 20 steps, for a non-turbo base model such as minimax_h3_fl2va — several times slower. Picking one sets the first-pass steps to match."/>

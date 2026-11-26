@@ -178,6 +178,7 @@ namespace FlipPix.UI.ViewModels.Video
             DiffusionModel = DiffusionModel,
             Lora = Lora,
             LoraStrength = LoraStrength,
+            ExtraLoras = ExtraLoraRows(),
             FirstPassSteps = FirstPassSteps,
             LockFirstFrame = LockFirstFrame,
             KeepInitialReference = KeepInitialReference,
@@ -276,6 +277,7 @@ namespace FlipPix.UI.ViewModels.Video
                 OfferModel(DiffusionModel);
                 OfferLora(Lora);
                 LoraStrength = Math.Clamp(s.LoraStrength, 0, 2);
+                if (s.ExtraLoras != null) ReadExtraLoras(s.ExtraLoras);
                 FirstPassSteps = Math.Clamp(s.FirstPassSteps, 1, 60);
                 LockFirstFrame = s.LockFirstFrame;
                 KeepInitialReference = s.KeepInitialReference;

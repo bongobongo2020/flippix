@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -148,6 +148,7 @@ namespace FlipPix.UI.ViewModels.Video
             InitVoice(s);
             InitStoryEngine(s);
             InitCharacterSheets(s);
+            InitExtraLoras(s);
             _loading = false;
 
             Beats.CollectionChanged += (_, e) =>
@@ -258,7 +259,8 @@ namespace FlipPix.UI.ViewModels.Video
         /// <summary>The model line of the run's first log entry.</summary>
         protected virtual string DescribeModel() =>
             $"Model {Path.GetFileName(DiffusionModel)}" +
-            (Lora.Length > 0 && LoraStrength > 0 ? $" + {Path.GetFileName(Lora)} @ {LoraStrength:0.##}" : string.Empty);
+            (Lora.Length > 0 && LoraStrength > 0 ? $" + {Path.GetFileName(Lora)} @ {LoraStrength:0.##}" : string.Empty) +
+            string.Concat(ActiveExtraLoras().Select(l => $" + {Path.GetFileName(l.Name)} @ {l.Strength:0.##}"));
 
         protected virtual void RefreshCommands() => OnUi(() =>
         {
@@ -276,6 +278,7 @@ namespace FlipPix.UI.ViewModels.Video
             JoinCommand?.NotifyCanExecuteChanged();
             StartOverCommand?.NotifyCanExecuteChanged();
             OpenFolderCommand?.NotifyCanExecuteChanged();
+            RefreshExtraLoraCommands();
             RefreshLookCommands();
             OpenStoriesCommand?.NotifyCanExecuteChanged();
             NewStoryCommand?.NotifyCanExecuteChanged();
@@ -706,7 +709,7 @@ namespace FlipPix.UI.ViewModels.Video
                     AddLog($"⚠ {Path.GetFileName(Lora)} is not in the server's loras/H3.");
                 if (userAsked)
                     AddLog($"Server lists: {models.Count} model(s) in diffusion_models/h3-minimax, {loras.Count} LoRA(s) in loras/H3.");
-                OnUi(OnModelListsLoaded);
+                OnUi(() => { WarnMissingExtraLoras(); OnModelListsLoaded(); });
             }
             catch (OperationCanceledException) when (cts.IsCancellationRequested)
             {
@@ -760,6 +763,7 @@ namespace FlipPix.UI.ViewModels.Video
             s.DiffusionModel = DiffusionModel;
             s.Lora = Lora;
             s.LoraStrength = LoraStrength;
+            s.ExtraLoras = ExtraLoraRows();
             s.FirstPassSteps = FirstPassSteps;
             s.LockFirstFrame = LockFirstFrame;
             s.KeepInitialReference = KeepInitialReference;
@@ -1191,6 +1195,7 @@ namespace FlipPix.UI.ViewModels.Video
                 DiffusionModel = DiffusionModel,
                 Lora = Lora,
                 LoraStrength = LoraStrength,
+                ExtraLoras = ActiveExtraLoras(),
                 LockFirstFrame = LockFirstFrame,
                 MaxFidelityReferences = MaxFidelityReferences,
                 OutputPrefix = $"video/{Profile.Key}/{_runFolder}/beat_{index + 1:D2}{(PreviewOnly ? "_draft" : string.Empty)}",
