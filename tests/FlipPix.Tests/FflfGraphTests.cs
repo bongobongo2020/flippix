@@ -85,6 +85,16 @@ public class FflfGraphTests
     }
 
     [Fact]
+    public void Build_UsesThePickedTextEncoder_OrKeepsTheGraphsOwn()
+    {
+        var picked = FflfGraph.Build(TwoPassJson(), Request() with { TextEncoder = "qwen3vl_32b_minimax_h3_bf16.safetensors" }, out _);
+        Assert.Equal("qwen3vl_32b_minimax_h3_bf16.safetensors", picked[FflfGraph.TextEncoderNode]!["inputs"]!["clip_name"]!.GetValue<string>());
+
+        var own = FflfGraph.Build(TwoPassJson(), Request(), out _);
+        Assert.Equal(H3FflfSettings.DefaultTextEncoder, own[FflfGraph.TextEncoderNode]!["inputs"]!["clip_name"]!.GetValue<string>());
+    }
+
+    [Fact]
     public void Build_SendsStartFrameAsPictureOneAndOpeningAsPictureTwo()
     {
         var root = FflfGraph.Build(TwoPassJson(), Request(), out _);

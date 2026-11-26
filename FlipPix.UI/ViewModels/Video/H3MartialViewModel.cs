@@ -162,12 +162,10 @@ namespace FlipPix.UI.ViewModels.Video
 
         // ── Model, text encoder, trigger words, refine ───────────────────────────────────────────
 
-        public ObservableCollection<string> TextEncoderOptions { get; } = new() { H3MartialSettings.DefaultTextEncoder };
         public ObservableCollection<string> RefineModelOptions { get; } = new() { string.Empty };
 
         /// <summary>Empty: the refine runs on the first-pass model.</summary>
         [ObservableProperty] private string _refineModel = string.Empty;
-        [ObservableProperty] private string _textEncoder = H3MartialSettings.DefaultTextEncoder;
         [ObservableProperty] private string _triggers = H3MartialSettings.DefaultTriggers;
         [ObservableProperty] private MegapixelOption _selectedAttention = AttentionOptionsList[0];
         public IReadOnlyList<MegapixelOption> AttentionOptions => AttentionOptionsList;
@@ -283,30 +281,6 @@ namespace FlipPix.UI.ViewModels.Video
                                                     (MartialCatalog.Find(row.Name) is { } k ? $" — get it from {k.Url}" : "."));
             }
             OnPropertyChanged(nameof(StackSummary));
-            _ = LoadTextEncodersAsync();
-        }
-
-        private async Task LoadTextEncodersAsync()
-        {
-            try
-            {
-                var names = await _comfyUIService.HttpClient.GetModelFilenamesAsync("CLIPLoader", "clip_name");
-                var h3 = names.Select(n => n.Replace('\\', '/'))
-                              .Where(n => n.Contains("minimax_h3", StringComparison.OrdinalIgnoreCase))
-                              .OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
-                OnUi(() =>
-                {
-                    var keep = TextEncoder;
-                    foreach (var n in h3) if (!TextEncoderOptions.Contains(n)) TextEncoderOptions.Add(n);
-                    TextEncoder = keep;
-                });
-                if (h3.Count > 0 && !h3.Contains(TextEncoder.Replace('\\', '/'), StringComparer.OrdinalIgnoreCase))
-                    AddLog($"⚠ Text encoder {TextEncoder} is not on the server — pick one of: {string.Join(", ", h3)}.");
-            }
-            catch (Exception ex)
-            {
-                AddLog($"Text encoder list could not be read ({ex.Message}).");
-            }
         }
 
         // ── References ───────────────────────────────────────────────────────────────────────────
@@ -618,7 +592,7 @@ namespace FlipPix.UI.ViewModels.Video
                 RefineModel = refineModel ?? string.Empty;
                 if (!string.IsNullOrWhiteSpace(RefineModel) && !RefineModelOptions.Contains(RefineModel)) RefineModelOptions.Add(RefineModel);
                 TextEncoder = string.IsNullOrWhiteSpace(textEncoder) ? H3MartialSettings.DefaultTextEncoder : textEncoder!;
-                if (!TextEncoderOptions.Contains(TextEncoder)) TextEncoderOptions.Add(TextEncoder);
+                OfferTextEncoder(TextEncoder);
                 Triggers = triggers ?? H3MartialSettings.DefaultTriggers;
                 SelectedAttention = AttentionOptionsList.FirstOrDefault(o => o.Label == attention) ?? AttentionOptionsList[0];
                 RefineStrength = Math.Clamp(refineStrength <= 0 ? 0.6 : refineStrength, 0.1, 1.0);
@@ -696,6 +670,28 @@ namespace FlipPix.UI.ViewModels.Video
         {
             if (story.Martial is not { } m) return;
             Read(m.RefineModel, m.TextEncoder, m.Loras, m.References, m.Guides, m.Triggers, m.Attention, m.RefineStrength, m.RefineSteps, m.RtxUpscale, m.RtxScale);
+        }
+
+        /// <summary>📒 A recipe keeps the refine model, the LoRA stack and the refine dials — not the story's
+        /// references or keyframes.</summary>
+        protected override string SnapshotTabRecipe() => System.Text.Json.JsonSerializer.Serialize(new FflfMartialStory
+        {
+            RefineModel = RefineModel,
+            TextEncoder = TextEncoder,
+            Loras = LoraRows(),
+            Triggers = Triggers,
+            Attention = SelectedAttention?.Label ?? MartialGraph.DefaultAttention,
+            RefineStrength = RefineStrength,
+            RefineSteps = RefineSteps,
+            RtxUpscale = RtxUpscale,
+            RtxScale = RtxScale,
+        });
+
+        protected override void ApplyTabRecipe(string json)
+        {
+            if (System.Text.Json.JsonSerializer.Deserialize<FflfMartialStory>(json) is not { } m) return;
+            Read(m.RefineModel, m.TextEncoder, m.Loras, ReferenceRows(), GuideRows(), m.Triggers, m.Attention, m.RefineStrength, m.RefineSteps, m.RtxUpscale, m.RtxScale);
+            MartialChanged();
         }
 
         /// <summary>＋ New keeps the model and the LoRA stack — how the user likes fights rendered — and clears

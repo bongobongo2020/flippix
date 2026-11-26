@@ -6113,6 +6113,39 @@
                                             </StackPanel>
                                         </Border>
 
+                                        <!-- 📒 Recipes: named render settings, saved and put back (H3FflfViewModel.Recipes.cs) -->
+                                        <Border Style="{StaticResource SectionCardStyle}" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="📒 RECIPES" Note="  · model, text encoder, LoRAs, steps, canvas &amp; seed"/>
+                                                <Grid Margin="0,8,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <ComboBox ItemsSource="{Binding Recipes}" SelectedItem="{Binding SelectedRecipe}" DisplayMemberPath="Name" Height="26" FontSize="10.5"
+                                                              ToolTip="Saved recipes, newest first. Pick one, then ▶ Load to put its settings on the page."/>
+                                                    <Button Grid.Column="1" Content="▶ Load" Command="{Binding LoadRecipeCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="26" Padding="10,0" FontSize="10.5" Margin="4,0,0,0"
+                                                            ToolTip="Put the picked recipe's model, text encoder, LoRAs, steps, canvas, likeness options (and seed) on the page. The story stays as it is."/>
+                                                    <Button Grid.Column="2" Content="🗑" Command="{Binding DeleteRecipeCommand}" Style="{StaticResource SecondaryButtonStyle}" Width="28" Height="26" Padding="0" FontSize="10.5" Margin="4,0,0,0"
+                                                            ToolTip="Delete the picked recipe"/>
+                                                </Grid>
+                                                <TextBlock Text="{Binding RecipeSummary}" FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                                <Grid Margin="0,6,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox Text="{Binding RecipeName, UpdateSourceTrigger=PropertyChanged}" Height="26" FontSize="11" VerticalContentAlignment="Center"
+                                                             ToolTip="The name to save the page's current settings under. The same name as a saved recipe replaces it."/>
+                                                    <Button Grid.Column="1" Content="💾 Save" Command="{Binding SaveRecipeCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="26" Padding="10,0" FontSize="10.5" Margin="4,0,0,0"
+                                                            ToolTip="Save everything this clip is rendered with under the name on the left."/>
+                                                </Grid>
+                                                <CheckBox IsChecked="{Binding RecipeRestoresSeed}" Margin="0,5,0,0" FontSize="11" Content="🎲 Loading also puts the recipe's seed back"
+                                                          ToolTip="On: the same story renders the same clip. Off: keep the seed on the page, to try the recipe on a new one."/>
+                                            </StackPanel>
+                                        </Border>
+
                                         <!-- ⚙ Model -->
                                         <Expander IsExpanded="False" Margin="0,0,0,10">
                                             <Expander.Header>
@@ -6121,6 +6154,9 @@
                                             <StackPanel Margin="0,6,0,0">
                                                 <TextBlock Text="DIFFUSION MODEL" Style="{StaticResource FflfLabel}" Margin="0,0,0,3"/>
                                                 <ComboBox ItemsSource="{Binding ModelOptions}" Text="{Binding DiffusionModel, UpdateSourceTrigger=LostFocus}" IsEditable="True" Height="26" FontSize="10.5"/>
+                                                <TextBlock Text="TEXT ENCODER" Style="{StaticResource FflfLabel}"/>
+                                                <ComboBox ItemsSource="{Binding TextEncoderOptions}" Text="{Binding TextEncoder, UpdateSourceTrigger=LostFocus}" IsEditable="True" Height="26" FontSize="10.5"
+                                                          ToolTip="The CLIPLoader file the beats are prompted through (text_encoders). The H3 encoders (qwen3vl_*_minimax_h3) are listed first."/>
                                                 <TextBlock Text="LORA" Style="{StaticResource FflfLabel}"/>
                                                 <ComboBox ItemsSource="{Binding LoraOptions}" Text="{Binding Lora, UpdateSourceTrigger=LostFocus}" IsEditable="True" Height="26" FontSize="10.5"/>
                                                 <Grid Margin="0,6,0,0">
@@ -6798,6 +6834,39 @@
                                             </StackPanel>
                                         </Border>
 
+                                        <!-- 📒 Recipes: named render settings, saved and put back (H3FflfViewModel.Recipes.cs) -->
+                                        <Border Style="{StaticResource SectionCardStyle}" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="📒 RECIPES" Note="  · model, text encoder, LoRAs, steps, canvas &amp; seed"/>
+                                                <Grid Margin="0,8,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <ComboBox ItemsSource="{Binding Recipes}" SelectedItem="{Binding SelectedRecipe}" DisplayMemberPath="Name" Height="26" FontSize="10.5"
+                                                              ToolTip="Saved recipes, newest first. Pick one, then ▶ Load to put its settings on the page."/>
+                                                    <Button Grid.Column="1" Content="▶ Load" Command="{Binding LoadRecipeCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="26" Padding="10,0" FontSize="10.5" Margin="4,0,0,0"
+                                                            ToolTip="Put the picked recipe's model, text encoder, LoRAs, steps, canvas, likeness options (and seed) on the page. The story stays as it is."/>
+                                                    <Button Grid.Column="2" Content="🗑" Command="{Binding DeleteRecipeCommand}" Style="{StaticResource SecondaryButtonStyle}" Width="28" Height="26" Padding="0" FontSize="10.5" Margin="4,0,0,0"
+                                                            ToolTip="Delete the picked recipe"/>
+                                                </Grid>
+                                                <TextBlock Text="{Binding RecipeSummary}" FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                                <Grid Margin="0,6,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox Text="{Binding RecipeName, UpdateSourceTrigger=PropertyChanged}" Height="26" FontSize="11" VerticalContentAlignment="Center"
+                                                             ToolTip="The name to save the page's current settings under. The same name as a saved recipe replaces it."/>
+                                                    <Button Grid.Column="1" Content="💾 Save" Command="{Binding SaveRecipeCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="26" Padding="10,0" FontSize="10.5" Margin="4,0,0,0"
+                                                            ToolTip="Save everything this clip is rendered with under the name on the left."/>
+                                                </Grid>
+                                                <CheckBox IsChecked="{Binding RecipeRestoresSeed}" Margin="0,5,0,0" FontSize="11" Content="🎲 Loading also puts the recipe's seed back"
+                                                          ToolTip="On: the same story renders the same clip. Off: keep the seed on the page, to try the recipe on a new one."/>
+                                            </StackPanel>
+                                        </Border>
+
                                         <!-- ⚙ Model -->
                                         <Expander IsExpanded="False" Margin="0,0,0,10">
                                             <Expander.Header>
@@ -6806,6 +6875,9 @@
                                             <StackPanel Margin="0,6,0,0">
                                                 <TextBlock Text="DIFFUSION MODEL" Style="{StaticResource FflfLabel}" Margin="0,0,0,3"/>
                                                 <ComboBox ItemsSource="{Binding ModelOptions}" Text="{Binding DiffusionModel, UpdateSourceTrigger=LostFocus}" IsEditable="True" Height="26" FontSize="10.5"/>
+                                                <TextBlock Text="TEXT ENCODER" Style="{StaticResource FflfLabel}"/>
+                                                <ComboBox ItemsSource="{Binding TextEncoderOptions}" Text="{Binding TextEncoder, UpdateSourceTrigger=LostFocus}" IsEditable="True" Height="26" FontSize="10.5"
+                                                          ToolTip="The CLIPLoader file the beats are prompted through (text_encoders). The H3 encoders (qwen3vl_*_minimax_h3) are listed first."/>
                                                 <TextBlock Text="LORA (the action mix of ④ is stacked after it)" Style="{StaticResource FflfLabel}"/>
                                                 <ComboBox ItemsSource="{Binding LoraOptions}" Text="{Binding Lora, UpdateSourceTrigger=LostFocus}" IsEditable="True" Height="26" FontSize="10.5"/>
                                                 <Grid Margin="0,6,0,0">
@@ -7482,6 +7554,39 @@
                                                           Height="24" FontSize="10.5" Margin="22,4,0,0"
                                                           ToolTip="Refine strength (denoise of the face crops), for every beat and for ✨ on a beat card. 0.30 redraws small faces toward the opening image; 0.15 keeps more of the face H3 drew."/>
                                                 <CheckBox IsChecked="{Binding JoinWhenDone}" Margin="0,5,0,0" FontSize="11" Content="🎞 Join the beats when the last one lands"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- 📒 Recipes: named render settings, saved and put back (H3FflfViewModel.Recipes.cs) -->
+                                        <Border Style="{StaticResource SectionCardStyle}" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="📒 RECIPES" Note="  · model, text encoder, LoRAs, steps, canvas &amp; seed"/>
+                                                <Grid Margin="0,8,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <ComboBox ItemsSource="{Binding Recipes}" SelectedItem="{Binding SelectedRecipe}" DisplayMemberPath="Name" Height="26" FontSize="10.5"
+                                                              ToolTip="Saved recipes, newest first. Pick one, then ▶ Load to put its settings on the page."/>
+                                                    <Button Grid.Column="1" Content="▶ Load" Command="{Binding LoadRecipeCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="26" Padding="10,0" FontSize="10.5" Margin="4,0,0,0"
+                                                            ToolTip="Put the picked recipe's model, text encoder, LoRAs, steps, canvas, likeness options (and seed) on the page. The story stays as it is."/>
+                                                    <Button Grid.Column="2" Content="🗑" Command="{Binding DeleteRecipeCommand}" Style="{StaticResource SecondaryButtonStyle}" Width="28" Height="26" Padding="0" FontSize="10.5" Margin="4,0,0,0"
+                                                            ToolTip="Delete the picked recipe"/>
+                                                </Grid>
+                                                <TextBlock Text="{Binding RecipeSummary}" FontSize="10" TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                                <Grid Margin="0,6,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox Text="{Binding RecipeName, UpdateSourceTrigger=PropertyChanged}" Height="26" FontSize="11" VerticalContentAlignment="Center"
+                                                             ToolTip="The name to save the page's current settings under. The same name as a saved recipe replaces it."/>
+                                                    <Button Grid.Column="1" Content="💾 Save" Command="{Binding SaveRecipeCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="26" Padding="10,0" FontSize="10.5" Margin="4,0,0,0"
+                                                            ToolTip="Save everything this clip is rendered with under the name on the left."/>
+                                                </Grid>
+                                                <CheckBox IsChecked="{Binding RecipeRestoresSeed}" Margin="0,5,0,0" FontSize="11" Content="🎲 Loading also puts the recipe's seed back"
+                                                          ToolTip="On: the same story renders the same clip. Off: keep the seed on the page, to try the recipe on a new one."/>
                                             </StackPanel>
                                         </Border>
 

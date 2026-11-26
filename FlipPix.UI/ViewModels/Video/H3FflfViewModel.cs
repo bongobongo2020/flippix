@@ -129,6 +129,7 @@ namespace FlipPix.UI.ViewModels.Video
             _finalMegapixels = FinalSizes.Any(o => o.Value == s.FinalMegapixels) ? s.FinalMegapixels : 1.0;
             _previewOnly = s.PreviewOnly;
             _diffusionModel = string.IsNullOrWhiteSpace(s.DiffusionModel) ? H3FflfSettings.DefaultModel : s.DiffusionModel;
+            _textEncoder = string.IsNullOrWhiteSpace(s.TextEncoder) ? H3FflfSettings.DefaultTextEncoder : s.TextEncoder;
             _lora = s.Lora ?? string.Empty;
             _loraStrength = Math.Clamp(s.LoraStrength, 0, 2);
             _firstPassSteps = Math.Clamp(s.FirstPassSteps, 1, 60);
@@ -142,6 +143,7 @@ namespace FlipPix.UI.ViewModels.Video
             _joinWhenDone = s.JoinWhenDone;
             _baseSeed = NewSeed();
             OfferModel(_diffusionModel);
+            OfferTextEncoder(_textEncoder);
             OfferLora(_lora);
             OnInitialImagePathChanged(_initialImagePath);
             LoadTabSettings(s);
@@ -149,6 +151,7 @@ namespace FlipPix.UI.ViewModels.Video
             InitStoryEngine(s);
             InitCharacterSheets(s);
             InitExtraLoras(s);
+            InitRecipes(s);
             _loading = false;
 
             Beats.CollectionChanged += (_, e) =>
@@ -240,6 +243,7 @@ namespace FlipPix.UI.ViewModels.Video
         protected virtual void ResetModel()
         {
             DiffusionModel = H3FflfSettings.DefaultModel;
+            TextEncoder = H3FflfSettings.DefaultTextEncoder;
             Lora = H3FflfSettings.DefaultLora;
             LoraStrength = 0.25;
         }
@@ -258,7 +262,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>The model line of the run's first log entry.</summary>
         protected virtual string DescribeModel() =>
-            $"Model {Path.GetFileName(DiffusionModel)}" +
+            $"Model {Path.GetFileName(DiffusionModel)}, text encoder {Path.GetFileName(TextEncoder)}" +
             (Lora.Length > 0 && LoraStrength > 0 ? $" + {Path.GetFileName(Lora)} @ {LoraStrength:0.##}" : string.Empty) +
             string.Concat(ActiveExtraLoras().Select(l => $" + {Path.GetFileName(l.Name)} @ {l.Strength:0.##}"));
 
@@ -279,6 +283,7 @@ namespace FlipPix.UI.ViewModels.Video
             StartOverCommand?.NotifyCanExecuteChanged();
             OpenFolderCommand?.NotifyCanExecuteChanged();
             RefreshExtraLoraCommands();
+            RefreshRecipeCommands();
             RefreshLookCommands();
             OpenStoriesCommand?.NotifyCanExecuteChanged();
             NewStoryCommand?.NotifyCanExecuteChanged();
@@ -635,14 +640,22 @@ namespace FlipPix.UI.ViewModels.Video
 
         public ObservableCollection<string> ModelOptions { get; } = new();
         public ObservableCollection<string> LoraOptions { get; } = new() { string.Empty };
+        public ObservableCollection<string> TextEncoderOptions { get; } = new();
 
         [ObservableProperty] private string _diffusionModel = H3FflfSettings.DefaultModel;
+        /// <summary>The CLIPLoader file the beats are prompted through (h3-erosmax-2pass.json node 15).</summary>
+        [ObservableProperty] private string _textEncoder = H3FflfSettings.DefaultTextEncoder;
         [ObservableProperty] private string _lora = H3FflfSettings.DefaultLora;
         [ObservableProperty] private double _loraStrength = 0.25;
 
         private void OfferModel(string name)
         {
             if (!string.IsNullOrWhiteSpace(name) && !ModelOptions.Contains(name)) ModelOptions.Add(name);
+        }
+
+        protected void OfferTextEncoder(string name)
+        {
+            if (!string.IsNullOrWhiteSpace(name) && !TextEncoderOptions.Contains(name)) TextEncoderOptions.Add(name);
         }
 
         private void OfferLora(string name)
@@ -669,11 +682,12 @@ namespace FlipPix.UI.ViewModels.Video
             try
             {
                 var http = _comfyUIService.HttpClient;
-                List<string> everyModel, everyLora;
+                List<string> everyModel, everyLora, everyClip;
                 for (var attempt = 0; ; attempt++)
                 {
                     everyModel = (await http.GetUnetFilenamesAsync(cts.Token)).Select(n => n.Replace('\\', '/')).ToList();
                     everyLora = (await http.GetLoraFilenamesAsync(cts.Token)).Select(n => n.Replace('\\', '/')).ToList();
+                    everyClip = await http.GetModelFilenamesAsync("CLIPLoader", "clip_name", cts.Token);
                     // The client swallows a cancelled request and answers empty: a newer read has taken over.
                     if (cts.IsCancellationRequested) return;
                     if (everyModel.Count > 0 || everyLora.Count > 0) break;
@@ -694,21 +708,30 @@ namespace FlipPix.UI.ViewModels.Video
                 var loras = everyLora
                     .Where(n => n.StartsWith("H3/", StringComparison.OrdinalIgnoreCase))
                     .OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
+                // The H3 encoders (qwen3vl_*_minimax_h3*) first; anything else the server has after them.
+                var clips = everyClip
+                    .OrderBy(n => n.Contains("minimax_h3", StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                    .ThenBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
                 OnUi(() =>
                 {
                     var model = DiffusionModel;
                     var lora = Lora;
+                    var encoder = TextEncoder;
                     foreach (var n in models) OfferModel(n);
                     foreach (var n in loras) OfferLora(n);
+                    foreach (var n in clips) OfferTextEncoder(n);
                     DiffusionModel = model;
                     Lora = lora;
+                    TextEncoder = encoder;
                 });
+                if (clips.Count > 0 && !clips.Contains(TextEncoder, StringComparer.OrdinalIgnoreCase))
+                    AddLog($"⚠ Text encoder {Path.GetFileName(TextEncoder)} is not in the server's text_encoders.");
                 if (models.Count > 0 && !models.Contains(DiffusionModel.Replace('\\', '/'), StringComparer.OrdinalIgnoreCase))
                     AddLog($"⚠ {Path.GetFileName(DiffusionModel)} is not in the server's diffusion_models/h3-minimax.");
                 if (loras.Count > 0 && Lora.Length > 0 && !loras.Contains(Lora.Replace('\\', '/'), StringComparer.OrdinalIgnoreCase))
                     AddLog($"⚠ {Path.GetFileName(Lora)} is not in the server's loras/H3.");
                 if (userAsked)
-                    AddLog($"Server lists: {models.Count} model(s) in diffusion_models/h3-minimax, {loras.Count} LoRA(s) in loras/H3.");
+                    AddLog($"Server lists: {models.Count} model(s) in diffusion_models/h3-minimax, {loras.Count} LoRA(s) in loras/H3, {clips.Count} text encoder(s).");
                 OnUi(() => { WarnMissingExtraLoras(); OnModelListsLoaded(); });
             }
             catch (OperationCanceledException) when (cts.IsCancellationRequested)
@@ -726,7 +749,7 @@ namespace FlipPix.UI.ViewModels.Video
         private static readonly HashSet<string> Persisted = new()
         {
             nameof(InitialImagePath), nameof(BeatsText), nameof(StyleText), nameof(BeatSeconds), nameof(SelectedAspectRatio),
-            nameof(FirstPassMegapixels), nameof(FinalMegapixels), nameof(PreviewOnly), nameof(DiffusionModel), nameof(Lora),
+            nameof(FirstPassMegapixels), nameof(FinalMegapixels), nameof(PreviewOnly), nameof(DiffusionModel), nameof(TextEncoder), nameof(Lora),
             nameof(LoraStrength), nameof(FirstPassSteps), nameof(LockFirstFrame), nameof(KeepInitialReference), nameof(JoinWhenDone),
             nameof(MaxFidelityReferences), nameof(RepairHandoffFace), nameof(FaceRepairStrength),
             nameof(FaceRefine), nameof(FaceRefineStrength),
@@ -761,9 +784,11 @@ namespace FlipPix.UI.ViewModels.Video
             s.FinalMegapixels = FinalMegapixels;
             s.PreviewOnly = PreviewOnly;
             s.DiffusionModel = DiffusionModel;
+            s.TextEncoder = TextEncoder;
             s.Lora = Lora;
             s.LoraStrength = LoraStrength;
             s.ExtraLoras = ExtraLoraRows();
+            s.Recipes = Recipes.ToList();
             s.FirstPassSteps = FirstPassSteps;
             s.LockFirstFrame = LockFirstFrame;
             s.KeepInitialReference = KeepInitialReference;
@@ -1193,6 +1218,7 @@ namespace FlipPix.UI.ViewModels.Video
                 FirstPassSteps = FirstPassSteps,
                 PreviewOnly = PreviewOnly,
                 DiffusionModel = DiffusionModel,
+                TextEncoder = TextEncoder,
                 Lora = Lora,
                 LoraStrength = LoraStrength,
                 ExtraLoras = ActiveExtraLoras(),

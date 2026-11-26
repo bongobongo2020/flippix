@@ -53,7 +53,8 @@ namespace FlipPix.UI.ViewModels.Video
                     : Array.Empty<FaceRefineLora>())
                 .Concat(ActiveExtraLoras().Select(l => new FaceRefineLora(l.Name, l.Strength)))
                 .ToList();
-            return FaceRefinePlusGraph.FromTwoPassTemplate(template, DiffusionModel, loras);
+            var models = FaceRefinePlusGraph.FromTwoPassTemplate(template, DiffusionModel, loras);
+            return string.IsNullOrWhiteSpace(TextEncoder) ? models : models with { TextEncoder = TextEncoder.Trim() };
         }
 
         /// <summary>✨ on one beat, outside a run: holds the queue lease for the one job.</summary>

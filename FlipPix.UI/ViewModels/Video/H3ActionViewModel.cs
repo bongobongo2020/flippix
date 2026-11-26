@@ -563,6 +563,27 @@ namespace FlipPix.UI.ViewModels.Video
             _uploadedCast = new List<(string, string)>();
         }
 
+        /// <summary>📒 A recipe keeps the preset, the combat mix and the sampling — not the cast or the idea.</summary>
+        protected override string SnapshotTabRecipe() => System.Text.Json.JsonSerializer.Serialize(new FflfActionStory
+        {
+            Preset = SelectedPreset?.Number ?? H3CombatPreset.DefaultNumber,
+            ManualMix = ManualMix,
+            CombatStrength = CombatStrength,
+            WeaponStrength = WeaponStrength,
+            GunFuStrength = GunFuStrength,
+            MotionStrength = MotionStrength,
+            FightFlowStrength = FightFlowStrength,
+            SoftenRefine = SoftenRefine,
+            Sampling = SelectedSampling?.Key ?? Samplings[0].Key,
+        });
+
+        protected override void ApplyTabRecipe(string json)
+        {
+            if (System.Text.Json.JsonSerializer.Deserialize<FflfActionStory>(json) is not { } a) return;
+            ReadMix(a.Preset, a.ManualMix, a.CombatStrength, a.WeaponStrength, a.GunFuStrength, a.MotionStrength, a.FightFlowStrength,
+                    a.SoftenRefine, FighterAPath, FighterBPath, StoryIdea, BeatCount, a.Sampling);
+        }
+
         /// <summary>＋ New keeps the preset and the mix — they are how the user likes fights rendered — and
         /// clears what belongs to the story: its idea and its cast.</summary>
         protected override void ClearTabStory()

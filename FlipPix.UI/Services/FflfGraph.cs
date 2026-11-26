@@ -31,6 +31,8 @@ namespace FlipPix.UI.Services
         public int FirstPassSteps { get; init; } = 8;
         public bool PreviewOnly { get; init; }
         public string DiffusionModel { get; init; } = H3FflfSettings.DefaultModel;
+        /// <summary>The CLIPLoader file (node 15's <c>clip_name</c>); empty keeps the graph's own.</summary>
+        public string TextEncoder { get; init; } = string.Empty;
         public string Lora { get; init; } = H3FflfSettings.DefaultLora;
         public double LoraStrength { get; init; } = 0.25;
         public bool LockFirstFrame { get; init; } = true;
@@ -86,7 +88,8 @@ namespace FlipPix.UI.Services
         private const string Pass1Sampler = "151:21";                              // SamplerCustomAdvanced
         private const string Pass2Sampler = "151:16";                              // SamplerCustomAdvanced
         private const string FrameCount = "151:19";                                // seconds → frames (17k+5), output 1
-        private const string AudioVae = "4";                                       // VAELoader, audio
+        private const string AudioVae = "4";
+        public const string TextEncoderNode = "15";                                // CLIPLoader                                       // VAELoader, audio
         private const string AudioDecode = "151:14";                               // VAEDecodeAudio → the export
 
         public const string DialogueLoadNode = "fflf_dlg_load";
@@ -439,6 +442,8 @@ namespace FlipPix.UI.Services
                 continueSource: null, r.Seed, r.OutputPrefix, segmentOnly: true, out pruned);
             var root = JsonNode.Parse(built)?.AsObject() ?? throw new InvalidOperationException("The 2-Pass graph could not be parsed.");
 
+            if (!string.IsNullOrWhiteSpace(r.TextEncoder) && root[TextEncoderNode]?["inputs"] is JsonObject clip)
+                clip["clip_name"] = r.TextEncoder.Trim();
             if (r.LockFirstFrame) AddFirstFrameGuide(root, r.StartImage);
             AddLastFrameSave(root, r.OutputPrefix + "_last");
             if (r.RefineLoras != null) AddRefineLoraMix(root, r.ExtraLoras, r.RefineLoras);

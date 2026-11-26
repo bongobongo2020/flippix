@@ -668,6 +668,8 @@ public class H3FflfSettings
 {
     public const string DefaultModel = "h3-minimax/10Eros_Max_SingularityV2_PRISM2_PikaFlex_0.85_int8HQ.safetensors";
     public const string DefaultLora = "H3/minimax_h3_DMAD_4step_full_lora_avg_rank_39_bf16.safetensors";
+    /// <summary>The CLIPLoader file h3-erosmax-2pass.json loads (node 15).</summary>
+    public const string DefaultTextEncoder = "qwen3vl_32b_minimax_h3-w4a8_convrot.safetensors";
 
     public string InitialImagePath { get; set; } = string.Empty;
     public string BeatsText { get; set; } = string.Empty;
@@ -688,6 +690,8 @@ public class H3FflfSettings
     public double FinalMegapixels { get; set; } = 1.0;
     public bool PreviewOnly { get; set; }
     public string DiffusionModel { get; set; } = DefaultModel;
+    /// <summary>The text encoder (CLIPLoader <c>clip_name</c>) every beat is prompted through.</summary>
+    public string TextEncoder { get; set; } = DefaultTextEncoder;
     public string Lora { get; set; } = DefaultLora;
     public double LoraStrength { get; set; } = 0.25;
     /// <summary>LoRAs stacked after <see cref="Lora"/>, on both passes.</summary>
@@ -733,6 +737,41 @@ public class H3FflfSettings
     /// <summary>The sheets made for <see cref="CharacterSheetsFor"/> (same key as the description).</summary>
     public List<FflfCharacterSheetEntry> CharacterSheetList { get; set; } = new();
     public string CharacterSheetsFor { get; set; } = string.Empty;
+    /// <summary>📒 Recipes: named snapshots of everything a clip is rendered with, to put back later.</summary>
+    public List<FflfRecipe> Recipes { get; set; } = new();
+}
+
+/// <summary>
+/// A 📒 recipe on the ⛓ FFLF tabs: everything a clip is rendered with — model, text encoder, LoRAs and their
+/// strengths, steps, canvas, length, the likeness options and the seed — under a name, so a combination that
+/// worked can be put back and rendered again. The story (beats, images) is not part of it.
+/// </summary>
+public class FflfRecipe
+{
+    public string Name { get; set; } = string.Empty;
+    public DateTime Saved { get; set; } = DateTime.Now;
+    public string DiffusionModel { get; set; } = string.Empty;
+    public string TextEncoder { get; set; } = string.Empty;
+    public string Lora { get; set; } = string.Empty;
+    public double LoraStrength { get; set; }
+    public List<H3FflfLoraRow> ExtraLoras { get; set; } = new();
+    public int FirstPassSteps { get; set; } = 8;
+    public double BeatSeconds { get; set; } = 5;
+    public string AspectRatio { get; set; } = string.Empty;
+    public double FirstPassMegapixels { get; set; } = 0.3;
+    public double FinalMegapixels { get; set; } = 1.0;
+    public bool PreviewOnly { get; set; }
+    public bool LockFirstFrame { get; set; } = true;
+    public bool KeepInitialReference { get; set; } = true;
+    public bool MaxFidelityReferences { get; set; } = true;
+    public bool RepairHandoffFace { get; set; } = true;
+    public double FaceRepairStrength { get; set; } = 1.0;
+    public bool FaceRefine { get; set; }
+    public double FaceRefineStrength { get; set; } = 0.30;
+    public long Seed { get; set; }
+    /// <summary>What a tab built on FFLF (🥋 Action, 🥷 Martial) adds — its own dials, as JSON.</summary>
+    public string TabJson { get; set; } = string.Empty;
+    public override string ToString() => Name;
 }
 
 /// <summary>One extra LoRA on the ⛓ FFLF tab, stacked after the main one.</summary>
@@ -818,7 +857,7 @@ public class H3MartialSettings : H3FflfSettings
 {
     // The authored "MiniMax-H3-int8" is not published under that name; the wushu LoRAs were trained on fl2va.
     public const string DefaultMartialModel = "h3-minimax/minimax_h3_fl2va_pruned_int8_convrot.safetensors";
-    public const string DefaultTextEncoder = "qwen3vl_32b_minimax_h3-w4a8_convrot.safetensors";
+    public new const string DefaultTextEncoder = H3FflfSettings.DefaultTextEncoder;
     public const string DefaultTriggers = "wushu_action, camera motion,";
 
     public H3MartialSettings()
@@ -835,7 +874,6 @@ public class H3MartialSettings : H3FflfSettings
 
     /// <summary>Empty: the refine pass runs on <see cref="H3FflfSettings.DiffusionModel"/>.</summary>
     public string RefineModel { get; set; } = string.Empty;
-    public string TextEncoder { get; set; } = DefaultTextEncoder;
     /// <summary>Null until the tab first saves: the authored stack is offered.</summary>
     public List<H3MartialLoraRow>? Loras { get; set; }
     public List<H3MartialReference> References { get; set; } = new();

@@ -22,6 +22,8 @@ namespace FlipPix.UI.Models
         public double FinalMegapixels { get; set; } = 1.0;
         public bool PreviewOnly { get; set; }
         public string DiffusionModel { get; set; } = string.Empty;
+        /// <summary>Empty on stories saved before the text encoder could be picked: the page's stays.</summary>
+        public string TextEncoder { get; set; } = string.Empty;
         public string Lora { get; set; } = string.Empty;
         public double LoraStrength { get; set; } = 0.25;
         /// <summary>Extra LoRAs after <see cref="Lora"/>; null on stories saved before there were any.</summary>

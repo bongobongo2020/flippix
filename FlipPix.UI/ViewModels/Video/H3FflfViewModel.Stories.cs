@@ -176,6 +176,7 @@ namespace FlipPix.UI.ViewModels.Video
             FinalMegapixels = FinalMegapixels,
             PreviewOnly = PreviewOnly,
             DiffusionModel = DiffusionModel,
+            TextEncoder = TextEncoder,
             Lora = Lora,
             LoraStrength = LoraStrength,
             ExtraLoras = ExtraLoraRows(),
@@ -274,7 +275,9 @@ namespace FlipPix.UI.ViewModels.Video
                 PreviewOnly = s.PreviewOnly;
                 DiffusionModel = string.IsNullOrWhiteSpace(s.DiffusionModel) ? H3FflfSettings.DefaultModel : s.DiffusionModel;
                 Lora = s.Lora ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(s.TextEncoder)) TextEncoder = s.TextEncoder;
                 OfferModel(DiffusionModel);
+                OfferTextEncoder(TextEncoder);
                 OfferLora(Lora);
                 LoraStrength = Math.Clamp(s.LoraStrength, 0, 2);
                 if (s.ExtraLoras != null) ReadExtraLoras(s.ExtraLoras);

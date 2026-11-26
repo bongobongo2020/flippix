@@ -15,7 +15,8 @@ namespace FlipPix.UI.ViewModels.Video
     /// 🧾 Character sheets: before the first beat, every person in the opening image (up to
     /// <see cref="FflfCast.MaxSheets"/>, found by the vision model's description — the same A, B, C the story engine
     /// writes the beats with) gets a character sheet — front, three-quarter, side, back and face — made from the
-    /// opening image by an image-edit model: Qwen Image 2.1 Edit (default), Flux2 Klein 9B or FIBO 2 (<see cref="FflfSheetGraph"/>). The sheets go with
+    /// opening image by an image-edit model: Qwen Image 2.1 Edit (default, the most faithful likeness), or Klein, FIBO 2,
+    /// Qwen Edit 2511 or FireRed (<see cref="FflfSheetGraph"/>). The sheets go with
     /// every beat after the start frame, each named in the prompt, so a character who turns away, walks or is half
     /// hidden in one beat comes back as the same person in the next, and two people never trade faces or clothes.
     ///
