@@ -89,3 +89,6 @@ test/
 # The Android launcher icon is source, not output.
 !FlipPix.Mobile.Android/Resources/drawable/icon.png
 !FlipPix.One.Android/Resources/drawable/icon.png
+
+# FFLF bake-off renders (tools/fflf-bench)
+tools/fflf-bench/results/

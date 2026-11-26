@@ -1,0 +1,746 @@
+{
+ "base": {
+  "aspectRatio": "16:9 (Widescreen)",
+  "firstPassMegapixels": 0.3,
+  "finalMegapixels": 1.2,
+  "lockFirstFrame": true,
+  "maxFidelityReferences": true,
+  "textEncoder": "qwen3vl_32b_minimax_h3-w4a8_convrot.safetensors",
+  "lora": "",
+  "loraStrength": 0,
+  "extraLoras": []
+ },
+ "configs": [
+  {
+   "name": "C_eros_b7_8",
+   "note": "10Eros Max b7 turbo (the workflow's authored model), no LoRA",
+   "diffusionModel": "h3-minimax/10Eros_Max_h3_8stepTURBO_beta7_int8HQ.safetensors",
+   "firstPassSteps": 8
+  },
+  {
+   "name": "A_user_current_16",
+   "note": "your current FFLF settings: b25 hybrid + camera motion 0.9 + combat 0.35 + motion repair 0.25, 16 steps",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+   "firstPassSteps": 16,
+   "lora": "H3/camera_motion_h3_lora_v1_3000_pruned.safetensors",
+   "loraStrength": 0.9,
+   "extraLoras": [
+    {
+     "name": "H3/H3_Combat_V2.safetensors",
+     "strength": 0.35
+    },
+    {
+     "name": "H3/Motion_Repair_V2.safetensors",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "name": "B_app_default_8",
+   "note": "the tab's default: Singularity V2 PRISM2 PikaFlex + DMAD 4-step 0.25",
+   "diffusionModel": "h3-minimax/10Eros_Max_SingularityV2_PRISM2_PikaFlex_0.85_int8HQ.safetensors",
+   "firstPassSteps": 8,
+   "lora": "H3/minimax_h3_DMAD_4step_full_lora_avg_rank_39_bf16.safetensors",
+   "loraStrength": 0.25
+  },
+  {
+   "name": "D_eros_hybridact_8",
+   "note": "10Eros Max 8-step turbo hybrid-activation, no LoRA",
+   "diffusionModel": "h3-minimax/10Eros_Max_8stepTurbo_v1.0_hybrid_activation_learned_HQ.safetensors",
+   "firstPassSteps": 8
+  },
+  {
+   "name": "E_fused_mystic_8",
+   "note": "fused refdelta r1024 turbo8 mystic07, no LoRA",
+   "diffusionModel": "h3-minimax/minimax_h3_fused_refdelta_r1024_turbo8_mystic07_int8_convrot.safetensors",
+   "firstPassSteps": 8
+  },
+  {
+   "name": "F_b25_turbo8_8",
+   "note": "b25-49 hybrid + fl2v turbo 8-step LoRA 1.0",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+   "firstPassSteps": 8,
+   "lora": "H3/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+   "loraStrength": 1.0
+  },
+  {
+   "name": "G_b25_lightx4_4",
+   "note": "b25-49 hybrid + fl2v lightx2v 4-step v1.0 768p LoRA 1.0, 4 steps",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+   "firstPassSteps": 4,
+   "lora": "H3/minimax_h3_fl2v_lightx2v_turbo_4step_v1.0_768p_resized_avg_rank_31_bf16.safetensors",
+   "loraStrength": 1.0
+  },
+  {
+   "name": "H_b25_dmad4_4",
+   "note": "b25-49 hybrid + DMAD 4-step full LoRA 1.0, 4 steps",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+   "firstPassSteps": 4,
+   "lora": "H3/minimax_h3_DMAD_4step_full_lora_avg_rank_39_bf16.safetensors",
+   "loraStrength": 1.0
+  },
+  {
+   "name": "I_b15_turbo8_8",
+   "note": "b15-49 hybrid + fl2v turbo 8-step LoRA 1.0",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b15-49-int8.safetensors",
+   "firstPassSteps": 8,
+   "lora": "H3/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+   "loraStrength": 1.0
+  },
+  {
+   "name": "J_ref2va_light4_4",
+   "note": "ref2va pruned + ref2v lightx2v 4-step LoRA 1.0, 4 steps",
+   "diffusionModel": "h3-minimax/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+   "firstPassSteps": 4,
+   "lora": "H3/minimax_h3_ref2v_lightx2v_turbo_4step_v0.1_resized_avg_rank_20_bf16.safetensors",
+   "loraStrength": 1.0
+  },
+  {
+   "name": "K_fl2va_turbo8_8",
+   "note": "fl2va pruned + fl2v turbo 8-step LoRA 1.0",
+   "diffusionModel": "h3-minimax/minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+   "firstPassSteps": 8,
+   "lora": "H3/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+   "loraStrength": 1.0
+  },
+  {
+   "name": "L_b25_turbo8_realism_8",
+   "note": "F + people realism LoRA 0.5 (the I2V likeness bake-off winner's add-on)",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+   "firstPassSteps": 8,
+   "lora": "H3/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+   "loraStrength": 1.0,
+   "extraLoras": [
+    {
+     "name": "H3/h3-realism-people-t2v-i2v-r2v.safetensors",
+     "strength": 0.5
+    }
+   ]
+  },
+  {
+   "name": "M_b25_pika8_8",
+   "note": "b25-49 hybrid + Pika flex turbo 8-step HD ref2va LoRA 1.0",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+   "firstPassSteps": 8,
+   "lora": "H3/pika_h3_flex_turbo_8step_hd_ref2va.safetensors",
+   "loraStrength": 1.0
+  },
+  {
+   "name": "N_b25_taomate3_3",
+   "note": "b25-49 hybrid + TaoMate 3-step LoRA 1.0, 3 steps",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+   "firstPassSteps": 3,
+   "lora": "H3/taomate_h3_3step_comfy.safetensors",
+   "loraStrength": 1.0
+  },
+  {
+   "name": "D_te_nvfp4",
+   "note": "10Eros Max 8-step turbo hybrid-activation, no LoRA — text encoder qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+   "diffusionModel": "h3-minimax/10Eros_Max_8stepTurbo_v1.0_hybrid_activation_learned_HQ.safetensors",
+   "firstPassSteps": 8,
+   "textEncoder": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors"
+  },
+  {
+   "name": "D_te_w4g128",
+   "note": "10Eros Max 8-step turbo hybrid-activation, no LoRA — text encoder qwen3vl_32b_minimax_h3_native_w4g128_w6protected_15.35gb.safetensors",
+   "diffusionModel": "h3-minimax/10Eros_Max_8stepTurbo_v1.0_hybrid_activation_learned_HQ.safetensors",
+   "firstPassSteps": 8,
+   "textEncoder": "qwen3vl_32b_minimax_h3_native_w4g128_w6protected_15.35gb.safetensors"
+  },
+  {
+   "name": "G_te_nvfp4",
+   "note": "b25-49 hybrid + fl2v lightx2v 4-step v1.0 768p LoRA 1.0, 4 steps — text encoder qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+   "firstPassSteps": 4,
+   "lora": "H3/minimax_h3_fl2v_lightx2v_turbo_4step_v1.0_768p_resized_avg_rank_31_bf16.safetensors",
+   "loraStrength": 1.0,
+   "textEncoder": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors"
+  },
+  {
+   "name": "G_te_w4g128",
+   "note": "b25-49 hybrid + fl2v lightx2v 4-step v1.0 768p LoRA 1.0, 4 steps — text encoder qwen3vl_32b_minimax_h3_native_w4g128_w6protected_15.35gb.safetensors",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+   "firstPassSteps": 4,
+   "lora": "H3/minimax_h3_fl2v_lightx2v_turbo_4step_v1.0_768p_resized_avg_rank_31_bf16.safetensors",
+   "loraStrength": 1.0,
+   "textEncoder": "qwen3vl_32b_minimax_h3_native_w4g128_w6protected_15.35gb.safetensors"
+  },
+  {
+   "name": "D_seed2",
+   "note": "10Eros Max 8-step turbo hybrid-activation, no LoRA — second seed",
+   "diffusionModel": "h3-minimax/10Eros_Max_8stepTurbo_v1.0_hybrid_activation_learned_HQ.safetensors",
+   "firstPassSteps": 8,
+   "seeds": [
+    777001,
+    777002
+   ]
+  },
+  {
+   "name": "G_seed2",
+   "note": "b25-49 hybrid + fl2v lightx2v 4-step v1.0 768p LoRA 1.0, 4 steps — second seed",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+   "firstPassSteps": 4,
+   "lora": "H3/minimax_h3_fl2v_lightx2v_turbo_4step_v1.0_768p_resized_avg_rank_31_bf16.safetensors",
+   "loraStrength": 1.0,
+   "seeds": [
+    777001,
+    777002
+   ]
+  },
+  {
+   "name": "E_seed2",
+   "note": "fused refdelta r1024 turbo8 mystic07, no LoRA — second seed",
+   "diffusionModel": "h3-minimax/minimax_h3_fused_refdelta_r1024_turbo8_mystic07_int8_convrot.safetensors",
+   "firstPassSteps": 8,
+   "seeds": [
+    777001,
+    777002
+   ]
+  },
+  {
+   "name": "B_seed2",
+   "note": "the tab's default: Singularity V2 PRISM2 PikaFlex + DMAD 4-step 0.25 — second seed",
+   "diffusionModel": "h3-minimax/10Eros_Max_SingularityV2_PRISM2_PikaFlex_0.85_int8HQ.safetensors",
+   "firstPassSteps": 8,
+   "lora": "H3/minimax_h3_DMAD_4step_full_lora_avg_rank_39_bf16.safetensors",
+   "loraStrength": 0.25,
+   "seeds": [
+    777001,
+    777002
+   ]
+  },
+  {
+   "name": "D_steps6",
+   "note": "10Eros Max 8-step turbo hybrid-activation, no LoRA — 6 steps",
+   "diffusionModel": "h3-minimax/10Eros_Max_8stepTurbo_v1.0_hybrid_activation_learned_HQ.safetensors",
+   "firstPassSteps": 6
+  },
+  {
+   "name": "G_steps6",
+   "note": "b25-49 hybrid + fl2v lightx2v 4-step v1.0 768p LoRA 1.0, 4 steps — 6 steps",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+   "firstPassSteps": 6,
+   "lora": "H3/minimax_h3_fl2v_lightx2v_turbo_4step_v1.0_768p_resized_avg_rank_31_bf16.safetensors",
+   "loraStrength": 1.0
+  },
+  {
+   "name": "N_seed2",
+   "note": "b25-49 hybrid + TaoMate 3-step LoRA 1.0, 3 steps — second seed",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+   "firstPassSteps": 3,
+   "lora": "H3/taomate_h3_3step_comfy.safetensors",
+   "loraStrength": 1.0,
+   "seeds": [
+    777001,
+    777002
+   ]
+  },
+  {
+   "name": "P_ref2va_pika_8",
+   "note": "ref2va pruned + Pika flex turbo 8-step HD ref2va 1.0 (the base Pika was trained on)",
+   "diffusionModel": "h3-minimax/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+   "firstPassSteps": 8,
+   "lora": "H3/pika_h3_flex_turbo_8step_hd_ref2va.safetensors",
+   "loraStrength": 1.0,
+   "extraLoras": []
+  },
+  {
+   "name": "M_seed2",
+   "note": "b25-49 hybrid + Pika flex turbo 8-step HD ref2va LoRA 1.0 — second seed",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+   "firstPassSteps": 8,
+   "lora": "H3/pika_h3_flex_turbo_8step_hd_ref2va.safetensors",
+   "loraStrength": 1.0,
+   "seeds": [
+    777001,
+    777002
+   ]
+  },
+  {
+   "name": "DT_b25_4",
+   "note": "b25-49 hybrid + DMAD full DARE-TIES v4 1.0, 4 steps",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+   "firstPassSteps": 4,
+   "lora": "H3/minimax_h3_dmad_full_dareties_v4_step600_comfy_fro.safetensors",
+   "loraStrength": 1.0,
+   "extraLoras": []
+  },
+  {
+   "name": "DT_ref2va_4",
+   "note": "ref2va pruned + DMAD full DARE-TIES v4 1.0, 4 steps",
+   "diffusionModel": "h3-minimax/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+   "firstPassSteps": 4,
+   "lora": "H3/minimax_h3_dmad_full_dareties_v4_step600_comfy_fro.safetensors",
+   "loraStrength": 1.0,
+   "extraLoras": []
+  },
+  {
+   "name": "DT_pikaflex_8",
+   "note": "Singularity PikaFlex + DMAD DARE-TIES 0.25 (the app default with the DARE-TIES DMAD in place of the 4-step one)",
+   "diffusionModel": "h3-minimax/10Eros_Max_SingularityV2_PRISM2_PikaFlex_0.85_int8HQ.safetensors",
+   "firstPassSteps": 8,
+   "lora": "H3/minimax_h3_dmad_full_dareties_v4_step600_comfy_fro.safetensors",
+   "loraStrength": 0.25,
+   "extraLoras": []
+  },
+  {
+   "name": "PD_b25_pika_dt_8",
+   "note": "b25-49 hybrid + Pika 1.0 + DMAD DARE-TIES 0.25",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+   "firstPassSteps": 8,
+   "lora": "H3/pika_h3_flex_turbo_8step_hd_ref2va.safetensors",
+   "loraStrength": 1.0,
+   "extraLoras": [
+    {
+     "name": "H3/minimax_h3_dmad_full_dareties_v4_step600_comfy_fro.safetensors",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "name": "N_A2",
+   "note": "b25-49 hybrid + TaoMate 3-step LoRA 1.0, 3 steps + Action A2 mix (Combat 0.65 + Fight Flow 0.65; refine 0.40/0.25)",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+   "firstPassSteps": 3,
+   "lora": "H3/taomate_h3_3step_comfy.safetensors",
+   "loraStrength": 1.0,
+   "extraLoras": [
+    {
+     "name": "H3/H3_Combat_V2.safetensors",
+     "strength": 0.65
+    },
+    {
+     "name": "H3/H3_Fight_Flow_V1.safetensors",
+     "strength": 0.65
+    }
+   ],
+   "refineLoras": [
+    {
+     "name": "H3/H3_Combat_V2.safetensors",
+     "strength": 0.4
+    },
+    {
+     "name": "H3/H3_Fight_Flow_V1.safetensors",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "name": "G_A2",
+   "note": "b25-49 hybrid + fl2v lightx2v 4-step v1.0 768p LoRA 1.0, 4 steps + Action A2 mix",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+   "firstPassSteps": 4,
+   "lora": "H3/minimax_h3_fl2v_lightx2v_turbo_4step_v1.0_768p_resized_avg_rank_31_bf16.safetensors",
+   "loraStrength": 1.0,
+   "extraLoras": [
+    {
+     "name": "H3/H3_Combat_V2.safetensors",
+     "strength": 0.65
+    },
+    {
+     "name": "H3/H3_Fight_Flow_V1.safetensors",
+     "strength": 0.65
+    }
+   ],
+   "refineLoras": [
+    {
+     "name": "H3/H3_Combat_V2.safetensors",
+     "strength": 0.4
+    },
+    {
+     "name": "H3/H3_Fight_Flow_V1.safetensors",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "name": "M_A2",
+   "note": "b25-49 hybrid + Pika flex turbo 8-step HD ref2va LoRA 1.0 + Action A2 mix",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+   "firstPassSteps": 8,
+   "lora": "H3/pika_h3_flex_turbo_8step_hd_ref2va.safetensors",
+   "loraStrength": 1.0,
+   "extraLoras": [
+    {
+     "name": "H3/H3_Combat_V2.safetensors",
+     "strength": 0.65
+    },
+    {
+     "name": "H3/H3_Fight_Flow_V1.safetensors",
+     "strength": 0.65
+    }
+   ],
+   "refineLoras": [
+    {
+     "name": "H3/H3_Combat_V2.safetensors",
+     "strength": 0.4
+    },
+    {
+     "name": "H3/H3_Fight_Flow_V1.safetensors",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "name": "D_A2",
+   "note": "10Eros Max 8-step turbo hybrid-activation, no LoRA + Action A2 mix",
+   "diffusionModel": "h3-minimax/10Eros_Max_8stepTurbo_v1.0_hybrid_activation_learned_HQ.safetensors",
+   "firstPassSteps": 8,
+   "extraLoras": [
+    {
+     "name": "H3/H3_Combat_V2.safetensors",
+     "strength": 0.65
+    },
+    {
+     "name": "H3/H3_Fight_Flow_V1.safetensors",
+     "strength": 0.65
+    }
+   ],
+   "refineLoras": [
+    {
+     "name": "H3/H3_Combat_V2.safetensors",
+     "strength": 0.4
+    },
+    {
+     "name": "H3/H3_Fight_Flow_V1.safetensors",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "name": "N_A3",
+   "note": "b25-49 hybrid + TaoMate 3-step LoRA 1.0, 3 steps + Action A3 MMA mix (Combat 0.70 + Motion Repair 0.50 + Fight Flow 0.65)",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+   "firstPassSteps": 3,
+   "lora": "H3/taomate_h3_3step_comfy.safetensors",
+   "loraStrength": 1.0,
+   "extraLoras": [
+    {
+     "name": "H3/H3_Combat_V2.safetensors",
+     "strength": 0.7
+    },
+    {
+     "name": "H3/Motion_Repair_V2.safetensors",
+     "strength": 0.5
+    },
+    {
+     "name": "H3/H3_Fight_Flow_V1.safetensors",
+     "strength": 0.65
+    }
+   ],
+   "refineLoras": [
+    {
+     "name": "H3/H3_Combat_V2.safetensors",
+     "strength": 0.45
+    },
+    {
+     "name": "H3/Motion_Repair_V2.safetensors",
+     "strength": 0.2
+    },
+    {
+     "name": "H3/H3_Fight_Flow_V1.safetensors",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "name": "M_A3",
+   "note": "b25-49 hybrid + Pika flex turbo 8-step HD ref2va LoRA 1.0 + Action A3 MMA mix",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+   "firstPassSteps": 8,
+   "lora": "H3/pika_h3_flex_turbo_8step_hd_ref2va.safetensors",
+   "loraStrength": 1.0,
+   "extraLoras": [
+    {
+     "name": "H3/H3_Combat_V2.safetensors",
+     "strength": 0.7
+    },
+    {
+     "name": "H3/Motion_Repair_V2.safetensors",
+     "strength": 0.5
+    },
+    {
+     "name": "H3/H3_Fight_Flow_V1.safetensors",
+     "strength": 0.65
+    }
+   ],
+   "refineLoras": [
+    {
+     "name": "H3/H3_Combat_V2.safetensors",
+     "strength": 0.45
+    },
+    {
+     "name": "H3/Motion_Repair_V2.safetensors",
+     "strength": 0.2
+    },
+    {
+     "name": "H3/H3_Fight_Flow_V1.safetensors",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "name": "N_dasiwa",
+   "note": "b25-49 hybrid + TaoMate 3-step LoRA 1.0, 3 steps + DaSiWa Motion-Combat-Reasoning 0.6",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+   "firstPassSteps": 3,
+   "lora": "H3/taomate_h3_3step_comfy.safetensors",
+   "loraStrength": 1.0,
+   "extraLoras": [
+    {
+     "name": "H3/DaSiWa-MMH3-Motion-Combat-Reasoning_r128.safetensors",
+     "strength": 0.6
+    }
+   ]
+  },
+  {
+   "name": "N_smack",
+   "note": "b25-49 hybrid + TaoMate 3-step LoRA 1.0, 3 steps + SMACK! 0.6",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+   "firstPassSteps": 3,
+   "lora": "H3/taomate_h3_3step_comfy.safetensors",
+   "loraStrength": 1.0,
+   "extraLoras": [
+    {
+     "name": "H3/SMACK!_LeechTM_H3_Beta_v2.safetensors",
+     "strength": 0.6
+    }
+   ]
+  },
+  {
+   "name": "W_fl2va_martial",
+   "note": "fl2va pruned + the Martial tab's authored stack: turbo 8-step 0.8, spatial physics 0.3, wushu action v7 0.4, camera motion 0.3; triggers",
+   "diffusionModel": "h3-minimax/minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+   "firstPassSteps": 8,
+   "lora": "H3/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+   "loraStrength": 0.8,
+   "extraLoras": [
+    {
+     "name": "H3/wushu_spatial_physics_clean_3000_pruned.safetensors",
+     "strength": 0.3
+    },
+    {
+     "name": "H3/wushu_action_v7_fl2va_aitoolkit_adaln_full-int8convrot_bf16te_2000step.safetensors",
+     "strength": 0.4
+    },
+    {
+     "name": "H3/camera_motion_h3_lora_v1_3000_pruned.safetensors",
+     "strength": 0.3
+    }
+   ],
+   "promptPrefix": "wushu_action, camera motion,"
+  },
+  {
+   "name": "W_fl2va_wushu08",
+   "note": "fl2va pruned + turbo 8-step 1.0, wushu action v7 0.8, spatial physics 0.3; triggers",
+   "diffusionModel": "h3-minimax/minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+   "firstPassSteps": 8,
+   "lora": "H3/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+   "loraStrength": 1.0,
+   "extraLoras": [
+    {
+     "name": "H3/wushu_spatial_physics_clean_3000_pruned.safetensors",
+     "strength": 0.3
+    },
+    {
+     "name": "H3/wushu_action_v7_fl2va_aitoolkit_adaln_full-int8convrot_bf16te_2000step.safetensors",
+     "strength": 0.8
+    }
+   ],
+   "promptPrefix": "wushu_action, camera motion,"
+  },
+  {
+   "name": "W_b25_martial",
+   "note": "b25-49 hybrid + the Martial authored stack; triggers",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+   "firstPassSteps": 8,
+   "lora": "H3/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+   "loraStrength": 0.8,
+   "extraLoras": [
+    {
+     "name": "H3/wushu_spatial_physics_clean_3000_pruned.safetensors",
+     "strength": 0.3
+    },
+    {
+     "name": "H3/wushu_action_v7_fl2va_aitoolkit_adaln_full-int8convrot_bf16te_2000step.safetensors",
+     "strength": 0.4
+    },
+    {
+     "name": "H3/camera_motion_h3_lora_v1_3000_pruned.safetensors",
+     "strength": 0.3
+    }
+   ],
+   "promptPrefix": "wushu_action, camera motion,"
+  },
+  {
+   "name": "BW_fl2va_045",
+   "note": "fl2va pruned + turbo 8-step + Bunny weapon combat 0.45 (refine 0.25), as the Action tab A4 preset",
+   "diffusionModel": "h3-minimax/minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+   "firstPassSteps": 8,
+   "lora": "H3/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+   "loraStrength": 1.0,
+   "extraLoras": [
+    {
+     "name": "H3/Bunny_weapon_combatV1.safetensors",
+     "strength": 0.45
+    }
+   ],
+   "refineLoras": [
+    {
+     "name": "H3/Bunny_weapon_combatV1.safetensors",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "name": "BW_fl2va_08",
+   "note": "fl2va pruned + turbo 8-step + Bunny weapon combat 0.8 (refine 0.45)",
+   "diffusionModel": "h3-minimax/minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+   "firstPassSteps": 8,
+   "lora": "H3/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+   "loraStrength": 1.0,
+   "extraLoras": [
+    {
+     "name": "H3/Bunny_weapon_combatV1.safetensors",
+     "strength": 0.8
+    }
+   ],
+   "refineLoras": [
+    {
+     "name": "H3/Bunny_weapon_combatV1.safetensors",
+     "strength": 0.45
+    }
+   ]
+  },
+  {
+   "name": "BW_N_045",
+   "note": "b25-49 hybrid + TaoMate 3-step LoRA 1.0, 3 steps + Bunny weapon combat 0.45 (refine 0.25)",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+   "firstPassSteps": 3,
+   "lora": "H3/taomate_h3_3step_comfy.safetensors",
+   "loraStrength": 1.0,
+   "extraLoras": [
+    {
+     "name": "H3/Bunny_weapon_combatV1.safetensors",
+     "strength": 0.45
+    }
+   ],
+   "refineLoras": [
+    {
+     "name": "H3/Bunny_weapon_combatV1.safetensors",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "name": "BW_M_045",
+   "note": "b25-49 hybrid + Pika flex turbo 8-step HD ref2va LoRA 1.0 + Bunny weapon combat 0.45 (refine 0.25)",
+   "diffusionModel": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+   "firstPassSteps": 8,
+   "lora": "H3/pika_h3_flex_turbo_8step_hd_ref2va.safetensors",
+   "loraStrength": 1.0,
+   "extraLoras": [
+    {
+     "name": "H3/Bunny_weapon_combatV1.safetensors",
+     "strength": 0.45
+    }
+   ],
+   "refineLoras": [
+    {
+     "name": "H3/Bunny_weapon_combatV1.safetensors",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "name": "BC_fl2va_combat10",
+   "note": "fl2va pruned + turbo 8-step + H3 Combat V2 1.0 (refine 0.65) — the 🐰 BUNNY stack's LoRA mix",
+   "diffusionModel": "h3-minimax/minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+   "firstPassSteps": 8,
+   "lora": "H3/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+   "loraStrength": 1.0,
+   "extraLoras": [
+    {
+     "name": "H3/H3_Combat_V2.safetensors",
+     "strength": 1.0
+    }
+   ],
+   "refineLoras": [
+    {
+     "name": "H3/H3_Combat_V2.safetensors",
+     "strength": 0.65
+    }
+   ]
+  },
+  {
+   "diffusionModel": "h3-minimax/10Eros_Max_SingularityV2_PRISM2_PikaFlex_0.85_int8HQ.safetensors",
+   "firstPassSteps": 8,
+   "lora": "H3/minimax_h3_dmad_full_dareties_v4_step600_comfy_fro.safetensors",
+   "loraStrength": 0.25,
+   "extraLoras": [
+    {
+     "name": "H3/betterhumanmotionmvmt_h3_lora_v1_500.safetensors",
+     "strength": 0.9
+    },
+    {
+     "name": "H3/wushu_spatial_physics_clean_3000_pruned.safetensors",
+     "strength": 0.3
+    },
+    {
+     "name": "H3/Motion_Repair_V2.safetensors",
+     "strength": 0.5
+    },
+    {
+     "name": "H3/H3_Fight_Flow_V1.safetensors",
+     "strength": 0.65
+    }
+   ],
+   "name": "S_stack",
+   "note": "Singularity V2 PRISM2 PikaFlex + DMAD DARE-TIES 0.25 + better human motion 0.9 + spatial physics 0.3 + Motion Repair 0.5 + Fight Flow 0.65 (both passes)"
+  },
+  {
+   "diffusionModel": "h3-minimax/10Eros_Max_SingularityV2_PRISM2_PikaFlex_0.85_int8HQ.safetensors",
+   "firstPassSteps": 8,
+   "lora": "H3/minimax_h3_dmad_full_dareties_v4_step600_comfy_fro.safetensors",
+   "loraStrength": 0.25,
+   "extraLoras": [
+    {
+     "name": "H3/betterhumanmotionmvmt_h3_lora_v1_500.safetensors",
+     "strength": 0.9
+    },
+    {
+     "name": "H3/wushu_spatial_physics_clean_3000_pruned.safetensors",
+     "strength": 0.3
+    },
+    {
+     "name": "H3/Motion_Repair_V2.safetensors",
+     "strength": 0.5
+    },
+    {
+     "name": "H3/H3_Fight_Flow_V1.safetensors",
+     "strength": 0.65
+    }
+   ],
+   "name": "S_stack_softrefine",
+   "note": "S_stack with the Action tab's softer refine mix: human motion 0.35, physics 0.2, Motion Repair 0.2, Fight Flow 0.25 on the refine",
+   "refineLoras": [
+    {
+     "name": "H3/betterhumanmotionmvmt_h3_lora_v1_500.safetensors",
+     "strength": 0.35
+    },
+    {
+     "name": "H3/wushu_spatial_physics_clean_3000_pruned.safetensors",
+     "strength": 0.2
+    },
+    {
+     "name": "H3/Motion_Repair_V2.safetensors",
+     "strength": 0.2
+    },
+    {
+     "name": "H3/H3_Fight_Flow_V1.safetensors",
+     "strength": 0.25
+    }
+   ]
+  }
+ ]
+}

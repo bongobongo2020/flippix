@@ -1,0 +1,51 @@
+{
+  "seeds": [
+    101,
+    202
+  ],
+  "engines": [
+    "qwen21",
+    "klein",
+    "fibo2",
+    "kleintrue",
+    "qwen2511",
+    "firered"
+  ],
+  "images": [
+    {
+      "name": "market1",
+      "path": "C:/Users/zee/Pictures/flippix-images/f2k-txt2img_20261125_131934.png",
+      "description": "FROM_SETTINGS",
+      "faceOrder": {
+        "A": 0,
+        "B": 1
+      }
+    },
+    {
+      "name": "market2",
+      "path": "C:/Users/zee/Pictures/flippix-images/krea2_20261125_131955.png",
+      "description": "PEOPLE:\nA | right, foreground, crouching | young adult woman, curvy build, tan skin, oval face, dark brown hair pulled back, serious expression looking at the camera\nB | left, background, standing | adult man, 40s, stocky build, shaved head, full dark beard, stern expression, arms crossed\n\nWARDROBE:\nA | teal sports bra, black shorts, dark sneakers\nB | navy blue polo shirt, dark trousers",
+      "faceOrder": {
+        "A": 1,
+        "B": 0
+      }
+    },
+    {
+      "name": "blonde",
+      "path": "Z:/output/MiniMaxH3/MiniMaxH3_00172_.png",
+      "description": "PEOPLE:\nA | centre | adult woman, 30s, slim build, fair skin, blue eyes, long straight blonde hair parted in the middle, serious expression, arms crossed\n\nWARDROBE:\nA | white sleeveless crop top, light blue ripped skinny jeans",
+      "faceOrder": {
+        "A": 0
+      }
+    },
+    {
+      "name": "couple",
+      "path": "Z:/output/MiniMaxH3/MiniMaxH3_00005_.png",
+      "description": "PEOPLE:\nA | left | adult man, 30s, athletic build, light skin, short dark hair, smiling, face in profile turned right\nB | right | adult woman, 30s, athletic toned build, tan skin, long wavy light brown hair, smiling, hands on hips\n\nWARDROBE:\nA | grey crew-neck t-shirt, black trousers\nB | pink sports crop top, light blue denim shorts",
+      "faceOrder": {
+        "A": 0,
+        "B": 1
+      }
+    }
+  ]
+}
