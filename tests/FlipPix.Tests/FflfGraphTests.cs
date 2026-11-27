@@ -176,12 +176,13 @@ public class FflfGraphTests
     }
 
     [Fact]
-    public void Build_SavesTheLastFrameTheEncoderReceives()
+    public void Build_SavesTheLastFrameOffTheDecodeNotTheUpscale()
     {
         var root = FflfGraph.Build(TwoPassJson(), Request(), out _);
 
-        var encoderFrames = root["152:135"]!["inputs"]!["images"]!.ToJsonString();
-        Assert.Equal(encoderFrames, root[FflfGraph.LastFrameNode]!["inputs"]!["image"]!.ToJsonString());
+        // The hand-off skips RTX VSR (it compounds beat after beat); the delivered video keeps it.
+        Assert.Equal("[\"151:25\",0]", root[FflfGraph.LastFrameNode]!["inputs"]!["image"]!.ToJsonString());
+        Assert.NotEqual("[\"151:25\",0]", root["152:135"]!["inputs"]!["images"]!.ToJsonString());
         Assert.Equal(-1, root[FflfGraph.LastFrameNode]!["inputs"]!["batch_index"]!.GetValue<int>());
         Assert.Equal("video/fflf/run/beat_02_last", root[FflfGraph.LastFrameSaveNode]!["inputs"]!["filename_prefix"]!.GetValue<string>());
         Assert.Equal("video/fflf/run/beat_02", root["73"]!["inputs"]!["value"]!.GetValue<string>());

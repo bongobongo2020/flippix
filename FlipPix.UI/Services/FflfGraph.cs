@@ -658,11 +658,17 @@ namespace FlipPix.UI.Services
             inputs["conditioning"] = new JsonArray { id, 0 };
         }
 
-        /// <summary>Saves the last frame the encoder receives — the frame the next beat starts on.</summary>
+        /// <summary>Saves the take's last frame straight off the VAE decode — the frame the next beat starts on.
+        /// <para>Not the encoder's input: that is the RTX Video Super Resolution output (deblur, 1.2×), and a start
+        /// frame that has been through it is pinned near-clean at frame 0 of the next beat, so its sharpening and
+        /// re-toning compound beat after beat — a large part of the colour/face drift past ~30 s. The delivered
+        /// video keeps the upscale; only the hand-off skips it.</para></summary>
         public static void AddLastFrameSave(JsonObject root, string prefix)
         {
-            var frames = root[MiniMaxI2VViewModel.TpLokkenNew]?["inputs"]?["images"]?.DeepClone()
-                         ?? new JsonArray { MiniMaxI2VViewModel.TpDecode, 0 };
+            var frames = root.ContainsKey(MiniMaxI2VViewModel.TpDecode)
+                ? new JsonArray { MiniMaxI2VViewModel.TpDecode, 0 }
+                : root[MiniMaxI2VViewModel.TpLokkenNew]?["inputs"]?["images"]?.DeepClone()
+                  ?? throw new InvalidOperationException("The FFLF graph has neither the VAE decode nor the encoder to take the last frame from.");
             root[LastFrameNode] = new JsonObject
             {
                 ["class_type"] = "ImageFromBatch",
