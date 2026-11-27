@@ -35,7 +35,7 @@ namespace FlipPix.UI.ViewModels.Video
         public IReadOnlyList<FflfSheetGraph.EngineOption> SheetEngines => FflfSheetGraph.Engines;
 
         /// <summary>Off on tabs that bring their own cast pictures (🥋 Action, Martial).</summary>
-        protected virtual bool UsesCharacterSheets => true;
+        protected virtual bool UsesCharacterSheets => !UsePikaFlex;   // PikaFlex takes no reference pictures
 
         private List<FflfCharacterSheetEntry> _sheets = new();
         private string _sheetsFor = string.Empty;
@@ -174,7 +174,8 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>Under the 🧾 box: what the sheets are for this opening image.</summary>
         public string CharacterSheetsHint =>
-            !CharacterSheets ? "Off — the beats are sent the start frame and the opening image only."
+            UsePikaFlex ? "Not used by the PikaFlex workflow — it starts on the first frame and takes no reference pictures."
+            : !CharacterSheets ? "Off — the beats are sent the start frame and the opening image only."
             : _sheetsFor == $"{OpeningImageKey}|{SheetEngine}" && _sheets.Count > 0 ? $"Made for this image: {string.Join(", ", _sheets.Select(e => e.Label))}."
             : "Made on the next ▶ Generate, one per person in the opening image (under a minute each).";
     }

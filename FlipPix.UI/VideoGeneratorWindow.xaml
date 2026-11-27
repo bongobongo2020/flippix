@@ -6071,15 +6071,27 @@
                                                         <RowDefinition Height="Auto"/>
                                                         <RowDefinition Height="Auto"/>
                                                         <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
                                                     </Grid.RowDefinitions>
-                                                    <TextBlock Text="Aspect" Style="{StaticResource FflfRowLabel}"/>
-                                                    <ComboBox Grid.Column="1" ItemsSource="{Binding AspectRatioOptions}" SelectedItem="{Binding SelectedAspectRatio}" Height="26" FontSize="11" Margin="0,0,0,6"/>
-                                                    <TextBlock Grid.Row="1" Text="First pass" Style="{StaticResource FflfRowLabel}"/>
-                                                    <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding FirstPassSizes}" DisplayMemberPath="Label" SelectedValuePath="Value"
-                                                              SelectedValue="{Binding FirstPassMegapixels}" Height="26" FontSize="11" Margin="0,0,0,6"/>
-                                                    <TextBlock Grid.Row="2" Text="Refined" Style="{StaticResource FflfRowLabel}"/>
-                                                    <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding FinalSizes}" DisplayMemberPath="Label" SelectedValuePath="Value"
-                                                              SelectedValue="{Binding FinalMegapixels}" Height="26" FontSize="11"/>
+                                                    <TextBlock Text="Workflow" Style="{StaticResource FflfRowLabel}"/>
+                                                    <ComboBox Grid.Column="1" ItemsSource="{Binding BeatWorkflowOptions}" DisplayMemberPath="Label" SelectedValuePath="Key"
+                                                              SelectedValue="{Binding BeatWorkflow}" Height="26" FontSize="11" Margin="0,0,0,2"
+                                                              ToolTip="The graph every beat renders through. ErosMax 2-Pass: the tab&apos;s model, LoRA and references, refined and upscaled. PikaFlex + ReDiverse: the fl2va model with the PikaFlex LoRA, ReDiverse on the first of six LCM steps — fast, one pass, starts on the first frame with no reference pictures."/>
+                                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding BeatWorkflowDescription}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                                                    <TextBlock Grid.Row="2" Text="Aspect" Style="{StaticResource FflfRowLabel}"/>
+                                                    <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding AspectRatioOptions}" SelectedItem="{Binding SelectedAspectRatio}" Height="26" FontSize="11" Margin="0,0,0,6"/>
+                                                    <TextBlock Grid.Row="3" Text="First pass" Style="{StaticResource FflfRowLabel}" Visibility="{Binding UseErosMax, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                    <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{Binding FirstPassSizes}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                              SelectedValue="{Binding FirstPassMegapixels}" Height="26" FontSize="11" Margin="0,0,0,6" Visibility="{Binding UseErosMax, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                    <TextBlock Grid.Row="4" Text="Refined" Style="{StaticResource FflfRowLabel}" Visibility="{Binding UseErosMax, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                    <ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{Binding FinalSizes}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                              SelectedValue="{Binding FinalMegapixels}" Height="26" FontSize="11" Visibility="{Binding UseErosMax, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                    <TextBlock Grid.Row="5" Text="Canvas" Style="{StaticResource FflfRowLabel}" Visibility="{Binding UsePikaFlex, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                    <ComboBox Grid.Row="5" Grid.Column="1" ItemsSource="{Binding PikaSizes}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                              SelectedValue="{Binding PikaMegapixels}" Height="26" FontSize="11" Visibility="{Binding UsePikaFlex, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                              ToolTip="The one canvas PikaFlex renders at (ResolutionSelector, multiple of 32). A ⚡ draft renders at 0.3 MP."/>
                                                 </Grid>
                                                 <TextBlock Text="{Binding CanvasSummary}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,5,0,0"/>
                                                 <CheckBox IsChecked="{Binding PreviewOnly}" Margin="0,8,0,0" FontSize="11" Content="⚡ Draft — first pass only"
@@ -6152,23 +6164,60 @@
                                                 <TextBlock Text="⚙ Model, LoRA &amp; seed" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/>
                                             </Expander.Header>
                                             <StackPanel Margin="0,6,0,0">
-                                                <TextBlock Text="DIFFUSION MODEL" Style="{StaticResource FflfLabel}" Margin="0,0,0,3"/>
-                                                <ComboBox ItemsSource="{Binding ModelOptions}" Text="{Binding DiffusionModel, UpdateSourceTrigger=LostFocus}" IsEditable="True" Height="26" FontSize="10.5"/>
+                                                <StackPanel Visibility="{Binding UseErosMax, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <TextBlock Text="DIFFUSION MODEL" Style="{StaticResource FflfLabel}" Margin="0,0,0,3"/>
+                                                    <ComboBox ItemsSource="{Binding ModelOptions}" Text="{Binding DiffusionModel, UpdateSourceTrigger=LostFocus}" IsEditable="True" Height="26" FontSize="10.5"/>
+                                                </StackPanel>
+                                                <StackPanel Visibility="{Binding UsePikaFlex, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <TextBlock Text="PIKAFLEX MODEL (fl2va)" Style="{StaticResource FflfLabel}" Margin="0,0,0,3"/>
+                                                    <ComboBox ItemsSource="{Binding ModelOptions}" Text="{Binding PikaModel, UpdateSourceTrigger=LostFocus}" IsEditable="True" Height="26" FontSize="10.5"
+                                                              ToolTip="The diffusion model the PikaFlex workflow loads. It is filled in with the server's minimax_h3_fl2va file; the PikaFlex LoRA is trained for fl2va."/>
+                                                </StackPanel>
                                                 <TextBlock Text="TEXT ENCODER" Style="{StaticResource FflfLabel}"/>
                                                 <ComboBox ItemsSource="{Binding TextEncoderOptions}" Text="{Binding TextEncoder, UpdateSourceTrigger=LostFocus}" IsEditable="True" Height="26" FontSize="10.5"
                                                           ToolTip="The CLIPLoader file the beats are prompted through (text_encoders). The H3 encoders (qwen3vl_*_minimax_h3) are listed first."/>
-                                                <TextBlock Text="LORA" Style="{StaticResource FflfLabel}"/>
-                                                <ComboBox ItemsSource="{Binding LoraOptions}" Text="{Binding Lora, UpdateSourceTrigger=LostFocus}" IsEditable="True" Height="26" FontSize="10.5"/>
-                                                <Grid Margin="0,6,0,0">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="110"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="40"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="LoRA strength" Style="{StaticResource FflfRowLabel}"/>
-                                                    <Slider Grid.Column="1" Value="{Binding LoraStrength}" Minimum="0" Maximum="1.5" TickFrequency="0.05" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
-                                                    <TextBlock Grid.Column="2" Text="{Binding LoraStrength, StringFormat={}{0:0.00}}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                                                </Grid>
+                                                <StackPanel Visibility="{Binding UseErosMax, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <TextBlock Text="LORA" Style="{StaticResource FflfLabel}"/>
+                                                    <ComboBox ItemsSource="{Binding LoraOptions}" Text="{Binding Lora, UpdateSourceTrigger=LostFocus}" IsEditable="True" Height="26" FontSize="10.5"/>
+                                                    <Grid Margin="0,6,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="110"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="40"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="LoRA strength" Style="{StaticResource FflfRowLabel}"/>
+                                                        <Slider Grid.Column="1" Value="{Binding LoraStrength}" Minimum="0" Maximum="1.5" TickFrequency="0.05" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                                                        <TextBlock Grid.Column="2" Text="{Binding LoraStrength, StringFormat={}{0:0.00}}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                </StackPanel>
+                                                <StackPanel Visibility="{Binding UsePikaFlex, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <TextBlock Text="PIKAFLEX LORA (both passes)" Style="{StaticResource FflfLabel}"/>
+                                                    <ComboBox ItemsSource="{Binding LoraOptions}" Text="{Binding PikaLora, UpdateSourceTrigger=LostFocus}" IsEditable="True" Height="26" FontSize="10.5"
+                                                              ToolTip="The PikaFlex LoRA on every step (authored at 1.0). Filled in with the server&apos;s pika_h3_flex…fl2va file."/>
+                                                    <Grid Margin="0,6,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="110"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="40"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="Strength" Style="{StaticResource FflfRowLabel}"/>
+                                                        <Slider Grid.Column="1" Value="{Binding PikaLoraStrength}" Minimum="0" Maximum="1.5" TickFrequency="0.05" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                                                        <TextBlock Grid.Column="2" Text="{Binding PikaLoraStrength, StringFormat={}{0:0.00}}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                    <TextBlock Text="REDIVERSE LORA (first step only)" Style="{StaticResource FflfLabel}"/>
+                                                    <ComboBox ItemsSource="{Binding LoraOptions}" Text="{Binding RediverseLora, UpdateSourceTrigger=LostFocus}" IsEditable="True" Height="26" FontSize="10.5"
+                                                              ToolTip="Stacked on top for the first of the six LCM steps, where it sets the composition and motion (authored at 1.0)."/>
+                                                    <Grid Margin="0,6,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="110"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="40"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="Strength" Style="{StaticResource FflfRowLabel}"/>
+                                                        <Slider Grid.Column="1" Value="{Binding RediverseStrength}" Minimum="0" Maximum="1.5" TickFrequency="0.05" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                                                        <TextBlock Grid.Column="2" Text="{Binding RediverseStrength, StringFormat={}{0:0.00}}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                </StackPanel>
                                                 <TextBlock Text="EXTRA LORAS (stacked after the one above, both passes)" Style="{StaticResource FflfLabel}"/>
                                                 <ItemsControl ItemsSource="{Binding ExtraLoras}" Margin="0,3,0,0">
                                                     <ItemsControl.ItemTemplate>
@@ -6206,7 +6255,7 @@
                                                             ToolTip="Add another LoRA to the stack. Each row has its own strength; untick to leave it out without losing it."/>
                                                     <TextBlock Text="{Binding ExtraLoraSummary}" FontSize="10" Foreground="{DynamicResource TabAccentBrush}" Margin="8,0,0,0" VerticalAlignment="Center"/>
                                                 </StackPanel>
-                                                <Grid Margin="0,6,0,0">
+                                                <Grid Margin="0,6,0,0" Visibility="{Binding UseErosMax, Converter={StaticResource BooleanToVisibilityConverter}}">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="110"/>
                                                         <ColumnDefinition Width="*"/>

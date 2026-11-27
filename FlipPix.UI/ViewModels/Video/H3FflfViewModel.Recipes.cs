@@ -75,7 +75,14 @@ namespace FlipPix.UI.ViewModels.Video
 
         // ── Save, load, delete ───────────────────────────────────────────────────────────────────
 
-        private FflfRecipe CaptureRecipe(string name) => new()
+        private FflfRecipe CaptureRecipe(string name)
+        {
+            var recipe = CaptureCommonRecipe(name);
+            if (OffersBeatWorkflows) CaptureBeatWorkflow(recipe);
+            return recipe;
+        }
+
+        private FflfRecipe CaptureCommonRecipe(string name) => new()
         {
             Name = name,
             Saved = DateTime.Now,
@@ -161,6 +168,7 @@ namespace FlipPix.UI.ViewModels.Video
                 FaceRefine = r.FaceRefine;
                 FaceRefineStrength = ClampRefineStrength(r.FaceRefineStrength);
                 if (RecipeRestoresSeed && r.Seed > 0) BaseSeed = r.Seed;
+                ApplyBeatWorkflow(r);
                 if (!string.IsNullOrWhiteSpace(r.TabJson))
                 {
                     try { ApplyTabRecipe(r.TabJson); }
@@ -180,7 +188,16 @@ namespace FlipPix.UI.ViewModels.Video
                    (Beats.Any(b => b.IsDone) ? " — beats already rendered keep their takes; ↻ or Start over to render them with it." : string.Empty));
         }
 
-        private static string Describe(FflfRecipe r)
+        private static string Describe(FflfRecipe r) => r.BeatWorkflow == FlipPix.UI.Services.PikaFlexGraph.Key
+            ? $"PikaFlex + ReDiverse · {Path.GetFileNameWithoutExtension(r.PikaModel)} · " +
+              $"{Path.GetFileNameWithoutExtension(r.PikaLora)} @ {r.PikaLoraStrength:0.##} · ReDiverse {Path.GetFileNameWithoutExtension(r.RediverseLora)} @ {r.RediverseStrength:0.##}" +
+              string.Concat((r.ExtraLoras ?? new List<H3FflfLoraRow>()).Where(l => l.On && !string.IsNullOrWhiteSpace(l.Name) && l.Strength > 0)
+                  .Select(l => $" + {Path.GetFileNameWithoutExtension(l.Name)} @ {l.Strength:0.##}")) +
+              $" · TE {Path.GetFileNameWithoutExtension(r.TextEncoder)} · {r.BeatSeconds:0.#} s beats · {r.PikaMegapixels:0.##} MP" +
+              (r.PreviewOnly ? " (draft)" : string.Empty) + (r.Seed > 0 ? $" · seed {r.Seed}" : string.Empty) + $" · saved {r.Saved:yyyy-MM-dd HH:mm}"
+            : DescribeErosMax(r);
+
+        private static string DescribeErosMax(FflfRecipe r)
         {
             var loras = new List<string>();
             if (!string.IsNullOrWhiteSpace(r.Lora) && r.LoraStrength > 0)

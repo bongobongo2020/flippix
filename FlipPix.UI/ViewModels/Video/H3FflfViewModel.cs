@@ -146,6 +146,7 @@ namespace FlipPix.UI.ViewModels.Video
             OfferTextEncoder(_textEncoder);
             OfferLora(_lora);
             OnInitialImagePathChanged(_initialImagePath);
+            InitBeatWorkflow(s);
             LoadTabSettings(s);
             InitVoice(s);
             InitStoryEngine(s);
@@ -217,8 +218,10 @@ namespace FlipPix.UI.ViewModels.Video
         {
             var people = _openingDescriptionFor == OpeningImageKey ? FflfCast.Parse(_openingDescription) : Array.Empty<FflfCastMember>();
             var spoken = beat.HasDialogue && !string.IsNullOrWhiteSpace(beat.LineText) ? beat.LineText : null;
+            // PikaFlex sends only the start frame: no <Picture 2> or sheets to point at.
+            var pika = UsePikaFlex;
             return FflfGraph.ComposeH3Prompt(beat.Text, SecondsFor(beat), StyleText, SettingText, FflfGraph.H3Cast(people, WardrobeText),
-                                             hasIdentityImage, index == 0, _runSheets.Select(r => r.Label).ToList(), spoken);
+                                             hasIdentityImage && !pika, index == 0, pika ? null : _runSheets.Select(r => r.Label).ToList(), spoken);
         }
 
         /// <summary>Last word on a beat's render request, after the page's own dials are on it.</summary>
@@ -253,16 +256,23 @@ namespace FlipPix.UI.ViewModels.Video
         protected virtual string? BeatWorkflowFile => WorkflowFileName;
 
         /// <summary>One beat's API graph.</summary>
-        protected virtual System.Text.Json.Nodes.JsonObject BuildBeatGraph(string template, FflfBeatRender request, int index, out int pruned) =>
-            FflfGraph.Build(template, request, out pruned);
+        protected virtual System.Text.Json.Nodes.JsonObject BuildBeatGraph(string template, FflfBeatRender request, int index, out int pruned)
+        {
+            if (!UsePikaFlex) return FflfGraph.Build(template, request, out pruned);
+            pruned = 0;
+            return BuildPikaFlexGraph(request);
+        }
 
         /// <summary>The graph nodes the take's video and its last frame are read from.</summary>
-        protected virtual string VideoOutputNode => FflfGraph.VideoSaveNode;
-        protected virtual string LastFrameOutputNode => FflfGraph.LastFrameSaveNode;
+        protected virtual string VideoOutputNode => UsePikaFlex ? PikaFlexGraph.VideoSaveNode : FflfGraph.VideoSaveNode;
+        protected virtual string LastFrameOutputNode => UsePikaFlex ? PikaFlexGraph.LastFrameSaveNode : FflfGraph.LastFrameSaveNode;
 
         /// <summary>The model line of the run's first log entry.</summary>
-        protected virtual string DescribeModel() =>
-            $"Model {Path.GetFileName(DiffusionModel)}, text encoder {Path.GetFileName(TextEncoder)}" +
+        protected virtual string DescribeModel() => UsePikaFlex
+            ? $"PikaFlex + ReDiverse: {PikaFiles().DiffusionModel} + {PikaFiles().PikaLora} @ {PikaLoraStrength:0.##} (ReDiverse: {PikaFiles().RediverseLora} @ {RediverseStrength:0.##}), " +
+              $"text encoder {Path.GetFileName(TextEncoder)}" +
+              string.Concat(ActiveExtraLoras().Select(l => $" + {Path.GetFileName(l.Name)} @ {l.Strength:0.##}"))
+            : $"Model {Path.GetFileName(DiffusionModel)}, text encoder {Path.GetFileName(TextEncoder)}" +
             (Lora.Length > 0 && LoraStrength > 0 ? $" + {Path.GetFileName(Lora)} @ {LoraStrength:0.##}" : string.Empty) +
             string.Concat(ActiveExtraLoras().Select(l => $" + {Path.GetFileName(l.Name)} @ {l.Strength:0.##}"));
 
@@ -628,6 +638,7 @@ namespace FlipPix.UI.ViewModels.Video
         {
             get
             {
+                if (UsePikaFlex) return PikaCanvasSummary();
                 var aspect = ResolvedAspectRatio;
                 var (w1, h1) = H3Canvas.Resolve(aspect, FirstPassMegapixels, MiniMaxI2VViewModel.TwoPassResolutionMultiple);
                 if (PreviewOnly) return $"{aspect} · draft at {w1}×{h1} (first pass only, no RTX)";
@@ -705,6 +716,7 @@ namespace FlipPix.UI.ViewModels.Video
                     .Where(n => n.StartsWith("h3-minimax/", StringComparison.OrdinalIgnoreCase))
                     .OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
                 ServerLoras = everyLora;
+                _serverModels = everyModel;
                 var loras = everyLora
                     .Where(n => n.StartsWith("H3/", StringComparison.OrdinalIgnoreCase))
                     .OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
@@ -732,7 +744,7 @@ namespace FlipPix.UI.ViewModels.Video
                     AddLog($"⚠ {Path.GetFileName(Lora)} is not in the server's loras/H3.");
                 if (userAsked)
                     AddLog($"Server lists: {models.Count} model(s) in diffusion_models/h3-minimax, {loras.Count} LoRA(s) in loras/H3, {clips.Count} text encoder(s).");
-                OnUi(() => { WarnMissingExtraLoras(); OnModelListsLoaded(); });
+                OnUi(() => { WarnMissingExtraLoras(); WarnMissingPikaFiles(); OnModelListsLoaded(); });
             }
             catch (OperationCanceledException) when (cts.IsCancellationRequested)
             {
@@ -757,6 +769,8 @@ namespace FlipPix.UI.ViewModels.Video
             nameof(SelectedYakEngine), nameof(SelectedYakVoice),
             nameof(EngineStoryText), nameof(EngineDirection), nameof(EngineBeatCount), nameof(EngineWriter), nameof(EngineWithDialogue), nameof(EngineDynamicBeatTime),
             nameof(CharacterSheets), nameof(SheetEngine),
+            nameof(BeatWorkflow), nameof(PikaMegapixels),
+            nameof(PikaModel), nameof(PikaLora), nameof(PikaLoraStrength), nameof(RediverseLora), nameof(RediverseStrength),
         };
 
         protected override void OnPropertyChanged(PropertyChangedEventArgs e)
@@ -802,6 +816,7 @@ namespace FlipPix.UI.ViewModels.Video
             s.YakVoice = SelectedYakVoice;
             SaveStoryEngine(s);
             SaveCharacterSheets(s);
+            SaveBeatWorkflow(s);
             SaveTabSettings(s);
             try { _settingsService.SaveSettings(settings); }
             catch (Exception ex) { _logger.LogWarning($"{Profile.Name}: could not save settings: {ex.Message}"); }
@@ -1228,7 +1243,7 @@ namespace FlipPix.UI.ViewModels.Video
             }, index);
             var graph = BuildBeatGraph(template, request, index, out var pruned);
             AddLog($"{label} — seed {beat.Seed}, starts on {(index == 0 ? "the opening image" : $"beat {index}'s last frame")}" +
-                   $"{(LockFirstFrame ? " (anchored at frame 0)" : " (reference only)")}, {pruned} node(s) pruned" +
+                   (UsePikaFlex ? " (PikaFlex first_frame)" : $"{(LockFirstFrame ? " (anchored at frame 0)" : " (reference only)")}, {pruned} node(s) pruned") +
                    (_runSheets.Count > 0 ? $", {_runSheets.Count} character sheet(s)" : string.Empty) +
                    (dialogue != null ? $", {request.Seconds:0.#} s, lips locked to {Path.GetFileName(beat.DialoguePath)}." : "."));
 
@@ -1239,9 +1254,20 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 if (msg.Data == null || msg.Data.Max <= 0 || msg.Data.Max > 60) return;
                 // Pass 1 runs the first-pass steps; the refine runs the second-pass schedule.
-                var secondPass = !PreviewOnly && msg.Data.Max != FirstPassSteps;
                 var frac = (double)msg.Data.Value / msg.Data.Max;
-                var within = PreviewOnly ? frac : secondPass ? 0.6 + 0.35 * frac : 0.6 * frac;
+                bool secondPass;
+                double within;
+                if (UsePikaFlex)
+                {
+                    // One ReDiverse step, then the rest of the LCM schedule.
+                    secondPass = msg.Data.Max > PikaFlexGraph.RediverseSteps;
+                    within = secondPass ? 0.15 + 0.8 * frac : 0.15 * frac;
+                }
+                else
+                {
+                    secondPass = !PreviewOnly && msg.Data.Max != FirstPassSteps;
+                    within = PreviewOnly ? frac : secondPass ? 0.6 + 0.35 * frac : 0.6 * frac;
+                }
                 ProcessingProgress = (done + within) * share * 100;
                 ProcessingStatus = $"{label}{(secondPass ? " · refining" : string.Empty)} — step {msg.Data.Value}/{msg.Data.Max} · {(DateTime.Now - renderStart):m\\:ss}";
                 OnPropertyChanged(nameof(ReadyHint));

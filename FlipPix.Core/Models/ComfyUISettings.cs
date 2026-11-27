@@ -696,6 +696,17 @@ public class H3FflfSettings
     public double LoraStrength { get; set; } = 0.25;
     /// <summary>LoRAs stacked after <see cref="Lora"/>, on both passes.</summary>
     public List<H3FflfLoraRow> ExtraLoras { get; set; } = new();
+    /// <summary>The graph each beat renders through: "erosmax" (h3-erosmax-2pass.json) or "pikaflex"
+    /// (PikaFlex + ReDiverse, 6-step LCM on the fl2va model — FlipPix.UI PikaFlexGraph).</summary>
+    public string BeatWorkflow { get; set; } = "erosmax";
+    /// <summary>The PikaFlex workflow's single canvas, in megapixels (authored 0.6).</summary>
+    public double PikaMegapixels { get; set; } = 0.6;
+    /// <summary>PikaFlex's own files; empty = the authored file, found on the server under whatever name it has.</summary>
+    public string PikaModel { get; set; } = string.Empty;
+    public string PikaLora { get; set; } = string.Empty;
+    public double PikaLoraStrength { get; set; } = 1.0;
+    public string RediverseLora { get; set; } = string.Empty;
+    public double RediverseStrength { get; set; } = 1.0;
     public int FirstPassSteps { get; set; } = 8;
     /// <summary>Anchor each beat's first frame on the image it starts from (MiniMaxH3AddGuide at frame 0).</summary>
     public bool LockFirstFrame { get; set; } = true;
@@ -769,6 +780,14 @@ public class FflfRecipe
     public bool FaceRefine { get; set; }
     public double FaceRefineStrength { get; set; } = 0.30;
     public long Seed { get; set; }
+    /// <summary>The beat workflow ("erosmax" / "pikaflex"); empty in recipes saved before there was a choice (= ErosMax).</summary>
+    public string BeatWorkflow { get; set; } = string.Empty;
+    public double PikaMegapixels { get; set; } = 0.6;
+    public string PikaModel { get; set; } = string.Empty;
+    public string PikaLora { get; set; } = string.Empty;
+    public double PikaLoraStrength { get; set; } = 1.0;
+    public string RediverseLora { get; set; } = string.Empty;
+    public double RediverseStrength { get; set; } = 1.0;
     /// <summary>What a tab built on FFLF (🥋 Action, 🥷 Martial) adds — its own dials, as JSON.</summary>
     public string TabJson { get; set; } = string.Empty;
     public override string ToString() => Name;
