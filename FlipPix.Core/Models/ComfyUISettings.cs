@@ -696,11 +696,14 @@ public class H3FflfSettings
     public double LoraStrength { get; set; } = 0.25;
     /// <summary>LoRAs stacked after <see cref="Lora"/>, on both passes.</summary>
     public List<H3FflfLoraRow> ExtraLoras { get; set; } = new();
-    /// <summary>The graph each beat renders through: "erosmax" (h3-erosmax-2pass.json) or "pikaflex"
-    /// (PikaFlex + ReDiverse, 6-step LCM on the fl2va model — FlipPix.UI PikaFlexGraph).</summary>
+    /// <summary>The graph each beat renders through: "erosmax" (h3-erosmax-2pass.json), "pikaflex"
+    /// (PikaFlex + ReDiverse, 6-step LCM on the fl2va model — FlipPix.UI PikaFlexGraph) or "longform" (the whole
+    /// story as one Context-Loop chain — FlipPix.UI LongFormGraph).</summary>
     public string BeatWorkflow { get; set; } = "erosmax";
     /// <summary>The PikaFlex workflow's single canvas, in megapixels (authored 0.6).</summary>
     public double PikaMegapixels { get; set; } = 0.6;
+    /// <summary>The Long Form chain's single canvas, in megapixels (tested at 0.5: 960×544).</summary>
+    public double LongFormMegapixels { get; set; } = 0.5;
     /// <summary>PikaFlex's own files; empty = the authored file, found on the server under whatever name it has.</summary>
     public string PikaModel { get; set; } = string.Empty;
     public string PikaLora { get; set; } = string.Empty;
@@ -780,9 +783,10 @@ public class FflfRecipe
     public bool FaceRefine { get; set; }
     public double FaceRefineStrength { get; set; } = 0.30;
     public long Seed { get; set; }
-    /// <summary>The beat workflow ("erosmax" / "pikaflex"); empty in recipes saved before there was a choice (= ErosMax).</summary>
+    /// <summary>The beat workflow ("erosmax" / "pikaflex" / "longform"); empty in recipes saved before there was a choice (= ErosMax).</summary>
     public string BeatWorkflow { get; set; } = string.Empty;
     public double PikaMegapixels { get; set; } = 0.6;
+    public double LongFormMegapixels { get; set; } = 0.5;
     public string PikaModel { get; set; } = string.Empty;
     public string PikaLora { get; set; } = string.Empty;
     public double PikaLoraStrength { get; set; } = 1.0;

@@ -26,6 +26,18 @@ namespace FlipPix.UI.ViewModels.Video
                 "Low-res first pass → latent upscale → refine → RTX. Takes the opening image and character sheets as references."),
             new FflfWorkflowOption(PikaFlexGraph.Key, "PikaFlex + ReDiverse — fast 6-step LCM",
                 "fl2va model + PikaFlex LoRA, ReDiverse on the first step. One pass at a single canvas; starts on the first frame, no reference pictures."),
+            new FflfWorkflowOption(LongFormGraph.Key, "Long Form — one chain, for stories past 60 s",
+                "The whole story as one Context-Loop chain on the server: each beat carries on from the last beat's own latent (no PNG hand-off), " +
+                "colour held to beat 1, the opening image and sheets on every beat. Keeps faces and colour where the beat-by-beat graphs drift past ~30 s. " +
+                "Uses ⚙ Model's model and LoRAs; one pass, 20 steps. Needs the ComfyUI-MiniMaxH3-Context-Loop node pack."),
+        };
+
+        public IReadOnlyList<MegapixelOption> LongFormSizes { get; } = new[]
+        {
+            new MegapixelOption(0.4, "0.4 MP"),
+            new MegapixelOption(0.5, "0.5 MP (tested)"),
+            new MegapixelOption(0.7, "0.7 MP"),
+            new MegapixelOption(0.9, "0.9 MP"),
         };
 
         public IReadOnlyList<MegapixelOption> PikaSizes { get; } = new[]
@@ -43,8 +55,13 @@ namespace FlipPix.UI.ViewModels.Video
         protected virtual bool OffersBeatWorkflows => GetType() == typeof(H3FflfViewModel);
 
         [ObservableProperty]
-        [NotifyPropertyChangedFor(nameof(UsePikaFlex), nameof(UseErosMax), nameof(CanvasSummary), nameof(BeatWorkflowDescription), nameof(CharacterSheetsHint))]
+        [NotifyPropertyChangedFor(nameof(UsePikaFlex), nameof(UseErosMax), nameof(UseLongForm), nameof(UseTwoPassCanvas), nameof(UsesHandoff),
+                                  nameof(CanvasSummary), nameof(BeatWorkflowDescription), nameof(CharacterSheetsHint), nameof(ReadyHint))]
         private string _beatWorkflow = ErosMaxWorkflow;
+
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(CanvasSummary))]
+        private double _longFormMegapixels = 0.5;
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(CanvasSummary))]
@@ -59,7 +76,13 @@ namespace FlipPix.UI.ViewModels.Video
         [ObservableProperty] private double _rediverseStrength = 1.0;
 
         public bool UsePikaFlex => OffersBeatWorkflows && BeatWorkflow == PikaFlexGraph.Key;
+        /// <summary>The ErosMax model and LoRA pickers apply (ErosMax 2-Pass and Long Form).</summary>
         public bool UseErosMax => !UsePikaFlex;
+        public bool UseLongForm => OffersBeatWorkflows && BeatWorkflow == LongFormGraph.Key;
+        /// <summary>The first-pass / refined canvas and first-pass steps (ErosMax 2-Pass only).</summary>
+        public bool UseTwoPassCanvas => UseErosMax && !UseLongForm;
+        /// <summary>Beats start on the last frame of the one before (not Long Form, which carries the latent on).</summary>
+        public bool UsesHandoff => !UseLongForm;
 
         public string BeatWorkflowDescription =>
             BeatWorkflowOptions.FirstOrDefault(o => o.Key == BeatWorkflow)?.Description ?? string.Empty;
@@ -72,6 +95,7 @@ namespace FlipPix.UI.ViewModels.Video
 #pragma warning disable MVVMTK0034
             _beatWorkflow = BeatWorkflowOptions.Any(o => o.Key == s.BeatWorkflow) ? s.BeatWorkflow : ErosMaxWorkflow;
             _pikaMegapixels = PikaSizes.Any(o => o.Value == s.PikaMegapixels) ? s.PikaMegapixels : 0.6;
+            _longFormMegapixels = LongFormSizes.Any(o => o.Value == s.LongFormMegapixels) ? s.LongFormMegapixels : 0.5;
             _pikaModel = s.PikaModel ?? string.Empty;
             _pikaLora = s.PikaLora ?? string.Empty;
             _pikaLoraStrength = Math.Clamp(s.PikaLoraStrength, 0, 2);
@@ -92,6 +116,7 @@ namespace FlipPix.UI.ViewModels.Video
         {
             s.BeatWorkflow = BeatWorkflow;
             s.PikaMegapixels = PikaMegapixels;
+            s.LongFormMegapixels = LongFormMegapixels;
             s.PikaModel = PikaModel;
             s.PikaLora = PikaLora;
             s.PikaLoraStrength = PikaLoraStrength;
@@ -103,6 +128,7 @@ namespace FlipPix.UI.ViewModels.Video
         {
             r.BeatWorkflow = BeatWorkflow;
             r.PikaMegapixels = PikaMegapixels;
+            r.LongFormMegapixels = LongFormMegapixels;
             r.PikaModel = PikaFiles().DiffusionModel;
             r.PikaLora = PikaFiles().PikaLora;
             r.PikaLoraStrength = PikaLoraStrength;
@@ -117,6 +143,7 @@ namespace FlipPix.UI.ViewModels.Video
             BeatWorkflow = BeatWorkflowOptions.Any(o => o.Key == r.BeatWorkflow) ? r.BeatWorkflow : ErosMaxWorkflow;
             if (string.IsNullOrWhiteSpace(r.BeatWorkflow)) return;
             if (PikaSizes.Any(o => o.Value == r.PikaMegapixels)) PikaMegapixels = r.PikaMegapixels;
+            if (LongFormSizes.Any(o => o.Value == r.LongFormMegapixels)) LongFormMegapixels = r.LongFormMegapixels;
             if (!string.IsNullOrWhiteSpace(r.PikaModel)) PikaModel = r.PikaModel;
             if (!string.IsNullOrWhiteSpace(r.PikaLora)) PikaLora = r.PikaLora;
             if (!string.IsNullOrWhiteSpace(r.RediverseLora)) RediverseLora = r.RediverseLora;
@@ -131,6 +158,9 @@ namespace FlipPix.UI.ViewModels.Video
             AddLog(UsePikaFlex
                 ? $"Workflow: PikaFlex + ReDiverse — {Path.GetFileName(PikaFiles().DiffusionModel)}, 6-step LCM at {PikaMegapixels:0.#} MP. " +
                   "⚙ Model now shows the PikaFlex model and LoRAs (extra LoRAs still apply); the opening image and character sheets are not sent as references."
+                : UseLongForm
+                ? $"Workflow: Long Form — the story renders as one Context-Loop chain at {LongFormMegapixels:0.#} MP, {LongFormGraph.Steps} steps, " +
+                  $"with {Path.GetFileName(DiffusionModel)}. The hand-off options (first-frame anchor, face restore, face refine) do not apply."
                 : "Workflow: ErosMax 2-Pass.");
             if (Beats.Any(b => b.State != FflfBeatState.Pending))
                 AddLog("Takes already rendered stay; ↻ Redo or Start over to render them with this workflow.");
@@ -180,6 +210,14 @@ namespace FlipPix.UI.ViewModels.Video
 
         private System.Text.Json.Nodes.JsonObject BuildPikaFlexGraph(FflfBeatRender request) =>
             PikaFlexGraph.Build(request, PikaFiles(), request.PreviewOnly ? PikaDraftMegapixels : PikaMegapixels);
+
+        private string LongFormCanvasSummary()
+        {
+            var mp = PreviewOnly ? LongFormGraph.DraftMegapixels : LongFormMegapixels;
+            var (w, h) = H3Canvas.Resolve(ResolvedAspectRatio, mp, LongFormGraph.ResolutionMultiple);
+            return $"{ResolvedAspectRatio} · Long Form chain at {w}×{h}{(PreviewOnly ? " (draft)" : string.Empty)} · " +
+                   $"{(PreviewOnly ? LongFormGraph.DraftSteps : LongFormGraph.Steps)} steps · colour anchored to beat 1";
+        }
 
         private string PikaCanvasSummary()
         {

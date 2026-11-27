@@ -250,10 +250,15 @@ namespace FlipPix.UI.Services
         /// <param name="sheets">The character sheets sent after the start frame (and the identity image), in picture
         /// order, by label ("A (the person on the left)").</param>
         /// <param name="spokenLine">The words spoken in this beat when its soundtrack is locked to them, else null.</param>
+        /// <param name="continuesChain">Long Form (<see cref="LongFormGraph"/>), beats 2+: the shot carries on from the
+        /// previous beat's own frames, and <c>&lt;Picture 1&gt;</c> is the opening image as a reference only — never a
+        /// start frame or a pose to return to.</param>
         public static string ComposeH3Prompt(string beat, double seconds, string? style, string? setting,
                                              IReadOnlyList<H3CastMember> cast, bool hasIdentityImage, bool isFirstBeat,
-                                             IReadOnlyList<string>? sheets = null, string? spokenLine = null)
+                                             IReadOnlyList<string>? sheets = null, string? spokenLine = null,
+                                             bool continuesChain = false)
         {
+            continuesChain &= !isFirstBeat;
             var (action, sound) = SplitSound(beat);
             TakeSecondsTag(ref action);   // "[9 s]" is the beat's length, already the clip's duration — not words for H3
             style = Regex.Replace(RuntimeSentence.Replace(style ?? string.Empty, " "), @"[ \t]{2,}", " ").Trim();
@@ -302,7 +307,11 @@ namespace FlipPix.UI.Services
 
             var sb = new StringBuilder();
             sb.AppendLine("subject_definitions:");
-            sb.AppendLine(isFirstBeat
+            sb.AppendLine(continuesChain
+                ? "<Picture 1> is the opening frame of the story, given only as the reference for the people, their clothing, the place, " +
+                  "the light and the colour palette. [Shot 1] continues straight on from the moment before it, not from the pose in " +
+                  "<Picture 1>: never jump back to that pose or framing."
+                : isFirstBeat
                 ? "<Picture 1> is the first frame of [Shot 1]: the video starts exactly on it."
                 : "<Picture 1> is the first frame of [Shot 1], the last moment of the shot before it: the video starts exactly on it and the action carries straight on.");
             foreach (var s in subjects) sb.AppendLine(s.Definition);
@@ -310,13 +319,19 @@ namespace FlipPix.UI.Services
 
             var people = cast.Count > 0 ? JoinAnd(subjects.Where(s => s.Letter.Length > 0).Select(s => s.Label)) : "<Subject 1>";
             sb.AppendLine("summary:");
-            sb.AppendLine($"[keyframe completion + reference generation] A single continuous {seconds:0.#}-second shot that starts exactly on " +
-                          $"<Picture 1> and carries on from it, with {people}{(place != null ? $" in {place}" : string.Empty)}: {LowerFirst(FirstSentence(action))}");
+            sb.AppendLine(continuesChain
+                ? $"[continuation + reference generation] A single continuous {seconds:0.#}-second shot that carries straight on from the " +
+                  $"moment before it, with {people}{(place != null ? $" in {place}" : string.Empty)}: {LowerFirst(FirstSentence(action))}"
+                : $"[keyframe completion + reference generation] A single continuous {seconds:0.#}-second shot that starts exactly on " +
+                  $"<Picture 1> and carries on from it, with {people}{(place != null ? $" in {place}" : string.Empty)}: {LowerFirst(FirstSentence(action))}");
             sb.AppendLine();
 
             sb.AppendLine("retention_analysis:");
-            sb.AppendLine("<Picture 1> ([Shot 1] first frame): fully_preserved - the video begins on this exact frame: the people, their poses, " +
-                          "the place, the light, the framing and the visual style are taken from it.");
+            sb.AppendLine(continuesChain
+                ? "<Picture 1> (reference): reference - the same faces, hair, build, skin, clothing, place, light and colour palette as " +
+                  "<Picture 1>; do not copy its poses or framing."
+                : "<Picture 1> ([Shot 1] first frame): fully_preserved - the video begins on this exact frame: the people, their poses, " +
+                  "the place, the light, the framing and the visual style are taken from it.");
             foreach (var s in subjects) sb.AppendLine($"{s.Label} (appears in [Shot 1]): fully_preserved - {s.Keep}.");
             sb.AppendLine();
 
@@ -325,7 +340,8 @@ namespace FlipPix.UI.Services
             var shot = new StringBuilder("[Shot 1] ");
             if (cast.Count > 0)
                 shot.Append(string.Join(" ", subjects.Where(s => s.Letter.Length > 0).Select(s => $"{s.Letter} is {s.Label}."))).Append(' ');
-            shot.Append("The shot opens on <Picture 1>. ").Append(Clause(action)).Append('.');
+            shot.Append(continuesChain ? "The shot carries straight on from the moment before. " : "The shot opens on <Picture 1>. ")
+                .Append(Clause(action)).Append('.');
             if (spokenLine != null)
                 shot.Append($" The speaker (S1) says, <d>{LanguageTag(spokenLine)}{spokenLine.Trim('"', '“', '”')}</d>")
                     .Append(" — the mouth, lips, jaw and face move in exact sync with the voice.");

@@ -220,6 +220,11 @@ namespace FlipPix.UI.ViewModels.Video
             var spoken = beat.HasDialogue && !string.IsNullOrWhiteSpace(beat.LineText) ? beat.LineText : null;
             // PikaFlex sends only the start frame: no <Picture 2> or sheets to point at.
             var pika = UsePikaFlex;
+            // Long Form: <Picture 1> is the opening image on every beat (no separate identity picture), the sheets after it.
+            if (UseLongForm)
+                return FflfGraph.ComposeH3Prompt(beat.Text, SecondsFor(beat), StyleText, SettingText, FflfGraph.H3Cast(people, WardrobeText),
+                                                 hasIdentityImage: false, index == 0, _runSheets.Select(r => r.Label).ToList(), spokenLine: null,
+                                                 continuesChain: true);
             return FflfGraph.ComposeH3Prompt(beat.Text, SecondsFor(beat), StyleText, SettingText, FflfGraph.H3Cast(people, WardrobeText),
                                              hasIdentityImage && !pika, index == 0, pika ? null : _runSheets.Select(r => r.Label).ToList(), spoken);
         }
@@ -639,6 +644,7 @@ namespace FlipPix.UI.ViewModels.Video
             get
             {
                 if (UsePikaFlex) return PikaCanvasSummary();
+                if (UseLongForm) return LongFormCanvasSummary();
                 var aspect = ResolvedAspectRatio;
                 var (w1, h1) = H3Canvas.Resolve(aspect, FirstPassMegapixels, MiniMaxI2VViewModel.TwoPassResolutionMultiple);
                 if (PreviewOnly) return $"{aspect} · draft at {w1}×{h1} (first pass only, no RTX)";
@@ -769,7 +775,7 @@ namespace FlipPix.UI.ViewModels.Video
             nameof(SelectedYakEngine), nameof(SelectedYakVoice),
             nameof(EngineStoryText), nameof(EngineDirection), nameof(EngineBeatCount), nameof(EngineWriter), nameof(EngineWithDialogue), nameof(EngineDynamicBeatTime),
             nameof(CharacterSheets), nameof(SheetEngine),
-            nameof(BeatWorkflow), nameof(PikaMegapixels),
+            nameof(BeatWorkflow), nameof(PikaMegapixels), nameof(LongFormMegapixels),
             nameof(PikaModel), nameof(PikaLora), nameof(PikaLoraStrength), nameof(RediverseLora), nameof(RediverseStrength),
         };
 
@@ -939,6 +945,8 @@ namespace FlipPix.UI.ViewModels.Video
                 if (!HasInitialImage) return "Pick the image the story opens on.";
                 if (Beats.Count == 0) return "Paste the story beats.";
                 if (FirstUnfinished() < 0) return HasJoined ? "Every beat is rendered and joined." : "Every beat is rendered.";
+                if (UseLongForm)
+                    return "Long Form: the story renders as one chain on the server — beats land in the strip as they finish, then the film.";
                 return PreviewOnly ? "Draft mode: first pass only — quick, to check the action." : "Each beat: first pass, refine, RTX, encode.";
             }
         }
@@ -952,7 +960,8 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>A beat can render once the one before it has a last frame (or it is the first).</summary>
         private bool CanStartAt(int index) =>
-            index == 0 ? HasInitialImage : index > 0 && index < Beats.Count && Beats[index - 1].IsDone && Beats[index - 1].HasLastFrame;
+            index == 0 ? HasInitialImage
+            : index > 0 && index < Beats.Count && Beats[index - 1].IsDone && (UseLongForm ? Beats[index - 1].HasVideo : Beats[index - 1].HasLastFrame);
 
         private bool CanGenerate() => !IsProcessing && !IsEngineWriting && HasInitialImage && Beats.Count > 0 && FirstUnfinished() is var i && i >= 0 && CanStartAt(i);
 
@@ -970,6 +979,8 @@ namespace FlipPix.UI.ViewModels.Video
         {
             if (beat == null) return false;
             var index = Beats.IndexOf(beat);
+            // A Long Form chain is one prompt on the server: a beat is redone once it stops (⏹, then ↻).
+            if (UseLongForm && IsProcessing) return false;
             return CanStartAt(index) && (!IsProcessing || beat.IsDone);
         }
 
@@ -1049,6 +1060,14 @@ namespace FlipPix.UI.ViewModels.Video
                            ? $"{string.Join(" / ", beats.Skip(start).Select(b => $"{SecondsFor(b):0.#}"))} s"
                            : $"{BeatSeconds:0.#} s each") +
                        $", {CanvasSummary}. {DescribeModel()}.");
+
+                if (UseLongForm)
+                {
+                    await RenderLongFormAsync(start, beats, initial, aspect, ct);
+                    ProcessingProgress = 100;
+                    ProcessingStatus = HasJoined ? "Done — the story is rendered as one chain." : "Done — every beat rendered.";
+                    return;
+                }
 
                 var i = start;
                 while (true)
@@ -1341,7 +1360,9 @@ namespace FlipPix.UI.ViewModels.Video
             var folder = Path.GetDirectoryName(clips[0]) ?? WorkRoot;
             var output = Path.Combine(folder, $"{(_runFolder.Length > 0 ? _runFolder : Profile.Key)}_joined_{DateTime.Now:HHmmss}.mp4");
             var withAudio = clips.All(HasAudioStream);
-            var args = FflfGraph.JoinArguments(clips, output, dropFirstFrame: LockFirstFrame, withAudio);
+            // Long Form beats do not repeat the frame before them: the carried prefix is trimmed on the server.
+            var dropFirst = LockFirstFrame && !UseLongForm;
+            var args = FflfGraph.JoinArguments(clips, output, dropFirstFrame: dropFirst, withAudio);
             await Task.Run(() => RunFFmpeg(ffmpeg, args), ct);
             if (!File.Exists(output)) throw new InvalidOperationException("FFmpeg did not write the joined video.");
 
@@ -1352,7 +1373,7 @@ namespace FlipPix.UI.ViewModels.Video
             Show(output);
             ScheduleStorySave();
             try { await LocalCopyService.CopyVideoAsync(output); } catch { /* the joined file is on the share either way */ }
-            AddLog($"Joined {clips.Count} beats{(LockFirstFrame ? " (repeated join frames dropped)" : string.Empty)}: {output}");
+            AddLog($"Joined {clips.Count} beats{(dropFirst ? " (repeated join frames dropped)" : string.Empty)}: {output}");
         }
 
         // ── Helpers ──────────────────────────────────────────────────────────────────────────────

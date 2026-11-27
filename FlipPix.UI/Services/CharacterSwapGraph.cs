@@ -489,7 +489,10 @@ namespace FlipPix.UI.Services
         /// output node that directly consumes a loop-body node into each next clip, so it renders once per
         /// clip. It saves to temp (save_output false): nothing is added to the output folder.</para>
         /// </summary>
-        public static void AddClipPreview(JsonObject graph)
+        public static void AddClipPreview(JsonObject graph) => AddClipPreview(graph, ClipPreviewPrefix);
+
+        /// <param name="prefix">The temp filename prefix the page recognises its previews by (⛓ Long Form uses its own).</param>
+        public static void AddClipPreview(JsonObject graph, string prefix)
         {
             var trim = graph.FirstOrDefault(kv => kv.Value?["class_type"]?.GetValue<string>() == "MiniMaxH3LoopTrim").Key;
             if (trim == null) return;
@@ -502,7 +505,7 @@ namespace FlipPix.UI.Services
                     ["audio"] = Link(trim, 1),
                     ["frame_rate"] = 24,
                     ["loop_count"] = 0,
-                    ["filename_prefix"] = ClipPreviewPrefix,
+                    ["filename_prefix"] = prefix,
                     ["format"] = "video/h264-mp4",
                     ["pix_fmt"] = "yuv420p",
                     ["crf"] = 23,

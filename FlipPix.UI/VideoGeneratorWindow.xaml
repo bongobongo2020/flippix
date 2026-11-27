@@ -6074,31 +6074,36 @@
                                                         <RowDefinition Height="Auto"/>
                                                         <RowDefinition Height="Auto"/>
                                                         <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
                                                     </Grid.RowDefinitions>
                                                     <TextBlock Text="Workflow" Style="{StaticResource FflfRowLabel}"/>
                                                     <ComboBox Grid.Column="1" ItemsSource="{Binding BeatWorkflowOptions}" DisplayMemberPath="Label" SelectedValuePath="Key"
                                                               SelectedValue="{Binding BeatWorkflow}" Height="26" FontSize="11" Margin="0,0,0,2"
-                                                              ToolTip="The graph every beat renders through. ErosMax 2-Pass: the tab&apos;s model, LoRA and references, refined and upscaled. PikaFlex + ReDiverse: the fl2va model with the PikaFlex LoRA, ReDiverse on the first of six LCM steps — fast, one pass, starts on the first frame with no reference pictures."/>
+                                                              ToolTip="The graph every beat renders through. ErosMax 2-Pass: the tab&apos;s model, LoRA and references, refined and upscaled. PikaFlex + ReDiverse: the fl2va model with the PikaFlex LoRA, ReDiverse on the first of six LCM steps — fast, one pass, starts on the first frame with no reference pictures. Long Form: the whole story as one Context-Loop chain — each beat carries on from the last beat&apos;s own latent and colour is held to beat 1, so faces and colour stay put past 60 s."/>
                                                     <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding BeatWorkflowDescription}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,0,0,6"/>
                                                     <TextBlock Grid.Row="2" Text="Aspect" Style="{StaticResource FflfRowLabel}"/>
                                                     <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding AspectRatioOptions}" SelectedItem="{Binding SelectedAspectRatio}" Height="26" FontSize="11" Margin="0,0,0,6"/>
-                                                    <TextBlock Grid.Row="3" Text="First pass" Style="{StaticResource FflfRowLabel}" Visibility="{Binding UseErosMax, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                    <TextBlock Grid.Row="3" Text="First pass" Style="{StaticResource FflfRowLabel}" Visibility="{Binding UseTwoPassCanvas, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                                     <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{Binding FirstPassSizes}" DisplayMemberPath="Label" SelectedValuePath="Value"
-                                                              SelectedValue="{Binding FirstPassMegapixels}" Height="26" FontSize="11" Margin="0,0,0,6" Visibility="{Binding UseErosMax, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                                    <TextBlock Grid.Row="4" Text="Refined" Style="{StaticResource FflfRowLabel}" Visibility="{Binding UseErosMax, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                              SelectedValue="{Binding FirstPassMegapixels}" Height="26" FontSize="11" Margin="0,0,0,6" Visibility="{Binding UseTwoPassCanvas, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                    <TextBlock Grid.Row="4" Text="Refined" Style="{StaticResource FflfRowLabel}" Visibility="{Binding UseTwoPassCanvas, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                                     <ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{Binding FinalSizes}" DisplayMemberPath="Label" SelectedValuePath="Value"
-                                                              SelectedValue="{Binding FinalMegapixels}" Height="26" FontSize="11" Visibility="{Binding UseErosMax, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                              SelectedValue="{Binding FinalMegapixels}" Height="26" FontSize="11" Visibility="{Binding UseTwoPassCanvas, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                                     <TextBlock Grid.Row="5" Text="Canvas" Style="{StaticResource FflfRowLabel}" Visibility="{Binding UsePikaFlex, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                                     <ComboBox Grid.Row="5" Grid.Column="1" ItemsSource="{Binding PikaSizes}" DisplayMemberPath="Label" SelectedValuePath="Value"
                                                               SelectedValue="{Binding PikaMegapixels}" Height="26" FontSize="11" Visibility="{Binding UsePikaFlex, Converter={StaticResource BooleanToVisibilityConverter}}"
                                                               ToolTip="The one canvas PikaFlex renders at (ResolutionSelector, multiple of 32). A ⚡ draft renders at 0.3 MP."/>
+                                                    <TextBlock Grid.Row="6" Text="Canvas" Style="{StaticResource FflfRowLabel}" Visibility="{Binding UseLongForm, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                    <ComboBox Grid.Row="6" Grid.Column="1" ItemsSource="{Binding LongFormSizes}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                              SelectedValue="{Binding LongFormMegapixels}" Height="26" FontSize="11" Visibility="{Binding UseLongForm, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                              ToolTip="The one canvas the Long Form chain renders every beat at (multiple of 32). Tested at 0.5 MP (960×544 at 16:9) on a 24 GB card, about 2 minutes a beat; larger canvases cost VRAM and time. A ⚡ draft renders at 0.3 MP, 12 steps."/>
                                                 </Grid>
                                                 <TextBlock Text="{Binding CanvasSummary}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,5,0,0"/>
                                                 <CheckBox IsChecked="{Binding PreviewOnly}" Margin="0,8,0,0" FontSize="11" Content="⚡ Draft — first pass only"
                                                           ToolTip="Skip the refine, RTX and grain: a quick run of the whole story to check the action. Untick and Start over for the final."/>
-                                                <CheckBox IsChecked="{Binding LockFirstFrame}" Margin="0,5,0,0" FontSize="11" Content="📌 Anchor each beat's first frame"
+                                                <CheckBox IsChecked="{Binding LockFirstFrame}" Margin="0,5,0,0" FontSize="11" Visibility="{Binding UsesHandoff, Converter={StaticResource BooleanToVisibilityConverter}}" Content="📌 Anchor each beat's first frame"
                                                           ToolTip="On: the frame a beat starts on is pinned at frame 0 (MiniMaxH3AddGuide) as well as sent as &lt;Picture 1&gt;, so the beats join without a jump. Off: it is a reference only."/>
-                                                <CheckBox IsChecked="{Binding KeepInitialReference}" Margin="0,5,0,0" FontSize="11" Content="🧍 Keep the opening image as the character reference"
+                                                <CheckBox IsChecked="{Binding KeepInitialReference}" Margin="0,5,0,0" FontSize="11" Visibility="{Binding UsesHandoff, Converter={StaticResource BooleanToVisibilityConverter}}" Content="🧍 Keep the opening image as the character reference"
                                                           ToolTip="From beat 2 on the opening image is also sent, as &lt;Picture 2&gt;, so faces and clothes do not drift beat after beat."/>
                                                 <CheckBox IsChecked="{Binding CharacterSheets}" Margin="0,5,0,0" FontSize="11" Content="🧾 Character sheets for each person in the opening image"
                                                           ToolTip="Before beat 1, every person in the opening image (up to three, found by the vision model) gets a character sheet — front, three-quarter, side, back and face — made from the opening image by the image-edit model picked below. The sheets go with every beat, each named by its letter (A, B, C, the same letters the ✨ story engine writes the beats with), so people keep their own face and clothes when they turn, move or are half hidden, and never swap looks. Made once per opening image and model. Needs a vision model on llama-server."/>
@@ -6109,15 +6114,15 @@
                                                 <TextBlock Text="{Binding CharacterSheetsHint}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="22,2,0,0"/>
                                                 <CheckBox IsChecked="{Binding MaxFidelityReferences}" Margin="0,5,0,0" FontSize="11" Content="🔍 Full-size references (ref_image_size: max)"
                                                           ToolTip="Send the pictures at full size instead of scaled to the small first-pass canvas. The biggest single likeness gain in the H3 bake-off (median ArcFace 0.68 vs 0.50)."/>
-                                                <CheckBox IsChecked="{Binding RepairHandoffFace}" Margin="0,5,0,0" FontSize="11" Content="🪞 Restore the opening face on each handoff frame"
+                                                <CheckBox IsChecked="{Binding RepairHandoffFace}" Margin="0,5,0,0" FontSize="11" Visibility="{Binding UsesHandoff, Converter={StaticResource BooleanToVisibilityConverter}}" Content="🪞 Restore the opening face on each handoff frame"
                                                           ToolTip="Before a beat starts on the last frame of the one before, that frame's face is cropped, redrawn against the opening image's face (Qwen Edit 2511) and pasted back through a SAM mask — nothing else in the frame changes. Without it each beat inherits the last beat's drift, and by beat 10 it is a different person. About 15 s per beat."/>
-                                                <ComboBox ItemsSource="{Binding FaceRepairStrengths}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                <ComboBox ItemsSource="{Binding FaceRepairStrengths}" Visibility="{Binding UsesHandoff, Converter={StaticResource BooleanToVisibilityConverter}}" DisplayMemberPath="Label" SelectedValuePath="Value"
                                                           SelectedValue="{Binding FaceRepairStrength}" IsEnabled="{Binding RepairHandoffFace}"
                                                           Height="24" FontSize="10.5" Margin="22,4,0,0"
                                                           ToolTip="Full: the strongest likeness (ArcFace 0.49 on a beat that had drifted to 0.30). Gentle: a little less likeness (0.42), the expression changes less."/>
-                                                <CheckBox IsChecked="{Binding FaceRefine}" Margin="0,5,0,0" FontSize="11" Content="✨ Face refine every beat (H3 FaceRefine Plus)"
+                                                <CheckBox IsChecked="{Binding FaceRefine}" Margin="0,5,0,0" FontSize="11" Visibility="{Binding UsesHandoff, Converter={StaticResource BooleanToVisibilityConverter}}" Content="✨ Face refine every beat (H3 FaceRefine Plus)"
                                                           ToolTip="After each beat renders, its face is tracked, cropped, redrawn by H3 toward the opening image and stitched back (Stitch Plus, Flow Lock against wobble, Tone Match) — the take's own audio is locked so the lips stay in sync. Runs before the next beat starts, so the refined face carries on. Not on drafts. To refine just one beat, use ✨ on its card. Needs the ComfyUI-H3-FaceRefine and ComfyUI-H3-FaceRefine-Plus node packs."/>
-                                                <ComboBox ItemsSource="{Binding FaceRefineStrengths}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                <ComboBox ItemsSource="{Binding FaceRefineStrengths}" Visibility="{Binding UsesHandoff, Converter={StaticResource BooleanToVisibilityConverter}}" DisplayMemberPath="Label" SelectedValuePath="Value"
                                                           SelectedValue="{Binding FaceRefineStrength}"
                                                           Height="24" FontSize="10.5" Margin="22,4,0,0"
                                                           ToolTip="Refine strength (denoise of the face crops), for every beat and for ✨ on a beat card. 0.30 redraws small faces toward the opening image; 0.15 keeps more of the face H3 drew."/>
@@ -6255,7 +6260,7 @@
                                                             ToolTip="Add another LoRA to the stack. Each row has its own strength; untick to leave it out without losing it."/>
                                                     <TextBlock Text="{Binding ExtraLoraSummary}" FontSize="10" Foreground="{DynamicResource TabAccentBrush}" Margin="8,0,0,0" VerticalAlignment="Center"/>
                                                 </StackPanel>
-                                                <Grid Margin="0,6,0,0" Visibility="{Binding UseErosMax, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <Grid Margin="0,6,0,0" Visibility="{Binding UseTwoPassCanvas, Converter={StaticResource BooleanToVisibilityConverter}}">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="110"/>
                                                         <ColumnDefinition Width="*"/>
