@@ -5,8 +5,9 @@ Status: prototype tested on ubuntu-server, 2026-11-27. Workflow: `workflow/video
 
 ## Why FFLF drifts
 
-1. **The hand-off frame is post-processed.** `fflf_last` reads `RTXVideoSuperResolution` (ULTRA, deblur MEDIUM, 1.2×),
-   not the VAE decode. Each beat starts on a sharpened, re-toned frame; over 15 beats that compounds.
+1. **The hand-off frame was post-processed.** `fflf_last` read `RTXVideoSuperResolution` (ULTRA, deblur MEDIUM, 1.2×),
+   not the VAE decode, so each beat started on a sharpened, re-toned frame; over 15 beats that compounded. *Fixed in
+   `6f5410c`: `fflf_last` now reads the VAE decode (`151:25`). The baseline numbers below predate the fix.*
 2. **Pixel round trip every beat.** decode → upscale → PNG → re-encode → frame-0 guide. Each cycle adds texture and
    palette error (the community measures roughly 1.1–1.3× fine texture per join).
 3. **H3 pins visual conditions near-clean (`visual_cond_noise_aug` 0.999) from the noisiest step.** A generated frame
@@ -56,7 +57,8 @@ Against the opening image itself, B scores 0.45 at 30–60 s (baseline ≈ 0.08)
 
 ## Next
 
-1. Quick fix in today's FFLF: take `fflf_last` from the VAE decode (`151:25`), not RTX VSR.
+1. ~~Quick fix in today's FFLF: take `fflf_last` from the VAE decode (`151:25`), not RTX VSR.~~ Done in `6f5410c`
+   (`FflfGraph.AddLastFrameSave`); PikaFlex and Martial already saved their last frame before any upscale.
 2. FlipPix "Long Form" mode on the FFLF tab: send the story as one Context-Loop plan; per-beat Redo = `scene_range`
    resume from the saved checkpoint; read progress from `output/h3_chains/<run>/segments`.
 3. Optional re-anchor: every ~20 s pin an authored keyframe (character-sheet engine) as the beat's end frame, so

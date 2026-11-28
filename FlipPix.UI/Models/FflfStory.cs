@@ -37,6 +37,11 @@ namespace FlipPix.UI.Models
         public bool JoinWhenDone { get; set; } = true;
         public long BaseSeed { get; set; }
 
+        /// <summary>The workflow the beats were rendered with (ErosMax 2-Pass, PikaFlex, Long Form). Empty on stories
+        /// saved before it was kept: they open on the page's own workflow.</summary>
+        public string BeatWorkflow { get; set; } = string.Empty;
+        public double LongFormMegapixels { get; set; }
+
         /// <summary>The output folder the takes went to (video/fflf/&lt;RunFolder&gt;).</summary>
         public string RunFolder { get; set; } = string.Empty;
         public string JoinedVideoPath { get; set; } = string.Empty;

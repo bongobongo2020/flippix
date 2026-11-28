@@ -188,6 +188,8 @@ namespace FlipPix.UI.ViewModels.Video
             FaceRepairStrength = FaceRepairStrength,
             JoinWhenDone = JoinWhenDone,
             BaseSeed = BaseSeed,
+            BeatWorkflow = OffersBeatWorkflows ? BeatWorkflow : string.Empty,
+            LongFormMegapixels = LongFormMegapixels,
             RunFolder = _runFolder,
             JoinedVideoPath = JoinedVideoPath,
             Beats = Beats.Select(b => new FflfStoryBeat
@@ -291,6 +293,13 @@ namespace FlipPix.UI.ViewModels.Video
                 BaseSeed = s.BaseSeed > 0 ? s.BaseSeed : NewSeed();
                 _runFolder = s.RunFolder ?? string.Empty;
                 _uploadedInitial = null;
+                // The story opens on the workflow its takes were rendered with — a Long Form story carries on
+                // from the server's checkpoints, a 2-Pass one from each take's last frame.
+                if (OffersBeatWorkflows && BeatWorkflowOptions.Any(o => o.Key == s.BeatWorkflow))
+                {
+                    BeatWorkflow = s.BeatWorkflow;
+                    if (LongFormSizes.Any(o => o.Value == s.LongFormMegapixels)) LongFormMegapixels = s.LongFormMegapixels;
+                }
                 ApplyTabStory(s);
 
                 // The beats, then each one's take for as long as the chain is unbroken: a beat started on the
@@ -315,7 +324,9 @@ namespace FlipPix.UI.ViewModels.Video
                     {
                         var saved = s.Beats[i];
                         beat.Seed = saved.Seed;
-                        chainIntact &= saved.Done && File.Exists(saved.VideoPath) && File.Exists(saved.LastFramePath)
+                        // A Long Form take has no last frame: the chain hands the latent on through the server.
+                        chainIntact &= saved.Done && File.Exists(saved.VideoPath)
+                                       && (UseLongForm || File.Exists(saved.LastFramePath))
                                        && (saved.RenderedDialogue ?? string.Empty) == beat.DialoguePath;
                         if (chainIntact)
                         {
