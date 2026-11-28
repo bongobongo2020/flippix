@@ -704,6 +704,8 @@ public class H3FflfSettings
     public double PikaMegapixels { get; set; } = 0.6;
     /// <summary>The Long Form chain's single canvas, in megapixels (tested at 0.5: 960×544).</summary>
     public double LongFormMegapixels { get; set; } = 0.5;
+    /// <summary>Sampler steps per Long Form beat (validated 20); 0 = the default.</summary>
+    public int LongFormSteps { get; set; } = 20;
     /// <summary>PikaFlex's own files; empty = the authored file, found on the server under whatever name it has.</summary>
     public string PikaModel { get; set; } = string.Empty;
     public string PikaLora { get; set; } = string.Empty;
@@ -787,6 +789,8 @@ public class FflfRecipe
     public string BeatWorkflow { get; set; } = string.Empty;
     public double PikaMegapixels { get; set; } = 0.6;
     public double LongFormMegapixels { get; set; } = 0.5;
+    /// <summary>0 in recipes saved before the dial existed: the page's steps stay.</summary>
+    public int LongFormSteps { get; set; }
     public string PikaModel { get; set; } = string.Empty;
     public string PikaLora { get; set; } = string.Empty;
     public double PikaLoraStrength { get; set; } = 1.0;

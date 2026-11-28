@@ -41,6 +41,7 @@ namespace FlipPix.UI.Models
         /// saved before it was kept: they open on the page's own workflow.</summary>
         public string BeatWorkflow { get; set; } = string.Empty;
         public double LongFormMegapixels { get; set; }
+        public int LongFormSteps { get; set; }
 
         /// <summary>The output folder the takes went to (video/fflf/&lt;RunFolder&gt;).</summary>
         public string RunFolder { get; set; } = string.Empty;

@@ -775,7 +775,7 @@ namespace FlipPix.UI.ViewModels.Video
             nameof(SelectedYakEngine), nameof(SelectedYakVoice),
             nameof(EngineStoryText), nameof(EngineDirection), nameof(EngineBeatCount), nameof(EngineWriter), nameof(EngineWithDialogue), nameof(EngineDynamicBeatTime),
             nameof(CharacterSheets), nameof(SheetEngine),
-            nameof(BeatWorkflow), nameof(PikaMegapixels), nameof(LongFormMegapixels),
+            nameof(BeatWorkflow), nameof(PikaMegapixels), nameof(LongFormMegapixels), nameof(LongFormSteps),
             nameof(PikaModel), nameof(PikaLora), nameof(PikaLoraStrength), nameof(RediverseLora), nameof(RediverseStrength),
         };
 

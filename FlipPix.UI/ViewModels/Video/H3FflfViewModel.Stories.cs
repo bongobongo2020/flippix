@@ -190,6 +190,7 @@ namespace FlipPix.UI.ViewModels.Video
             BaseSeed = BaseSeed,
             BeatWorkflow = OffersBeatWorkflows ? BeatWorkflow : string.Empty,
             LongFormMegapixels = LongFormMegapixels,
+            LongFormSteps = LongFormSteps,
             RunFolder = _runFolder,
             JoinedVideoPath = JoinedVideoPath,
             Beats = Beats.Select(b => new FflfStoryBeat
@@ -299,6 +300,7 @@ namespace FlipPix.UI.ViewModels.Video
                 {
                     BeatWorkflow = s.BeatWorkflow;
                     if (LongFormSizes.Any(o => o.Value == s.LongFormMegapixels)) LongFormMegapixels = s.LongFormMegapixels;
+                    if (s.LongFormSteps > 0) LongFormSteps = ClampLongFormSteps(s.LongFormSteps);
                 }
                 ApplyTabStory(s);
 

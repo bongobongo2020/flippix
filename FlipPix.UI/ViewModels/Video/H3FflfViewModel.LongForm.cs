@@ -65,7 +65,7 @@ namespace FlipPix.UI.ViewModels.Video
                 StartClip = start + 1,
                 AspectRatio = aspect,
                 Megapixels = PreviewOnly ? LongFormGraph.DraftMegapixels : LongFormMegapixels,
-                Steps = PreviewOnly ? LongFormGraph.DraftSteps : LongFormGraph.Steps,
+                Steps = PreviewOnly ? LongFormGraph.DraftSteps : LongFormSteps,
                 DiffusionModel = DiffusionModel,
                 TextEncoder = TextEncoder,
                 Loras = loras,
