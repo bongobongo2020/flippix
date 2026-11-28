@@ -9,6 +9,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using WpfApp = System.Windows.Application;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.Input;
 using FlipPix.ComfyUI.Services;
@@ -34,6 +35,14 @@ namespace FlipPix.UI.ViewModels
         // run. Qwen Image 2.1 is native 2K, so 2 MP is the template's budget.
         private const double CanvasMegapixels = 2.0;
         private const int CanvasMultiple = 32;
+
+        // Upload clamp. A full-size source (e.g. a 20MP / 25MB H3 render or phone photo) fed into
+        // Qwen-Image-Edit at the encoder's native size once staged a ~78GB attention KV-cache and
+        // OOM'd the ComfyUI box. The workflow JSON now caps TextEncodeQwenImage21.resolution at 1024,
+        // and this is the belt-and-suspenders half: we also downscale the SOURCE before upload so an
+        // oversized image can never drive the token count (and we don't ship 25MB over the wire)
+        // regardless of what the graph's resolution widget is later set to.
+        private const double MaxUploadMegapixels = 4.0;
 
         private readonly ComfyUIService _comfyUIService;
         private readonly SettingsService _settingsService;
@@ -309,7 +318,21 @@ namespace FlipPix.UI.ViewModels
 
                 Progress = 8;
                 StatusMessage = "Uploading image...";
-                var uploadedImage = await _comfyUIService.UploadImageAsync(SourceImagePath, _cts.Token);
+                // Downscale oversized sources before upload (see MaxUploadMegapixels). The temp PNG is
+                // only needed until ComfyUI has the bytes, so delete it as soon as the upload returns.
+                var uploadPath = ClampForUpload(SourceImagePath, out var tempUploadPath);
+                string uploadedImage;
+                try
+                {
+                    uploadedImage = await _comfyUIService.UploadImageAsync(uploadPath, _cts.Token);
+                }
+                finally
+                {
+                    if (tempUploadPath != null)
+                    {
+                        try { File.Delete(tempUploadPath); } catch { /* best-effort temp cleanup */ }
+                    }
+                }
                 AddLog($"Uploaded: {uploadedImage}");
 
                 Progress = 18;
@@ -378,6 +401,49 @@ namespace FlipPix.UI.ViewModels
         {
             var (w, h) = H3Canvas.Resolve(SelectedAspectRatio, CanvasMegapixels, CanvasMultiple);
             return $"{w}x{h}";
+        }
+
+        /// <summary>
+        /// Returns the path to upload for <paramref name="sourcePath"/>. If the image is already within
+        /// <see cref="MaxUploadMegapixels"/> the original path is returned and <paramref name="tempPath"/>
+        /// is null; otherwise it is downscaled (aspect preserved) into a temp PNG whose path is returned
+        /// and also reported via <paramref name="tempPath"/> for the caller to delete after upload. On any
+        /// failure it falls back to the original path so a decode quirk never blocks a generation.
+        /// </summary>
+        private string ClampForUpload(string sourcePath, out string? tempPath)
+        {
+            tempPath = null;
+            try
+            {
+                var frame = BitmapFrame.Create(
+                    new Uri(Path.GetFullPath(sourcePath)),
+                    BitmapCreateOptions.None,
+                    BitmapCacheOption.OnLoad);
+
+                double mp = (double)frame.PixelWidth * frame.PixelHeight / 1_000_000.0;
+                if (frame.PixelWidth <= 0 || frame.PixelHeight <= 0 || mp <= MaxUploadMegapixels)
+                    return sourcePath;
+
+                double scale = Math.Sqrt(MaxUploadMegapixels / mp);
+                var scaled = new TransformedBitmap(frame, new ScaleTransform(scale, scale));
+
+                var encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(scaled));
+                var outPath = Path.Combine(Path.GetTempPath(), $"flippix_qwenedit_{Guid.NewGuid():N}.png");
+                using (var fs = File.Create(outPath))
+                    encoder.Save(fs);
+
+                tempPath = outPath;
+                AddLog($"Source {mp:0.#}MP exceeds {MaxUploadMegapixels:0.#}MP cap; " +
+                       $"downscaled to {scaled.PixelWidth}x{scaled.PixelHeight} before upload");
+                return outPath;
+            }
+            catch (Exception ex)
+            {
+                tempPath = null;
+                AddLog($"Upload clamp skipped ({ex.GetType().Name}: {ex.Message}); uploading original");
+                return sourcePath;
+            }
         }
 
         // ── Workflow building ───────────────────────────────────────────────────
