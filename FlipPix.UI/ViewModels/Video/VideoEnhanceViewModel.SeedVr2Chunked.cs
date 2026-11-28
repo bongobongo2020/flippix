@@ -27,11 +27,7 @@ namespace FlipPix.UI.ViewModels.Video
     public partial class VideoEnhanceViewModel
     {
         private const string SeedVr2PostNode = "113";        // SeedVR2PostProcessing — colour correction
-        private const string SeedVr2SageNode = "128";        // PathchSageAttentionKJ — needs the sageattention module
-
-        /// <summary>Set once a run fails because the server has no <c>sageattention</c> module; every SeedVR2 graph
-        /// after that is sent with the patch "disabled" (plain attention: slower, same result).</summary>
-        private bool _seedVr2SageUnavailable;
+        private const string SeedVr2SageNode = "128";        // PathchSageAttentionKJ — always sent "disabled"
 
         /// <summary>Work folders older than this are leftovers from runs that were never finished.</summary>
         private static readonly TimeSpan ChunkWorkMaxAge = TimeSpan.FromDays(7);
@@ -127,8 +123,7 @@ namespace FlipPix.UI.ViewModels.Video
                             SetChunkProgress(index, plan.Chunks.Count, 0.1 + 0.85 * p.Data.Value / (double)p.Data.Max,
                                 $"Upscaling {label}: {p.Data.Value}/{p.Data.Max}"));
                 });
-                var promptId = await ExecuteSeedVr2Async(workflow,
-                    () => BuildSeedVr2ChunkWorkflowAsync(uploaded, job.Scale, job.Seed, prefix), progress, token);
+                var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progress, token);
                 AddLog($"SeedVR2: {label} submitted, ID {promptId}");
 
                 var fromServer = await TryGetVideoFromHistoryAsync(promptId);
@@ -199,30 +194,9 @@ namespace FlipPix.UI.ViewModels.Video
             SeedVr2Chunks.PatchForChunk(graph, SeedVr2VideoNode, SeedVr2ResizeNode, SeedVr2ResizeMultiplierInput,
                 SeedVr2SamplerNode, SeedVr2PostNode, SeedVr2CombineNode, uploadedName, scale, seed, prefix);
             graph.Remove(SeedVr2PlaySoundNode);
-            if (_seedVr2SageUnavailable && graph[SeedVr2SageNode]?["inputs"] is JsonObject sage)
+            if (graph[SeedVr2SageNode]?["inputs"] is JsonObject sage)   // ComfyUI's own (Kitchen) attention instead
                 sage["sage_attention"] = "disabled";
             return JsonSerializer.SerializeToElement(graph);
-        }
-
-        /// <summary>
-        /// Runs a SeedVR2 graph. The export patches in Sage attention, which fails outright on a server without the
-        /// <c>sageattention</c> module; that one failure is caught, remembered, and the graph rebuilt without it and
-        /// sent again — so the tab works on either kind of server with nothing to set.
-        /// </summary>
-        private async Task<string> ExecuteSeedVr2Async(JsonElement workflow, Func<Task<JsonElement>> rebuild,
-            IProgress<FlipPix.ComfyUI.Models.ProgressMessage> progress, CancellationToken token)
-        {
-            try
-            {
-                return await _comfyUIService.ExecuteWorkflowAsync(workflow, progress, token);
-            }
-            catch (FlipPix.ComfyUI.Exceptions.ComfyUIExecutionException ex)
-                when (!_seedVr2SageUnavailable && ex.Message.Contains("sageattention", StringComparison.OrdinalIgnoreCase))
-            {
-                _seedVr2SageUnavailable = true;
-                AddLog("SeedVR2: the server has no sageattention module; running again with plain attention.");
-                return await _comfyUIService.ExecuteWorkflowAsync(await rebuild(), progress, token);
-            }
         }
 
         /// <summary>The server's free system RAM from /system_stats, or 0 when it does not say.</summary>

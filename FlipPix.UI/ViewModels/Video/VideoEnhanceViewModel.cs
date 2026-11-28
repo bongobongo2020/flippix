@@ -909,10 +909,7 @@ namespace FlipPix.UI.ViewModels.Video
                     }
                 });
 
-                var promptId = item.UpscaleEngine == VideoUpscaleEngine.SeedVr2
-                    ? await ExecuteSeedVr2Async(workflow, () => BuildSeedVr2WorkflowAsync(uploadedName, item.UpscaleScale),
-                        progress, _upscaleCts?.Token ?? CancellationToken.None)
-                    : await _comfyUIService.ExecuteWorkflowAsync(workflow, progress);
+                var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progress);
                 AddLog($"Workflow submitted, ID: {promptId}");
 
                 ProcessingProgress = 90;
@@ -1120,8 +1117,9 @@ namespace FlipPix.UI.ViewModels.Video
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, SeedVr2PostNode, "color_correction_method",
                 SeedVr2Chunks.ColorCorrection);
 
-            if (_seedVr2SageUnavailable)
-                WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, SeedVr2SageNode, "sage_attention", "disabled");
+            // The export patches in Sage attention; without the sageattention module that fails outright. Off, SeedVR2
+            // uses ComfyUI's own attention, which is Comfy Kitchen int8 on a server started with --use-ck-attention.
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, SeedVr2SageNode, "sage_attention", "disabled");
 
             var nodes = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflowJson)
                         ?? throw new InvalidOperationException("Failed to parse the SeedVR2 workflow.");
