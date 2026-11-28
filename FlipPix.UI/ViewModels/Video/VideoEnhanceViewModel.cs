@@ -311,7 +311,7 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         public string UpscaleEngineDescription => _upscaleEngine == VideoUpscaleEngine.SeedVr2
-            ? $"SeedVR2 7B INT8 — diffusion restore at {_seedVr2Scale:0.##}×. Reconstructs detail; loads a 7B model and is much slower than RTX."
+            ? $"SeedVR2 7B INT8 — diffusion restore at {_seedVr2Scale:0.##}×. Reconstructs detail; loads a 7B model and is much slower than RTX. Long clips are cut into overlapping pieces sized to the server's free RAM and rejoined automatically."
             : $"RTX Video Super Resolution — fast hardware upscale at {_rtxScale:0.##}×, no model load. Keeps the source frame rate and audio.";
 
         public ObservableCollection<VideoEnhanceQueueItem> UpscaleQueue => _upscaleQueue;
@@ -857,6 +857,26 @@ namespace FlipPix.UI.ViewModels.Video
                 ProcessingStatus = "Uploading video...";
                 if (!IsMp4Valid(item.InputVideoPath, out var upscaleValidationError))
                     throw new Exception($"Input video is not a valid MP4: {upscaleValidationError}\n\nPath: {item.InputVideoPath}\n\nRe-generate the source video and try again.");
+
+                // A clip too long for the server's RAM in one prompt is cut into overlapping pieces, upscaled
+                // piece by piece and rejoined — automatically; a short one carries on below as one prompt.
+                if (item.UpscaleEngine == VideoUpscaleEngine.SeedVr2)
+                {
+                    var chunked = await TryRunSeedVr2ChunkedAsync(item, _upscaleCts?.Token ?? CancellationToken.None);
+                    if (chunked != null)
+                    {
+                        item.OutputVideoPath = chunked;
+                        ResultVideoPath = chunked;
+                        await LocalCopyService.CopyVideoAsync(chunked);
+                        HasResult = true;
+                        ResultVideoInfo = $"Upscaled ({item.EngineDisplay}, chunked) • {new FileInfo(chunked).Length / 1024.0 / 1024.0:F1} MB";
+                        ProcessingProgress = 100;
+                        ProcessingStatus = "Upscale complete!";
+                        AddLog($"=== Done: {chunked} ===");
+                        return;
+                    }
+                }
+
                 var uploadedName = await _comfyUIService.UploadVideoAsync(item.InputVideoPath);
                 if (string.IsNullOrEmpty(uploadedName))
                     throw new Exception("Video upload failed.");
@@ -889,7 +909,10 @@ namespace FlipPix.UI.ViewModels.Video
                     }
                 });
 
-                var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progress);
+                var promptId = item.UpscaleEngine == VideoUpscaleEngine.SeedVr2
+                    ? await ExecuteSeedVr2Async(workflow, () => BuildSeedVr2WorkflowAsync(uploadedName, item.UpscaleScale),
+                        progress, _upscaleCts?.Token ?? CancellationToken.None)
+                    : await _comfyUIService.ExecuteWorkflowAsync(workflow, progress);
                 AddLog($"Workflow submitted, ID: {promptId}");
 
                 ProcessingProgress = 90;
@@ -1093,6 +1116,12 @@ namespace FlipPix.UI.ViewModels.Video
                 Random.Shared.NextInt64(0, long.MaxValue));
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, SeedVr2CombineNode, "filename_prefix",
                 UpscaleOutputSubfolder);
+            // The export ships "none"; LAB ties the restored colours to the input, as the chunked path does.
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, SeedVr2PostNode, "color_correction_method",
+                SeedVr2Chunks.ColorCorrection);
+
+            if (_seedVr2SageUnavailable)
+                WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, SeedVr2SageNode, "sage_attention", "disabled");
 
             var nodes = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflowJson)
                         ?? throw new InvalidOperationException("Failed to parse the SeedVR2 workflow.");
