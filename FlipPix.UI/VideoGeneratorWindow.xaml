@@ -5912,6 +5912,7 @@
                                                         <ColumnDefinition Width="*"/>
                                                         <ColumnDefinition Width="200"/>
                                                         <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Text="EXTRA DIRECTION (optional — how to treat the story)" FontSize="9" FontWeight="Bold"
                                                                Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
@@ -5926,8 +5927,71 @@
                                                     </ComboBox>
                                                     <Button Grid.Column="2" Content="✕" Command="{Binding DeleteDirectionCommand}" Style="{StaticResource SecondaryButtonStyle}"
                                                             Width="22" Height="22" Padding="0" FontSize="10" Margin="4,0,0,0"
-                                                            ToolTip="Forget the picked direction (the text in the box stays)"/>
+                                                            ToolTip="Move the picked direction to the deleted history (🕘 to restore it). The text in the box stays."/>
+                                                    <ToggleButton Grid.Column="3" IsChecked="{Binding ShowDeletedDirections}"
+                                                                  Width="22" Height="22" Padding="0" FontSize="10" Margin="4,0,0,0"
+                                                                  ToolTip="Deleted directions — restore one, or delete it for good">
+                                                        <TextBlock Text="🕘"/>
+                                                    </ToggleButton>
                                                 </Grid>
+                                                <!-- 🗑 Deleted-directions history: restore (↩) or delete for good (✕) -->
+                                                <Border Margin="0,4,0,0" Padding="6,4" BorderThickness="1" CornerRadius="4"
+                                                        BorderBrush="{StaticResource BorderStrongBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                                        Visibility="{Binding ShowDeletedDirections, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <StackPanel>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock FontSize="9" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center">
+                                                                <Run Text="DELETED DIRECTIONS ("/><Run Text="{Binding DeletedDirections.Count, Mode=OneWay}"/><Run Text=")"/>
+                                                            </TextBlock>
+                                                            <Button Grid.Column="1" Content="Empty history" Command="{Binding PurgeAllDirectionsCommand}"
+                                                                    Style="{StaticResource SecondaryButtonStyle}" Height="20" Padding="6,0" FontSize="10"
+                                                                    ToolTip="Delete every direction in the history for good (asks first)"/>
+                                                        </Grid>
+                                                        <TextBlock Text="Nothing deleted yet." FontSize="10.5" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding DeletedDirections.Count}" Value="0">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <ScrollViewer MaxHeight="160" VerticalScrollBarVisibility="Auto" Margin="0,4,0,0">
+                                                            <ItemsControl ItemsSource="{Binding DeletedDirections}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Grid Margin="0,2" ToolTip="{Binding Text}">
+                                                                            <Grid.ColumnDefinitions>
+                                                                                <ColumnDefinition Width="*"/>
+                                                                                <ColumnDefinition Width="Auto"/>
+                                                                                <ColumnDefinition Width="Auto"/>
+                                                                                <ColumnDefinition Width="Auto"/>
+                                                                            </Grid.ColumnDefinitions>
+                                                                            <TextBlock Text="{Binding Name}" FontSize="10.5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                                            <TextBlock Grid.Column="1" Text="{Binding Deleted, StringFormat={}{0:dd MMM HH:mm}}" FontSize="9.5"
+                                                                                       Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" Margin="6,0"/>
+                                                                            <Button Grid.Column="2" Content="↩ Restore" Style="{StaticResource SecondaryButtonStyle}"
+                                                                                    Height="20" Padding="6,0" FontSize="10"
+                                                                                    Command="{Binding DataContext.RestoreDirectionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                                    CommandParameter="{Binding}" ToolTip="Put it back in the drop-down"/>
+                                                                            <Button Grid.Column="3" Content="✕" Style="{StaticResource SecondaryButtonStyle}"
+                                                                                    Width="20" Height="20" Padding="0" FontSize="10" Margin="4,0,0,0" Foreground="{StaticResource DangerBrush}"
+                                                                                    Command="{Binding DataContext.PurgeDirectionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                                    CommandParameter="{Binding}" ToolTip="Delete for good (asks first)"/>
+                                                                        </Grid>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </ScrollViewer>
+                                                    </StackPanel>
+                                                </Border>
                                                 <TextBox Text="{Binding EngineDirection, UpdateSourceTrigger=PropertyChanged, Delay=400}" Margin="0,4,0,0"
                                                          Height="60" FontSize="11" Padding="5,4" TextWrapping="Wrap" AcceptsReturn="True" AcceptsTab="False"
                                                          VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"
@@ -6107,6 +6171,7 @@
                                                                 ToolTip="Sampler steps per beat (res_multistep · simple). 20 is Drift-Control's validated schedule; fewer is faster but softer, more costs time per beat. A ⚡ draft always runs 12."/>
                                                         <TextBlock Grid.Column="1" Text="{Binding LongFormSteps}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                                     </Grid>
+                                                </Grid>
                                                 <TextBlock Text="{Binding CanvasSummary}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,5,0,0"/>
                                                 <CheckBox IsChecked="{Binding PreviewOnly}" Margin="0,8,0,0" FontSize="11" Content="⚡ Draft — first pass only"
                                                           ToolTip="Skip the refine, RTX and grain: a quick run of the whole story to check the action. Untick and Start over for the final."/>

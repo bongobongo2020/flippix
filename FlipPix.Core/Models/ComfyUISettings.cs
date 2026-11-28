@@ -365,6 +365,10 @@ public class ComfyUISettings
     // FFLF, 🥋 Action and 🥷 Martial tabs, and offered in the drop-down under the story box. Null until first seeded.
     public List<StoryDirectionPreset>? StoryDirections { get; set; }
 
+    // 🗑 Extra directions removed from the drop-down (✕, or pushed off the end of the list), newest first — kept so
+    // they can be restored or deleted for good from the 🕘 history under the drop-down.
+    public List<StoryDirectionPreset> DeletedStoryDirections { get; set; } = new();
+
     // 🥋 Action tab (the FFLF chain with the Action Director workflow's nine combat LoRA presets and a fight director).
     public H3ActionSettings H3Action { get; set; } = new H3ActionSettings();
 
@@ -814,6 +818,8 @@ public class StoryDirectionPreset
 {
     public string Name { get; set; } = string.Empty;
     public string Text { get; set; } = string.Empty;
+    /// <summary>When it went into the 🗑 deleted-directions history; null while it is in the drop-down.</summary>
+    public DateTime? Deleted { get; set; }
     public override string ToString() => Name;
 }
 

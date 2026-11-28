@@ -6,12 +6,14 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FlipPix.Core.Models;
 using FlipPix.UI.Models;
 using FlipPix.UI.Services;
 using Microsoft.Extensions.DependencyInjection;
+using MessageBox = System.Windows.MessageBox;
 
 namespace FlipPix.UI.ViewModels.Video
 {
@@ -57,10 +59,19 @@ namespace FlipPix.UI.ViewModels.Video
         public ObservableCollection<StoryDirectionPreset> SavedDirections => _savedDirections ??= LoadSavedDirections();
         private static ObservableCollection<StoryDirectionPreset>? _savedDirections;
 
+        /// <summary>🗑 Directions taken out of the drop-down (✕, or pushed off the end of it), newest first — shared
+        /// like <see cref="SavedDirections"/> and saved in <see cref="ComfyUISettings.DeletedStoryDirections"/>.</summary>
+        public ObservableCollection<StoryDirectionPreset> DeletedDirections => _deletedDirections ??= LoadDeletedDirections();
+        private static ObservableCollection<StoryDirectionPreset>? _deletedDirections;
+
+        /// <summary>🕘 by the drop-down: shows the deleted-directions history under it.</summary>
+        [ObservableProperty] private bool _showDeletedDirections;
+
         /// <summary>The direction picked in the drop-down: picking one puts its text in the box.</summary>
         [ObservableProperty] private StoryDirectionPreset? _selectedDirection;
 
         public const int MaxSavedDirections = 40;
+        public const int MaxDeletedDirections = 100;
 
         /// <summary>Offered the first time, so the drop-down shows what a direction looks like.</summary>
         private static readonly StoryDirectionPreset[] StarterDirections =
@@ -116,6 +127,9 @@ namespace FlipPix.UI.ViewModels.Video
         public RelayCommand BrowseStoryFileCommand { get; private set; } = null!;
         public RelayCommand CancelEngineCommand { get; private set; } = null!;
         public RelayCommand DeleteDirectionCommand { get; private set; } = null!;
+        public RelayCommand<StoryDirectionPreset> RestoreDirectionCommand { get; private set; } = null!;
+        public RelayCommand<StoryDirectionPreset> PurgeDirectionCommand { get; private set; } = null!;
+        public RelayCommand PurgeAllDirectionsCommand { get; private set; } = null!;
 
         /// <summary>Runs in the constructor, while the page is still loading.</summary>
         private void InitStoryEngine(H3FflfSettings s)
@@ -125,6 +139,9 @@ namespace FlipPix.UI.ViewModels.Video
             BrowseStoryFileCommand = new RelayCommand(() => _ = BrowseStoryFileAsync(), () => !IsEngineWriting);
             CancelEngineCommand = new RelayCommand(() => _engineCts?.Cancel(), () => IsEngineWriting);
             DeleteDirectionCommand = new RelayCommand(DeleteSelectedDirection, () => SelectedDirection != null);
+            RestoreDirectionCommand = new RelayCommand<StoryDirectionPreset>(RestoreDirection);
+            PurgeDirectionCommand = new RelayCommand<StoryDirectionPreset>(PurgeDirection);
+            PurgeAllDirectionsCommand = new RelayCommand(PurgeAllDirections);
 
 #pragma warning disable MVVMTK0034
             _engineStoryText = s.StoryEngineText ?? string.Empty;
@@ -185,6 +202,7 @@ namespace FlipPix.UI.ViewModels.Video
             var all = _settingsService.Settings;
             if (all == null) return;
             all.StoryDirections = SavedDirections.ToList();
+            all.DeletedStoryDirections = DeletedDirections.ToList();
             try { _settingsService.SaveSettings(all); }
             catch (Exception ex) { _logger.LogWarning($"{Profile.Name}: could not save the story directions: {ex.Message}"); }
         }
@@ -204,7 +222,13 @@ namespace FlipPix.UI.ViewModels.Video
             else
             {
                 list.Insert(0, new StoryDirectionPreset { Name = UniqueDirectionName(DirectionName(text)), Text = text });
-                while (list.Count > MaxSavedDirections) list.RemoveAt(list.Count - 1);
+                while (list.Count > MaxSavedDirections)
+                {
+                    // Pushed off the end: into the 🗑 history rather than lost.
+                    var oldest = list[^1];
+                    list.RemoveAt(list.Count - 1);
+                    AddToDeletedDirections(oldest);
+                }
             }
             PersistSavedDirections();
         }
@@ -233,13 +257,82 @@ namespace FlipPix.UI.ViewModels.Video
                 if (!taken.Contains($"{name} ({n})")) return $"{name} ({n})";
         }
 
-        /// <summary>✕ by the drop-down: forgets the picked direction (the text in the box stays).</summary>
+        /// <summary>✕ by the drop-down: moves the picked direction into the 🗑 history (the text in the box stays).</summary>
         private void DeleteSelectedDirection()
         {
             var picked = SelectedDirection;
             if (picked == null) return;
             SelectedDirection = null;
             SavedDirections.Remove(picked);
+            AddToDeletedDirections(picked);
+            PersistSavedDirections();
+            AddLog($"🗑 Direction \"{picked.Name}\" moved to the deleted history (🕘 to restore it).");
+        }
+
+        private ObservableCollection<StoryDirectionPreset> LoadDeletedDirections()
+        {
+            var list = _settingsService.Settings?.DeletedStoryDirections ?? new List<StoryDirectionPreset>();
+            return new ObservableCollection<StoryDirectionPreset>(list.Where(d => !string.IsNullOrWhiteSpace(d.Text)));
+        }
+
+        private void AddToDeletedDirections(StoryDirectionPreset preset)
+        {
+            var list = DeletedDirections;
+            // The same text deleted again replaces its older entry.
+            var same = list.FirstOrDefault(d => string.Equals(d.Text.Trim(), preset.Text.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (same != null) list.Remove(same);
+            preset.Deleted = DateTime.Now;
+            list.Insert(0, preset);
+            while (list.Count > MaxDeletedDirections) list.RemoveAt(list.Count - 1);
+        }
+
+        /// <summary>↩ in the history: puts the direction back at the top of the drop-down and picks it.</summary>
+        private void RestoreDirection(StoryDirectionPreset? preset)
+        {
+            if (preset == null) return;
+            DeletedDirections.Remove(preset);
+            preset.Deleted = null;
+            var existing = SavedDirections.FirstOrDefault(d =>
+                string.Equals(d.Text.Trim(), preset.Text.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (existing != null)
+            {
+                var at = SavedDirections.IndexOf(existing);
+                if (at > 0) SavedDirections.Move(at, 0);
+                preset = existing;
+            }
+            else
+            {
+                preset.Name = UniqueDirectionName(string.IsNullOrWhiteSpace(preset.Name) ? DirectionName(preset.Text) : preset.Name);
+                SavedDirections.Insert(0, preset);
+                while (SavedDirections.Count > MaxSavedDirections)
+                {
+                    var oldest = SavedDirections[^1];
+                    SavedDirections.RemoveAt(SavedDirections.Count - 1);
+                    AddToDeletedDirections(oldest);
+                }
+            }
+            PersistSavedDirections();
+            AddLog($"↩ Direction \"{preset.Name}\" restored to the drop-down.");
+        }
+
+        /// <summary>✕ in the history: deletes the direction for good, after asking.</summary>
+        private void PurgeDirection(StoryDirectionPreset? preset)
+        {
+            if (preset == null) return;
+            if (MessageBox.Show($"Delete the direction \"{preset.Name}\" for good? It cannot be restored.",
+                    "Extra directions", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            DeletedDirections.Remove(preset);
+            PersistSavedDirections();
+        }
+
+        /// <summary>"Empty history": deletes every direction in the history for good, after asking.</summary>
+        private void PurgeAllDirections()
+        {
+            var count = DeletedDirections.Count;
+            if (count == 0) return;
+            if (MessageBox.Show($"Delete all {count} direction{(count == 1 ? "" : "s")} in the history for good? They cannot be restored.",
+                    "Extra directions", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            DeletedDirections.Clear();
             PersistSavedDirections();
         }
         partial void OnIsEngineWritingChanged(bool value) => RefreshCommands();
